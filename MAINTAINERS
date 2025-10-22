@@ -1,0 +1,17 @@
+# BitQuan Maintainers
+
+## Lead Maintainer
+- TBD (serve 1-year renewable term; election cycle noted in docs/GOVERNANCE.md)
+
+## Core Maintainers (alphabetical)
+- TBD
+- TBD
+- TBD
+
+## Security On-Call Rotation
+- Publish weekly schedule in `docs/security/oncall.md`
+- Emergency contact: security@bitquan.org (see docs/SECURITY.md)
+
+## Release Signers
+- GPG fingerprints recorded in `docs/security/keys/`
+- Each release requires signatures from at least two distinct maintainers
