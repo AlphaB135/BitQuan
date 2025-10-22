@@ -1,24 +1,32 @@
-<p align="center">
+<p align="right">
 	<a href="./README.th.md"><img alt="ภาษาไทย" src="https://img.shields.io/badge/ภาษาไทย-blue?style=for-the-badge"></a>
-	<a href="./README.en.md"><img alt="English" src="https://img.shields.io/badge/English-green?style=for-the-badge"></a>
 </p>
 
 # BitQuan Project Overview
 
-เลือกภาษาได้โดยกดปุ่มด้านบน: Thai (`README.th.md`) หรือ English (`README.en.md`). ไฟล์แยกช่วยให้ GitHub แสดงเนื้อหาแต่ละภาษาอย่างชัดเจน และคุณสามารถลิงก์ตรงไปยังภาษาใดภาษาหนึ่งในสารบัญหรือเอกสารอื่น ๆ ได้ง่ายขึ้น
+BitQuan targets a 50+ year security horizon with full Post-Quantum Cryptography (PQC) integration. This README provides the English overview by default; click the Thai badge above to switch to the Thai version (`README.th.md`).
 
-## Quick Links
-- `docs/` – เอกสารอ้างอิงทั้งหมด (Governance, Security, Reproducibility, ฯลฯ)
-- `docs/architecture/overview.md` – ภาพรวมสถาปัตยกรรมสองภาษาภายใต้ไฟล์เดียว (เลือกภาษาได้ด้วย `<details>`)
-- `docs/security/` – คีย์ GPG, ตาราง on-call, โพสต์มอร์เท็มเหตุการณ์
-- `todo.md` – แผนงานรายเฟส
+## Highlights
+- Phase 0 policy: absolutely no backdoors, admin keys, or hidden switches
+- Baseline architecture: Minimalist Proof-of-Work with Dilithium signatures (see `docs/architecture/overview.md`)
+- Standard documentation set (Governance, Contributing, Release, Security, Reproducibility) under `docs/`
 
-## Getting Started / เริ่มต้นใช้งาน
-1. อ่านแนวทางร่วมพัฒนาที่ `docs/CONTRIBUTING.md`
-2. ตั้งค่าการ build แบบ reproducible ตาม `docs/REPRODUCIBILITY.md`
-3. ตรวจสอบสถาปัตยกรรมใน `docs/architecture/overview.md`
+## Repository Map
+- `docs/` – Canonical documentation covering governance, security, reproducibility, release process, etc.
+- `docs/architecture/overview.md` – Bilingual architecture overview using collapsible language sections
+- `docs/security/` – GPG keys, on-call roster, and incident post-mortems
+- `todo.md` – Phase-by-phase master plan (Phase 0–13)
 
-## Next Steps / งานถัดไป
-- ร่างสเปกธุรกรรมและบล็อก (Phase 3)
-- จัดทำ BQIP 0001–0004 ให้สอดคล้องกับสถาปัตยกรรม
-- ตั้งต้นโค้ดฐาน (Rust) สำหรับโมดูลหลัก
+## Current Focus
+1. Draft transaction and block data specifications (Phase 3)
+2. Author BQIP drafts 0001–0004 aligned with the architectural decisions
+3. Bootstrap the Rust baseline for core modules: `crypto/`, `consensus/`, `mempool/`, `p2p/`, `storage/`
+
+## Contributing Workflow
+- Review `docs/CONTRIBUTING.md` for the code review process and project standards
+- Configure deterministic builds per `docs/REPRODUCIBILITY.md`
+- Submit signed commits (`git commit -S`) with every pull request
+
+## Security Contact
+- Email: `security@bitquan.org`
+- Disclosure and bounty policy in `docs/SECURITY.md`
