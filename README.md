@@ -1,61 +1,24 @@
-<details open>
-<summary>ภาษาไทย (Thai)</summary>
+<p align="center">
+	<a href="./README.th.md"><img alt="ภาษาไทย" src="https://img.shields.io/badge/ภาษาไทย-blue?style=for-the-badge"></a>
+	<a href="./README.en.md"><img alt="English" src="https://img.shields.io/badge/English-green?style=for-the-badge"></a>
+</p>
 
 # BitQuan Project Overview
 
-BitQuan คือเครือข่ายบล็อกเชนที่มุ่งเน้นความปลอดภัยระยะยาว (50+ ปี) และการบูรณาการ Post-Quantum Cryptography เต็มรูปแบบ เอกสารนี้สรุปภาพรวม โปรเจกต์สเตตัส และจุดเริ่มต้นสำหรับผู้ร่วมพัฒนา
+เลือกภาษาได้โดยกดปุ่มด้านบน: Thai (`README.th.md`) หรือ English (`README.en.md`). ไฟล์แยกช่วยให้ GitHub แสดงเนื้อหาแต่ละภาษาอย่างชัดเจน และคุณสามารถลิงก์ตรงไปยังภาษาใดภาษาหนึ่งในสารบัญหรือเอกสารอื่น ๆ ได้ง่ายขึ้น
 
-## ไฮไลต์
-- ไม่มี backdoor / admin key ตามนโยบายเฟส 0
-- สถาปัตยกรรม PoW Minimalist + Dilithium พร้อม roadmap พัฒนาต่อใน `docs/architecture/overview.md`
-- ชุดเอกสารมาตรฐาน (Governance, Contributing, Release, Security, Reproducibility) อยู่ภายใต้ `docs/`
+## Quick Links
+- `docs/` – เอกสารอ้างอิงทั้งหมด (Governance, Security, Reproducibility, ฯลฯ)
+- `docs/architecture/overview.md` – ภาพรวมสถาปัตยกรรมสองภาษาภายใต้ไฟล์เดียว (เลือกภาษาได้ด้วย `<details>`)
+- `docs/security/` – คีย์ GPG, ตาราง on-call, โพสต์มอร์เท็มเหตุการณ์
+- `todo.md` – แผนงานรายเฟส
 
-## โครงสร้างโฟลเดอร์หลัก
-- `docs/` – เอกสารอ้างอิงทั้งหมด (ธรรมาภิบาล ความปลอดภัย สถาปัตยกรรม ฯลฯ)
-- `docs/architecture/overview.md` – ภาพรวมสถาปัตยกรรมสองภาษา
-- `docs/security/` – คีย์ GPG, ตาราง on-call, และโพสต์มอร์เท็ม
-- `todo.md` – Master plan รายเฟส
+## Getting Started / เริ่มต้นใช้งาน
+1. อ่านแนวทางร่วมพัฒนาที่ `docs/CONTRIBUTING.md`
+2. ตั้งค่าการ build แบบ reproducible ตาม `docs/REPRODUCIBILITY.md`
+3. ตรวจสอบสถาปัตยกรรมใน `docs/architecture/overview.md`
 
-## ขั้นถัดไปที่เปิดอยู่
-1. ร่างสเปกธุรกรรม/บล็อก (Phase 3)
-2. เตรียม BQIP 0001–0004 ให้ตรงกับสถาปัตยกรรม
-3. สร้าง baseline โค้ด (Rust) สำหรับโมดูลหลัก
-
-## วิธีร่วมพัฒนา
-- อ่าน `docs/CONTRIBUTING.md` เพื่อทำความเข้าใจกระบวนการรีวิวและมาตรฐานโค้ด
-- ตั้งค่าการ build ตาม `docs/REPRODUCIBILITY.md`
-- ส่ง Pull Request พร้อมลายเซ็น commit (`git commit -S`)
-
----
-
-</details>
-
-<details>
-<summary>English</summary>
-
-# BitQuan Project Overview
-
-BitQuan targets a 50+ year security horizon with full Post-Quantum Cryptography integration. This README summarizes the current status and onboarding path for contributors.
-
-## Highlights
-- Phase 0 policy: absolutely no backdoors or hidden admin switches
-- Minimalist PoW consensus with Dilithium signatures; see `docs/architecture/overview.md`
-- Standard documentation set (Governance, Contributing, Release, Security, Reproducibility) under `docs/`
-
-## Key Directories
-- `docs/` – Canonical documentation (governance, security, reproducibility, etc.)
-- `docs/architecture/overview.md` – Bilingual architecture overview
-- `docs/security/` – GPG keys, on-call roster, post-mortems
-- `todo.md` – Phase-by-phase master plan
-
-## Open Next Steps
-1. Draft transaction/block data specs (Phase 3)
-2. Author BQIP drafts 0001–0004 aligned with the architecture
-3. Bootstrap the Rust baseline for core modules
-
-## Contributing
-- Review `docs/CONTRIBUTING.md` for workflow and coding standards
-- Configure builds per `docs/REPRODUCIBILITY.md`
-- Submit signed commits (`git commit -S`) in pull requests
-
-</details>
+## Next Steps / งานถัดไป
+- ร่างสเปกธุรกรรมและบล็อก (Phase 3)
+- จัดทำ BQIP 0001–0004 ให้สอดคล้องกับสถาปัตยกรรม
+- ตั้งต้นโค้ดฐาน (Rust) สำหรับโมดูลหลัก
