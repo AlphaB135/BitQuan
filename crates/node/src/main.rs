@@ -2,10 +2,11 @@
 
 use anyhow::Result;
 use bitquan_consensus::{validate_block, ConsensusParams};
-use bitquan_crypto::CryptoRegistry;
+use bitquan_crypto::{rng::RandomSource, CryptoRegistry};
 use bitquan_storage::InMemoryChainStore;
 use bitquan_types::Block;
 use clap::{Parser, Subcommand};
+use hex::encode as hex_encode;
 
 #[derive(Parser)]
 #[command(
@@ -33,6 +34,15 @@ enum Commands {
         #[arg(long)]
         path: String,
     },
+    /// Generates random bytes and derived streams using the BitQuan RNG.
+    Rng {
+        /// Domain separation label for the derived stream.
+        #[arg(long, default_value = "wallet-seed")]
+        label: String,
+        /// Number of bytes to emit for the sample payloads.
+        #[arg(long, default_value_t = 32)]
+        length: usize,
+    },
 }
 
 fn main() -> Result<()> {
@@ -41,6 +51,7 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Run { config } => run_node(&config),
         Commands::CheckBlock { path } => check_block(&path),
+        Commands::Rng { label, length } => rng_demo(&label, length),
     }
 }
 
@@ -79,6 +90,30 @@ fn check_block(path: &str) -> Result<()> {
             println!("Block validation failed: {err}");
         }
     }
+
+    Ok(())
+}
+
+fn rng_demo(label: &str, length: usize) -> Result<()> {
+    if length == 0 {
+        println!("Length must be greater than zero.");
+        return Ok(());
+    }
+
+    let mut master = RandomSource::new()?;
+    let mut derived = master.derive_stream(label);
+
+    let master_bytes = master.bytes(length);
+    let derived_bytes = derived.bytes(length);
+
+    println!(
+        "Master stream sample  ({length} bytes): {}",
+        hex_encode(master_bytes)
+    );
+    println!(
+        "Derived stream `{label}` ({length} bytes): {}",
+        hex_encode(derived_bytes)
+    );
 
     Ok(())
 }

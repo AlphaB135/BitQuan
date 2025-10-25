@@ -16,3 +16,4 @@ bitquan-network = { path = "../network", version = "0.1.0" }
 bitquan-storage = { path = "../storage", version = "0.1.0" }
 bitquan-types = { path = "../types", version = "0.1.0" }
 clap.workspace = true
+hex.workspace = true

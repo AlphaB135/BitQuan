@@ -140,6 +140,7 @@ dependencies = [
  "bitquan-storage",
  "bitquan-types",
  "clap",
+ "hex",
 ]
 
 [[package]]
