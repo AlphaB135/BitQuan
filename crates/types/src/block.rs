@@ -73,6 +73,12 @@ impl Block {
         merkle_root_from_txids(&txids)
     }
 
+    /// Computes the witness root (merkle over wtxids) of the transactions in this block.
+    pub fn compute_witness_root(&self) -> [u8; 32] {
+        let wtxids: Vec<[u8; 32]> = self.transactions.iter().map(|tx| tx.wtxid()).collect();
+        merkle_root_from_txids(&wtxids)
+    }
+
     /// Returns a best-effort serialized size hint including all transactions.
     pub fn serialized_size_hint(&self) -> usize {
         let tx_count = self.tx_count();

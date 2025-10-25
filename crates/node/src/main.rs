@@ -188,8 +188,9 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         witnesses: vec![],
     };
 
-    // Merkle root for block (support multi-tx in future)
+    // Merkle/witness roots for block (support multi-tx in future)
     let merkle_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.txid()]);
+    let witness_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.wtxid()]);
 
     // Determine prev_block from tip if any
     let mut prev = [0u8; 32];
