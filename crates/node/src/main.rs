@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams};
-use bitquan_storage::InMemoryChainStore;
+use bitquan_storage::{ChainStore, InMemoryChainStore};
 use bitquan_types::Block;
 use bq_crypto::{
     rng::{RandomSource, RngService},
