@@ -58,6 +58,18 @@ enum Commands {
         #[arg(long, default_value_t = 0x207fffff)]
         bits: u32,
     },
+    /// Mines a single block template by iterating nonces up to a limit (demo CPU miner).
+    MineOnce {
+        /// Maximum nonce attempts to try.
+        #[arg(long, default_value_t = 1_000_000u64)]
+        max_tries: u64,
+        /// Hex-encoded script_pubkey for coinbase payout.
+        #[arg(long, default_value = "76a9140088ac")]
+        payout_script_hex: String,
+        /// Compact bits target (e.g., 0x207fffff for very easy target).
+        #[arg(long, default_value_t = 0x207fffff)]
+        bits: u32,
+    },
 }
 
 fn main() -> Result<()> {
@@ -67,6 +79,7 @@ fn main() -> Result<()> {
         Commands::Run { config } => run_node(&config),
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
+        Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
         Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
         Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
     }
@@ -152,4 +165,41 @@ fn load_block_placeholder() -> Result<Block> {
         transactions: Vec::new(),
     };
     Ok(block)
+}
+
+fn mine_once(max_tries: u64, payout_script_hex: &str, bits: u32) -> Result<()> {
+    use bitquan_types::{BlockHeader, Transaction, TxOut, SigAlgorithm};
+    let payout_script = hex::decode(payout_script_hex)?;
+    let coinbase = Transaction {
+        version: 2,
+        lock_time: 0,
+        inputs: vec![],
+        outputs: vec![TxOut { value: 50_0000_0000, script_pubkey: payout_script }],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses: vec![],
+    };
+    let merkle_root = coinbase.txid();
+    let mut header = BlockHeader {
+        version: 1,
+        prev_block: [0u8; 32],
+        merkle_root,
+        pqc_agg_hint: [0u8; 32],
+        time: (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u32),
+        bits,
+        nonce: 0,
+    };
+    for n in 0..max_tries {
+        header.nonce = n;
+        if check_header_pow(&header) {
+            let h = header_hash(&header);
+            println!("FOUND nonce={n} hash={}", hex::encode(h));
+            return Ok(());
+        }
+        if n % 100_000 == 0 {
+            let h = header_hash(&header);
+            println!("... tried {n} nonces, latest hash={} ", hex::encode(h));
+        }
+    }
+    println!("No valid nonce found within {max_tries} tries.");
+    Ok(())
 }
