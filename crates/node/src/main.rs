@@ -1,7 +1,7 @@
 //! BitQuan reference node entrypoint.
 
 use anyhow::Result;
-use bitquan_consensus::{ConsensusEngine, ConsensusParams};
+use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams};
 use bitquan_storage::InMemoryChainStore;
 use bitquan_types::Block;
 use bq_crypto::{
@@ -55,6 +55,7 @@ fn main() -> Result<()> {
         Commands::Run { config } => run_node(&config),
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
+        Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
     }
 }
 

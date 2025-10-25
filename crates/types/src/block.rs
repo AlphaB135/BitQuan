@@ -27,6 +27,28 @@ impl BlockHeader {
     pub const fn serialized_size(&self) -> usize {
         4 + 32 + 32 + 32 + 4 + 4 + 8
     }
+
+    /// Serializes the header to bytes (little-endian fields per wire format).
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(Self {
+            version: 0,
+            prev_block: [0u8; 32],
+            merkle_root: [0u8; 32],
+            pqc_agg_hint: [0u8; 32],
+            time: 0,
+            bits: 0,
+            nonce: 0,
+        }
+        .serialized_size());
+        out.extend_from_slice(&self.version.to_le_bytes());
+        out.extend_from_slice(&self.prev_block);
+        out.extend_from_slice(&self.merkle_root);
+        out.extend_from_slice(&self.pqc_agg_hint);
+        out.extend_from_slice(&self.time.to_le_bytes());
+        out.extend_from_slice(&self.bits.to_le_bytes());
+        out.extend_from_slice(&self.nonce.to_le_bytes());
+        out
+    }
 }
 
 /// Full block containing a header and ordered transactions.

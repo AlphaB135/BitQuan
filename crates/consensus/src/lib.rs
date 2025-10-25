@@ -8,6 +8,7 @@ use thiserror::Error;
 mod asert;
 mod difficulty;
 mod sighash;
+mod pow;
 
 #[cfg(test)]
 mod tests;
@@ -15,6 +16,7 @@ mod tests;
 pub use asert::asert_next_target;
 pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
 pub use sighash::transaction_sighash;
+pub use pow::{check_header_pow, compact_to_target_bytes, header_hash};
 
 /// Parameters controlling consensus validation.
 #[derive(Clone, Debug)]
