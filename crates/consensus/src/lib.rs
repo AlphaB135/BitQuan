@@ -106,12 +106,22 @@ pub struct BlockValidationReport {
 pub enum ConsensusError {
     /// The block exceeds the configured weight constraints.
     #[error("block weight {actual} exceeds limit {limit}")]
-    BlockWeightExceeded {
-        /// Observed weight for the block under evaluation.
-        actual: u64,
-        /// Configured upper bound for block weight.
-        limit: u64,
-    },
+    BlockWeightExceeded { actual: u64, limit: u64 },
+    /// Merkle root in header does not match computed root of txids.
+    #[error("merkle_root mismatch")]
+    MerkleRootMismatch,
+    /// Witness root in header does not match computed root of wtxids.
+    #[error("witness_root mismatch")]
+    WitnessRootMismatch,
+    /// Coinbase transaction missing or not first.
+    #[error("coinbase missing or misordered")]
+    CoinbaseMissing,
+    /// More than one coinbase detected.
+    #[error("multiple coinbase transactions")]
+    MultipleCoinbase,
+    /// Coinbase value exceeds allowed subsidy (fees placeholder=0).
+    #[error("coinbase exceeds allowed subsidy")]
+    CoinbaseExceedsSubsidy,
     /// Signature verification failed.
     #[error("signature verification failed: {0}")]
     Signature(#[from] CryptoError),
@@ -173,6 +183,12 @@ pub fn validate_block(
 }
 
 /// Consensus engine bundling parameters, crypto registry, and RNG state.
+fn is_coinbase_tx(tx: &bitquan_types::Transaction) -> bool {
+    if tx.inputs.is_empty() { return false; }
+    let first = &tx.inputs[0];
+    first.prev_txid == [0u8; 32] && first.prev_vout == u32::MAX
+}
+
 pub struct ConsensusEngine {
     params: ConsensusParams,
     registry: CryptoRegistry,

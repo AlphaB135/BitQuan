@@ -218,7 +218,7 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         version: 1,
         prev_block: prev,
         merkle_root,
-        pqc_agg_hint: [0u8; 32],
+        pqc_agg_hint: witness_root,
         time,
         bits,
         nonce: 0,
