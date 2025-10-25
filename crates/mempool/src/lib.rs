@@ -65,9 +65,14 @@ pub struct Mempool {
     params: ConsensusParams,
     entries: BTreeMap<u64, Vec<MempoolEntry>>,
     rng: RngService,
+    size_bytes: usize,
+    max_size_bytes: usize,
 }
 
 impl Mempool {
+    /// Maximum mempool size in bytes (300 MB)
+    const DEFAULT_MAX_SIZE: usize = 300_000_000;
+    
     /// Constructs a new mempool instance with the provided parameters.
     pub fn new(params: ConsensusParams) -> Result<Self, MempoolError> {
         let rng = RngService::new()?;
@@ -75,6 +80,20 @@ impl Mempool {
             params,
             entries: BTreeMap::new(),
             rng,
+            size_bytes: 0,
+            max_size_bytes: Self::DEFAULT_MAX_SIZE,
+        })
+    }
+    
+    /// Constructs a new mempool with custom size limit.
+    pub fn with_max_size(params: ConsensusParams, max_size_bytes: usize) -> Result<Self, MempoolError> {
+        let rng = RngService::new()?;
+        Ok(Self {
+            params,
+            entries: BTreeMap::new(),
+            rng,
+            size_bytes: 0,
+            max_size_bytes,
         })
     }
 
@@ -82,16 +101,69 @@ impl Mempool {
     pub fn len(&self) -> usize {
         self.entries.values().map(|v| v.len()).sum()
     }
+    
+    /// Returns the current size in bytes.
+    pub fn size_bytes(&self) -> usize {
+        self.size_bytes
+    }
 
     /// Inserts a transaction together with its absolute fee.
     pub fn insert(&mut self, tx: Transaction, fee: u64) -> Result<(), MempoolError> {
+        use bitquan_types::validate_transaction;
+        
+        // Validate transaction structure first
+        validate_transaction(&tx).map_err(|e| MempoolError::Rejected(e.to_string()))?;
+        
+        let tx_size = tx.serialized_size_hint();
+        
+        // Check if adding this transaction would exceed size limit
+        if self.size_bytes + tx_size > self.max_size_bytes {
+            // Try to evict low fee transactions
+            self.evict_low_fee_txs(tx_size)?;
+        }
+        
         let tie_breaker = self.rng.u64()?;
         let entry = MempoolEntry::from_transaction(tx, &self.params, fee, tie_breaker);
+        
+        self.size_bytes += tx_size;
+        
         let bucket = self
             .entries
             .entry(entry.fee_per_weight)
             .or_insert_with(Vec::new);
         bucket.push(entry);
+        Ok(())
+    }
+    
+    /// Evicts low fee transactions to make room
+    fn evict_low_fee_txs(&mut self, needed_bytes: usize) -> Result<(), MempoolError> {
+        let mut freed = 0;
+        let mut to_remove = Vec::new();
+        
+        // Collect lowest fee entries
+        for (fee_rate, entries) in self.entries.iter() {
+            if freed >= needed_bytes {
+                break;
+            }
+            to_remove.push(*fee_rate);
+            for entry in entries {
+                freed += entry.tx.serialized_size_hint();
+            }
+        }
+        
+        // Remove them
+        for fee_rate in to_remove {
+            if let Some(entries) = self.entries.remove(&fee_rate) {
+                for entry in entries {
+                    self.size_bytes = self.size_bytes.saturating_sub(entry.tx.serialized_size_hint());
+                }
+            }
+        }
+        
+        if freed < needed_bytes {
+            return Err(MempoolError::Rejected("mempool full and cannot evict enough transactions".to_string()));
+        }
+        
         Ok(())
     }
 
@@ -112,6 +184,7 @@ impl Mempool {
                         self.entries.insert(next_key, group);
                         return collected;
                     }
+                    self.size_bytes = self.size_bytes.saturating_sub(entry.tx.serialized_size_hint());
                     collected.push(entry);
                 }
             }

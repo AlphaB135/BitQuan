@@ -9,6 +9,9 @@ mod asert;
 mod difficulty;
 mod sighash;
 mod pow;
+pub mod utxo;
+pub mod fork;
+pub mod script;
 
 #[cfg(test)]
 mod tests;
@@ -17,6 +20,9 @@ pub use asert::asert_next_target;
 pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
 pub use sighash::transaction_sighash;
 pub use pow::{check_header_pow, compact_to_target_bytes, header_hash};
+pub use utxo::{OutPoint, UtxoEntry, UtxoError, UtxoSet};
+pub use fork::{BlockNode, ForkChoice, ForkError, ReorgInfo};
+pub use script::{OpCode, ScriptError, ScriptInterpreter, verify_script, MAX_SCRIPT_SIZE};
 
 /// Parameters controlling consensus validation.
 #[derive(Clone, Debug)]

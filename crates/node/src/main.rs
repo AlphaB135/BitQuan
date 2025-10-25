@@ -157,8 +157,17 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
     use bitquan_types::{Block, BlockHeader, Transaction, TxOut, SigAlgorithm};
     let mut store = InMemoryChainStore::new();
 
-    // Determine timestamp using MTP/tip first
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u32;
+    // Determine timestamp safely with bounds checking
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as u32)
+        .unwrap_or(0);
+    
+    if now == 0 {
+        eprintln!("Error: System time is before UNIX epoch");
+        return Ok(());
+    }
+    
     let mut time = now;
     if let Some(mtp) = store.mtp() {
         time = time.max(mtp.saturating_add(1));
@@ -196,14 +205,6 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
     let mut prev = [0u8; 32];
     if let Some(tip) = store.tip() {
         prev = header_hash(tip);
-    }
-
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u32;
-    let mut time = now;
-    if let Some(mtp) = store.mtp() {
-        time = time.max(mtp.saturating_add(1));
-    } else if let Some(tip) = store.tip() {
-        time = time.max(tip.time.saturating_add(1));
     }
 
     // Auto-calc bits if zero using DifficultyState anchored at tip

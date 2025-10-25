@@ -85,8 +85,8 @@ impl InMemoryChainStore {
 fn header_id(h: &bitquan_types::BlockHeader) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let bytes = h.to_bytes();
-    let first = Sha256::digest(&bytes);
-    let second = Sha256::digest(&first);
+    let first = Sha256::digest(bytes);
+    let second = Sha256::digest(first);
     let mut out = [0u8; 32];
     out.copy_from_slice(&second);
     out

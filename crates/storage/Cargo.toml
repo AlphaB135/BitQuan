@@ -11,3 +11,4 @@ description = "State and chain storage abstractions for BitQuan."
 bitquan-types = { path = "../types", version = "0.1.0" }
 thiserror.workspace = true
 sha2.workspace = true
+hex.workspace = true

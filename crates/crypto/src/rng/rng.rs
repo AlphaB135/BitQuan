@@ -32,6 +32,10 @@ pub trait RandomSource {
 
     /// Returns exactly `n` random bytes.
     fn bytes(&mut self, n: usize) -> Result<Vec<u8>, RngError> {
+        // Limit maximum allocation to prevent DoS
+        if n > 10_000_000 {
+            return Err(RngError::InvalidSeed);
+        }
         let mut buf = vec![0u8; n];
         self.fill(&mut buf)?;
         Ok(buf)
@@ -64,10 +68,10 @@ impl RngService {
         {
             let seed = deterministic_seed()?;
             let drbg = ChaCha20Rng::from_seed(seed);
-            return Ok(Self {
+            Ok(Self {
                 drbg,
                 master_seed: seed,
-            });
+            })
         }
 
         #[cfg(not(feature = "deterministic_tests"))]

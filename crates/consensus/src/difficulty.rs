@@ -18,8 +18,10 @@ pub fn compact_to_target(bits: u32) -> f64 {
 }
 
 /// Converts a floating-point target value into the compact representation used in block headers.
+/// 
+/// Safety: Guards against NaN, infinity, and overflow conditions.
 pub fn target_to_compact(target: f64) -> u32 {
-    if target <= 0.0 {
+    if target <= 0.0 || !target.is_finite() {
         return 0;
     }
 
@@ -27,13 +29,23 @@ pub fn target_to_compact(target: f64) -> u32 {
     if exponent < 0 {
         exponent = 0;
     }
+    if exponent > 255 {
+        return 0; // Overflow protection
+    }
 
     let pow = POW_256.powi(exponent - 3);
     let mut mantissa = (target / pow).round();
+    
+    if !mantissa.is_finite() || mantissa < 0.0 {
+        return 0;
+    }
 
     if mantissa >= 0x0080_0000 as f64 {
         mantissa /= 256.0;
         exponent += 1;
+        if exponent > 255 {
+            return 0; // Overflow after adjustment
+        }
     }
 
     ((exponent as u32) << 24) | (mantissa as u32 & 0x007f_ffff)

@@ -263,7 +263,7 @@ fn write_varbytes(out: &mut Vec<u8>, data: &[u8]) { write_compact(out, data.len(
 fn sha256d(data: &[u8]) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let first = Sha256::digest(data);
-    let second = Sha256::digest(&first);
+    let second = Sha256::digest(first);
     let mut out = [0u8; 32];
     out.copy_from_slice(&second);
     out

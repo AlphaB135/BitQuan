@@ -90,7 +90,7 @@ impl Default for CryptoRegistry {
     }
 }
 
-/// Placeholder implementation for the Dilithium signature scheme.
+/// Dilithium3 signature scheme implementation with constant-time verification.
 #[derive(Default)]
 pub struct DilithiumProvider;
 
@@ -99,7 +99,34 @@ impl SignatureScheme for DilithiumProvider {
         SigAlgorithm::Dilithium3
     }
 
-    fn verify(&self, _payload: &SignaturePayload, _message: &[u8]) -> Result<(), CryptoError> {
-        Err(CryptoError::NotImplemented(SigAlgorithm::Dilithium3))
+    fn verify(&self, payload: &SignaturePayload, message: &[u8]) -> Result<(), CryptoError> {
+        // Dilithium signature sizes (level 3)
+        const DILITHIUM3_SIG_SIZE: usize = 3293;
+        const DILITHIUM3_PK_SIZE: usize = 1952;
+
+        // Validate sizes
+        if payload.signature.len() != DILITHIUM3_SIG_SIZE {
+            return Err(CryptoError::Malformed("invalid signature length"));
+        }
+        if payload.public_key.len() != DILITHIUM3_PK_SIZE {
+            return Err(CryptoError::Malformed("invalid public key length"));
+        }
+
+        // Limit message size to prevent DoS
+        if message.len() > 1_000_000 {
+            return Err(CryptoError::Malformed("message too large"));
+        }
+
+        // Convert to fixed arrays
+        let mut sig_bytes = [0u8; DILITHIUM3_SIG_SIZE];
+        let mut pk_bytes = [0u8; DILITHIUM3_PK_SIZE];
+        sig_bytes.copy_from_slice(&payload.signature);
+        pk_bytes.copy_from_slice(&payload.public_key);
+
+        // Verify signature
+        match pqc_dilithium::verify(&sig_bytes, message, &pk_bytes) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(CryptoError::Malformed("signature verification failed")),
+        }
     }
 }

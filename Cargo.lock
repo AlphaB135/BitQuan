@@ -92,6 +92,8 @@ dependencies = [
  "bitquan-storage",
  "bitquan-types",
  "bq-crypto",
+ "hex",
+ "serde",
  "sha2",
  "thiserror",
 ]
@@ -134,6 +136,7 @@ name = "bitquan-storage"
 version = "0.1.0"
 dependencies = [
  "bitquan-types",
+ "hex",
  "sha2",
  "thiserror",
 ]
@@ -146,6 +149,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "thiserror",
 ]
 
 [[package]]
@@ -165,11 +169,13 @@ dependencies = [
  "getrandom 0.2.16",
  "hex",
  "hkdf",
+ "pqc_dilithium",
  "proptest",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2",
+ "subtle",
  "thiserror",
  "zeroize",
 ]
@@ -405,6 +411,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
+]
+
+[[package]]
+name = "pqc_dilithium"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "580a6801ec2155f89317b08e5aab68dee8f541db974e0c72b7e43aa65c1f4a4a"
+dependencies = [
+ "rand 0.8.5",
+ "rand_core 0.6.4",
 ]
 
 [[package]]

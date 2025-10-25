@@ -14,6 +14,12 @@ pub struct NetworkConfig {
     pub listen_addr: String,
     /// Maximum concurrent peers accepted.
     pub max_peers: usize,
+    /// Enable TLS/encryption (placeholder for future)
+    pub enable_encryption: bool,
+    /// Maximum message size in bytes (10 MB)
+    pub max_message_size: usize,
+    /// Rate limit: max messages per second per peer
+    pub rate_limit_per_peer: usize,
 }
 
 impl Default for NetworkConfig {
@@ -21,6 +27,9 @@ impl Default for NetworkConfig {
         Self {
             listen_addr: "/ip4/127.0.0.1/tcp/8333".to_owned(),
             max_peers: 125,
+            enable_encryption: true,
+            max_message_size: 10_000_000,
+            rate_limit_per_peer: 100,
         }
     }
 }

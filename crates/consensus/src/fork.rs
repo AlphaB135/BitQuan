@@ -1,0 +1,502 @@
+//! Fork choice and blockchain reorganization handling.
+//!
+//! This module implements the fork choice rule (longest chain) and handles
+//! blockchain reorganizations when a competing chain becomes longer.
+
+use bitquan_types::{Block, BlockHeader};
+use crate::pow::header_hash;
+use std::collections::HashMap;
+use thiserror::Error;
+
+/// Errors that can occur during fork choice and reorg.
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum ForkError {
+    /// Block parent not found in chain.
+    #[error("orphan block: parent {} not found", hex::encode(.0))]
+    OrphanBlock([u8; 32]),
+    
+    /// Block already exists in chain.
+    #[error("duplicate block: {}", hex::encode(.0))]
+    DuplicateBlock([u8; 32]),
+    
+    /// Chain reorganization exceeded maximum depth.
+    #[error("reorg too deep: {0} blocks (max {1})")]
+    ReorgTooDeep(usize, usize),
+    
+    /// Invalid chain work calculation.
+    #[error("invalid chain work")]
+    InvalidWork,
+}
+
+/// Block with metadata for fork choice.
+#[derive(Clone, Debug)]
+pub struct BlockNode {
+    /// Block header.
+    pub header: BlockHeader,
+    /// Block hash.
+    pub hash: [u8; 32],
+    /// Block height.
+    pub height: u64,
+    /// Cumulative chain work (sum of difficulties).
+    pub chain_work: f64,
+    /// Parent block hash.
+    pub parent: [u8; 32],
+}
+
+impl BlockNode {
+    /// Creates a new block node.
+    pub fn new(header: BlockHeader, height: u64, chain_work: f64) -> Self {
+        let hash = header_hash(&header);
+        let parent = header.prev_block;
+        
+        Self {
+            header,
+            hash,
+            height,
+            chain_work,
+            parent,
+        }
+    }
+    
+    /// Calculates work for this block based on difficulty target.
+    pub fn block_work(&self) -> f64 {
+        // Work = 2^256 / (target + 1)
+        // Simplified: use bits as proxy for difficulty
+        let exponent = (self.header.bits >> 24) as f64;
+        let mantissa = (self.header.bits & 0x00ffffff) as f64;
+        let target = mantissa * 256_f64.powf(exponent - 3.0);
+        
+        if target <= 0.0 {
+            return 0.0;
+        }
+        
+        // Approximate work calculation
+        1.0 / target.max(1.0)
+    }
+}
+
+/// Fork choice manager implementing longest chain rule.
+pub struct ForkChoice {
+    /// All known block nodes indexed by hash.
+    nodes: HashMap<[u8; 32], BlockNode>,
+    /// Current best chain tip.
+    best_tip: Option<[u8; 32]>,
+    /// Maximum reorg depth allowed (safety limit).
+    max_reorg_depth: usize,
+}
+
+impl ForkChoice {
+    /// Default maximum reorg depth (100 blocks).
+    pub const DEFAULT_MAX_REORG: usize = 100;
+    
+    /// Creates a new fork choice manager.
+    pub fn new() -> Self {
+        Self {
+            nodes: HashMap::new(),
+            best_tip: None,
+            max_reorg_depth: Self::DEFAULT_MAX_REORG,
+        }
+    }
+    
+    /// Creates a fork choice manager with custom max reorg depth.
+    pub fn with_max_reorg(max_reorg_depth: usize) -> Self {
+        Self {
+            nodes: HashMap::new(),
+            best_tip: None,
+            max_reorg_depth,
+        }
+    }
+    
+    /// Adds the genesis block.
+    pub fn add_genesis(&mut self, header: BlockHeader) -> Result<(), ForkError> {
+        let node = BlockNode::new(header, 0, 0.0);
+        let hash = node.hash;
+        
+        self.nodes.insert(hash, node);
+        self.best_tip = Some(hash);
+        
+        Ok(())
+    }
+    
+    /// Adds a new block and determines if reorganization is needed.
+    ///
+    /// Returns: (is_new_tip, reorg_info)
+    /// - is_new_tip: true if this block becomes the new tip
+    /// - reorg_info: Some((old_tip, new_tip, depth)) if reorg occurred
+    pub fn add_block(
+        &mut self,
+        header: BlockHeader,
+    ) -> Result<(bool, Option<ReorgInfo>), ForkError> {
+        let hash = header_hash(&header);
+        
+        // Check for duplicate
+        if self.nodes.contains_key(&hash) {
+            return Err(ForkError::DuplicateBlock(hash));
+        }
+        
+        // Find parent
+        let parent_hash = header.prev_block;
+        let parent = self.nodes.get(&parent_hash)
+            .ok_or(ForkError::OrphanBlock(parent_hash))?;
+        
+        // Calculate height and work
+        let height = parent.height + 1;
+        let parent_work = parent.chain_work;
+        
+        // Create new node
+        let mut node = BlockNode::new(header, height, 0.0);
+        let block_work = node.block_work();
+        node.chain_work = parent_work + block_work;
+        
+        // Insert node
+        self.nodes.insert(hash, node.clone());
+        
+        // Check if this creates a new best tip
+        let is_new_tip = self.is_better_tip(&node)?;
+        
+        let reorg_info = if is_new_tip {
+            let old_tip = self.best_tip;
+            let reorg = self.compute_reorg(old_tip, Some(hash))?;
+            self.best_tip = Some(hash);
+            reorg
+        } else {
+            None
+        };
+        
+        Ok((is_new_tip, reorg_info))
+    }
+    
+    /// Checks if a node is better than current tip (more work).
+    fn is_better_tip(&self, node: &BlockNode) -> Result<bool, ForkError> {
+        match self.best_tip {
+            None => Ok(true), // First block after genesis
+            Some(tip_hash) => {
+                let tip = self.nodes.get(&tip_hash)
+                    .ok_or(ForkError::InvalidWork)?;
+                
+                // Compare chain work (more work = better)
+                if node.chain_work > tip.chain_work {
+                    Ok(true)
+                } else if (node.chain_work - tip.chain_work).abs() < 1e-10 {
+                    // Equal work: prefer earlier timestamp
+                    Ok(node.header.time < tip.header.time)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+    }
+    
+    /// Computes reorganization info when switching tips.
+    fn compute_reorg(
+        &self,
+        old_tip: Option<[u8; 32]>,
+        new_tip: Option<[u8; 32]>,
+    ) -> Result<Option<ReorgInfo>, ForkError> {
+        let old_hash = match old_tip {
+            Some(h) => h,
+            None => return Ok(None), // No old tip = no reorg
+        };
+        
+        let new_hash = match new_tip {
+            Some(h) => h,
+            None => return Ok(None),
+        };
+        
+        // Same tip = no reorg
+        if old_hash == new_hash {
+            return Ok(None);
+        }
+        
+        // Find common ancestor
+        let (old_blocks, new_blocks, fork_point) =
+            self.find_fork_point(old_hash, new_hash)?;
+        
+        // If no blocks disconnected, this is just extending the chain (no reorg)
+        if old_blocks.is_empty() {
+            return Ok(None);
+        }
+        
+        // Check reorg depth
+        if old_blocks.len() > self.max_reorg_depth {
+            return Err(ForkError::ReorgTooDeep(
+                old_blocks.len(),
+                self.max_reorg_depth,
+            ));
+        }
+        
+        Ok(Some(ReorgInfo {
+            old_tip: old_hash,
+            new_tip: new_hash,
+            fork_point,
+            disconnected_blocks: old_blocks,
+            connected_blocks: new_blocks,
+        }))
+    }
+    
+    /// Finds the fork point and blocks to disconnect/connect.
+    fn find_fork_point(
+        &self,
+        old_tip: [u8; 32],
+        new_tip: [u8; 32],
+    ) -> Result<(Vec<[u8; 32]>, Vec<[u8; 32]>, [u8; 32]), ForkError> {
+        let mut old_chain = Vec::new();
+        let mut new_chain = Vec::new();
+        
+        let mut old_hash = old_tip;
+        let mut new_hash = new_tip;
+        
+        // Build paths to genesis
+        let mut old_path = vec![old_hash];
+        while let Some(node) = self.nodes.get(&old_hash) {
+            if node.height == 0 {
+                break;
+            }
+            old_hash = node.parent;
+            old_path.push(old_hash);
+        }
+        
+        let mut new_path = vec![new_hash];
+        while let Some(node) = self.nodes.get(&new_hash) {
+            if node.height == 0 {
+                break;
+            }
+            new_hash = node.parent;
+            new_path.push(new_hash);
+        }
+        
+        // Find common ancestor
+        old_path.reverse();
+        new_path.reverse();
+        
+        let mut fork_idx = 0;
+        for (i, (old, new)) in old_path.iter().zip(new_path.iter()).enumerate() {
+            if old != new {
+                break;
+            }
+            fork_idx = i;
+        }
+        
+        let fork_point = old_path[fork_idx];
+        
+        // Blocks to disconnect (from old tip to fork point)
+        old_chain = old_path[fork_idx + 1..].iter().rev().copied().collect();
+        
+        // Blocks to connect (from fork point to new tip)
+        new_chain = new_path[fork_idx + 1..].to_vec();
+        
+        Ok((old_chain, new_chain, fork_point))
+    }
+    
+    /// Gets the current best tip hash.
+    pub fn best_tip(&self) -> Option<[u8; 32]> {
+        self.best_tip
+    }
+    
+    /// Gets a block node by hash.
+    pub fn get_block(&self, hash: &[u8; 32]) -> Option<&BlockNode> {
+        self.nodes.get(hash)
+    }
+    
+    /// Gets the current chain height.
+    pub fn height(&self) -> u64 {
+        self.best_tip
+            .and_then(|hash| self.nodes.get(&hash))
+            .map(|node| node.height)
+            .unwrap_or(0)
+    }
+    
+    /// Gets the chain from genesis to current tip.
+    pub fn get_main_chain(&self) -> Vec<[u8; 32]> {
+        let mut chain = Vec::new();
+        let mut current = self.best_tip;
+        
+        while let Some(hash) = current {
+            chain.push(hash);
+            if let Some(node) = self.nodes.get(&hash) {
+                if node.height == 0 {
+                    break;
+                }
+                current = Some(node.parent);
+            } else {
+                break;
+            }
+        }
+        
+        chain.reverse();
+        chain
+    }
+}
+
+impl Default for ForkChoice {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Information about a blockchain reorganization.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReorgInfo {
+    /// Old chain tip (before reorg).
+    pub old_tip: [u8; 32],
+    /// New chain tip (after reorg).
+    pub new_tip: [u8; 32],
+    /// Common ancestor (fork point).
+    pub fork_point: [u8; 32],
+    /// Blocks to disconnect from old chain.
+    pub disconnected_blocks: Vec<[u8; 32]>,
+    /// Blocks to connect to new chain.
+    pub connected_blocks: Vec<[u8; 32]>,
+}
+
+impl ReorgInfo {
+    /// Returns the depth of the reorganization.
+    pub fn depth(&self) -> usize {
+        self.disconnected_blocks.len()
+    }
+    
+    /// Returns the number of new blocks added.
+    pub fn new_blocks(&self) -> usize {
+        self.connected_blocks.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_header(prev: [u8; 32], bits: u32, nonce: u64) -> BlockHeader {
+        BlockHeader {
+            version: 1,
+            prev_block: prev,
+            merkle_root: [0u8; 32],
+            pqc_agg_hint: [0u8; 32],
+            time: 0,
+            bits,
+            nonce,
+        }
+    }
+
+    #[test]
+    fn fork_choice_basic() {
+        let mut fc = ForkChoice::new();
+        
+        // Add genesis
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        
+        assert_eq!(fc.height(), 0);
+        
+        // Add block 1
+        let genesis_hash = header_hash(&genesis);
+        let block1 = make_header(genesis_hash, 0x207fffff, 1);
+        let (is_new_tip, reorg) = fc.add_block(block1).unwrap();
+        
+        assert!(is_new_tip);
+        assert!(reorg.is_none()); // No reorg on linear chain
+        assert_eq!(fc.height(), 1);
+    }
+
+    #[test]
+    fn fork_choice_reorg() {
+        let mut fc = ForkChoice::new();
+        
+        // Genesis
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+        
+        // Chain A: genesis -> A1 -> A2
+        let a1 = make_header(genesis_hash, 0x207fffff, 1);
+        fc.add_block(a1.clone()).unwrap();
+        let a1_hash = header_hash(&a1);
+        
+        let a2 = make_header(a1_hash, 0x207fffff, 2);
+        fc.add_block(a2.clone()).unwrap();
+        
+        assert_eq!(fc.height(), 2);
+        
+        // Chain B: genesis -> B1 -> B2 -> B3 (longer, should reorg)
+        let b1 = make_header(genesis_hash, 0x207fffff, 10);
+        fc.add_block(b1.clone()).unwrap();
+        let b1_hash = header_hash(&b1);
+        
+        let b2 = make_header(b1_hash, 0x207fffff, 11);
+        fc.add_block(b2.clone()).unwrap();
+        let b2_hash = header_hash(&b2);
+        
+        let b3 = make_header(b2_hash, 0x207fffff, 12);
+        let (is_new_tip, reorg) = fc.add_block(b3).unwrap();
+        
+        assert!(is_new_tip);
+        assert!(reorg.is_some());
+        
+        let reorg_info = reorg.unwrap();
+        assert_eq!(reorg_info.depth(), 2); // Disconnect A1, A2
+        assert_eq!(reorg_info.new_blocks(), 3); // Connect B1, B2, B3
+        assert_eq!(reorg_info.fork_point, genesis_hash);
+        
+        assert_eq!(fc.height(), 3);
+    }
+
+    #[test]
+    fn reject_orphan_blocks() {
+        let mut fc = ForkChoice::new();
+        
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis).unwrap();
+        
+        // Try to add block with unknown parent
+        let orphan = make_header([99u8; 32], 0x207fffff, 1);
+        let result = fc.add_block(orphan);
+        
+        assert!(matches!(result, Err(ForkError::OrphanBlock(_))));
+    }
+
+    #[test]
+    fn reject_duplicate_blocks() {
+        let mut fc = ForkChoice::new();
+        
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+        
+        let block1 = make_header(genesis_hash, 0x207fffff, 1);
+        fc.add_block(block1.clone()).unwrap();
+        
+        // Try to add same block again
+        let result = fc.add_block(block1);
+        assert!(matches!(result, Err(ForkError::DuplicateBlock(_))));
+    }
+
+    #[test]
+    fn respect_max_reorg_depth() {
+        let mut fc = ForkChoice::with_max_reorg(2);
+        
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+        
+        // Build main chain: 3 blocks
+        let mut prev = genesis_hash;
+        for i in 1..=3 {
+            let block = make_header(prev, 0x207fffff, i);
+            fc.add_block(block.clone()).unwrap();
+            prev = header_hash(&block);
+        }
+        
+        // Try to reorg with 4-block side chain (exceeds max depth of 2)
+        let mut prev = genesis_hash;
+        for i in 10..=13 {
+            let block = make_header(prev, 0x207fffff, i);
+            let result = fc.add_block(block.clone());
+            
+            if i == 13 {
+                // This should trigger reorg too deep error
+                assert!(matches!(result, Err(ForkError::ReorgTooDeep(3, 2))));
+            } else {
+                prev = header_hash(&block);
+            }
+        }
+    }
+}
