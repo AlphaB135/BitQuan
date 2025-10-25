@@ -157,7 +157,16 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
     use bitquan_types::{Block, BlockHeader, Transaction, TxOut, SigAlgorithm};
     let mut store = InMemoryChainStore::new();
 
-    // Build coinbase (placeholder: no inputs; single output to payout script)
+    // Determine timestamp using MTP/tip first
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u32;
+    let mut time = now;
+    if let Some(mtp) = store.mtp() {
+        time = time.max(mtp.saturating_add(1));
+    } else if let Some(tip) = store.tip() {
+        time = time.max(tip.time.saturating_add(1));
+    }
+
+    // Build coinbase (placeholder coinbase input and payout output)
     let payout_script = hex::decode(payout_script_hex)?;
     // Construct coinbase input: prev=00..00:vout=0xffffffff, sequence=0xffffffff, script_sig=[height_le|extranonce]
     let height_le = (store.height() as u32 + 1).to_le_bytes();

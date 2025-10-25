@@ -5,7 +5,7 @@ mod block;
 mod compact_uint;
 mod transaction;
 
-pub use block::{Block, BlockHeader};
+pub use block::{merkle_root_from_txids, Block, BlockHeader};
 pub use compact_uint::CompactUint;
 pub use transaction::{
     AuxiliarySignatureData, SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut, VarBytes,

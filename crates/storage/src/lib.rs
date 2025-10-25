@@ -70,6 +70,18 @@ impl ChainStore for InMemoryChainStore {
     }
 }
 
+impl InMemoryChainStore {
+    /// Returns median-time-past of the last up to 11 blocks.
+    pub fn mtp(&self) -> Option<u32> {
+        if self.times.is_empty() { return None; }
+        let mut v = self.times.clone();
+        v.sort_unstable();
+        Some(v[v.len()/2])
+    }
+    /// Returns the current height (number of blocks inserted).
+    pub fn height(&self) -> u64 { self.height }
+}
+
 fn header_id(h: &bitquan_types::BlockHeader) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let bytes = h.to_bytes();

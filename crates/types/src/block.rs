@@ -2,6 +2,7 @@
 
 use crate::{compact_uint::CompactUint, transaction::Transaction};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// Block header committed to by miners or validators.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,6 +65,12 @@ impl Block {
     /// Returns the number of transactions.
     pub fn tx_count(&self) -> usize {
         self.transactions.len()
+    }
+
+    /// Computes the merkle root from txids of the transactions in this block.
+    pub fn compute_merkle_root(&self) -> [u8; 32] {
+        let txids: Vec<[u8; 32]> = self.transactions.iter().map(|tx| tx.txid()).collect();
+        merkle_root_from_txids(&txids)
     }
 
     /// Returns a best-effort serialized size hint including all transactions.
