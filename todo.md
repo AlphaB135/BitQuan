@@ -62,6 +62,8 @@
 - [ ] ทดสอบ reorg safety (จำลอง reorg 1–3 บล็อก)
 - [ ] สร้าง test harness สำหรับ block weight enforcement และ batch verification
 - [ ] ตั้งค่า CI ให้รัน unit/integration/fuzz tests ทุก PR
+- [ ] Witness serialization/round-trip tests (ข้ามภาษา): เพิ่ม vectors ใน docs/spec/test-vectors.md และตัวอย่าง tx builder
+- [ ] Integration tests: DifficultyState + chainstate จริง (MTP, anchor block), รวม L2/witness relay/validation
 
 ## 8. ความปลอดภัยซอฟต์แวร์และซัพพลายเชน (Phase 7)
 - [ ] บังคับ signed commits/tags (GPG) ใน CI
