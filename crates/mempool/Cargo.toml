@@ -1,0 +1,13 @@
+[package]
+name = "bitquan-mempool"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Transaction memory pool management for BitQuan."
+
+[dependencies]
+bitquan-consensus = { path = "../consensus", version = "0.1.0" }
+bitquan-types = { path = "../types", version = "0.1.0" }
+thiserror.workspace = true
