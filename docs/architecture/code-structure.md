@@ -10,8 +10,8 @@
 | Crate | ชนิด | พึ่งพา | หน้าที่หลัก |
 |-------|------|--------|--------------|
 | `bitquan-types` | lib | `serde` | โครงสร้างข้อมูลธุรกรรม/บล็อก, CompactUint, ฟังก์ชัน utility |
-| `bitquan-crypto` | lib | `bitquan-types`, `thiserror` | Trait ของลายเซ็น PQC, registry สำหรับ verify, RNG service (OsRng→ChaCha20 + HKDF substreams), placeholder Dilithium |
-| `bitquan-consensus` | lib | `bitquan-crypto`, `bitquan-types`, `thiserror` | คำนวณ block weight, ตรวจบล็อกขั้นต้น, เก็บค่าพารามิเตอร์ Phase 3 |
+| `bq-crypto` | lib | `bitquan-types`, `thiserror` | Trait ของลายเซ็น PQC, registry สำหรับ verify, RNG service (OsRng→ChaCha20 + HKDF substreams), placeholder Dilithium |
+| `bitquan-consensus` | lib | `bq-crypto`, `bitquan-types`, `thiserror` | คำนวณ block weight, ตรวจบล็อกขั้นต้น, เก็บค่าพารามิเตอร์ Phase 3 |
 | `bitquan-mempool` | lib | `bitquan-consensus`, `bitquan-types`, `thiserror` | โครงร่าง mempool, การจัดลำดับตาม fee/weight |
 | `bitquan-network` | lib | `bitquan-types`, `thiserror` | โครงสร้าง config และ service เบื้องต้นสำหรับ P2P |
 | `bitquan-storage` | lib | `bitquan-types`, `thiserror` | Trait เก็บบล็อก + in-memory prototype |

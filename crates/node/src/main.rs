@@ -2,9 +2,12 @@
 
 use anyhow::Result;
 use bitquan_consensus::{validate_block, ConsensusParams};
-use bitquan_crypto::{rng::RandomSource, CryptoRegistry};
 use bitquan_storage::InMemoryChainStore;
 use bitquan_types::Block;
+use bq_crypto::{
+    rng::{RandomSource, RngService},
+    CryptoRegistry,
+};
 use clap::{Parser, Subcommand};
 use hex::encode as hex_encode;
 
@@ -100,11 +103,11 @@ fn rng_demo(label: &str, length: usize) -> Result<()> {
         return Ok(());
     }
 
-    let mut master = RandomSource::new()?;
+    let mut master = RngService::new()?;
     let mut derived = master.derive_stream(label);
 
-    let master_bytes = master.bytes(length);
-    let derived_bytes = derived.bytes(length);
+    let master_bytes = master.bytes(length)?;
+    let derived_bytes = derived.bytes(length)?;
 
     println!(
         "Master stream sample  ({length} bytes): {}",

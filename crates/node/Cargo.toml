@@ -10,7 +10,7 @@ description = "BitQuan reference node entrypoint."
 [dependencies]
 anyhow.workspace = true
 bitquan-consensus = { path = "../consensus", version = "0.1.0" }
-bitquan-crypto = { path = "../crypto", version = "0.1.0" }
+bq-crypto = { path = "../crypto", version = "0.0.1" }
 bitquan-mempool = { path = "../mempool", version = "0.1.0" }
 bitquan-network = { path = "../network", version = "0.1.0" }
 bitquan-storage = { path = "../storage", version = "0.1.0" }

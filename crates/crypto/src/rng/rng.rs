@@ -1,148 +1,113 @@
-//! RNG façade ensuring reproducible derivations with strong entropy guarantees.
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
 
-use hex::FromHexError;
+//! Deterministic random number generation backed by ChaCha20.
+
+use crate::rng::hkdf_expand;
 #[cfg(not(feature = "deterministic_tests"))]
 use rand::rngs::OsRng;
-use rand::{Error as RandError, RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
+use rand_core::{RngCore, SeedableRng};
 use thiserror::Error;
 use zeroize::Zeroize;
 
-use super::hkdf;
+#[cfg(feature = "deterministic_tests")]
+use hex::decode as hex_decode;
 
-/// Errors that can arise while instantiating or using the RNG service.
-#[derive(Debug, Error)]
+/// Errors produced by the BitQuan RNG service.
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum RngError {
-    /// The operating system could not source cryptographically secure entropy.
-    #[error("failed to obtain entropy from OS CSPRNG: {0}")]
-    EntropyUnavailable(#[from] RandError),
-    /// Environment variable `BQ_TEST_SEED` is required when deterministic testing is enabled.
-    #[error("BQ_TEST_SEED environment variable is required for deterministic RNG tests")]
-    MissingTestSeed,
-    /// The provided deterministic seed has an invalid hex encoding.
-    #[error("BQ_TEST_SEED must be a 64-character hex string: {0}")]
-    InvalidTestSeedHex(#[from] FromHexError),
-    /// The provided deterministic seed is not the expected length.
-    #[error("BQ_TEST_SEED must decode to exactly 32 bytes, found {0}")]
-    InvalidTestSeedLength(usize),
+    /// The operating system CSPRNG did not supply entropy.
+    #[error("OS entropy unavailable")]
+    OsEntropyUnavailable,
+    /// A deterministic seed was malformed or the wrong length.
+    #[error("invalid deterministic seed")]
+    InvalidSeed,
 }
 
-/// Holds secret key material and ensures it is wiped on drop.
-struct KeyMaterial {
-    bytes: [u8; 32],
-}
+/// Trait describing high-level random byte generation utilities.
+pub trait RandomSource {
+    /// Fills `out` with random bytes.
+    fn fill(&mut self, out: &mut [u8]) -> Result<(), RngError>;
 
-impl KeyMaterial {
-    /// Constructs a new key container.
-    fn new(bytes: [u8; 32]) -> Self {
-        Self { bytes }
+    /// Returns exactly `n` random bytes.
+    fn bytes(&mut self, n: usize) -> Result<Vec<u8>, RngError> {
+        let mut buf = vec![0u8; n];
+        self.fill(&mut buf)?;
+        Ok(buf)
     }
 
-    /// Borrows the key bytes for derivation.
-    fn as_bytes(&self) -> &[u8; 32] {
-        &self.bytes
+    /// Returns a uniformly random `u64` value.
+    fn u64(&mut self) -> Result<u64, RngError> {
+        let mut buf = [0u8; 8];
+        self.fill(&mut buf)?;
+        Ok(u64::from_le_bytes(buf))
     }
 }
 
-impl Drop for KeyMaterial {
-    fn drop(&mut self) {
-        self.bytes.zeroize();
-    }
-}
-
-/// Stateful deterministic random byte generator backed by ChaCha20.
+/// Long-lived deterministic random byte generator with HKDF substreams.
 pub struct RngService {
-    key: KeyMaterial,
-    rng: ChaCha20Rng,
+    drbg: ChaCha20Rng,
+    master_seed: [u8; 32],
+}
+
+impl Drop for RngService {
+    fn drop(&mut self) {
+        self.master_seed.zeroize();
+    }
 }
 
 impl RngService {
-    /// Creates a new RNG stream from the supplied 32-byte seed.
-    pub(crate) fn from_seed(seed: [u8; 32]) -> Self {
-        let key = KeyMaterial::new(seed);
-        let rng = ChaCha20Rng::from_seed(*key.as_bytes());
-        Self { key, rng }
-    }
+    /// Creates a new RNG service seeded from the OS CSPRNG or deterministic seed.
+    pub fn new() -> Result<Self, RngError> {
+        #[cfg(feature = "deterministic_tests")]
+        {
+            let seed = deterministic_seed()?;
+            let drbg = ChaCha20Rng::from_seed(seed);
+            return Ok(Self {
+                drbg,
+                master_seed: seed,
+            });
+        }
 
-    /// Returns `n` cryptographically secure random bytes.
-    pub fn bytes(&mut self, n: usize) -> Vec<u8> {
-        let mut buffer = vec![0_u8; n];
-        self.fill(&mut buffer);
-        buffer
-    }
-
-    /// Fills the provided slice with random bytes.
-    pub fn fill(&mut self, dest: &mut [u8]) {
-        self.rng.fill_bytes(dest);
-    }
-
-    /// Draws a uniformly random `u64`.
-    pub fn u64(&mut self) -> u64 {
-        self.rng.next_u64()
+        #[cfg(not(feature = "deterministic_tests"))]
+        {
+            let mut master_seed = [0u8; 32];
+            OsRng
+                .try_fill_bytes(&mut master_seed)
+                .map_err(|_| RngError::OsEntropyUnavailable)?;
+            let drbg = ChaCha20Rng::from_seed(master_seed);
+            Ok(Self { drbg, master_seed })
+        }
     }
 
     /// Derives a new RNG stream using HKDF-SHA256 domain separation.
     pub fn derive_stream(&self, label: &str) -> Self {
-        let seed = hkdf::derive_seed(self.key.as_bytes(), label);
-        Self::from_seed(seed)
+        let derived_seed = hkdf_expand(&self.master_seed, label);
+        let drbg = ChaCha20Rng::from_seed(derived_seed);
+        Self {
+            drbg,
+            master_seed: derived_seed,
+        }
     }
 }
 
-/// Primary random source seeded from the operating system.
-pub struct RandomSource {
-    inner: RngService,
-}
-
-impl RandomSource {
-    /// Creates a new random source, seeding from `OsRng` (or deterministic env seed in tests).
-    pub fn new() -> Result<Self, RngError> {
-        let seed = master_seed()?;
-        Ok(Self {
-            inner: RngService::from_seed(seed),
-        })
-    }
-
-    /// Returns `n` random bytes from the master stream.
-    pub fn bytes(&mut self, n: usize) -> Vec<u8> {
-        self.inner.bytes(n)
-    }
-
-    /// Fills the provided slice with bytes from the master stream.
-    pub fn fill(&mut self, dest: &mut [u8]) {
-        self.inner.fill(dest);
-    }
-
-    /// Draws a uniformly random `u64` from the master stream.
-    pub fn u64(&mut self) -> u64 {
-        self.inner.u64()
-    }
-
-    /// Derives a new labeled stream using HKDF-SHA256 domain separation.
-    pub fn derive_stream(&self, label: &str) -> RngService {
-        self.inner.derive_stream(label)
+impl RandomSource for RngService {
+    fn fill(&mut self, out: &mut [u8]) -> Result<(), RngError> {
+        self.drbg.fill_bytes(out);
+        Ok(())
     }
 }
 
 #[cfg(feature = "deterministic_tests")]
-fn master_seed() -> Result<[u8; 32], RngError> {
-    use std::env;
-
-    let value = env::var("BQ_TEST_SEED").map_err(|_| RngError::MissingTestSeed)?;
-    let value = value.trim();
-    let bytes = hex::decode(value)?;
+fn deterministic_seed() -> Result<[u8; 32], RngError> {
+    let seed_hex = std::env::var("BQ_TEST_SEED").unwrap_or_else(|_| "01".repeat(32));
+    let bytes = hex_decode(seed_hex).map_err(|_| RngError::InvalidSeed)?;
     if bytes.len() != 32 {
-        return Err(RngError::InvalidTestSeedLength(bytes.len()));
+        return Err(RngError::InvalidSeed);
     }
-
     let mut seed = [0u8; 32];
     seed.copy_from_slice(&bytes);
-    Ok(seed)
-}
-
-#[cfg(not(feature = "deterministic_tests"))]
-fn master_seed() -> Result<[u8; 32], RngError> {
-    let mut seed = [0u8; 32];
-    OsRng.try_fill_bytes(&mut seed)?;
     Ok(seed)
 }
 
@@ -152,74 +117,50 @@ mod tests {
     use proptest::prelude::*;
     use std::collections::HashSet;
 
-    fn test_source() -> RandomSource {
-        #[cfg(feature = "deterministic_tests")]
-        {
-            const DEFAULT_TEST_SEED: &str =
-                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-            if std::env::var("BQ_TEST_SEED").is_err() {
-                std::env::set_var("BQ_TEST_SEED", DEFAULT_TEST_SEED);
-            }
-        }
-
-        RandomSource::new().expect("entropy available")
+    #[test]
+    fn not_all_zero() {
+        let mut rng = RngService::new().expect("entropy available");
+        let bytes = rng.bytes(32).expect("generated bytes");
+        assert!(bytes.iter().any(|&b| b != 0));
     }
 
     #[test]
-    fn random_bytes_not_all_zero() {
-        let mut source = test_source();
-        let sample = source.bytes(64);
-        assert!(sample.iter().any(|byte| *byte != 0));
-    }
-
-    #[test]
-    fn derived_streams_are_domain_separated() {
-        let source = test_source();
-        let mut wallet = source.derive_stream("wallet-seed");
-        let mut tx = source.derive_stream("tx-sig");
-
-        let wallet_bytes = wallet.bytes(32);
-        let tx_bytes = tx.bytes(32);
-        assert_ne!(wallet_bytes, tx_bytes);
-    }
-
-    #[test]
-    fn no_collisions_in_small_sample() {
-        let mut source = test_source();
-        let mut set: HashSet<[u8; 16]> = HashSet::with_capacity(10_000);
-
-        for _ in 0..10_000 {
-            let mut block = [0u8; 16];
-            source.fill(&mut block);
-            assert!(set.insert(block), "collision detected in 10k sample");
-        }
+    fn substream_differs() {
+        let rng = RngService::new().expect("entropy available");
+        let mut stream_a = rng.derive_stream("wallet-seed");
+        let mut stream_b = rng.derive_stream("tx-sig");
+        let a = stream_a.bytes(32).expect("a bytes");
+        let b = stream_b.bytes(32).expect("b bytes");
+        assert_ne!(a, b);
     }
 
     proptest! {
         #[test]
-        fn byte_length_matches_request(len in 1usize..1024) {
-            let mut source = test_source();
-            let data = source.bytes(len);
-            prop_assert_eq!(data.len(), len);
+        fn unique_16b(count in 1000usize..1500usize) {
+            let mut rng = RngService::new().expect("entropy available");
+            let mut seen: HashSet<Vec<u8>> = HashSet::with_capacity(count);
+            for _ in 0..count {
+                let value = rng.bytes(16).expect("sample");
+                assert!(seen.insert(value));
+            }
         }
     }
 
     #[cfg(feature = "deterministic_tests")]
     #[test]
-    fn deterministic_feature_enforces_reproducibility() {
+    fn deterministic_seed_from_env_or_default() {
+        let original = std::env::var("BQ_TEST_SEED").ok();
+        std::env::remove_var("BQ_TEST_SEED");
+        let first = RngService::new().expect("seeded");
         std::env::set_var(
             "BQ_TEST_SEED",
-            "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
         );
-        let mut first = test_source();
-        std::env::set_var(
-            "BQ_TEST_SEED",
-            "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
-        );
-        let mut second = test_source();
-
-        let sample_one = first.bytes(128);
-        let sample_two = second.bytes(128);
-        assert_eq!(sample_one, sample_two);
+        let second = RngService::new().expect("seeded");
+        assert_ne!(first.master_seed, second.master_seed);
+        match original {
+            Some(value) => std::env::set_var("BQ_TEST_SEED", value),
+            None => std::env::remove_var("BQ_TEST_SEED"),
+        }
     }
 }

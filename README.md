@@ -2,9 +2,42 @@
 	<a href="./README.th.md"><img alt="ภาษาไทย" src="https://img.shields.io/badge/ภาษาไทย-blue?style=for-the-badge"></a>
 </p>
 
-# BitQuan Project Overview
+# BitQuan
 
-BitQuan targets a 50+ year security horizon with full Post-Quantum Cryptography (PQC) integration. This README provides the English overview by default; click the Thai badge above to switch to the Thai version (`README.th.md`).
+[![CI](https://github.com/alphab/BitQuan/actions/workflows/ci.yml/badge.svg)](https://github.com/alphab/BitQuan/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+BitQuan: PQC-first blockchain (PoW + Dilithium) aiming for 50+ years of security resilience.
+
+This README provides the English overview by default; click the Thai badge above to switch to the Thai version (`README.th.md`).
+
+## Quickstart
+
+```bash
+cargo test -p bq-crypto
+```
+
+## Documentation
+- [Architecture overview](docs/architecture/overview.md)
+- [Repository governance](docs/GOVERNANCE.md)
+- [Security policy](SECURITY.md)
+- [Release process](RELEASE.md)
+
+## Suggested Topics
+- Post-Quantum Cryptography (Dilithium, HKDF, hybrid RNGs)
+- Proof-of-Work consensus design
+- Rust networking, storage, and reproducible builds
+- Open governance and long-term security programs
+
+## Security Contact
+- Email: [security@bitquan.org](mailto:security@bitquan.org)
+- See [`SECURITY.md`](SECURITY.md) for reporting guidelines.
+
+---
+
+## Project Overview
+
+BitQuan targets a 50+ year security horizon with full Post-Quantum Cryptography (PQC) integration.
 
 ## Highlights
 - Phase 0 policy: absolutely no backdoors, admin keys, or hidden switches
@@ -27,6 +60,5 @@ BitQuan targets a 50+ year security horizon with full Post-Quantum Cryptography 
 - Configure deterministic builds per `docs/REPRODUCIBILITY.md`
 - Submit signed commits (`git commit -S`) with every pull request
 
-## Security Contact
-- Email: `security@bitquan.org`
-- Disclosure and bounty policy in `docs/SECURITY.md`
+## Additional Security Resources
+See the [security policy](SECURITY.md) for disclosure guidelines and contact information.

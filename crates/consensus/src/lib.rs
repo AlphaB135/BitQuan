@@ -1,8 +1,8 @@
 //! Consensus rule scaffolding for BitQuan.
 #![warn(missing_docs)]
 
-use bitquan_crypto::{CryptoError, CryptoRegistry};
 use bitquan_types::{count_signatures, Block};
+use bq_crypto::{CryptoError, CryptoRegistry};
 use thiserror::Error;
 
 /// Parameters controlling consensus validation.

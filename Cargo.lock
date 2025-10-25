@@ -89,26 +89,9 @@ checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 name = "bitquan-consensus"
 version = "0.1.0"
 dependencies = [
- "bitquan-crypto",
  "bitquan-types",
+ "bq-crypto",
  "thiserror",
-]
-
-[[package]]
-name = "bitquan-crypto"
-version = "0.1.0"
-dependencies = [
- "bitquan-types",
- "getrandom 0.2.16",
- "hex",
- "hkdf",
- "proptest",
- "rand 0.8.5",
- "rand_chacha 0.3.1",
- "rand_core 0.6.4",
- "sha2",
- "thiserror",
- "zeroize",
 ]
 
 [[package]]
@@ -134,11 +117,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bitquan-consensus",
- "bitquan-crypto",
  "bitquan-mempool",
  "bitquan-network",
  "bitquan-storage",
  "bitquan-types",
+ "bq-crypto",
  "clap",
  "hex",
 ]
@@ -165,6 +148,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "bq-crypto"
+version = "0.0.1"
+dependencies = [
+ "bitquan-types",
+ "getrandom 0.2.16",
+ "hex",
+ "hkdf",
+ "proptest",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "sha2",
+ "thiserror",
+ "zeroize",
 ]
 
 [[package]]

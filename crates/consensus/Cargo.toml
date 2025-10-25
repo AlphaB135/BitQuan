@@ -8,6 +8,6 @@ rust-version.workspace = true
 description = "Consensus rules and validation primitives for BitQuan."
 
 [dependencies]
-bitquan-crypto = { path = "../crypto", version = "0.1.0" }
+bq-crypto = { path = "../crypto", version = "0.0.1" }
 bitquan-types = { path = "../types", version = "0.1.0" }
 thiserror.workspace = true
