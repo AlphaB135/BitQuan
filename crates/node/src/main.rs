@@ -58,18 +58,6 @@ enum Commands {
         #[arg(long, default_value_t = 0x207fffff)]
         bits: u32,
     },
-    /// Mines a single block template by iterating nonces up to a limit (demo CPU miner).
-    MineOnce {
-        /// Maximum nonce attempts to try.
-        #[arg(long, default_value_t = 1_000_000u64)]
-        max_tries: u64,
-        /// Hex-encoded script_pubkey for coinbase payout.
-        #[arg(long, default_value = "76a9140088ac")]
-        payout_script_hex: String,
-        /// Compact bits target (e.g., 0x207fffff for very easy target).
-        #[arg(long, default_value_t = 0x207fffff)]
-        bits: u32,
-    },
 }
 
 fn main() -> Result<()> {
@@ -79,8 +67,6 @@ fn main() -> Result<()> {
         Commands::Run { config } => run_node(&config),
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
-        Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
-        Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
         Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
     }
 }
