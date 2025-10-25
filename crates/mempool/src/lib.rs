@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use bitquan_consensus::{calculate_block_weight, ConsensusParams};
 use bitquan_types::Transaction;
+use bq_crypto::rng::{RandomSource, RngError, RngService};
 use thiserror::Error;
 
 /// Represents the fundamental data for ordering transactions in the mempool.
@@ -16,12 +17,19 @@ pub struct MempoolEntry {
     pub weight: u64,
     /// Fee per weight unit (sat/weight equivalent).
     pub fee_per_weight: u64,
+    /// Random tie-breaker used when multiple transactions share the same fee density.
+    pub tie_breaker: u64,
 }
 
 impl MempoolEntry {
     /// Calculates fee density from transaction totals.
-    pub fn from_transaction(tx: Transaction, params: &ConsensusParams, fee: u64) -> Self {
-        let block_context = crate::block_from_single_transaction(tx.clone());
+    pub fn from_transaction(
+        tx: Transaction,
+        params: &ConsensusParams,
+        fee: u64,
+        tie_breaker: u64,
+    ) -> Self {
+        let block_context = crate::block_from_single_transaction(tx.clone(), tie_breaker);
         let weight = calculate_block_weight(&block_context, params.signature_weight_alpha);
         let fee_per_weight = if weight == 0 { 0 } else { fee / weight };
 
@@ -29,6 +37,7 @@ impl MempoolEntry {
             tx,
             weight,
             fee_per_weight,
+            tie_breaker,
         }
     }
 }
@@ -42,21 +51,27 @@ pub enum MempoolError {
     /// Transaction failed preliminary validation checks.
     #[error("transaction rejected: {0}")]
     Rejected(String),
+    /// RNG failure while generating tie-breaker values.
+    #[error("rng failure: {0}")]
+    Entropy(#[from] RngError),
 }
 
 /// Mempool storage keyed by (fee_per_weight, insertion order).
 pub struct Mempool {
     params: ConsensusParams,
     entries: BTreeMap<u64, Vec<MempoolEntry>>,
+    rng: RngService,
 }
 
 impl Mempool {
     /// Constructs a new mempool instance with the provided parameters.
-    pub fn new(params: ConsensusParams) -> Self {
-        Self {
+    pub fn new(params: ConsensusParams) -> Result<Self, MempoolError> {
+        let rng = RngService::new()?;
+        Ok(Self {
             params,
             entries: BTreeMap::new(),
-        }
+            rng,
+        })
     }
 
     /// Returns the total number of transactions stored.
@@ -66,7 +81,8 @@ impl Mempool {
 
     /// Inserts a transaction together with its absolute fee.
     pub fn insert(&mut self, tx: Transaction, fee: u64) -> Result<(), MempoolError> {
-        let entry = MempoolEntry::from_transaction(tx, &self.params, fee);
+        let tie_breaker = self.rng.u64()?;
+        let entry = MempoolEntry::from_transaction(tx, &self.params, fee, tie_breaker);
         let bucket = self
             .entries
             .entry(entry.fee_per_weight)
@@ -86,6 +102,7 @@ impl Mempool {
             };
 
             if let Some(mut group) = self.entries.remove(&next_key) {
+                group.sort_by(|a, b| a.tie_breaker.cmp(&b.tie_breaker));
                 while let Some(entry) = group.pop() {
                     if collected.len() == limit {
                         self.entries.insert(next_key, group);
@@ -100,8 +117,7 @@ impl Mempool {
     }
 }
 
-/// Helper module scope functions.
-fn block_from_single_transaction(tx: Transaction) -> bitquan_types::Block {
+fn block_from_single_transaction(tx: Transaction, nonce: u64) -> bitquan_types::Block {
     bitquan_types::Block {
         header: bitquan_types::BlockHeader {
             version: 1,
@@ -110,7 +126,7 @@ fn block_from_single_transaction(tx: Transaction) -> bitquan_types::Block {
             pqc_agg_hint: [0u8; 32],
             time: 0,
             bits: 0,
-            nonce: 0,
+            nonce,
         },
         transactions: vec![tx],
     }

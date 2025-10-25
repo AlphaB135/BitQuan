@@ -56,6 +56,7 @@
 - **Throughput ลายเซ็น PQC**: เป้าหมาย verify ≥ 5,000 ลายเซ็น/วินาทีบน CPU 8 คอร์
 - **ความเสี่ยง ASIC**: จัดทำแผนประเมิน RandomX / KAWPOW / Equihash / Argon2id และกำหนดจุดตัดสินใจชัดเจนใน roadmap
 - **ความเสี่ยง Supply Chain**: ยึดนโยบาย reproducible builds, dependency pinning, และ signed commits
+- **เอกสารรายละเอียด**: ดู `docs/spec/consensus_economics.md` สำหรับ weight, tail emission และโมเดลค่าธรรมเนียม
 
 ## 8. งานต่อเนื่อง
 - เขียน BQIP ชุดแรก (0001–0004) ให้สอดคล้องกับข้อเสนอข้างต้น
@@ -122,6 +123,7 @@
 - **PQC Signature Throughput**: Target ≥ 5,000 verifications per second on 8-core CPUs.
 - **ASIC Risk**: Evaluate RandomX / KAWPOW / Equihash / Argon2id and define decision checkpoints in the roadmap.
 - **Supply Chain Risk**: Enforce reproducible builds, dependency pinning, and signed commits.
+- **Further Reading**: See `docs/spec/consensus_economics.md` for weight policy, tail emission, and fee modeling.
 
 ## 8. Follow-up Tasks
 - Author initial BQIPs (0001–0004) aligned with these recommendations.

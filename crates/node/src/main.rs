@@ -1,7 +1,7 @@
 //! BitQuan reference node entrypoint.
 
 use anyhow::Result;
-use bitquan_consensus::{validate_block, ConsensusParams};
+use bitquan_consensus::{ConsensusEngine, ConsensusParams};
 use bitquan_storage::InMemoryChainStore;
 use bitquan_types::Block;
 use bq_crypto::{
@@ -65,8 +65,9 @@ fn run_node(config_path: &str) -> Result<()> {
     );
 
     // Bootstraps placeholder subsystems to illustrate crate integration.
-    let _crypto = CryptoRegistry::default();
-    let _params = ConsensusParams::phase3_defaults();
+    let registry = CryptoRegistry::default();
+    let params = ConsensusParams::phase3_defaults();
+    let _engine = ConsensusEngine::new(params, registry)?;
     let _storage = InMemoryChainStore::new();
 
     Ok(())
@@ -80,13 +81,14 @@ fn check_block(path: &str) -> Result<()> {
 
     let params = ConsensusParams::phase3_defaults();
     let registry = CryptoRegistry::default();
+    let mut engine = ConsensusEngine::new(params, registry)?;
     let block = load_block_placeholder()?;
 
-    match validate_block(&block, &params, &registry) {
+    match engine.validate_block(&block, 0) {
         Ok(report) => {
             println!(
-                "Block validated successfully. weight={}, signatures={}",
-                report.block_weight, report.signature_count
+                "Block validated successfully. weight={}, signatures={}, subsidy={}",
+                report.block_weight, report.signature_count, report.block_subsidy
             );
         }
         Err(err) => {

@@ -13,6 +13,7 @@ We welcome contributions that help deliver a post-quantum secure blockchain. Bef
 - Follow the coding standards and security checklist described in `docs/CONTRIBUTING.md`.
 - Ensure commits are GPG-signed (`git commit -S`).
 - Include tests and documentation for new features.
+- Run `scripts/pre-commit.sh` before opening a pull request to catch formatting, lint, and security issues early.
 
 ## Pull Requests
 - Run `cargo fmt`, `cargo clippy`, and `cargo test` before submitting.
