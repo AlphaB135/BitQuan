@@ -58,6 +58,7 @@ BitQuan targets a 50+ year security horizon with full Post-Quantum Cryptography 
 ## Contributing Workflow
 - Review `docs/CONTRIBUTING.md` for the code review process and project standards
 - Configure deterministic builds per `docs/REPRODUCIBILITY.md`
+- (Optional) Enable pre-commit tooling hooks: `./scripts/install-hooks.sh`
 - Submit signed commits (`git commit -S`) with every pull request
 
 ## Additional Security Resources

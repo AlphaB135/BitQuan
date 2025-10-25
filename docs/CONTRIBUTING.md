@@ -11,8 +11,9 @@ Thank you for your interest in BitQuan. This guide explains how to contribute co
 ## Getting Started
 1. Fork the repository and create a feature branch from `main`
 2. Ensure your environment matches the reproducible build toolchain (see `docs/REPRODUCIBILITY.md`)
-3. Run the full test suite and relevant benchmarks before opening a pull request
-4. Fill in the pull request template, referencing any related issues or BQIPs
+3. (Optional) Enable local git hooks for tooling: `./scripts/install-hooks.sh`
+4. Run the full test suite and relevant benchmarks before opening a pull request
+5. Fill in the pull request template, referencing any related issues or BQIPs
 
 ## Code Review Process
 - A minimum of two Core Maintainer approvals is required before merge

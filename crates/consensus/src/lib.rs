@@ -9,8 +9,15 @@ use bq_crypto::{
 use thiserror::Error;
 
 mod asert;
+mod difficulty;
+mod sighash;
+
+#[cfg(test)]
+mod tests;
 
 pub use asert::asert_next_target;
+pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
+pub use sighash::transaction_sighash;
 
 /// Parameters controlling consensus validation.
 #[derive(Clone, Debug)]
@@ -155,6 +162,7 @@ pub struct ConsensusEngine {
     params: ConsensusParams,
     registry: CryptoRegistry,
     rng: RngService,
+    difficulty: Option<DifficultyState>,
 }
 
 impl ConsensusEngine {
@@ -165,6 +173,7 @@ impl ConsensusEngine {
             params,
             registry,
             rng,
+            difficulty: None,
         })
     }
 
@@ -176,6 +185,21 @@ impl ConsensusEngine {
     /// Returns the consensus parameters in use.
     pub fn params(&self) -> &ConsensusParams {
         &self.params
+    }
+
+    /// Sets the difficulty anchor used for subsequent ASERT calculations.
+    pub fn set_difficulty_state(&mut self, state: DifficultyState) {
+        self.difficulty = Some(state);
+    }
+
+    /// Computes the next compact target if anchor information is available.
+    pub fn next_target_from_anchor(
+        &mut self,
+        next_height: u64,
+        next_timestamp: u64,
+    ) -> Option<u32> {
+        let state = self.difficulty.as_mut()?;
+        Some(state.update(next_height, next_timestamp, &self.params))
     }
 
     /// Computes the next target using ASERT relative to an anchor.
