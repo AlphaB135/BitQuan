@@ -22,7 +22,7 @@ This note captures the initial production assumptions for Proof-of-Work security
 - **Pool decentralisation:**
   - Adopt Stratum V2 with job negotiation to reduce custodial control.
   - Encourage non-custodial pooling through BQIP proposals (e.g., payout scripts with multisig timelocks).
-  - Integrate compact blocks + erasure-coded relay for low bandwidth regions; Phase 4 introduces gossip-level changes.
+  - Integrate compact blocks + erasฝure-coded relay for low bandwidth regions; Phase 4 introduces gossip-level changes.
 
 ## 3. Operational Guidance
 - **Reward schedule API:** `RewardSchedule::subsidy_at_height(height)` now returns the correct subsidy including tail emission. The `ConsensusEngine` exposes this via the block validation report.

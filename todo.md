@@ -1,5 +1,22 @@
 # BitQuan TODO Master Plan
 
+## Progress Update (2025-10-25T17:54:54.589Z)
+- Fees/weight: เพิ่ม witness_weight_beta=0.5 และใช้งานใน consensus/mempool.
+- Types: เพิ่ม binary serialization (base+witness) และตัวช่วย txid/wtxid.
+- Vectors: เพิ่มตัวอย่าง gen_tx_vectors (hex fixtures สำหรับ cross-language).
+- PoW: เพิ่ม header serialization, SHA256d header hash, bits→target และ target check.
+- Node: เพิ่มคำสั่ง MineOnce (CPU miner demo) ระหว่างกำลังจัด wiring ให้คอมไพล์สมบูรณ์.
+
+## Progress Update (2025-10-25T17:21:54Z)
+- Docs/spec: เพิ่ม/อัปเดต BQIP-0001..0004 (PQC Tx/Block, PoW params, Wallet/SDK, Witness+L2), ปรับสเปก transactions_blocks.md (witness, wtxid/witness_root, น้ำหนัก base+α+β), อัปเดตสถาปัตย์ (k-values), เพิ่ม test-vectors stub.
+- i18n: อัปเดต README.th.md และส่วนภาษาไทยในสเปก/สถาปัตย์ให้สอดคล้อง witness/k-value.
+- Tooling: เพิ่ม scripts/install-hooks.sh (pre-commit tooling) และอัปเดต CONTRIBUTING/README วิธีใช้งาน.
+- SDK/Ecosystem: สร้างโครง sdk/ (Rust) และ bindings/ts/ (TypeScript) พร้อม README แนวทาง.
+- Crypto: เอา panic ออกจาก hkdf.expand() ใน bq-crypto.
+- Types: ขยายโครงสร้าง Transaction/Witness ใน bitquan-types; เพิ่ม tests JSON round-trip และตัวอย่าง tx builder + ตรวจน้ำหนักลายเซ็น.
+- Consensus: เพิ่ม RewardSchedule::subsidy_at_height unit tests (halving/tail); เพิ่ม DifficultyState+MTP integration test และ utilities (compact<->target).
+- Tracking: เปิด issues #1–#4 สำหรับ BQIP-0002/0003/0004 และ SDK scaffolding.
+
 ## 0. หลักการและโครงสร้างพื้นฐาน (Phase 0)
 - [ ] ประกาศนโยบาย “ไม่มี backdoor/admin key/สวิตช์ลับ” ในเอกสารโครงการและรีวิวโค้ดทุกส่วนเพื่อยืนยัน
 - [ ] จัดเตรียมกระบวนการทำงานให้เป็น open-source 100% (repo สาธารณะ, history โปร่งใส)
