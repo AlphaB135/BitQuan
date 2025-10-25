@@ -154,7 +154,10 @@ fn load_block_placeholder() -> Result<Block> {
 }
 
 fn mine_once(max_tries: u64, payout_script_hex: &str, bits: u32) -> Result<()> {
-    use bitquan_types::{BlockHeader, Transaction, TxOut, SigAlgorithm};
+    use bitquan_types::{Block, BlockHeader, Transaction, TxOut, SigAlgorithm};
+    let mut store = InMemoryChainStore::new();
+
+    // Build coinbase (placeholder: no inputs; single output to payout script)
     let payout_script = hex::decode(payout_script_hex)?;
     let coinbase = Transaction {
         version: 2,
@@ -164,21 +167,34 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, bits: u32) -> Result<()> {
         sig_algo: SigAlgorithm::Dilithium3,
         witnesses: vec![],
     };
+
+    // Merkle root for single-tx block
     let merkle_root = coinbase.txid();
+
+    // Determine prev_block from tip if any
+    let mut prev = [0u8; 32];
+    if let Some(tip) = store.tip() {
+        prev = header_hash(tip);
+    }
+
     let mut header = BlockHeader {
         version: 1,
-        prev_block: [0u8; 32],
+        prev_block: prev,
         merkle_root,
         pqc_agg_hint: [0u8; 32],
         time: (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u32),
         bits,
         nonce: 0,
     };
+
     for n in 0..max_tries {
         header.nonce = n;
         if check_header_pow(&header) {
-            let h = header_hash(&header);
-            println!("FOUND nonce={n} hash={}", hex::encode(h));
+            let id = header_hash(&header);
+            println!("FOUND nonce={n} hash={}", hex::encode(id));
+            let block = Block { header: header.clone(), transactions: vec![coinbase] };
+            store.insert_block(block);
+            println!("Inserted block tip={}", hex::encode(id));
             return Ok(());
         }
         if n % 100_000 == 0 {

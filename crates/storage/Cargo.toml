@@ -10,3 +10,4 @@ description = "State and chain storage abstractions for BitQuan."
 [dependencies]
 bitquan-types = { path = "../types", version = "0.1.0" }
 thiserror.workspace = true
+sha2.workspace = true

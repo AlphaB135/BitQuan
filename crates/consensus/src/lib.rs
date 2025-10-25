@@ -160,7 +160,6 @@ pub fn validate_block(
         });
     }
 
-    // TODO: Replace placeholder digest handling with canonical transaction digest construction.
     for tx in &block.transactions {
         let digest = transaction_sighash(tx);
         registry.verify_transaction(tx, &digest)?;

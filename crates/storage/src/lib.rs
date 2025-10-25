@@ -48,9 +48,8 @@ impl Default for InMemoryChainStore {
 
 impl ChainStore for InMemoryChainStore {
     fn insert_block(&mut self, block: Block) {
-        // TODO: Replace with actual block hashing once defined.
-        let mut id = [0u8; 32];
-        id.copy_from_slice(&block.header.prev_block);
+        // Use SHA256d(header) as the block id
+        let id = header_id(&block.header);
         self.tip = Some(block.header.clone());
         self.blocks.insert(id, block);
     }
