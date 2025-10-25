@@ -173,8 +173,8 @@ pub struct Transaction {
     pub outputs: Vec<TxOut>,
     /// Signature algorithm for all attached signatures.
     pub sig_algo: SigAlgorithm,
-    /// Signature payloads confirming the inputs.
-    pub signatures: Vec<SignaturePayload>,
+    /// Witness data carrying signature payloads and auxiliary metadata.
+    pub witnesses: Vec<Witness>,
 }
 
 impl Transaction {
@@ -188,9 +188,9 @@ impl Transaction {
         self.outputs.len()
     }
 
-    /// Returns the number of explicit signatures.
+    /// Returns the number of explicit signatures across all witnesses.
     pub fn signature_count(&self) -> usize {
-        self.signatures.len()
+        self.witnesses.iter().map(|w| w.signatures.len()).sum()
     }
 
     /// Provides a heuristic serialized size used by consensus weight calculations.
@@ -213,13 +213,32 @@ impl Transaction {
 
         len += 1; // sig_algo code
 
-        len += CompactUint::from_usize(self.signatures.len()).encoded_length();
+        len += CompactUint::from_usize(self.witnesses.len()).encoded_length();
         len += self
-            .signatures
+            .witnesses
             .iter()
-            .map(SignaturePayload::serialized_size_hint)
+            .map(Witness::serialized_size_hint)
             .sum::<usize>();
 
         len
+    }
+}
+
+/// Witness container for PQC signatures and future extensions.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Witness {
+    /// Signatures included in this witness.
+    pub signatures: Vec<SignaturePayload>,
+}
+
+impl Witness {
+    /// Returns a heuristic serialized size for the witness.
+    pub fn serialized_size_hint(&self) -> usize {
+        CompactUint::from_usize(self.signatures.len()).encoded_length()
+            + self
+                .signatures
+                .iter()
+                .map(SignaturePayload::serialized_size_hint)
+                .sum::<usize>()
     }
 }

@@ -8,6 +8,10 @@ use bq_crypto::{
 };
 use thiserror::Error;
 
+mod asert;
+
+pub use asert::asert_next_target;
+
 /// Parameters controlling consensus validation.
 #[derive(Clone, Debug)]
 pub struct ConsensusParams {
@@ -172,6 +176,16 @@ impl ConsensusEngine {
     /// Returns the consensus parameters in use.
     pub fn params(&self) -> &ConsensusParams {
         &self.params
+    }
+
+    /// Computes the next target using ASERT relative to an anchor.
+    pub fn next_difficulty_target(
+        &self,
+        anchor_target: u128,
+        height_delta: i64,
+        time_delta: i64,
+    ) -> u128 {
+        asert_next_target(anchor_target, height_delta, time_delta, &self.params)
     }
 
     /// Validates a block using the stored registry and RNG state.

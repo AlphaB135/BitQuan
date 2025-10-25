@@ -9,6 +9,7 @@ pub use block::{Block, BlockHeader};
 pub use compact_uint::CompactUint;
 pub use transaction::{
     AuxiliarySignatureData, SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut, VarBytes,
+    Witness,
 };
 
 /// Alias for the number of post-quantum signatures contained in a payload.
@@ -19,7 +20,7 @@ pub fn count_signatures(block: &Block) -> SignatureCount {
     block
         .transactions
         .iter()
-        .map(|tx| tx.signatures.len() as SignatureCount)
+        .map(|tx| tx.signature_count() as SignatureCount)
         .sum()
 }
 

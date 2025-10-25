@@ -27,6 +27,7 @@ This note captures the initial production assumptions for Proof-of-Work security
 ## 3. Operational Guidance
 - **Reward schedule API:** `RewardSchedule::subsidy_at_height(height)` now returns the correct subsidy including tail emission. The `ConsensusEngine` exposes this via the block validation report.
 - **Difficulty metadata:** `ConsensusParams` tracks `target_block_time` and `difficulty_half_life`. Consensus code still uses placeholder digest generation—full difficulty/retarget logic will land alongside Phase 4 validation.
+- **ASERT helper:** `consensus::asert_next_target(anchor_target, height_delta, time_delta, params)` exposes the prototype retarget calculation (clamped to the Bitcoin-style max target constant).
 - **Security testing:** PQC benchmarks must verify Dilithium verify throughput ≥5k sig/sec on reference hardware (8 cores) and confirm batch verification scaling with >1k signatures per block.
 - **Next steps:**
   1. Finalise witness layout and rollup commitment format (Phase 4).

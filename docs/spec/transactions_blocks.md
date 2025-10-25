@@ -21,7 +21,8 @@ Transaction {
   outputs_count: CompactUint
   outputs: Vec<TxOut>
   sig_algo: SigAlgorithm
-  signatures: Vec<SignaturePayload>
+  witnesses_count: CompactUint
+  witnesses: Vec<Witness>
 }
 ```
 
@@ -57,7 +58,17 @@ enum SigAlgorithm : u8 {
 ```
 - ค่า `Reserved` กันไว้สำหรับอัลกอริทึมใหม่โดยระบุผ่าน BQIP
 
-### 2.4 โครงสร้าง SignaturePayload
+### 2.4 โครงสร้าง Witness
+```text
+Witness {
+  signatures_count: CompactUint
+  signatures: Vec<SignaturePayload>
+}
+```
+- `signatures`: รวมลายเซ็นทั้งหมดที่เกี่ยวข้องกับอินพุตเดียวกันหรือเงื่อนไขเดียวกัน
+- รองรับ metadata เพิ่มเติมในอนาคต (เช่น proof, commitment) โดยใช้ `SignaturePayload::aux`
+
+### 2.5 โครงสร้าง SignaturePayload
 ```text
 SignaturePayload {
   signer_index: u16
@@ -101,7 +112,7 @@ Block {
 - ลำดับธุรกรรมภายในบล็อกคงที่ตามที่รับจาก miner หรือตามกฎ mempool policy ในอนาคต
 
 ## 6. ข้อพิจารณาเพิ่มเติม
-- รองรับ Witness structure ภายหลังโดยเพิ่ม `witnesses: Vec<Witness>` ใน Transaction และ flag ใน version
+- ข้อมูล witness อยู่ใน `Transaction::witnesses` แยกจาก payload หลักของธุรกรรม
 - เตรียมช่อง `pqc_agg_hint` เพื่อให้สามารถใช้ aggregate signature หรือ commitment สำหรับ batch verification
 - อนุญาตให้ใช้ multisig ผ่านสคริปต์เชิงพันธุ์ (script extensions) ใน Phase ถัดไป โดยกำหนด opcode เพิ่มเติมผ่าน BQIP
 
@@ -135,7 +146,8 @@ Transaction {
   outputs_count: CompactUint
   outputs: Vec<TxOut>
   sig_algo: SigAlgorithm
-  signatures: Vec<SignaturePayload>
+  witnesses_count: CompactUint
+  witnesses: Vec<Witness>
 }
 ```
 
@@ -171,7 +183,17 @@ enum SigAlgorithm : u8 {
 ```
 - Additional algorithms require a dedicated BQIP assignment
 
-### 2.4 SignaturePayload Structure
+### 2.4 Witness Structure
+```text
+Witness {
+  signatures_count: CompactUint
+  signatures: Vec<SignaturePayload>
+}
+```
+- `signatures`: Grouped PQ signatures tied to a particular input or script path.
+- Extensible via `SignaturePayload::aux` for future commitments or aggregation metadata.
+
+### 2.5 SignaturePayload Structure
 ```text
 SignaturePayload {
   signer_index: u16
@@ -215,7 +237,7 @@ Block {
 - Transaction ordering inside a block remains as produced by the miner or future mempool policy
 
 ## 6. Additional Considerations
-- Witness data can be introduced later by adding `witnesses: Vec<Witness>` and a version flag
+- Witness data resides in `Transaction::witnesses`, enabling segregation from the base transaction body
 - `pqc_agg_hint` prepares for aggregate signatures or commitments used during batch verification
 - Multisig support will evolve via script extensions defined in subsequent BQIPs
 

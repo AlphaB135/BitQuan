@@ -74,8 +74,10 @@ impl CryptoRegistry {
             .provider_for(tx.sig_algo)
             .ok_or_else(|| CryptoError::NotImplemented(tx.sig_algo))?;
 
-        for payload in &tx.signatures {
-            provider.verify(payload, message_digest)?;
+        for witness in &tx.witnesses {
+            for payload in &witness.signatures {
+                provider.verify(payload, message_digest)?;
+            }
         }
 
         Ok(())
