@@ -2,10 +2,7 @@
 #![warn(missing_docs)]
 
 use bitquan_types::{count_signatures, Block};
-use bq_crypto::{
-    rng::{RandomSource, RngError, RngService},
-    CryptoError, CryptoRegistry,
-};
+use bq_crypto::{CryptoError, CryptoRegistry};
 use thiserror::Error;
 
 mod asert;
@@ -113,9 +110,6 @@ pub enum ConsensusError {
     /// Signature verification failed.
     #[error("signature verification failed: {0}")]
     Signature(#[from] CryptoError),
-    /// RNG failure when preparing validation digests.
-    #[error("rng failure: {0}")]
-    Entropy(#[from] RngError),
 }
 
 /// Calculates the block weight given an `alpha` multiplier.
@@ -131,7 +125,6 @@ pub fn validate_block(
     height: u64,
     params: &ConsensusParams,
     registry: &CryptoRegistry,
-    rng: &mut RngService,
 ) -> Result<BlockValidationReport, ConsensusError> {
     let block_weight = calculate_block_weight(block, params.signature_weight_alpha);
     let signature_count = count_signatures(block);
@@ -146,7 +139,7 @@ pub fn validate_block(
 
     // TODO: Replace placeholder digest handling with canonical transaction digest construction.
     for tx in &block.transactions {
-        let digest = rng.bytes(32)?;
+        let digest = transaction_sighash(tx);
         registry.verify_transaction(tx, &digest)?;
     }
 
@@ -161,25 +154,17 @@ pub fn validate_block(
 pub struct ConsensusEngine {
     params: ConsensusParams,
     registry: CryptoRegistry,
-    rng: RngService,
     difficulty: Option<DifficultyState>,
 }
 
 impl ConsensusEngine {
     /// Constructs a new engine using the supplied parameters and registry.
-    pub fn new(params: ConsensusParams, registry: CryptoRegistry) -> Result<Self, ConsensusError> {
-        let rng = RngService::new()?;
-        Ok(Self {
+    pub fn new(params: ConsensusParams, registry: CryptoRegistry) -> Self {
+        Self {
             params,
             registry,
-            rng,
             difficulty: None,
-        })
-    }
-
-    /// Provides mutable access to the underlying RNG for advanced scenarios.
-    pub fn rng_mut(&mut self) -> &mut RngService {
-        &mut self.rng
+        }
     }
 
     /// Returns the consensus parameters in use.
@@ -205,10 +190,10 @@ impl ConsensusEngine {
     /// Computes the next target using ASERT relative to an anchor.
     pub fn next_difficulty_target(
         &self,
-        anchor_target: u128,
+        anchor_target: f64,
         height_delta: i64,
         time_delta: i64,
-    ) -> u128 {
+    ) -> f64 {
         asert_next_target(anchor_target, height_delta, time_delta, &self.params)
     }
 
@@ -218,6 +203,6 @@ impl ConsensusEngine {
         block: &Block,
         height: u64,
     ) -> Result<BlockValidationReport, ConsensusError> {
-        validate_block(block, height, &self.params, &self.registry, &mut self.rng)
+        validate_block(block, height, &self.params, &self.registry)
     }
 }

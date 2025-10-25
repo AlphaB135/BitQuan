@@ -67,7 +67,7 @@ fn run_node(config_path: &str) -> Result<()> {
     // Bootstraps placeholder subsystems to illustrate crate integration.
     let registry = CryptoRegistry::default();
     let params = ConsensusParams::phase3_defaults();
-    let _engine = ConsensusEngine::new(params, registry)?;
+    let _engine = ConsensusEngine::new(params, registry);
     let _storage = InMemoryChainStore::new();
 
     Ok(())
@@ -81,7 +81,7 @@ fn check_block(path: &str) -> Result<()> {
 
     let params = ConsensusParams::phase3_defaults();
     let registry = CryptoRegistry::default();
-    let mut engine = ConsensusEngine::new(params, registry)?;
+    let mut engine = ConsensusEngine::new(params, registry);
     let block = load_block_placeholder()?;
 
     match engine.validate_block(&block, 0) {

@@ -11,3 +11,4 @@ description = "Consensus rules and validation primitives for BitQuan."
 bq-crypto = { path = "../crypto", version = "0.0.1" }
 bitquan-types = { path = "../types", version = "0.1.0" }
 thiserror.workspace = true
+sha2.workspace = true
