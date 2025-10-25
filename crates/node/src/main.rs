@@ -1,7 +1,7 @@
 //! BitQuan reference node entrypoint.
 
 use anyhow::Result;
-use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams};
+use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
 use bitquan_storage::{ChainStore, InMemoryChainStore};
 use bitquan_types::Block;
 use bq_crypto::{
@@ -153,7 +153,7 @@ fn load_block_placeholder() -> Result<Block> {
     Ok(block)
 }
 
-fn mine_once(max_tries: u64, payout_script_hex: &str, bits: u32) -> Result<()> {
+fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<()> {
     use bitquan_types::{Block, BlockHeader, Transaction, TxOut, SigAlgorithm};
     let mut store = InMemoryChainStore::new();
 
@@ -181,6 +181,14 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, bits: u32) -> Result<()> {
     let mut time = now;
     if let Some(tip) = store.tip() {
         time = time.max(tip.time.saturating_add(1));
+    }
+
+    // Auto-calc bits if zero using DifficultyState anchored at tip
+    if bits == 0 {
+        let params = ConsensusParams::phase3_defaults();
+        let (anchor_bits, anchor_time) = if let Some(tip) = store.tip() { (tip.bits, tip.time as u64) } else { (0x207fffff, now as u64) };
+        let mut state = DifficultyState::new(0, anchor_time, anchor_bits);
+        bits = state.update(1, time as u64, &params);
     }
 
     let mut header = BlockHeader {
