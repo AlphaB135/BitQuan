@@ -90,6 +90,7 @@ mod tests {
         ConsensusParams {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
+            witness_weight_beta: 0.5,
             target_block_time: 600,
             difficulty_half_life: 86_400,
             reward_schedule: RewardSchedule::phase3_defaults(),

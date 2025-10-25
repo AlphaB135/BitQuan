@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use bitquan_consensus::{calculate_block_weight, ConsensusParams};
+use bitquan_consensus::{calculate_block_weight_with_beta, ConsensusParams};
 use bitquan_types::Transaction;
 use bq_crypto::rng::{RandomSource, RngError, RngService};
 use thiserror::Error;
@@ -30,7 +30,11 @@ impl MempoolEntry {
         tie_breaker: u64,
     ) -> Self {
         let block_context = crate::block_from_single_transaction(tx.clone(), tie_breaker);
-        let weight = calculate_block_weight(&block_context, params.signature_weight_alpha);
+        let weight = calculate_block_weight_with_beta(
+            &block_context,
+            params.signature_weight_alpha,
+            params.witness_weight_beta,
+        );
         let fee_per_weight = if weight == 0 { 0 } else { fee / weight };
 
         Self {
