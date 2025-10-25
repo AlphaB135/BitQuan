@@ -1,3 +1,30 @@
+<p align="right">
+  <a href="./README.md"><img alt="English" src="https://img.shields.io/badge/English-blue?style=for-the-badge"></a>
+</p>
+
+# BitQuan
+
+[![CI](https://github.com/alphab/BitQuan/actions/workflows/ci.yml/badge.svg)](https://github.com/alphab/BitQuan/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+BitQuan: บล็อกเชนเน้น PQC (PoW + Dilithium) มุ่งความทนทานความปลอดภัย 50+ ปี
+
+เอกสารหน้านี้เป็นภาษาไทย; คลิกปุ่ม English ด้านบนเพื่อไปยัง README ภาษาอังกฤษ (`README.md`).
+
+## Quickstart
+
+```bash
+cargo test -p bq-crypto
+```
+
+## เอกสาร
+- [ภาพรวมสถาปัตย์](docs/architecture/overview.md)
+- [การกำกับดูแลโครงการ](docs/GOVERNANCE.md)
+- [นโยบายความปลอดภัย](SECURITY.md)
+- [กระบวนการออกเวอร์ชัน](RELEASE.md)
+
+---
+
 # ภาพรวมโครงการ BitQuan
 
 BitQuan คือเครือข่ายบล็อกเชนที่มุ่งสู่ความปลอดภัยระยะยาว 50+ ปี พร้อมการผสาน Post-Quantum Cryptography (PQC) เต็มรูปแบบ เอกสารนี้สรุปภาพรวมโครงการ สถานะปัจจุบัน และแนวทางเริ่มต้นสำหรับผู้ร่วมพัฒนา
