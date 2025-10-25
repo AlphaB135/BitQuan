@@ -28,6 +28,8 @@ pub trait ChainStore {
 pub struct InMemoryChainStore {
     blocks: HashMap<[u8; 32], Block>,
     tip: Option<BlockHeader>,
+    times: Vec<u32>,
+    height: u64,
 }
 
 impl InMemoryChainStore {
@@ -36,6 +38,8 @@ impl InMemoryChainStore {
         Self {
             blocks: HashMap::new(),
             tip: None,
+            times: Vec::new(),
+            height: 0,
         }
     }
 }
@@ -50,6 +54,9 @@ impl ChainStore for InMemoryChainStore {
     fn insert_block(&mut self, block: Block) {
         // Use SHA256d(header) as the block id
         let id = header_id(&block.header);
+        self.times.push(block.header.time);
+        if self.times.len() > 11 { self.times.remove(0); }
+        self.height = self.height.saturating_add(1);
         self.tip = Some(block.header.clone());
         self.blocks.insert(id, block);
     }

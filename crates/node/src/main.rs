@@ -159,17 +159,28 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
 
     // Build coinbase (placeholder: no inputs; single output to payout script)
     let payout_script = hex::decode(payout_script_hex)?;
+    // Construct coinbase input: prev=00..00:vout=0xffffffff, sequence=0xffffffff, script_sig=[height_le|extranonce]
+    let height_le = (store.height() as u32 + 1).to_le_bytes();
+    let mut script_sig = height_le.to_vec();
+    script_sig.extend_from_slice(&time.to_le_bytes()); // simple extranonce = time
+    let coinbase_in = bitquan_types::TxIn {
+        prev_txid: [0u8; 32],
+        prev_vout: u32::MAX,
+        sequence: u32::MAX,
+        script_sig,
+    };
+    let subsidy = bitquan_consensus::ConsensusParams::phase3_defaults().reward_schedule.subsidy_at_height(store.height());
     let coinbase = Transaction {
         version: 2,
         lock_time: 0,
-        inputs: vec![],
-        outputs: vec![TxOut { value: 50_0000_0000, script_pubkey: payout_script }],
+        inputs: vec![coinbase_in],
+        outputs: vec![TxOut { value: subsidy, script_pubkey: payout_script }],
         sig_algo: SigAlgorithm::Dilithium3,
         witnesses: vec![],
     };
 
-    // Merkle root for single-tx block
-    let merkle_root = coinbase.txid();
+    // Merkle root for block (support multi-tx in future)
+    let merkle_root = bitquan_types::merkle_root_from_txids(&[coinbase.txid()]);
 
     // Determine prev_block from tip if any
     let mut prev = [0u8; 32];
@@ -179,7 +190,9 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
 
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u32;
     let mut time = now;
-    if let Some(tip) = store.tip() {
+    if let Some(mtp) = store.mtp() {
+        time = time.max(mtp.saturating_add(1));
+    } else if let Some(tip) = store.tip() {
         time = time.max(tip.time.saturating_add(1));
     }
 
