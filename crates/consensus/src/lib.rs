@@ -23,6 +23,8 @@ pub struct ConsensusParams {
     pub block_weight_cap: u64,
     /// Weight multiplier applied per PQ signature.
     pub signature_weight_alpha: u32,
+    /// Witness byte discount coefficient (0.0..=1.0).
+    pub witness_weight_beta: f32,
     /// Target block interval in seconds.
     pub target_block_time: u64,
     /// ASERT/LWMA half-life in seconds for difficulty retargeting.
@@ -37,6 +39,7 @@ impl ConsensusParams {
         Self {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
+            witness_weight_beta: 0.5,
             target_block_time: 600,
             difficulty_half_life: 86_400,
             reward_schedule: RewardSchedule::phase3_defaults(),
@@ -113,10 +116,24 @@ pub enum ConsensusError {
 }
 
 /// Calculates the block weight given an `alpha` multiplier.
-pub fn calculate_block_weight(block: &Block, alpha: u32) -> u64 {
-    let raw_bytes = block.serialized_size_hint() as u64;
+pub fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
+    use bitquan_types::CompactUint;
+    // Total bytes (base + witness)
+    let total = block.serialized_size_hint() as u64;
+    // Approximate witness bytes from tx structure (count prefix + witnesses)
+    let mut witness_bytes: u64 = 0;
+    for tx in &block.transactions {
+        witness_bytes += CompactUint::from_usize(tx.witnesses.len()).encoded_length() as u64;
+        witness_bytes += tx
+            .witnesses
+            .iter()
+            .map(|w| w.serialized_size_hint() as u64)
+            .sum::<u64>();
+    }
+    let base_bytes = total.saturating_sub(witness_bytes);
     let signature_weight = count_signatures(block) * alpha as u64;
-    raw_bytes + signature_weight
+    let witness_weight = (beta * witness_bytes as f32).round() as u64;
+    base_bytes + signature_weight + witness_weight
 }
 
 /// Validates a block against the supplied consensus parameters.
@@ -126,7 +143,11 @@ pub fn validate_block(
     params: &ConsensusParams,
     registry: &CryptoRegistry,
 ) -> Result<BlockValidationReport, ConsensusError> {
-    let block_weight = calculate_block_weight(block, params.signature_weight_alpha);
+    let block_weight = calculate_block_weight_with_beta(
+        block,
+        params.signature_weight_alpha,
+        params.witness_weight_beta,
+    );
     let signature_count = count_signatures(block);
     let block_subsidy = params.reward_schedule.subsidy_at_height(height);
 

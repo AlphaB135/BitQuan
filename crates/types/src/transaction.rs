@@ -179,49 +179,94 @@ pub struct Transaction {
 
 impl Transaction {
     /// Returns the number of inputs.
-    pub fn inputs_len(&self) -> usize {
-        self.inputs.len()
-    }
-
+    pub fn inputs_len(&self) -> usize { self.inputs.len() }
     /// Returns the number of outputs.
-    pub fn outputs_len(&self) -> usize {
-        self.outputs.len()
-    }
-
+    pub fn outputs_len(&self) -> usize { self.outputs.len() }
     /// Returns the number of explicit signatures across all witnesses.
-    pub fn signature_count(&self) -> usize {
-        self.witnesses.iter().map(|w| w.signatures.len()).sum()
-    }
-
+    pub fn signature_count(&self) -> usize { self.witnesses.iter().map(|w| w.signatures.len()).sum() }
     /// Provides a heuristic serialized size used by consensus weight calculations.
     pub fn serialized_size_hint(&self) -> usize {
         let mut len = 4 + 4; // version + lock_time
-
         len += CompactUint::from_usize(self.inputs.len()).encoded_length();
-        len += self
-            .inputs
-            .iter()
-            .map(TxIn::serialized_size_hint)
-            .sum::<usize>();
-
+        len += self.inputs.iter().map(TxIn::serialized_size_hint).sum::<usize>();
         len += CompactUint::from_usize(self.outputs.len()).encoded_length();
-        len += self
-            .outputs
-            .iter()
-            .map(TxOut::serialized_size_hint)
-            .sum::<usize>();
-
+        len += self.outputs.iter().map(TxOut::serialized_size_hint).sum::<usize>();
         len += 1; // sig_algo code
-
         len += CompactUint::from_usize(self.witnesses.len()).encoded_length();
-        len += self
-            .witnesses
-            .iter()
-            .map(Witness::serialized_size_hint)
-            .sum::<usize>();
-
+        len += self.witnesses.iter().map(Witness::serialized_size_hint).sum::<usize>();
         len
     }
+}
+
+impl Transaction {
+    /// Returns the estimated size of witness-only data for this transaction.
+    pub fn witness_size_hint(&self) -> usize {
+        CompactUint::from_usize(self.witnesses.len()).encoded_length()
+            + self.witnesses.iter().map(Witness::serialized_size_hint).sum::<usize>()
+    }
+
+    /// Serializes the transaction body without witness.
+    pub fn to_bytes_base(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(self.serialized_size_hint());
+        out.extend_from_slice(&self.version.to_le_bytes());
+        out.extend_from_slice(&self.lock_time.to_le_bytes());
+        write_compact(&mut out, self.inputs.len() as u64);
+        for i in &self.inputs {
+            out.extend_from_slice(&i.prev_txid);
+            out.extend_from_slice(&i.prev_vout.to_le_bytes());
+            out.extend_from_slice(&i.sequence.to_le_bytes());
+            write_varbytes(&mut out, &i.script_sig);
+        }
+        write_compact(&mut out, self.outputs.len() as u64);
+        for o in &self.outputs {
+            out.extend_from_slice(&o.value.to_le_bytes());
+            write_varbytes(&mut out, &o.script_pubkey);
+        }
+        out.push(self.sig_algo.code());
+        out
+    }
+
+    /// Serializes the transaction including witness.
+    pub fn to_bytes_with_witness(&self) -> Vec<u8> {
+        let mut out = self.to_bytes_base();
+        write_compact(&mut out, self.witnesses.len() as u64);
+        for w in &self.witnesses {
+            write_compact(&mut out, w.signatures.len() as u64);
+            for s in &w.signatures {
+                out.extend_from_slice(&s.signer_index.to_le_bytes());
+                write_varbytes(&mut out, &s.signature);
+                write_varbytes(&mut out, &s.public_key);
+                match &s.aux {
+                    Some(aux) => { out.push(1); write_varbytes(&mut out, &aux.payload); }
+                    None => out.push(0),
+                }
+            }
+        }
+        out
+    }
+
+    /// Double-SHA256 over base serialization (txid).
+    pub fn txid(&self) -> [u8; 32] { sha256d(&self.to_bytes_base()) }
+    /// Double-SHA256 over full serialization (wtxid).
+    pub fn wtxid(&self) -> [u8; 32] { sha256d(&self.to_bytes_with_witness()) }
+}
+
+fn write_compact(out: &mut Vec<u8>, value: u64) {
+    if value <= 0xFC { out.push(value as u8); }
+    else if value <= 0xFFFF { out.push(0xFD); out.extend_from_slice(&(value as u16).to_le_bytes()); }
+    else if value <= 0xFFFF_FFFF { out.push(0xFE); out.extend_from_slice(&(value as u32).to_le_bytes()); }
+    else { out.push(0xFF); out.extend_from_slice(&value.to_le_bytes()); }
+}
+
+fn write_varbytes(out: &mut Vec<u8>, data: &[u8]) { write_compact(out, data.len() as u64); out.extend_from_slice(data); }
+
+fn sha256d(data: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let first = Sha256::digest(data);
+    let second = Sha256::digest(&first);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&second);
+    out
 }
 
 /// Witness container for PQC signatures and future extensions.
