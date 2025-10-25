@@ -10,6 +10,7 @@ use sha2::Sha256;
 pub fn hkdf_expand(master: &[u8; 32], label: &str) -> [u8; 32] {
     let hkdf = Hkdf::<Sha256>::new(None, master);
     let mut okm = [0u8; 32];
-    hkdf.expand(label.as_bytes(), &mut okm).expect("HKDF");
+    // 32-byte OKM is within RFC 5869 limits; expansion cannot fail for SHA-256.
+    let _ = hkdf.expand(label.as_bytes(), &mut okm);
     okm
 }
