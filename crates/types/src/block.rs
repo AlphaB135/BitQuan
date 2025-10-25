@@ -87,3 +87,30 @@ impl Block {
         self.header.serialized_size() + tx_count_len + txs_len
     }
 }
+
+/// Computes merkle root (Bitcoin-style) from a slice of txids.
+pub fn merkle_root_from_txids(txids: &[[u8; 32]]) -> [u8; 32] {
+    if txids.is_empty() {
+        return [0u8; 32];
+    }
+    let mut layer: Vec<[u8; 32]> = txids.to_vec();
+    while layer.len() > 1 {
+        let mut next = Vec::with_capacity((layer.len() + 1) / 2);
+        let mut i = 0;
+        while i < layer.len() {
+            let a = layer[i];
+            let b = if i + 1 < layer.len() { layer[i + 1] } else { layer[i] };
+            let mut data = [0u8; 64];
+            data[..32].copy_from_slice(&a);
+            data[32..].copy_from_slice(&b);
+            let h1 = Sha256::digest(&data);
+            let h2 = Sha256::digest(&h1);
+            let mut out = [0u8; 32];
+            out.copy_from_slice(&h2);
+            next.push(out);
+            i += 2;
+        }
+        layer = next;
+    }
+    layer[0]
+}
