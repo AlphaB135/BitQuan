@@ -177,12 +177,18 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, bits: u32) -> Result<()> {
         prev = header_hash(tip);
     }
 
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u32;
+    let mut time = now;
+    if let Some(tip) = store.tip() {
+        time = time.max(tip.time.saturating_add(1));
+    }
+
     let mut header = BlockHeader {
         version: 1,
         prev_block: prev,
         merkle_root,
         pqc_agg_hint: [0u8; 32],
-        time: (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u32),
+        time,
         bits,
         nonce: 0,
     };
