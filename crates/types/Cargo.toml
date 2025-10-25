@@ -9,3 +9,6 @@ description = "Core data structures for BitQuan transactions and blocks."
 
 [dependencies]
 serde.workspace = true
+
+[dev-dependencies]
+serde_json = "1.0"

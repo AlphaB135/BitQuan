@@ -15,3 +15,25 @@ fn subsidy_tail_emission_after_seven_halvings() {
     assert_eq!(rs.subsidy_at_height(210_000 * 7), 50_000_000);
     assert_eq!(rs.subsidy_at_height(210_000 * 1000), 50_000_000);
 }
+
+fn mtp(timestamps: &[u64]) -> u64 {
+    let mut v = timestamps.to_vec();
+    v.sort_unstable();
+    v[v.len() / 2]
+}
+
+#[test]
+fn difficultystate_with_mtp_anchor_chain() {
+    let params = ConsensusParams::phase3_defaults();
+    // Simulate 11 previous block timestamps spaced by 600s
+    let base: u64 = 1_700_000_000;
+    let mut prev_times: Vec<u64> = (0..11).map(|i| base + i * 600).collect();
+    let anchor_height = 1000;
+    let anchor_bits = 0x1d00ffff; // classic initial target
+    let mut state = DifficultyState::new(anchor_height, prev_times[10], anchor_bits);
+
+    // Next block time uses MTP of the previous 11
+    let next_time = mtp(&prev_times);
+    let next_bits = state.update(anchor_height + 1, next_time, &params);
+    assert!(next_bits > 0);
+}
