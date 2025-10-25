@@ -101,7 +101,9 @@ pub struct TxIn {
 impl TxIn {
     /// Returns a heuristic byte length for serialization planning.
     pub fn serialized_size_hint(&self) -> usize {
-        32 + 4 + 4 + CompactUint::from_usize(self.script_sig.len()).encoded_length()
+        32 + 4
+            + 4
+            + CompactUint::from_usize(self.script_sig.len()).encoded_length()
             + self.script_sig.len()
     }
 }
@@ -118,7 +120,8 @@ pub struct TxOut {
 impl TxOut {
     /// Returns a heuristic byte length for serialization planning.
     pub fn serialized_size_hint(&self) -> usize {
-        8 + CompactUint::from_usize(self.script_pubkey.len()).encoded_length() + self.script_pubkey.len()
+        8 + CompactUint::from_usize(self.script_pubkey.len()).encoded_length()
+            + self.script_pubkey.len()
     }
 }
 
@@ -139,8 +142,10 @@ impl SignaturePayload {
     /// Returns the total byte length contributed by this payload (best-effort estimate).
     pub fn serialized_size_hint(&self) -> usize {
         let mut len = 2;
-        len += CompactUint::from_usize(self.signature.len()).encoded_length() + self.signature.len();
-        len += CompactUint::from_usize(self.public_key.len()).encoded_length() + self.public_key.len();
+        len +=
+            CompactUint::from_usize(self.signature.len()).encoded_length() + self.signature.len();
+        len +=
+            CompactUint::from_usize(self.public_key.len()).encoded_length() + self.public_key.len();
 
         match &self.aux {
             Some(aux) => {

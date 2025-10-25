@@ -38,7 +38,12 @@ pub struct BlockValidationReport {
 pub enum ConsensusError {
     /// The block exceeds the configured weight constraints.
     #[error("block weight {actual} exceeds limit {limit}")]
-    BlockWeightExceeded { actual: u64, limit: u64 },
+    BlockWeightExceeded {
+        /// Observed weight for the block under evaluation.
+        actual: u64,
+        /// Configured upper bound for block weight.
+        limit: u64,
+    },
     /// Signature verification failed.
     #[error("signature verification failed: {0}")]
     Signature(#[from] CryptoError),

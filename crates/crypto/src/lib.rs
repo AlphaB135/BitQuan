@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction};
 use thiserror::Error;
 
+pub mod rng;
+
 /// Error type returned when cryptographic operations fail.
 #[derive(Debug, Error)]
 pub enum CryptoError {

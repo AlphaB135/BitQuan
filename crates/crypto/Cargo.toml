@@ -7,6 +7,20 @@ repository.workspace = true
 rust-version.workspace = true
 description = "Post-quantum cryptography interfaces and adapters for BitQuan."
 
+[features]
+deterministic_tests = []
+
 [dependencies]
 bitquan-types = { path = "../types", version = "0.1.0" }
+getrandom.workspace = true
+hex.workspace = true
+hkdf.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+rand_core.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

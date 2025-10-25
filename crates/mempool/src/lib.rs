@@ -20,18 +20,10 @@ pub struct MempoolEntry {
 
 impl MempoolEntry {
     /// Calculates fee density from transaction totals.
-    pub fn from_transaction(
-        tx: Transaction,
-        params: &ConsensusParams,
-        fee: u64,
-    ) -> Self {
+    pub fn from_transaction(tx: Transaction, params: &ConsensusParams, fee: u64) -> Self {
         let block_context = crate::block_from_single_transaction(tx.clone());
         let weight = calculate_block_weight(&block_context, params.signature_weight_alpha);
-        let fee_per_weight = if weight == 0 {
-            0
-        } else {
-            fee / weight
-        };
+        let fee_per_weight = if weight == 0 { 0 } else { fee / weight };
 
         Self {
             tx,

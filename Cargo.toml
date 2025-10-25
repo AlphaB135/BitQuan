@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
     "crates/node",
     "crates/types",
@@ -19,5 +20,14 @@ description = "BitQuan blockchain node and supporting crates with post-quantum c
 [workspace.dependencies]
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
+getrandom = "0.2"
+hex = "0.4"
+hkdf = "0.12"
+proptest = "1.4"
+rand = "0.8"
+rand_chacha = "0.3"
+rand_core = "0.6"
 serde = { version = "1.0", features = ["derive"] }
+sha2 = "0.10"
 thiserror = "1.0"
+zeroize = "1.8"
