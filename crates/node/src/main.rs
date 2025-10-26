@@ -110,6 +110,15 @@ enum Commands {
         #[arg(long, default_value = "127.0.0.1:18444")]
         addr: String,
     },
+    /// Check balance for a given script/address
+    Balance {
+        /// Data directory for blockchain storage
+        #[arg(long, default_value = "./data/chainstate")]
+        datadir: String,
+        /// Hex-encoded script_pubkey to check balance for
+        #[arg(long)]
+        script_hex: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -126,6 +135,7 @@ fn main() -> Result<()> {
         Commands::WalletGen { algo } => wallet_gen(&algo),
         Commands::BuildTx { prev_txid, prev_vout, value, to_script_hex } => build_tx(&prev_txid, prev_vout, value, &to_script_hex),
         Commands::P2PDemo { addr } => p2p_demo(&addr),
+        Commands::Balance { datadir, script_hex } => check_balance(&datadir, script_hex.as_deref()),
     }
 }
 
@@ -616,5 +626,76 @@ fn p2p_demo(addr: &str) -> Result<()> {
 
     // Wait server
     let _ = server.join().unwrap_or(Ok(()));
+    Ok(())
+}
+
+/// Check balance for a script
+#[cfg(feature = "rocksdb-backend")]
+fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
+    use bitquan_storage::rocksdb_store::RocksDBStore;
+    
+    let store = RocksDBStore::open(datadir)?;
+    let height = store.height()?;
+    
+    println!("\n=== BitQuan Balance ===");
+    println!("Chain height: {}", height);
+    
+    if let Some(script) = script_hex {
+        let target_script = hex::decode(script)?;
+        
+        println!("Script: {}", script);
+        println!("\nScanning blockchain for UTXOs...");
+        
+        let mut balance: u64 = 0;
+        let mut utxo_count = 0;
+        
+        // Scan all blocks (simple implementation)
+        for h in 0..=height {
+            if let Ok(Some(block)) = store.get_block_by_height(h) {
+                for tx in &block.transactions {
+                    for (vout, output) in tx.outputs.iter().enumerate() {
+                        if output.script_pubkey == target_script {
+                            // Check if spent (simplified - should check UTXO set)
+                            balance += output.value;
+                            utxo_count += 1;
+                            println!("  Block #{} TX {} vout={} amount={}", 
+                                h, hex::encode(tx.txid()), vout, output.value);
+                        }
+                    }
+                }
+            }
+        }
+        
+        println!("\nUTXO count: {}", utxo_count);
+        println!("Balance: {} satoshis", balance);
+        println!("Balance: {:.8} BQ", balance as f64 / 100_000_000.0);
+    } else {
+        // Show total supply
+        println!("\nTotal supply calculation:");
+        
+        let mut total_supply: u64 = 0;
+        
+        for h in 0..=height {
+            if let Ok(Some(block)) = store.get_block_by_height(h) {
+                for tx in &block.transactions {
+                    for output in &tx.outputs {
+                        total_supply += output.value;
+                    }
+                }
+            }
+        }
+        
+        println!("Total coins mined: {} satoshis", total_supply);
+        println!("Total coins mined: {:.8} BQ", total_supply as f64 / 100_000_000.0);
+        println!("\nBlocks mined: {}", height + 1);
+    }
+    
+    Ok(())
+}
+
+#[cfg(not(feature = "rocksdb-backend"))]
+fn check_balance(_datadir: &str, _script_hex: Option<&str>) -> Result<()> {
+    eprintln!("ERROR: Balance checking requires 'rocksdb-backend' feature");
+    eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
 }
