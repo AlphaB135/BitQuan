@@ -219,6 +219,8 @@ pub struct PeerManager {
     max_peers: usize,
     /// Current blockchain height.
     current_height: Arc<Mutex<u64>>,
+    /// Relay manager for tracking announced items.
+    relay_manager: Option<Arc<crate::relay::RelayManager>>,
 }
 
 impl PeerManager {
@@ -228,6 +230,17 @@ impl PeerManager {
             peers: Arc::new(Mutex::new(Vec::new())),
             max_peers,
             current_height: Arc::new(Mutex::new(0)),
+            relay_manager: None,
+        }
+    }
+
+    /// Creates a new peer manager with relay support.
+    pub fn with_relay(max_peers: usize, relay_manager: Arc<crate::relay::RelayManager>) -> Self {
+        PeerManager {
+            peers: Arc::new(Mutex::new(Vec::new())),
+            max_peers,
+            current_height: Arc::new(Mutex::new(0)),
+            relay_manager: Some(relay_manager),
         }
     }
 
@@ -285,6 +298,49 @@ impl PeerManager {
         }
 
         Ok(sent_count)
+    }
+
+    /// Broadcasts inventory to all peers (with relay tracking).
+    pub fn broadcast_inv(&self, inv: crate::protocol::InvVector) -> Result<usize, P2pError> {
+        use crate::protocol::Message;
+        
+        // Track announcement if relay manager exists
+        if let Some(relay) = &self.relay_manager {
+            relay.announce(&inv);
+        }
+        
+        let msg = Message::Inv {
+            inventory: vec![inv],
+        };
+        
+        self.broadcast(msg)
+    }
+
+    /// Handles incoming inventory announcement.
+    pub fn handle_inv(&self, peer_id: &str, inventory: Vec<crate::protocol::InvVector>) -> Vec<crate::protocol::InvVector> {
+        let mut needed = Vec::new();
+        
+        if let Some(relay) = &self.relay_manager {
+            for inv in inventory {
+                // Only request if we haven't seen it
+                if !relay.has_announced(&inv.hash) && !relay.was_relayed(&inv.hash) {
+                    relay.add_request(inv.hash, peer_id.to_string());
+                    needed.push(inv);
+                }
+            }
+        } else {
+            // No relay manager, request everything
+            needed = inventory;
+        }
+        
+        needed
+    }
+
+    /// Marks data as relayed.
+    pub fn mark_relayed(&self, hash: [u8; 32]) {
+        if let Some(relay) = &self.relay_manager {
+            relay.mark_relayed(hash);
+        }
     }
 
     /// Removes disconnected peers.

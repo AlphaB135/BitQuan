@@ -25,6 +25,15 @@ pub struct BlockTemplate {
     pub height: u64,
 }
 
+/// Mining work data (getwork style)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkData {
+    /// Block header data (hex, 80 bytes)
+    pub data: String,
+    /// Hash target (hex, 32 bytes)
+    pub target: String,
+}
+
 /// Get blockchain info response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockchainInfo {
@@ -82,8 +91,14 @@ pub trait RpcMethods {
     /// Get block template for mining
     fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError>;
     
+    /// Get work for mining (simple interface)
+    fn getwork(&self) -> Result<WorkData, RpcError>;
+    
     /// Submit mined block
     fn submitblock(&self, block_hex: String) -> Result<bool, RpcError>;
+    
+    /// Submit work (getwork style)
+    fn submitwork(&self, data: String) -> Result<bool, RpcError>;
     
     /// Get transaction by txid
     fn gettransaction(&self, txid: String) -> Result<TxInfo, RpcError>;
@@ -123,6 +138,11 @@ pub fn dispatch_call<T: RpcMethods>(
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
         
+        "getwork" => match handler.getwork() {
+            Ok(work) => JsonRpcResponse::success(id, serde_json::to_value(work).unwrap()),
+            Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+        },
+        
         "submitblock" => {
             if let Some(block_hex) = params.as_array().and_then(|a| a.first()).and_then(|v| v.as_str()) {
                 match handler.submitblock(block_hex.to_string()) {
@@ -131,6 +151,17 @@ pub fn dispatch_call<T: RpcMethods>(
                 }
             } else {
                 JsonRpcResponse::error(id, error_codes::INVALID_PARAMS, "expected block hex".to_string())
+            }
+        },
+        
+        "submitwork" => {
+            if let Some(data) = params.as_array().and_then(|a| a.first()).and_then(|v| v.as_str()) {
+                match handler.submitwork(data.to_string()) {
+                    Ok(accepted) => JsonRpcResponse::success(id, serde_json::json!(accepted)),
+                    Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+                }
+            } else {
+                JsonRpcResponse::error(id, error_codes::INVALID_PARAMS, "expected work data".to_string())
             }
         },
         

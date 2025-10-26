@@ -973,20 +973,36 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
     println!("Current height: {}", height);
     println!("Storage: {}", if store.is_some() { "RocksDB" } else { "In-Memory" });
 
-    let peer_manager = Arc::new(PeerManager::new(max_peers));
+    // Create relay manager
+    use bitquan_network::RelayManager;
+    let relay_manager = Arc::new(RelayManager::new(10000));
+    
+    let peer_manager = Arc::new(PeerManager::with_relay(max_peers, relay_manager.clone()));
     peer_manager.update_height(height);
     
     let listener = P2PListener::bind(listen, peer_manager.clone())?;
-    println!("✅ Server started at {}", listener.local_addr()?);
+    println!("Server started at {}", listener.local_addr()?);
     println!("Waiting for connections...");
-    println!("\nCommands:");
+    println!("");
+    println!("Commands:");
     println!("  - Press Ctrl+C to stop");
     println!("  - Peers will sync blockchain automatically");
 
-    // Example: Broadcast tip block when we have storage
-    if let Some(_s) = &store {
-        println!("\n💡 Tip: Use 'mine' command to mine blocks");
-        println!("   Newly mined blocks will be broadcast to peers");
+    // Broadcast tip block when we have storage
+    if let Some(s) = &store {
+        if height > 0 {
+            use bitquan_consensus::header_hash;
+            let store_locked = s.lock().unwrap();
+            if let Ok(Some(tip)) = store_locked.tip() {
+                let tip_hash = header_hash(&tip);
+                drop(store_locked);
+                
+                println!("");
+                println!("Tip: Use 'mine' command to mine blocks");
+                println!("Current tip: {}", hex_encode(&tip_hash));
+                println!("New blocks will be broadcast to peers");
+            }
+        }
     }
 
     loop {
@@ -994,18 +1010,39 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
             Ok(()) => {
                 let count = peer_manager.peer_count();
                 let ready = peer_manager.ready_peer_count();
-                println!("✅ Peer connected! Total: {}, Ready: {}", count, ready);
+                println!("Peer connected! Total: {}, Ready: {}", count, ready);
                 
-                // TODO: Send inv for our tip block to new peer
-                // This will trigger them to request it via getdata
+                // Send inv for our tip block to new peer
+                if let Some(s) = &store {
+                    if height > 0 {
+                        use bitquan_consensus::header_hash;
+                        use bitquan_network::create_block_inv;
+                        
+                        let store_locked = s.lock().unwrap();
+                        if let Ok(Some(tip)) = store_locked.tip() {
+                            let tip_hash = header_hash(&tip);
+                            drop(store_locked);
+                            
+                            let inv = bitquan_network::protocol::InvVector {
+                                inv_type: bitquan_network::protocol::InvType::Block,
+                                hash: tip_hash,
+                            };
+                            
+                            if let Ok(sent) = peer_manager.broadcast_inv(inv) {
+                                println!("Announced tip block to {} peers", sent);
+                            }
+                        }
+                    }
+                }
             }
             Err(e) => {
-                eprintln!("❌ Accept error: {}", e);
+                eprintln!("Accept error: {}", e);
             }
         }
         
-        // Cleanup dead peers
+        // Cleanup dead peers and old relay data
         peer_manager.cleanup_peers();
+        relay_manager.cleanup();
         
         thread::sleep(Duration::from_millis(100));
     }
