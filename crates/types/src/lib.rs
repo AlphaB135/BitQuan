@@ -4,12 +4,14 @@
 mod block;
 mod compact_uint;
 mod transaction;
+pub mod genesis;
 pub mod validation;
 pub mod wire;
 
 pub use block::{Block, BlockHeader};
 pub use block::merkle_root_from_txids as compute_merkle_root_from_txids;
 pub use compact_uint::CompactUint;
+pub use genesis::{create_genesis_block, is_valid_genesis, GENESIS_HASH, GENESIS_TIME, GENESIS_BITS};
 pub use transaction::{
     AuxiliarySignatureData, SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut, VarBytes,
     Witness,

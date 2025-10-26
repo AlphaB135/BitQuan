@@ -1,0 +1,187 @@
+//! Genesis block constants and utilities for BitQuan blockchain.
+
+use crate::{Block, BlockHeader, Transaction, TxIn, TxOut, SigAlgorithm};
+use sha2::{Digest, Sha256};
+
+/// Genesis block timestamp (Unix epoch)
+/// Oct 26, 2025 12:00:00 UTC
+pub const GENESIS_TIME: u32 = 1729944000;
+
+/// Genesis block bits (very easy difficulty for initial mining)
+pub const GENESIS_BITS: u32 = 0x207fffff;
+
+/// Genesis block version
+pub const GENESIS_VERSION: i32 = 1;
+
+/// Genesis coinbase message
+pub const GENESIS_MESSAGE: &[u8] = b"The Quantum Age Begins - 26 Oct 2025. Ownerless. Verifiable. For everyone.";
+
+/// Genesis block reward (50 BQ)
+pub const GENESIS_REWARD: u64 = 5_000_000_000; // 50 BQ in qbits
+
+/// Genesis block hash (to be filled after mining)
+/// This will be updated once we mine the actual genesis block
+pub const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+
+/// Creates the genesis block for BitQuan blockchain
+pub fn create_genesis_block() -> Block {
+    // Genesis coinbase transaction
+    let coinbase_in = TxIn {
+        prev_txid: [0u8; 32],
+        prev_vout: 0xffffffff,
+        script_sig: GENESIS_MESSAGE.to_vec(),
+        sequence: 0xffffffff,
+    };
+
+    // Genesis output - OP_RETURN (burned, no one can spend)
+    // This ensures fair launch with no premine
+    let coinbase_out = TxOut {
+        value: GENESIS_REWARD,
+        script_pubkey: vec![0x6a], // OP_RETURN
+    };
+
+    let coinbase_tx = Transaction {
+        version: 2,
+        lock_time: 0,
+        inputs: vec![coinbase_in],
+        outputs: vec![coinbase_out],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses: vec![],
+    };
+
+    // Calculate merkle roots
+    let merkle_root = compute_merkle_root(&[coinbase_tx.txid()]);
+    let witness_root = compute_merkle_root(&[coinbase_tx.wtxid()]);
+
+    // Genesis block header
+    let header = BlockHeader {
+        version: GENESIS_VERSION,
+        prev_block: [0u8; 32], // No previous block
+        merkle_root,
+        pqc_agg_hint: witness_root,
+        time: GENESIS_TIME,
+        bits: GENESIS_BITS,
+        nonce: 0, // Will be set during mining
+    };
+
+    Block {
+        header,
+        transactions: vec![coinbase_tx],
+    }
+}
+
+/// Compute merkle root from transaction IDs
+fn compute_merkle_root(txids: &[[u8; 32]]) -> [u8; 32] {
+    if txids.is_empty() {
+        return [0u8; 32];
+    }
+    if txids.len() == 1 {
+        return txids[0];
+    }
+
+    let mut level = txids.to_vec();
+    while level.len() > 1 {
+        let mut next_level = Vec::new();
+        
+        for chunk in level.chunks(2) {
+            let hash = if chunk.len() == 2 {
+                // Hash pair
+                let mut hasher = Sha256::new();
+                hasher.update(chunk[0]);
+                hasher.update(chunk[1]);
+                let result = hasher.finalize();
+                let mut out = [0u8; 32];
+                out.copy_from_slice(&result);
+                out
+            } else {
+                // Odd number, hash with itself
+                let mut hasher = Sha256::new();
+                hasher.update(chunk[0]);
+                hasher.update(chunk[0]);
+                let result = hasher.finalize();
+                let mut out = [0u8; 32];
+                out.copy_from_slice(&result);
+                out
+            };
+            next_level.push(hash);
+        }
+        
+        level = next_level;
+    }
+
+    level[0]
+}
+
+/// Validates that a block is the correct genesis block
+pub fn is_valid_genesis(block: &Block) -> bool {
+    let genesis = create_genesis_block();
+    
+    // Compare all fields except nonce (which varies)
+    block.header.version == genesis.header.version
+        && block.header.prev_block == genesis.header.prev_block
+        && block.header.merkle_root == genesis.header.merkle_root
+        && block.header.pqc_agg_hint == genesis.header.pqc_agg_hint
+        && block.header.time == genesis.header.time
+        && block.header.bits == genesis.header.bits
+        && block.transactions.len() == 1
+        && block.transactions[0].inputs[0].script_sig == GENESIS_MESSAGE
+}
+
+/// Gets the genesis block hash (after mining)
+pub fn genesis_hash() -> [u8; 32] {
+    // This will be filled in after we mine the genesis block
+    // For now, return zeros
+    [0u8; 32]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_genesis_block_creation() {
+        let genesis = create_genesis_block();
+        
+        assert_eq!(genesis.header.version, GENESIS_VERSION);
+        assert_eq!(genesis.header.time, GENESIS_TIME);
+        assert_eq!(genesis.header.bits, GENESIS_BITS);
+        assert_eq!(genesis.header.prev_block, [0u8; 32]);
+        assert_eq!(genesis.transactions.len(), 1);
+    }
+
+    #[test]
+    fn test_genesis_coinbase() {
+        let genesis = create_genesis_block();
+        let coinbase = &genesis.transactions[0];
+        
+        assert_eq!(coinbase.inputs.len(), 1);
+        assert_eq!(coinbase.outputs.len(), 1);
+        assert_eq!(coinbase.outputs[0].value, GENESIS_REWARD);
+        assert_eq!(coinbase.inputs[0].script_sig, GENESIS_MESSAGE);
+    }
+
+    #[test]
+    fn test_genesis_validation() {
+        let genesis = create_genesis_block();
+        assert!(is_valid_genesis(&genesis));
+    }
+
+    #[test]
+    fn test_merkle_root_single() {
+        let txid = [0x42u8; 32];
+        let root = compute_merkle_root(&[txid]);
+        assert_eq!(root, txid);
+    }
+
+    #[test]
+    fn test_merkle_root_pair() {
+        let txid1 = [0x01u8; 32];
+        let txid2 = [0x02u8; 32];
+        let root = compute_merkle_root(&[txid1, txid2]);
+        
+        // Should be SHA256(SHA256(txid1 || txid2))
+        assert_ne!(root, [0u8; 32]);
+        assert_ne!(root, txid1);
+        assert_ne!(root, txid2);
+    }
+}

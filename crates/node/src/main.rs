@@ -43,6 +43,15 @@ enum Commands {
         #[arg(long, default_value = "config/bitquan.toml")]
         config: String,
     },
+    /// Mine the genesis block for BitQuan blockchain
+    MineGenesis {
+        /// Maximum nonce attempts
+        #[arg(long, default_value_t = 100_000_000u64)]
+        max_tries: u64,
+        /// Output file for mined genesis block
+        #[arg(long, default_value = "genesis.json")]
+        output: String,
+    },
     /// Validates a block provided via an external source (placeholder).
     CheckBlock {
         /// Path to a serialized block file.
@@ -191,6 +200,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Run { config } => run_node(&config),
+        Commands::MineGenesis { max_tries, output } => mine_genesis(max_tries, &output),
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
         Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
@@ -273,6 +283,89 @@ fn handle_peer(stream: TcpStream) -> Result<()> {
             _ => {}
         }
     }
+}
+
+/// Mine the genesis block
+fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
+    use bitquan_types::{create_genesis_block, is_valid_genesis, GENESIS_TIME, GENESIS_BITS};
+    use std::fs;
+    use std::time::Instant;
+    
+    println!("╔══════════════════════════════════════════════════╗");
+    println!("║      BitQuan Genesis Block Miner                ║");
+    println!("╚══════════════════════════════════════════════════╝");
+    println!();
+    println!("Parameters:");
+    println!("  Time:       {}", GENESIS_TIME);
+    println!("  Bits:       0x{:08x}", GENESIS_BITS);
+    println!("  Max tries:  {}", max_tries);
+    println!("  Output:     {}", output);
+    println!();
+    
+    // Create genesis block template
+    let mut genesis = create_genesis_block();
+    
+    println!("Genesis Message:");
+    let msg = &genesis.transactions[0].inputs[0].script_sig;
+    println!("  {}", String::from_utf8_lossy(msg));
+    println!();
+    
+    println!("🔨 Mining genesis block...");
+    println!();
+    
+    let start_time = Instant::now();
+    let mut found = false;
+    
+    for nonce in 0..max_tries {
+        genesis.header.nonce = nonce;
+        
+        if check_header_pow(&genesis.header) {
+            let hash = header_hash(&genesis.header);
+            let elapsed = start_time.elapsed();
+            let hashrate = (nonce as f64) / elapsed.as_secs_f64();
+            
+            println!("✅ GENESIS BLOCK FOUND!");
+            println!();
+            println!("Nonce:      {}", nonce);
+            println!("Hash:       {}", hex_encode(&hash));
+            println!("Time:       {:.2}s", elapsed.as_secs_f64());
+            println!("Hashrate:   {:.2} H/s", hashrate);
+            println!();
+            
+            // Validate genesis
+            assert!(is_valid_genesis(&genesis), "Invalid genesis block");
+            
+            // Save to JSON
+            let json = serde_json::to_string_pretty(&genesis)?;
+            fs::write(output, json)?;
+            
+            println!("💾 Genesis block saved to: {}", output);
+            println!();
+            println!("Next steps:");
+            println!("  1. Update GENESIS_HASH in crates/types/src/genesis.rs");
+            println!("  2. Commit genesis block to repository");
+            println!("  3. Use this block to initialize blockchain");
+            println!();
+            
+            found = true;
+            break;
+        }
+        
+        if nonce % 100_000 == 0 && nonce > 0 {
+            let elapsed = start_time.elapsed().as_secs_f64();
+            let hashrate = (nonce as f64) / elapsed;
+            let hash = header_hash(&genesis.header);
+            println!("  ... {} attempts ({:.2} H/s) | Hash: {}",
+                nonce, hashrate, &hex_encode(&hash)[..16]);
+        }
+    }
+    
+    if !found {
+        println!("❌ Failed to find valid genesis block in {} attempts", max_tries);
+        println!("Try increasing --max-tries or adjusting difficulty");
+    }
+    
+    Ok(())
 }
 
 fn check_block(path: &str) -> Result<()> {
