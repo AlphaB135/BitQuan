@@ -1,20 +1,44 @@
-# Security Policy
-
-Thank you for helping keep BitQuan secure. We take vulnerability reports seriously and aim to respond quickly.
+# BitQuan Security Policy
 
 ## Reporting a Vulnerability
-- Email: [security@bitquan.org](mailto:security@bitquan.org)
-- Include a detailed description, reproduction steps, and potential impact.
-- Use encrypted mail if possible; PGP keys are published under `docs/security/keys/`.
-
-## Disclosure Process
-1. We acknowledge the report within 72 hours.
-2. We investigate, develop, and test a fix.
-3. We coordinate a release and publish an advisory in `docs/security/advisories/`.
-4. We credit reporters if they wish to be acknowledged.
+- Email security reports to `security@bitquan.org` with encrypted details (GPG key in `docs/security/keys/`)
+- For critical vulnerabilities, also page the on-call maintainer via the emergency contact listed in `MAINTAINERS`
+- Response targets:
+  - Acknowledge within 24 hours
+  - Initial assessment within 72 hours
+  - Coordinated disclosure timeline agreed with reporter
 
 ## Scope
-- All code within this repository and official BitQuan infrastructure.
-- Third-party dependencies should be reported upstream first when appropriate.
+Security reports include, but are not limited to:
+- Consensus failures or chain-halting conditions
+- Cryptographic vulnerabilities in PQC primitives or hybrid schemes
+- Wallet key compromise pathways or transaction forgery
+- P2P networking exploits enabling eclipse, DoS, or relay manipulation
+- Build and supply-chain issues affecting reproducibility or binary trust
 
-For more details, see [`docs/SECURITY.md`](docs/SECURITY.md).
+## Handling Process
+1. Form an incident triage pod (Lead Maintainer + security owner + relevant domain expert)
+2. Evaluate severity using CVSS and consensus-specific impact metrics
+3. Draft mitigation plan including patches, rollout steps, and backport needs
+4. Execute coordinated disclosure with responsible parties (exchanges, node operators, researchers)
+5. Publish post-mortem after remediation, crediting reporters when permitted
+
+## Prohibited Content
+- No acceptance of reports seeking introduction of backdoors, admin keys, or hidden switches
+- No bounties for vulnerabilities that rely solely on social engineering without technical impact
+
+## Security Enhancements
+- Continuous fuzz testing on consensus critical code paths
+- Mandatory code reviews for cryptography and network logic with domain experts
+- Dependency scanning for PQC libraries and third-party components
+- Regular red-team exercises on wallet, node, and deployment pipelines
+
+## Bounty Program
+- Rewards scaled by impact and quality of report, distributed transparently
+- Payments occur after patch release and verification by the security team
+- Program terms published publicly and updated via BQIP when needed
+
+## Contact
+- Primary: `security@bitquan.org`
+- GPG Fingerprint (example placeholder): `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`
+- Backup community channel with limited access shared under NDA during active incidents

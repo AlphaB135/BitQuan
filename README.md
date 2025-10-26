@@ -1,53 +1,117 @@
-<p align="right">
-	<a href="./README.th.md"><img alt="ภาษาไทย" src="https://img.shields.io/badge/ภาษาไทย-blue?style=for-the-badge"></a>
-</p>
-
 # BitQuan
 
-[![CI](https://github.com/alphab/BitQuan/actions/workflows/ci.yml/badge.svg)](https://github.com/alphab/BitQuan/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+A post-quantum secure blockchain implementing Proof-of-Work consensus with CRYSTALS-Dilithium signatures.
 
-BitQuan: PQC-first blockchain (PoW + Dilithium) aiming for 50+ years of security resilience.
+## Overview
 
-This README provides the English overview by default; click the Thai badge above to switch to the Thai version (`README.th.md`).
+BitQuan is a cryptocurrency designed for 50+ year security resilience against quantum computing threats. It uses lattice-based cryptography (Dilithium) for digital signatures and maintains Bitcoin's proven Proof-of-Work consensus model.
 
-## Quickstart
+## Quick Start
 
 ```bash
-cargo test -p bq-crypto
+# Build
+cargo build --release --features rocksdb-backend
+
+# Run tests
+cargo test --all
+
+# Generate wallet
+./target/release/bitquan-node wallet-gen --algo dilithium3 --output wallet.keystore
+
+# Mine genesis block
+./target/release/bitquan-node mine-genesis --max-tries 10000000
 ```
 
 ## Documentation
-- [Architecture overview](docs/architecture/overview.md)
-- [Repository governance](docs/GOVERNANCE.md)
-- [Security policy](SECURITY.md)
-- [Release process](RELEASE.md)
 
-## Suggested Topics
-- Post-Quantum Cryptography (Dilithium, HKDF, hybrid RNGs)
-- Proof-of-Work consensus design
-- Rust networking, storage, and reproducible builds
-- Open governance and long-term security programs
+- [Installation Guide](docs/guides/INSTALL.md)
+- [Quick Start Guide](docs/guides/QUICKSTART.md)
+- [Architecture Overview](docs/architecture/overview.md)
+- [Specifications](docs/spec/)
+- [Security Policy](SECURITY.md)
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Release Process](docs/guides/docs/guides/RELEASE.md)
 
-## Security Contact
-- Email: [security@bitquan.org](mailto:security@bitquan.org)
-- See [`SECURITY.md`](SECURITY.md) for reporting guidelines.
+## Features
 
----
+- Post-Quantum Cryptography (CRYSTALS-Dilithium)
+- Proof-of-Work consensus (SHA-256d)
+- Persistent storage (RocksDB)
+- P2P networking protocol
+- JSON-RPC 2.0 API
+- Reproducible builds
 
-## Project Overview
+## Repository Structure
 
-BitQuan targets a 50+ year security horizon with full Post-Quantum Cryptography (PQC) integration.
+```
+bitquan/
+├── crates/          # Rust workspace crates
+│   ├── consensus/   # Consensus rules and validation
+│   ├── crypto/      # Cryptographic primitives
+│   ├── mempool/     # Transaction pool
+│   ├── network/     # P2P networking
+│   ├── node/        # Main node implementation
+│   ├── rpc/         # JSON-RPC server
+│   ├── storage/     # Database backend
+│   └── types/       # Core data structures
+├── docs/            # Documentation
+├── scripts/         # Utility scripts
+└── bindings/        # Language bindings
+```
 
-## Highlights
-- Phase 0 policy: absolutely no backdoors, admin keys, or hidden switches
-- Baseline architecture: Minimalist Proof-of-Work with Dilithium signatures (see `docs/architecture/overview.md`)
-- Standard documentation set (Governance, Contributing, Release, Security, Reproducibility) under `docs/`
+## Security
 
-## Repository Map
-- `docs/` – Canonical documentation covering governance, security, reproducibility, release process, etc.
-- `docs/architecture/overview.md` – Bilingual architecture overview using collapsible language sections
-- `docs/security/` – GPG keys, on-call roster, and incident post-mortems
+- No backdoors, admin keys, or hidden switches
+- GPG-signed commits and releases
+- Reproducible builds
+- Security audits (planned)
+
+Report security vulnerabilities to: security@bitquan.org
+
+See [SECURITY.md](SECURITY.md) for details.
+
+## Development Status
+
+Current phase: Implementation (70% complete)
+
+See [ROADMAP.md](ROADMAP.md) for detailed progress and upcoming milestones.
+
+## Building from Source
+
+Requirements:
+- Rust 1.75 or later
+- RocksDB development libraries
+
+```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install RocksDB (Ubuntu/Debian)
+sudo apt-get install librocksdb-dev
+
+# Install RocksDB (macOS)
+brew install rocksdb
+
+# Build BitQuan
+cargo build --release --features rocksdb-backend
+```
+
+## License
+
+Apache License 2.0
+
+See [LICENSE](LICENSE) for details.
+
+## Community
+
+- GitHub: https://github.com/alphab/BitQuan
+- Issues: https://github.com/alphab/BitQuan/issues
+- Discussions: https://github.com/alphab/BitQuan/discussions
+
+## Translations
+
+- [Thai (ภาษาไทย)](docs/i18n/README.th.md)
+- [English](docs/i18n/README.en.md)
 - `todo.md` – Phase-by-phase master plan (Phase 0–13)
 
 ## Current Focus

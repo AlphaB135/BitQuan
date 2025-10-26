@@ -2,3 +2,8 @@
 **/*.rs.bk
 /.trunk/tmp/
 data/
+
+# Test/temp files
+genesis.json
+*.keystore
+command.txt
