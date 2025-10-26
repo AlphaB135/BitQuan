@@ -1,5 +1,23 @@
 # BitQuan TODO Master Plan
 
+## Progress Update (2025-10-26T12:17:00Z) – Documentation & Tooling ✅
+- **Documentation**: 
+  - ✅ QUICKSTART.md - Complete usage guide (installation, mining, P2P, RPC)
+  - ✅ TypeScript SDK README - Detailed API reference and examples
+  - ✅ Genesis block generation script
+  - ✅ Python RPC client example
+- **Wallet**: 
+  - ✅ Bech32m address encoding (HRP: "q")
+  - ✅ SerializableKeypair for metadata persistence
+  - ✅ Address module with encode/decode
+- **P2P**:
+  - ✅ Storage integration in P2P server
+  - ✅ Infrastructure for block broadcasting
+- **Build Status**: ✅ Clean build
+- **Tests**: ✅ 21 tests passing
+- **Progress**: ~50% ของ Master Plan เสร็จสมบูรณ์
+- **Next Phase**: Genesis block testing → Transaction relay → Mining pool RPC
+
 ## Progress Update (2025-10-26T09:32:41Z) – Code Quality & Cleanup ✅
 - **Build Status**: ✅ Clean build (ไม่มี warnings!)
 - **Code Quality**: แก้ไข warnings ทั้งหมด (unused imports, missing docs, dead code)
