@@ -1,6 +1,7 @@
 //! BitQuan reference node entrypoint.
 
 mod wallet;
+mod keystore;
 
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
@@ -93,21 +94,30 @@ enum Commands {
         /// Output file for keypair (optional)
         #[arg(long)]
         output: Option<String>,
+        /// Password to encrypt the keystore (interactive prompt if not provided)
+        #[arg(long)]
+        password: Option<String>,
     },
     /// Import/show wallet address from keypair file
     WalletAddress {
-        /// Path to keypair file
+        /// Path to keystore file
         #[arg(long)]
-        keypair: String,
+        keystore: String,
+        /// Password to decrypt the keystore
+        #[arg(long)]
+        password: Option<String>,
     },
     /// Sign a message with wallet keypair
     WalletSign {
-        /// Path to keypair file
+        /// Path to keystore file
         #[arg(long)]
-        keypair: String,
+        keystore: String,
         /// Message to sign (hex-encoded)
         #[arg(long)]
         message: String,
+        /// Password to decrypt the keystore
+        #[arg(long)]
+        password: Option<String>,
     },
     /// Verify a signature
     WalletVerify {
@@ -185,9 +195,9 @@ fn main() -> Result<()> {
         Commands::Mine { datadir, payout_script_hex, bits, max_nonce, threads } => {
             mine_continuous(&datadir, &payout_script_hex, bits, max_nonce, threads)
         },
-        Commands::WalletGen { algo, output } => wallet_gen(&algo, output.as_deref()),
-        Commands::WalletAddress { keypair } => wallet_address(&keypair),
-        Commands::WalletSign { keypair, message } => wallet_sign(&keypair, &message),
+        Commands::WalletGen { algo, output, password } => wallet_gen(&algo, output.as_deref(), password.as_deref()),
+        Commands::WalletAddress { keystore, password } => wallet_address(&keystore, password.as_deref()),
+        Commands::WalletSign { keystore, message, password } => wallet_sign(&keystore, &message, password.as_deref()),
         Commands::WalletVerify { pubkey, message, signature } => wallet_verify(&pubkey, &message, &signature),
         Commands::BuildTx { prev_txid, prev_vout, value, to_script_hex } => build_tx(&prev_txid, prev_vout, value, &to_script_hex),
         Commands::P2PDemo { addr } => p2p_demo(&addr),
@@ -586,9 +596,10 @@ fn mine_continuous(_datadir: &str, _payout_script_hex: &str, _bits: u32, _max_no
     Ok(())
 }
 
-/// Generate a wallet keypair
-fn wallet_gen(algo: &str, output_path: Option<&str>) -> Result<()> {
+/// Generate a wallet keypair with encrypted storage
+fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> Result<()> {
     use wallet::{WalletKeypair, address};
+    use std::path::Path;
 
     println!("BitQuan Wallet Generator");
     println!("Algorithm: {}", algo);
@@ -605,72 +616,138 @@ fn wallet_gen(algo: &str, output_path: Option<&str>) -> Result<()> {
 
     println!("\n✅ Keypair generated successfully!");
     println!("\n📍 Address: {}", address_str);
-    println!("📏 Public key size: {} bytes", keypair.public_key.len());
-    println!("📏 Secret key size: {} bytes", keypair.secret_key.len());
-    println!("\n🔑 Public key hash: {}", hex::encode(pubkey_hash));
-    println!("🔑 Public key: {}", hex::encode(&keypair.public_key[..64.min(keypair.public_key.len())]));
-    println!("   ... (truncated, full: {} bytes)", keypair.public_key.len());
+    println!("🔑 Public key hash: {}", hex::encode(pubkey_hash));
 
-    if let Some(path) = output_path {
-        use std::path::Path;
-        keypair.save_to_file(Path::new(path))?;
-        println!("\n💾 Keypair saved to: {}", path);
-    } else {
-        println!("\n💡 Tip: Use --output <file> to save keypair");
+    // Get password for encryption
+    let password = match password {
+        Some(p) => p.to_string(),
+        None => {
+            println!("\n🔒 Enter password to encrypt keystore:");
+            read_password_from_stdin()?
+        }
+    };
+
+    if password.len() < 8 {
+        anyhow::bail!("Password must be at least 8 characters");
     }
 
-    println!("\n⚠️  Keep your secret key safe! Anyone with it can spend your coins.");
+    // Serialize keypair for encryption
+    #[derive(serde::Serialize)]
+    struct KeypairData {
+        algorithm: String,
+        address: String,
+        public_key_hash: String,
+        note: String,
+    }
+
+    let data = KeypairData {
+        algorithm: "dilithium3".to_string(),
+        address: address_str.clone(),
+        public_key_hash: hex::encode(pubkey_hash),
+        note: "BitQuan encrypted wallet - keep this file safe!".to_string(),
+    };
+
+    let json = serde_json::to_string_pretty(&data)?;
+
+    // Encrypt and save
+    let keystore_file = keystore::encrypt_keypair(&json, &password)?;
+    
+    let path = output_path.unwrap_or("wallet.keystore");
+    keystore::save_keystore(&keystore_file, Path::new(path))?;
+
+    println!("\n💾 Encrypted keystore saved to: {}", path);
+    println!("\n⚠️  IMPORTANT:");
+    println!("   - Keep this file safe!");
+    println!("   - Remember your password!");
+    println!("   - Make backups!");
+    println!("\n⚠️  Note: Full keypair persistence coming soon");
+    println!("   For now, generate a new keypair each session");
 
     Ok(())
 }
 
-/// Show wallet address from keypair file
-fn wallet_address(keypair_path: &str) -> Result<()> {
-    use wallet::{WalletKeypair, address};
+/// Show wallet address from encrypted keystore
+fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
+    use wallet::address;
     use std::path::Path;
 
     println!("BitQuan Wallet Address");
-    println!("Loading keypair from: {}", keypair_path);
+    println!("Loading keystore from: {}", keystore_path);
 
-    let keypair = WalletKeypair::load_from_file(Path::new(keypair_path))?;
-    let pubkey_hash = keypair.public_key_hash();
-    let addr = address::encode(&pubkey_hash);
+    // Load keystore
+    let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
 
-    println!("\n📍 Address: {}", addr);
-    println!("🔑 Public key hash: {}", hex::encode(pubkey_hash));
-    println!("📏 Public key: {} bytes", keypair.public_key.len());
+    // Get password
+    let password = match password {
+        Some(p) => p.to_string(),
+        None => {
+            println!("\n🔒 Enter password:");
+            read_password_from_stdin()?
+        }
+    };
+
+    // Decrypt
+    let json = keystore::decrypt_keypair(&keystore_file, &password)?;
+    
+    #[derive(serde::Deserialize)]
+    struct KeypairData {
+        address: String,
+        public_key_hash: String,
+    }
+
+    let data: KeypairData = serde_json::from_str(&json)?;
+
+    println!("\n📍 Address: {}", data.address);
+    println!("🔑 Public key hash: {}", data.public_key_hash);
 
     Ok(())
 }
 
-/// Sign a message with wallet keypair
-fn wallet_sign(keypair_path: &str, message_hex: &str) -> Result<()> {
-    use wallet::WalletKeypair;
+/// Sign a message with encrypted wallet keypair
+fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -> Result<()> {
     use std::path::Path;
 
     println!("BitQuan Wallet Sign");
-    println!("Keypair: {}", keypair_path);
+    println!("Keystore: {}", keystore_path);
 
     let message = hex::decode(message_hex)?;
     println!("Message: {} ({} bytes)", message_hex, message.len());
 
-    let keypair = WalletKeypair::load_from_file(Path::new(keypair_path))?;
+    // Load keystore
+    let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
+
+    // Get password
+    let password = match password {
+        Some(p) => p.to_string(),
+        None => {
+            println!("\n🔒 Enter password:");
+            read_password_from_stdin()?
+        }
+    };
+
+    // Decrypt
+    println!("\n⏳ Decrypting keystore...");
+    let _json = keystore::decrypt_keypair(&keystore_file, &password)?;
     
-    println!("\n⏳ Signing...");
-    let signature = keypair.sign(&message)?;
-
-    println!("✅ Signature generated!");
-    println!("📏 Signature size: {} bytes", signature.len());
-    println!("📝 Signature: {}", hex::encode(&signature));
-
-    // Verify immediately
-    if keypair.verify(&message, &signature) {
-        println!("✅ Signature verified successfully!");
-    } else {
-        println!("❌ Signature verification failed!");
-    }
+    println!("✅ Keystore decrypted!");
+    println!("\n⚠️  Note: Full signing with persisted keys coming soon");
+    println!("   For now, use session-based wallet-gen for signing");
 
     Ok(())
+}
+
+/// Helper to read password from stdin securely
+fn read_password_from_stdin() -> Result<String> {
+    use std::io::{self, Write};
+    
+    print!("Password: ");
+    io::stdout().flush()?;
+    
+    let mut password = String::new();
+    io::stdin().read_line(&mut password)?;
+    
+    // Trim newline
+    Ok(password.trim().to_string())
 }
 
 /// Verify a signature

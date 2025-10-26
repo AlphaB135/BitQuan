@@ -9,6 +9,8 @@ description = "BitQuan reference node entrypoint."
 
 [dependencies]
 anyhow.workspace = true
+argon2 = "0.5"
+base64ct = "1.6.0"
 bitquan-consensus = { path = "../consensus", version = "0.1.0" }
 bitquan-mempool = { path = "../mempool", version = "0.1.0" }
 bitquan-network = { path = "../network", version = "0.1.0" }
@@ -16,7 +18,9 @@ bitquan-rpc = { path = "../rpc", version = "0.1.0" }
 bitquan-storage = { path = "../storage", version = "0.1.0" }
 bitquan-types = { path = "../types", version = "0.1.0" }
 bq-crypto = { path = "../crypto", version = "0.0.1" }
+chacha20poly1305 = "0.10"
 clap.workspace = true
+getrandom = "0.2"
 hex.workspace = true
 num_cpus = "1.16"
 pqc_dilithium = "0.2"
