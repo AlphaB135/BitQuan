@@ -3,7 +3,7 @@
 //! This module implements the fork choice rule (longest chain) and handles
 //! blockchain reorganizations when a competing chain becomes longer.
 
-use bitquan_types::{Block, BlockHeader};
+use bitquan_types::BlockHeader;
 use crate::pow::header_hash;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -240,9 +240,6 @@ impl ForkChoice {
         old_tip: [u8; 32],
         new_tip: [u8; 32],
     ) -> Result<(Vec<[u8; 32]>, Vec<[u8; 32]>, [u8; 32]), ForkError> {
-        let mut old_chain = Vec::new();
-        let mut new_chain = Vec::new();
-        
         let mut old_hash = old_tip;
         let mut new_hash = new_tip;
         
@@ -280,10 +277,10 @@ impl ForkChoice {
         let fork_point = old_path[fork_idx];
         
         // Blocks to disconnect (from old tip to fork point)
-        old_chain = old_path[fork_idx + 1..].iter().rev().copied().collect();
+        let old_chain: Vec<[u8; 32]> = old_path[fork_idx + 1..].iter().rev().copied().collect();
         
         // Blocks to connect (from fork point to new tip)
-        new_chain = new_path[fork_idx + 1..].to_vec();
+        let new_chain = new_path[fork_idx + 1..].to_vec();
         
         Ok((old_chain, new_chain, fork_point))
     }

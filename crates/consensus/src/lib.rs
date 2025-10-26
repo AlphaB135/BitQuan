@@ -112,7 +112,12 @@ pub struct BlockValidationReport {
 pub enum ConsensusError {
     /// The block exceeds the configured weight constraints.
     #[error("block weight {actual} exceeds limit {limit}")]
-    BlockWeightExceeded { actual: u64, limit: u64 },
+    BlockWeightExceeded {
+        /// Actual block weight
+        actual: u64,
+        /// Maximum allowed weight
+        limit: u64
+    },
     /// Merkle root in header does not match computed root of txids.
     #[error("merkle_root mismatch")]
     MerkleRootMismatch,
@@ -189,15 +194,20 @@ pub fn validate_block(
 }
 
 /// Consensus engine bundling parameters, crypto registry, and RNG state.
+#[allow(dead_code)]
 fn is_coinbase_tx(tx: &bitquan_types::Transaction) -> bool {
     if tx.inputs.is_empty() { return false; }
     let first = &tx.inputs[0];
     first.prev_txid == [0u8; 32] && first.prev_vout == u32::MAX
 }
 
+/// Consensus engine for validating blocks and transactions
 pub struct ConsensusEngine {
+    /// Consensus parameters
     params: ConsensusParams,
+    /// Cryptographic registry for signature verification
     registry: CryptoRegistry,
+    /// Difficulty adjustment state
     difficulty: Option<DifficultyState>,
 }
 

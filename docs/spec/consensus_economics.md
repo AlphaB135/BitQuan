@@ -2,6 +2,20 @@
 
 This note captures the initial production assumptions for Proof-of-Work security, post-quantum signature costs, and fee/weight policy. It complements `docs/architecture/overview.md` and the transaction/block data specification.
 
+## Currency Units
+
+### Base Units
+- **BQ** (BitQuan): Main currency unit
+- **qbit** (quantum bit): Smallest unit
+  - 1 BQ = 100,000,000 qbits (10^8)
+  - Named "quantum bit" to reflect our post-quantum nature
+  - Equivalent to satoshi in Bitcoin
+
+### Examples
+- Block reward: 5,000,000,000 qbits = 50 BQ
+- Transaction fee: 1,000 qbits = 0.00001 BQ  
+- Dust threshold: 546 qbits
+
 ## 1. PQC Performance & Fee Policy
 - **Default signature scheme:** CRYSTALS-Dilithium level 3 (public key ≈ 1.5 KB, signature ≈ 2.7 KB). Falcon512 and SPHINCS+ remain optional under `SigAlgorithm` but are not enabled by default.
 - **Weight accounting:** The consensus weight formula continues to follow `weight = raw_bytes + α × (#pq_signatures)` with `α = 384` weight units per signature. This keeps a Dilithium-signed input roughly equivalent to a legacy ECDSA input once witness separation (Phase 4) is live.
@@ -13,7 +27,7 @@ This note captures the initial production assumptions for Proof-of-Work security
 ## 2. Proof-of-Work Security Model
 - **Target block time:** 600 seconds.
 - **Difficulty retarget:** ASERT (per-block) with a half-life of 86,400 seconds (~1 day). LWMA parameters remain an alternative for simulations but ASERT is the production default.
-- **Tail emission:** Once halvings reduce the subsidy below **0.5 BQ** (50,000,000 satoshis-equivalent), the protocol locks a constant tail reward to preserve miner incentives (~0.5–1% annualized depending on fee share).
+- **Tail emission:** Once halvings reduce the subsidy below **0.5 BQ** (50,000,000 qbits), the protocol locks a constant tail reward to preserve miner incentives (~0.5–1% annualized depending on fee share).
 - **Block reward schedule:**
   - Initial subsidy: **50 BQ** (5,000,000,000 minimal units).
   - Halving interval: **210,000 blocks** (~4 years).

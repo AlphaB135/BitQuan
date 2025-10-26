@@ -52,6 +52,7 @@ impl RocksDBStore {
     }
 
     /// Put metadata value
+    #[allow(dead_code)]
     fn put_meta(&self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
         let cf = self.db.cf_handle(CF_META)
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;

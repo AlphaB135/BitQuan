@@ -3,8 +3,8 @@
 //! This module implements a minimal stack-based script language focused on
 //! post-quantum signature verification.
 
-use bitquan_types::{SignaturePayload, Transaction};
-use bq_crypto::{CryptoError, CryptoRegistry};
+use bitquan_types::SignaturePayload;
+use bq_crypto::CryptoRegistry;
 use thiserror::Error;
 
 /// Maximum script size in bytes (10 KB).
@@ -322,7 +322,6 @@ pub fn verify_script(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transaction_sighash;
 
     #[test]
     fn script_push_and_verify_true() {

@@ -41,7 +41,7 @@ TxIn {
 ### 2.2 โครงสร้าง TxOut
 ```text
 TxOut {
-  value: u64 // หน่วย satoshi-equivalent (1 BQ = 10^8 unit)
+  value: u64 // หน่วย qbit (1 BQ = 10^8 qbits)
   script_pubkey: VarBytes
 }
 ```
@@ -166,7 +166,7 @@ TxIn {
 ### 2.2 TxOut Structure
 ```text
 TxOut {
-  value: u64 // satoshi-equivalent (1 BQ = 10^8 units)
+  value: u64 // qbit (1 BQ = 10^8 qbits)
   script_pubkey: VarBytes
 }
 ```

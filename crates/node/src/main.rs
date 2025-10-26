@@ -1,5 +1,7 @@
 //! BitQuan reference node entrypoint.
 
+mod wallet;
+
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
 use bitquan_storage::{ChainStore, InMemoryChainStore};
@@ -14,7 +16,7 @@ use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
 use bitquan_network::io::{recv_envelope, send_envelope};
 use clap::{Parser, Subcommand};
 use hex::encode as hex_encode;
-use std::net::{TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream, SocketAddr};
 use std::thread;
 use std::time::Duration;
 
@@ -83,11 +85,41 @@ enum Commands {
         #[arg(long, default_value_t = 1)]
         threads: usize,
     },
-    /// Generates a Dilithium3 keypair and prints hex-encoded keys.
+    /// Generates a post-quantum keypair for wallet
     WalletGen {
-        /// Algorithm (only "dilithium3" supported for now)
+        /// Algorithm (dilithium3, falcon512, sphincs)
         #[arg(long, default_value = "dilithium3")]
         algo: String,
+        /// Output file for keypair (optional)
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// Import/show wallet address from keypair file
+    WalletAddress {
+        /// Path to keypair file
+        #[arg(long)]
+        keypair: String,
+    },
+    /// Sign a message with wallet keypair
+    WalletSign {
+        /// Path to keypair file
+        #[arg(long)]
+        keypair: String,
+        /// Message to sign (hex-encoded)
+        #[arg(long)]
+        message: String,
+    },
+    /// Verify a signature
+    WalletVerify {
+        /// Public key (hex-encoded)
+        #[arg(long)]
+        pubkey: String,
+        /// Message (hex-encoded)
+        #[arg(long)]
+        message: String,
+        /// Signature (hex-encoded)
+        #[arg(long)]
+        signature: String,
     },
     /// Builds a simple unsigned transaction (1-in, 1-out) and prints JSON.
     BuildTx {
@@ -97,7 +129,7 @@ enum Commands {
         /// Previous output index
         #[arg(long)]
         prev_vout: u32,
-        /// Output value in satoshis
+        /// Output value in qbits (1 BQ = 10^8 qbits)
         #[arg(long)]
         value: u64,
         /// Hex-encoded script_pubkey for recipient
@@ -109,6 +141,27 @@ enum Commands {
         /// Address to bind/connect (e.g., 127.0.0.1:18444)
         #[arg(long, default_value = "127.0.0.1:18444")]
         addr: String,
+    },
+    /// Start a P2P server that accepts peer connections
+    P2PServer {
+        /// Address to bind (e.g., 0.0.0.0:8333)
+        #[arg(long, default_value = "127.0.0.1:8333")]
+        listen: String,
+        /// Maximum number of peers
+        #[arg(long, default_value_t = 125)]
+        max_peers: usize,
+        /// Data directory for blockchain storage
+        #[arg(long, default_value = "./data/chainstate")]
+        datadir: String,
+    },
+    /// Connect to a peer as a client
+    P2PConnect {
+        /// Peer address to connect to (e.g., 127.0.0.1:8333)
+        #[arg(long)]
+        peer: String,
+        /// Our current block height
+        #[arg(long, default_value_t = 0)]
+        height: u64,
     },
     /// Check balance for a given script/address
     Balance {
@@ -132,9 +185,14 @@ fn main() -> Result<()> {
         Commands::Mine { datadir, payout_script_hex, bits, max_nonce, threads } => {
             mine_continuous(&datadir, &payout_script_hex, bits, max_nonce, threads)
         },
-        Commands::WalletGen { algo } => wallet_gen(&algo),
+        Commands::WalletGen { algo, output } => wallet_gen(&algo, output.as_deref()),
+        Commands::WalletAddress { keypair } => wallet_address(&keypair),
+        Commands::WalletSign { keypair, message } => wallet_sign(&keypair, &message),
+        Commands::WalletVerify { pubkey, message, signature } => wallet_verify(&pubkey, &message, &signature),
         Commands::BuildTx { prev_txid, prev_vout, value, to_script_hex } => build_tx(&prev_txid, prev_vout, value, &to_script_hex),
         Commands::P2PDemo { addr } => p2p_demo(&addr),
+        Commands::P2PServer { listen, max_peers, datadir } => p2p_server(&listen, max_peers, &datadir),
+        Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
         Commands::Balance { datadir, script_hex } => check_balance(&datadir, script_hex.as_deref()),
     }
 }
@@ -368,7 +426,6 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
 fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_nonce: u64, threads: usize) -> Result<()> {
     use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    use std::io::Write;
     
     println!("BitQuan Continuous Miner");
     println!("Data directory: {}", datadir);
@@ -472,7 +529,7 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
         
         println!("Mining block #{} ...", height + 1);
         println!("Target bits: 0x{:08x}", bits);
-        println!("Block reward: {} satoshis", subsidy);
+        println!("Block reward: {} qbits", subsidy);
         
         // Mining loop
         found.store(false, Ordering::Relaxed);
@@ -529,21 +586,119 @@ fn mine_continuous(_datadir: &str, _payout_script_hex: &str, _bits: u32, _max_no
     Ok(())
 }
 
-fn wallet_gen(algo: &str) -> Result<()> {
-    match algo.to_lowercase().as_str() {
-        "dilithium3" => {
-            // Placeholder keypair generation using deterministic RNG stream
-            let mut rng = RngService::new()?;
-            let pk = rng.bytes(1952)?; // Dilithium3 public key size
-            let sk = rng.bytes(4000)?; // Approximate secret key size placeholder
-            println!("public_key ({} bytes): {}", pk.len(), hex::encode(pk));
-            println!("secret_key ({} bytes): {}", sk.len(), hex::encode(sk));
-            Ok(())
-        }
-        _ => {
-            println!("Unsupported algorithm: {algo}");
-            Ok(())
-        }
+/// Generate a wallet keypair
+fn wallet_gen(algo: &str, output_path: Option<&str>) -> Result<()> {
+    use wallet::{WalletKeypair, address};
+
+    println!("BitQuan Wallet Generator");
+    println!("Algorithm: {}", algo);
+
+    if algo != "dilithium3" {
+        anyhow::bail!("Only 'dilithium3' is supported currently");
+    }
+
+    println!("\n⏳ Generating keypair...");
+    let keypair = WalletKeypair::generate_dilithium3()?;
+
+    let pubkey_hash = keypair.public_key_hash();
+    let address_str = address::encode(&pubkey_hash);
+
+    println!("\n✅ Keypair generated successfully!");
+    println!("\n📍 Address: {}", address_str);
+    println!("📏 Public key size: {} bytes", keypair.public_key.len());
+    println!("📏 Secret key size: {} bytes", keypair.secret_key.len());
+    println!("\n🔑 Public key hash: {}", hex::encode(pubkey_hash));
+    println!("🔑 Public key: {}", hex::encode(&keypair.public_key[..64.min(keypair.public_key.len())]));
+    println!("   ... (truncated, full: {} bytes)", keypair.public_key.len());
+
+    if let Some(path) = output_path {
+        use std::path::Path;
+        keypair.save_to_file(Path::new(path))?;
+        println!("\n💾 Keypair saved to: {}", path);
+    } else {
+        println!("\n💡 Tip: Use --output <file> to save keypair");
+    }
+
+    println!("\n⚠️  Keep your secret key safe! Anyone with it can spend your coins.");
+
+    Ok(())
+}
+
+/// Show wallet address from keypair file
+fn wallet_address(keypair_path: &str) -> Result<()> {
+    use wallet::{WalletKeypair, address};
+    use std::path::Path;
+
+    println!("BitQuan Wallet Address");
+    println!("Loading keypair from: {}", keypair_path);
+
+    let keypair = WalletKeypair::load_from_file(Path::new(keypair_path))?;
+    let pubkey_hash = keypair.public_key_hash();
+    let addr = address::encode(&pubkey_hash);
+
+    println!("\n📍 Address: {}", addr);
+    println!("🔑 Public key hash: {}", hex::encode(pubkey_hash));
+    println!("📏 Public key: {} bytes", keypair.public_key.len());
+
+    Ok(())
+}
+
+/// Sign a message with wallet keypair
+fn wallet_sign(keypair_path: &str, message_hex: &str) -> Result<()> {
+    use wallet::WalletKeypair;
+    use std::path::Path;
+
+    println!("BitQuan Wallet Sign");
+    println!("Keypair: {}", keypair_path);
+
+    let message = hex::decode(message_hex)?;
+    println!("Message: {} ({} bytes)", message_hex, message.len());
+
+    let keypair = WalletKeypair::load_from_file(Path::new(keypair_path))?;
+    
+    println!("\n⏳ Signing...");
+    let signature = keypair.sign(&message)?;
+
+    println!("✅ Signature generated!");
+    println!("📏 Signature size: {} bytes", signature.len());
+    println!("📝 Signature: {}", hex::encode(&signature));
+
+    // Verify immediately
+    if keypair.verify(&message, &signature) {
+        println!("✅ Signature verified successfully!");
+    } else {
+        println!("❌ Signature verification failed!");
+    }
+
+    Ok(())
+}
+
+/// Verify a signature
+fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Result<()> {
+    use wallet::{WalletPublicKey, WalletAlgorithm};
+
+    println!("BitQuan Wallet Verify");
+
+    let pubkey_bytes = hex::decode(pubkey_hex)?;
+    let message = hex::decode(message_hex)?;
+    let signature = hex::decode(signature_hex)?;
+
+    println!("Public key: {} bytes", pubkey_bytes.len());
+    println!("Message: {} bytes", message.len());
+    println!("Signature: {} bytes", signature.len());
+
+    let public_key = WalletPublicKey {
+        algorithm: WalletAlgorithm::Dilithium3,
+        public_key: pubkey_bytes,
+    };
+
+    println!("\n⏳ Verifying...");
+    if public_key.verify(&message, &signature) {
+        println!("✅ Signature is VALID!");
+        Ok(())
+    } else {
+        println!("❌ Signature is INVALID!");
+        anyhow::bail!("Signature verification failed")
     }
 }
 
@@ -629,6 +784,91 @@ fn p2p_demo(addr: &str) -> Result<()> {
     Ok(())
 }
 
+/// P2P Server that accepts incoming connections
+fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
+    use bitquan_network::{PeerManager, P2PListener};
+    use std::sync::Arc;
+
+    println!("BitQuan P2P Server");
+    println!("Listen: {}", listen);
+    println!("Max peers: {}", max_peers);
+    println!("Data dir: {}", datadir);
+    
+    // Load current height from storage
+    #[cfg(feature = "rocksdb-backend")]
+    let height = {
+        use bitquan_storage::rocksdb_store::RocksDBStore;
+        let store = RocksDBStore::open(datadir)?;
+        store.height().unwrap_or(0)
+    };
+    
+    #[cfg(not(feature = "rocksdb-backend"))]
+    let height = 0u64;
+    
+    println!("Current height: {}", height);
+
+    let peer_manager = Arc::new(PeerManager::new(max_peers));
+    peer_manager.update_height(height);
+    
+    let listener = P2PListener::bind(listen, peer_manager.clone())?;
+    println!("✅ Server started at {}", listener.local_addr()?);
+    println!("Waiting for connections...");
+
+    loop {
+        match listener.accept_one() {
+            Ok(()) => {
+                let count = peer_manager.peer_count();
+                let ready = peer_manager.ready_peer_count();
+                println!("✅ Peer connected! Total: {}, Ready: {}", count, ready);
+            }
+            Err(e) => {
+                eprintln!("❌ Accept error: {}", e);
+            }
+        }
+        
+        // Cleanup dead peers
+        peer_manager.cleanup_peers();
+        
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// Connect to a peer as a client
+fn p2p_connect(peer: &str, height: u64) -> Result<()> {
+    use bitquan_network::PeerManager;
+    use std::sync::Arc;
+
+    println!("BitQuan P2P Client");
+    println!("Connecting to: {}", peer);
+    println!("Our height: {}", height);
+
+    let peer_manager = Arc::new(PeerManager::new(1));
+    peer_manager.update_height(height);
+    
+    let addr: SocketAddr = peer.parse()?;
+    
+    println!("⏳ Connecting...");
+    match peer_manager.connect_peer(addr) {
+        Ok(()) => {
+            println!("✅ Connected and handshake complete!");
+            println!("Ready peers: {}", peer_manager.ready_peer_count());
+            
+            // Keep connection alive for a bit
+            for i in 1..=5 {
+                thread::sleep(Duration::from_secs(1));
+                println!("Connection alive... {}/5", i);
+            }
+            
+            println!("✅ Test complete");
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("❌ Connection failed: {}", e);
+            Err(e.into())
+        }
+    }
+}
+
 /// Check balance for a script
 #[cfg(feature = "rocksdb-backend")]
 fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
@@ -667,7 +907,7 @@ fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
         }
         
         println!("\nUTXO count: {}", utxo_count);
-        println!("Balance: {} satoshis", balance);
+        println!("Balance: {} qbits", balance);
         println!("Balance: {:.8} BQ", balance as f64 / 100_000_000.0);
     } else {
         // Show total supply
@@ -685,7 +925,7 @@ fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
             }
         }
         
-        println!("Total coins mined: {} satoshis", total_supply);
+        println!("Total coins mined: {} qbits", total_supply);
         println!("Total coins mined: {:.8} BQ", total_supply as f64 / 100_000_000.0);
         println!("\nBlocks mined: {}", height + 1);
     }

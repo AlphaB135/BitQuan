@@ -3,8 +3,8 @@
 //! This module provides the core UTXO database that tracks all unspent outputs
 //! in the blockchain, enabling double-spend detection and transaction validation.
 
-use std::collections::{HashMap, HashSet};
-use bitquan_types::{Transaction, TxIn, TxOut};
+use std::collections::HashMap;
+use bitquan_types::{Transaction, TxOut};
 use thiserror::Error;
 use serde::{Deserialize, Serialize};
 
@@ -329,7 +329,7 @@ impl Default for UtxoSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{SigAlgorithm, Witness};
+    use bitquan_types::{SigAlgorithm, TxIn};
 
     fn create_test_tx(
         inputs: Vec<([u8; 32], u32)>,

@@ -3,6 +3,9 @@
 
 pub mod protocol;
 pub mod io;
+pub mod peer;
+
+pub use peer::{Peer, PeerManager, PeerState, P2PListener};
 
 use bitquan_types::Block;
 use thiserror::Error;

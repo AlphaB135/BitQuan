@@ -173,6 +173,7 @@ dependencies = [
  "bitquan-consensus",
  "bitquan-mempool",
  "bitquan-network",
+ "bitquan-rpc",
  "bitquan-storage",
  "bitquan-types",
  "bq-crypto",
@@ -182,6 +183,8 @@ dependencies = [
  "pqc_dilithium",
  "serde",
  "serde_json",
+ "sha2",
+ "zeroize",
 ]
 
 [[package]]

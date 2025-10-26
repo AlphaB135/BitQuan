@@ -46,10 +46,15 @@ pub const MAINNET_MAGIC: [u8; 4] = [0x42, 0x51, 0x01, 0x01]; // 'B''Q' mainnet
 pub enum Message {
     /// Version handshake.
     Version {
+        /// Protocol version number
         version: u32,
+        /// Service flags
         services: u64,
+        /// Unix timestamp
         timestamp: u64,
+        /// Client user agent string
         user_agent: String,
+        /// Starting block height
         start_height: u64,
     },
     
@@ -58,11 +63,13 @@ pub enum Message {
     
     /// Ping for keepalive.
     Ping {
+        /// Random nonce for ping/pong matching
         nonce: u64,
     },
     
     /// Pong response.
     Pong {
+        /// Nonce from corresponding ping
         nonce: u64,
     },
     
@@ -71,38 +78,47 @@ pub enum Message {
     
     /// Advertise peer addresses.
     Addr {
+        /// List of peer addresses
         addrs: Vec<PeerAddr>,
     },
     
     /// Inventory announcement (blocks/txs available).
     Inv {
+        /// Inventory vectors
         inventory: Vec<InvVector>,
     },
     
     /// Request data.
     GetData {
+        /// Requested inventory items
         inventory: Vec<InvVector>,
     },
     
     /// Block data.
     Block {
+        /// Full block
         block: Block,
     },
     
     /// Transaction data.
     Tx {
+        /// Full transaction
         transaction: Transaction,
     },
     
     /// Request block headers.
     GetHeaders {
+        /// Protocol version
         version: u32,
+        /// Block locator hashes
         locator_hashes: Vec<[u8; 32]>,
+        /// Stop hash
         stop_hash: [u8; 32],
     },
     
     /// Block headers response.
     Headers {
+        /// List of block headers
         headers: Vec<BlockHeader>,
     },
     
@@ -111,8 +127,11 @@ pub enum Message {
     
     /// Reject message.
     Reject {
+        /// Message type being rejected
         message: String,
+        /// Rejection code
         code: RejectCode,
+        /// Human-readable reason
         reason: String,
     },
 }

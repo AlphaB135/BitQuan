@@ -5,6 +5,7 @@ mod block;
 mod compact_uint;
 mod transaction;
 pub mod validation;
+pub mod wire;
 
 pub use block::{Block, BlockHeader};
 pub use block::merkle_root_from_txids as compute_merkle_root_from_txids;
@@ -14,6 +15,7 @@ pub use transaction::{
     Witness,
 };
 pub use validation::{validate_block_structure, validate_transaction, ValidationError};
+pub use wire::{WireDecode, WireEncode, WireError};
 
 /// Alias for the number of post-quantum signatures contained in a payload.
 pub type SignatureCount = u64;
