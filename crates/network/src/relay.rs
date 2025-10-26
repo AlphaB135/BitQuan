@@ -1,0 +1,248 @@
+//! Transaction and block relay logic for P2P network.
+
+use crate::protocol::{InvType, InvVector, Message};
+use bitquan_types::{Block, Transaction};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+/// Relay manager for tracking announced and requested items
+pub struct RelayManager {
+    /// Recently announced inventory (txid/block_hash -> timestamp)
+    announced: Arc<Mutex<HashMap<[u8; 32], Instant>>>,
+    /// Pending requests (hash -> requesting peer IDs)
+    pending_requests: Arc<Mutex<HashMap<[u8; 32], HashSet<String>>>>,
+    /// Recently relayed items (to prevent loops)
+    relayed: Arc<Mutex<HashSet<[u8; 32]>>>,
+    /// Maximum items to track
+    max_items: usize,
+}
+
+impl RelayManager {
+    /// Creates a new relay manager
+    pub fn new(max_items: usize) -> Self {
+        Self {
+            announced: Arc::new(Mutex::new(HashMap::new())),
+            pending_requests: Arc::new(Mutex::new(HashMap::new())),
+            relayed: Arc::new(Mutex::new(HashSet::new())),
+            max_items,
+        }
+    }
+
+    /// Records an inventory announcement
+    pub fn announce(&self, inv: &InvVector) {
+        let mut announced = self.announced.lock().unwrap();
+        
+        // Cleanup old entries if needed
+        if announced.len() >= self.max_items {
+            let cutoff = Instant::now() - Duration::from_secs(600); // 10 minutes
+            announced.retain(|_, time| *time > cutoff);
+        }
+        
+        announced.insert(inv.hash, Instant::now());
+    }
+
+    /// Checks if we've recently announced this item
+    pub fn has_announced(&self, hash: &[u8; 32]) -> bool {
+        let announced = self.announced.lock().unwrap();
+        announced.contains_key(hash)
+    }
+
+    /// Adds a pending request
+    pub fn add_request(&self, hash: [u8; 32], peer_id: String) {
+        let mut requests = self.pending_requests.lock().unwrap();
+        requests.entry(hash).or_insert_with(HashSet::new).insert(peer_id);
+    }
+
+    /// Removes a pending request
+    pub fn remove_request(&self, hash: &[u8; 32]) {
+        let mut requests = self.pending_requests.lock().unwrap();
+        requests.remove(hash);
+    }
+
+    /// Gets peers waiting for this item
+    pub fn get_requesters(&self, hash: &[u8; 32]) -> Vec<String> {
+        let requests = self.pending_requests.lock().unwrap();
+        requests.get(hash).map(|s| s.iter().cloned().collect()).unwrap_or_default()
+    }
+
+    /// Marks an item as relayed
+    pub fn mark_relayed(&self, hash: [u8; 32]) {
+        let mut relayed = self.relayed.lock().unwrap();
+        
+        // Limit size
+        if relayed.len() >= self.max_items {
+            relayed.clear(); // Simple cleanup
+        }
+        
+        relayed.insert(hash);
+    }
+
+    /// Checks if we've already relayed this
+    pub fn was_relayed(&self, hash: &[u8; 32]) -> bool {
+        let relayed = self.relayed.lock().unwrap();
+        relayed.contains(hash)
+    }
+
+    /// Cleans up old data
+    pub fn cleanup(&self) {
+        let cutoff = Instant::now() - Duration::from_secs(600);
+        
+        let mut announced = self.announced.lock().unwrap();
+        announced.retain(|_, time| *time > cutoff);
+    }
+}
+
+/// Transaction relay policy
+pub struct RelayPolicy {
+    /// Minimum fee per weight unit (in qbits)
+    pub min_fee_rate: u64,
+    /// Maximum transaction size (bytes)
+    pub max_tx_size: usize,
+    /// Maximum signature count per transaction
+    pub max_signatures: usize,
+}
+
+impl Default for RelayPolicy {
+    fn default() -> Self {
+        Self {
+            min_fee_rate: 1, // 1 qbit per WU
+            max_tx_size: 400_000, // 400 KB
+            max_signatures: 100, // Reasonable limit
+        }
+    }
+}
+
+impl RelayPolicy {
+    /// Checks if a transaction should be relayed
+    pub fn should_relay(&self, tx: &Transaction) -> bool {
+        // Check size
+        let tx_bytes = self.estimate_tx_size(tx);
+        if tx_bytes > self.max_tx_size {
+            return false;
+        }
+
+        // Check signature count
+        let sig_count = tx.signature_count();
+        if sig_count > self.max_signatures {
+            return false;
+        }
+
+        // Check fee rate (simplified - would need UTXO lookup in reality)
+        // For now, just accept all transactions
+        true
+    }
+
+    /// Estimates transaction size in bytes
+    fn estimate_tx_size(&self, tx: &Transaction) -> usize {
+        // Rough estimate: base + inputs + outputs + witnesses
+        let base = 10; // version, locktime
+        let inputs = tx.inputs.len() * 100; // ~100 bytes per input
+        let outputs = tx.outputs.len() * 50; // ~50 bytes per output  
+        let witnesses = tx.witnesses.len() * 3000; // ~3KB per Dilithium sig
+        
+        base + inputs + outputs + witnesses
+    }
+}
+
+/// Creates an inventory message for a transaction
+pub fn create_tx_inv(txid: [u8; 32]) -> Message {
+    Message::Inv {
+        inventory: vec![InvVector {
+            inv_type: InvType::Tx,
+            hash: txid,
+        }],
+    }
+}
+
+/// Creates an inventory message for a block
+pub fn create_block_inv(block_hash: [u8; 32]) -> Message {
+    Message::Inv {
+        inventory: vec![InvVector {
+            inv_type: InvType::Block,
+            hash: block_hash,
+        }],
+    }
+}
+
+/// Creates a getdata request for transactions
+pub fn create_tx_getdata(txids: Vec<[u8; 32]>) -> Message {
+    Message::GetData {
+        inventory: txids.into_iter().map(|hash| InvVector {
+            inv_type: InvType::Tx,
+            hash,
+        }).collect(),
+    }
+}
+
+/// Creates a getdata request for blocks
+pub fn create_block_getdata(block_hashes: Vec<[u8; 32]>) -> Message {
+    Message::GetData {
+        inventory: block_hashes.into_iter().map(|hash| InvVector {
+            inv_type: InvType::Block,
+            hash,
+        }).collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_relay_manager() {
+        let manager = RelayManager::new(100);
+        let hash = [0x42u8; 32];
+        
+        let inv = InvVector {
+            inv_type: InvType::Tx,
+            hash,
+        };
+        
+        manager.announce(&inv);
+        assert!(manager.has_announced(&hash));
+        
+        manager.mark_relayed(hash);
+        assert!(manager.was_relayed(&hash));
+    }
+
+    #[test]
+    fn test_relay_policy() {
+        let policy = RelayPolicy::default();
+        
+        // Create test transaction
+        let tx = Transaction {
+            version: 2,
+            lock_time: 0,
+            inputs: vec![],
+            outputs: vec![],
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium3,
+            witnesses: vec![],
+        };
+        
+        assert!(policy.should_relay(&tx));
+    }
+
+    #[test]
+    fn test_create_inv_messages() {
+        let hash = [0x42u8; 32];
+        
+        let tx_inv = create_tx_inv(hash);
+        match tx_inv {
+            Message::Inv { inventory } => {
+                assert_eq!(inventory.len(), 1);
+                assert_eq!(inventory[0].inv_type, InvType::Tx);
+            }
+            _ => panic!("Wrong message type"),
+        }
+        
+        let block_inv = create_block_inv(hash);
+        match block_inv {
+            Message::Inv { inventory } => {
+                assert_eq!(inventory.len(), 1);
+                assert_eq!(inventory[0].inv_type, InvType::Block);
+            }
+            _ => panic!("Wrong message type"),
+        }
+    }
+}
