@@ -113,6 +113,8 @@ name = "bitquan-network"
 version = "0.1.0"
 dependencies = [
  "bitquan-types",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -129,6 +131,9 @@ dependencies = [
  "bq-crypto",
  "clap",
  "hex",
+ "pqc_dilithium",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

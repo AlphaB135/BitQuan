@@ -1,6 +1,9 @@
 //! Peer-to-peer networking scaffolding for BitQuan.
 #![warn(missing_docs)]
 
+pub mod protocol;
+pub mod io;
+
 use bitquan_types::Block;
 use thiserror::Error;
 

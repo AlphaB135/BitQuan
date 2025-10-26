@@ -1,0 +1,417 @@
+//! P2P networking protocol and message handling.
+//!
+//! This module implements the peer-to-peer protocol for block and transaction
+//! propagation in the BitQuan network.
+
+use bitquan_types::{Block, BlockHeader, Transaction};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+/// P2P protocol errors.
+#[derive(Debug, Error)]
+pub enum P2pError {
+    /// Invalid message format.
+    #[error("invalid message format")]
+    InvalidMessage,
+    
+    /// Message too large.
+    #[error("message too large: {0} bytes")]
+    MessageTooLarge(usize),
+    
+    /// Protocol version mismatch.
+    #[error("protocol version mismatch: got {0}, expected {1}")]
+    VersionMismatch(u32, u32),
+    
+    /// Peer connection error.
+    #[error("peer connection error: {0}")]
+    ConnectionError(String),
+    
+    /// Serialization error.
+    #[error("serialization error: {0}")]
+    SerializationError(String),
+}
+
+/// Protocol version.
+pub const PROTOCOL_VERSION: u32 = 1;
+
+/// Maximum message size (10 MB).
+pub const MAX_MESSAGE_SIZE: usize = 10_000_000;
+
+/// Network magic bytes for mainnet.
+pub const MAINNET_MAGIC: [u8; 4] = [0x42, 0x51, 0x01, 0x01]; // 'B''Q' mainnet
+
+/// P2P message types.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type")]
+pub enum Message {
+    /// Version handshake.
+    Version {
+        version: u32,
+        services: u64,
+        timestamp: u64,
+        user_agent: String,
+        start_height: u64,
+    },
+    
+    /// Version acknowledgment.
+    VerAck,
+    
+    /// Ping for keepalive.
+    Ping {
+        nonce: u64,
+    },
+    
+    /// Pong response.
+    Pong {
+        nonce: u64,
+    },
+    
+    /// Request peer addresses.
+    GetAddr,
+    
+    /// Advertise peer addresses.
+    Addr {
+        addrs: Vec<PeerAddr>,
+    },
+    
+    /// Inventory announcement (blocks/txs available).
+    Inv {
+        inventory: Vec<InvVector>,
+    },
+    
+    /// Request data.
+    GetData {
+        inventory: Vec<InvVector>,
+    },
+    
+    /// Block data.
+    Block {
+        block: Block,
+    },
+    
+    /// Transaction data.
+    Tx {
+        transaction: Transaction,
+    },
+    
+    /// Request block headers.
+    GetHeaders {
+        version: u32,
+        locator_hashes: Vec<[u8; 32]>,
+        stop_hash: [u8; 32],
+    },
+    
+    /// Block headers response.
+    Headers {
+        headers: Vec<BlockHeader>,
+    },
+    
+    /// Mempool query.
+    GetMempool,
+    
+    /// Reject message.
+    Reject {
+        message: String,
+        code: RejectCode,
+        reason: String,
+    },
+}
+
+/// Peer address information.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PeerAddr {
+    /// Timestamp.
+    pub timestamp: u64,
+    /// Services provided.
+    pub services: u64,
+    /// IP address.
+    pub ip: String,
+    /// Port.
+    pub port: u16,
+}
+
+/// Inventory vector for announcing available data.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct InvVector {
+    /// Type of data.
+    pub inv_type: InvType,
+    /// Hash of the data.
+    pub hash: [u8; 32],
+}
+
+/// Inventory types.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[repr(u32)]
+pub enum InvType {
+    /// Transaction.
+    Tx = 1,
+    /// Block.
+    Block = 2,
+    /// Filtered block (not used yet).
+    FilteredBlock = 3,
+}
+
+/// Rejection codes.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[repr(u8)]
+pub enum RejectCode {
+    /// Malformed message.
+    Malformed = 0x01,
+    /// Invalid data.
+    Invalid = 0x10,
+    /// Obsolete version.
+    Obsolete = 0x11,
+    /// Duplicate.
+    Duplicate = 0x12,
+    /// Non-standard transaction.
+    Nonstandard = 0x40,
+    /// Insufficient fee.
+    InsufficientFee = 0x42,
+}
+
+/// Message envelope with header.
+#[derive(Clone, Debug)]
+pub struct MessageEnvelope {
+    /// Network magic bytes.
+    pub magic: [u8; 4],
+    /// Message payload.
+    pub message: Message,
+}
+
+impl MessageEnvelope {
+    /// Creates a new message envelope.
+    pub fn new(message: Message) -> Self {
+        Self {
+            magic: MAINNET_MAGIC,
+            message,
+        }
+    }
+    
+    /// Serializes the message to bytes.
+    pub fn serialize(&self) -> Result<Vec<u8>, P2pError> {
+        let payload = serde_json::to_vec(&self.message)
+            .map_err(|e| P2pError::SerializationError(e.to_string()))?;
+        
+        if payload.len() > MAX_MESSAGE_SIZE {
+            return Err(P2pError::MessageTooLarge(payload.len()));
+        }
+        
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(&self.magic);
+        buffer.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        buffer.extend_from_slice(&payload);
+        
+        Ok(buffer)
+    }
+    
+    /// Deserializes a message from bytes.
+    pub fn deserialize(data: &[u8]) -> Result<Self, P2pError> {
+        if data.len() < 8 {
+            return Err(P2pError::InvalidMessage);
+        }
+        
+        let mut magic = [0u8; 4];
+        magic.copy_from_slice(&data[0..4]);
+        
+        if magic != MAINNET_MAGIC {
+            return Err(P2pError::InvalidMessage);
+        }
+        
+        let length = u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize;
+        
+        if length > MAX_MESSAGE_SIZE {
+            return Err(P2pError::MessageTooLarge(length));
+        }
+        
+        if data.len() < 8 + length {
+            return Err(P2pError::InvalidMessage);
+        }
+        
+        let message = serde_json::from_slice(&data[8..8 + length])
+            .map_err(|e| P2pError::SerializationError(e.to_string()))?;
+        
+        Ok(Self { magic, message })
+    }
+}
+
+/// Peer connection state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PeerState {
+    /// Initial state, waiting for version.
+    New,
+    /// Version sent, waiting for verack.
+    VersionSent,
+    /// Fully connected and active.
+    Active,
+    /// Disconnected.
+    Disconnected,
+}
+
+/// Peer information.
+#[derive(Clone, Debug)]
+pub struct Peer {
+    /// Peer address.
+    pub addr: String,
+    /// Connection state.
+    pub state: PeerState,
+    /// Protocol version.
+    pub version: u32,
+    /// Services.
+    pub services: u64,
+    /// User agent.
+    pub user_agent: String,
+    /// Start height.
+    pub start_height: u64,
+    /// Last seen timestamp.
+    pub last_seen: u64,
+}
+
+impl Peer {
+    /// Creates a new peer.
+    pub fn new(addr: String) -> Self {
+        Self {
+            addr,
+            state: PeerState::New,
+            version: 0,
+            services: 0,
+            user_agent: String::new(),
+            start_height: 0,
+            last_seen: 0,
+        }
+    }
+    
+    /// Checks if peer is active.
+    pub fn is_active(&self) -> bool {
+        self.state == PeerState::Active
+    }
+}
+
+/// Simple peer manager.
+pub struct PeerManager {
+    /// Connected peers.
+    peers: Vec<Peer>,
+    /// Maximum peers.
+    max_peers: usize,
+}
+
+impl PeerManager {
+    /// Creates a new peer manager.
+    pub fn new(max_peers: usize) -> Self {
+        Self {
+            peers: Vec::new(),
+            max_peers,
+        }
+    }
+    
+    /// Adds a peer.
+    pub fn add_peer(&mut self, addr: String) -> Result<(), P2pError> {
+        if self.peers.len() >= self.max_peers {
+            return Err(P2pError::ConnectionError("max peers reached".to_string()));
+        }
+        
+        // Check for duplicate
+        if self.peers.iter().any(|p| p.addr == addr) {
+            return Err(P2pError::ConnectionError("peer already connected".to_string()));
+        }
+        
+        self.peers.push(Peer::new(addr));
+        Ok(())
+    }
+    
+    /// Removes a peer.
+    pub fn remove_peer(&mut self, addr: &str) {
+        self.peers.retain(|p| p.addr != addr);
+    }
+    
+    /// Gets active peers.
+    pub fn active_peers(&self) -> Vec<&Peer> {
+        self.peers.iter().filter(|p| p.is_active()).collect()
+    }
+    
+    /// Gets peer count.
+    pub fn peer_count(&self) -> usize {
+        self.peers.len()
+    }
+    
+    /// Updates peer state.
+    pub fn update_peer_state(&mut self, addr: &str, state: PeerState) {
+        if let Some(peer) = self.peers.iter_mut().find(|p| p.addr == addr) {
+            peer.state = state;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn message_serialization_roundtrip() {
+        let msg = Message::Version {
+            version: PROTOCOL_VERSION,
+            services: 1,
+            timestamp: 1234567890,
+            user_agent: "BitQuan/0.1.0".to_string(),
+            start_height: 100,
+        };
+        
+        let envelope = MessageEnvelope::new(msg.clone());
+        let serialized = envelope.serialize().unwrap();
+        let deserialized = MessageEnvelope::deserialize(&serialized).unwrap();
+        
+        assert_eq!(deserialized.message, msg);
+        assert_eq!(deserialized.magic, MAINNET_MAGIC);
+    }
+
+    #[test]
+    fn reject_oversized_message() {
+        let large_data = vec![0u8; MAX_MESSAGE_SIZE + 1];
+        let msg = Message::Reject {
+            message: String::from_utf8(large_data).unwrap(),
+            code: RejectCode::Invalid,
+            reason: "test".to_string(),
+        };
+        
+        let envelope = MessageEnvelope::new(msg);
+        let result = envelope.serialize();
+        
+        assert!(matches!(result, Err(P2pError::MessageTooLarge(_))));
+    }
+
+    #[test]
+    fn peer_manager_basic() {
+        let mut pm = PeerManager::new(3);
+        
+        pm.add_peer("127.0.0.1:8333".to_string()).unwrap();
+        pm.add_peer("127.0.0.1:8334".to_string()).unwrap();
+        
+        assert_eq!(pm.peer_count(), 2);
+        
+        pm.update_peer_state("127.0.0.1:8333", PeerState::Active);
+        assert_eq!(pm.active_peers().len(), 1);
+        
+        pm.remove_peer("127.0.0.1:8333");
+        assert_eq!(pm.peer_count(), 1);
+    }
+
+    #[test]
+    fn peer_manager_max_peers() {
+        let mut pm = PeerManager::new(2);
+        
+        pm.add_peer("127.0.0.1:8333".to_string()).unwrap();
+        pm.add_peer("127.0.0.1:8334".to_string()).unwrap();
+        
+        let result = pm.add_peer("127.0.0.1:8335".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn reject_duplicate_peer() {
+        let mut pm = PeerManager::new(5);
+        
+        pm.add_peer("127.0.0.1:8333".to_string()).unwrap();
+        let result = pm.add_peer("127.0.0.1:8333".to_string());
+        
+        assert!(result.is_err());
+    }
+}

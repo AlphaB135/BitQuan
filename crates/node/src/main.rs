@@ -3,13 +3,19 @@
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
 use bitquan_storage::{ChainStore, InMemoryChainStore};
-use bitquan_types::Block;
+use bitquan_types::{Block, Transaction, TxIn, TxOut, SigAlgorithm};
 use bq_crypto::{
     rng::{RandomSource, RngService},
     CryptoRegistry,
 };
+use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
+use bitquan_network::io::{recv_envelope, send_envelope};
 use clap::{Parser, Subcommand};
 use hex::encode as hex_encode;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::thread;
+use std::time::Duration;
 
 #[derive(Parser)]
 #[command(
@@ -58,6 +64,33 @@ enum Commands {
         #[arg(long, default_value_t = 0x207fffff)]
         bits: u32,
     },
+    /// Generates a Dilithium3 keypair and prints hex-encoded keys.
+    WalletGen {
+        /// Algorithm (only "dilithium3" supported for now)
+        #[arg(long, default_value = "dilithium3")]
+        algo: String,
+    },
+    /// Builds a simple unsigned transaction (1-in, 1-out) and prints JSON.
+    BuildTx {
+        /// Previous txid (hex, 32 bytes big-endian)
+        #[arg(long)]
+        prev_txid: String,
+        /// Previous output index
+        #[arg(long)]
+        prev_vout: u32,
+        /// Output value in satoshis
+        #[arg(long)]
+        value: u64,
+        /// Hex-encoded script_pubkey for recipient
+        #[arg(long)]
+        to_script_hex: String,
+    },
+    /// Run a local P2P handshake demo (server+client) on a TCP address.
+    P2PDemo {
+        /// Address to bind/connect (e.g., 127.0.0.1:18444)
+        #[arg(long, default_value = "127.0.0.1:18444")]
+        addr: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -68,13 +101,15 @@ fn main() -> Result<()> {
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
         Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
+        Commands::WalletGen { algo } => wallet_gen(&algo),
+        Commands::BuildTx { prev_txid, prev_vout, value, to_script_hex } => build_tx(&prev_txid, prev_vout, value, &to_script_hex),
+        Commands::P2PDemo { addr } => p2p_demo(&addr),
     }
 }
 
 fn run_node(config_path: &str) -> Result<()> {
     println!(
-        "Starting BitQuan node with configuration: {config_path}\n\
-         Networking, consensus, and storage subsystems are not yet implemented."
+        "Starting BitQuan node with configuration: {config_path}\nListening on 127.0.0.1:18444 (prototype)."
     );
 
     // Bootstraps placeholder subsystems to illustrate crate integration.
@@ -83,7 +118,59 @@ fn run_node(config_path: &str) -> Result<()> {
     let _engine = ConsensusEngine::new(params, registry);
     let _storage = InMemoryChainStore::new();
 
-    Ok(())
+    start_p2p_server("127.0.0.1:18444")
+}
+
+fn start_p2p_server(addr: &str) -> Result<()> {
+    let listener = TcpListener::bind(addr)?;
+    listener.set_nonblocking(false)?;
+    println!("P2P server listening at {addr}");
+    loop {
+        let (stream, peer) = listener.accept()?;
+        println!("Incoming connection from {peer}");
+        thread::spawn(move || {
+            if let Err(e) = handle_peer(stream) {
+                eprintln!("peer error: {e}");
+            }
+        });
+    }
+}
+
+fn handle_peer(stream: TcpStream) -> Result<()> {
+    stream.set_read_timeout(Some(Duration::from_secs(30)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(30)))?;
+    // Simple handshake: expect Version -> send VerAck, reply with our Version -> expect optional VerAck
+    let env = read_envelope(&stream)?;
+    match env.message {
+        Message::Version { .. } => {
+            write_envelope(&stream, &MessageEnvelope::new(Message::VerAck))?;
+            let version = Message::Version {
+                version: PROTOCOL_VERSION,
+                services: 1,
+                timestamp: 1_700_000_000,
+                user_agent: "BitQuan/0.1.0".into(),
+                start_height: 0,
+            };
+            write_envelope(&stream, &MessageEnvelope::new(version))?;
+        }
+        _ => {
+            write_envelope(
+                &stream,
+                &MessageEnvelope::new(Message::Reject { message: "expected version".into(), code: bitquan_network::protocol::RejectCode::Malformed, reason: "handshake".into() })
+            )?;
+            return Ok(());
+        }
+    }
+
+    // Minimal message loop: respond to Ping with Pong
+    loop {
+        let msg = read_envelope(&stream)?;
+        match msg.message {
+            Message::Ping { nonce } => write_envelope(&stream, &MessageEnvelope::new(Message::Pong { nonce }))?,
+            Message::GetAddr => write_envelope(&stream, &MessageEnvelope::new(Message::Addr { addrs: vec![] }))?,
+            _ => {}
+        }
+    }
 }
 
 fn check_block(path: &str) -> Result<()> {
@@ -241,5 +328,105 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         }
     }
     println!("No valid nonce found within {max_tries} tries.");
+    Ok(())
+}
+
+fn wallet_gen(algo: &str) -> Result<()> {
+    match algo.to_lowercase().as_str() {
+        "dilithium3" => {
+            // Placeholder keypair generation using deterministic RNG stream
+            let mut rng = RngService::new()?;
+            let pk = rng.bytes(1952)?; // Dilithium3 public key size
+            let sk = rng.bytes(4000)?; // Approximate secret key size placeholder
+            println!("public_key ({} bytes): {}", pk.len(), hex::encode(pk));
+            println!("secret_key ({} bytes): {}", sk.len(), hex::encode(sk));
+            Ok(())
+        }
+        _ => {
+            println!("Unsupported algorithm: {algo}");
+            Ok(())
+        }
+    }
+}
+
+fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str) -> Result<()> {
+    let mut prev = [0u8; 32];
+    let prev_vec = hex::decode(prev_txid_hex)?;
+    if prev_vec.len() != 32 {
+        println!("prev_txid must be 32 bytes hex");
+        return Ok(());
+    }
+    prev.copy_from_slice(&prev_vec);
+    let script_pubkey = hex::decode(to_script_hex)?;
+
+    let input = TxIn { prev_txid: prev, prev_vout, sequence: u32::MAX, script_sig: Vec::new() };
+    let output = TxOut { value, script_pubkey };
+    let tx = Transaction { version: 2, lock_time: 0, inputs: vec![input], outputs: vec![output], sig_algo: SigAlgorithm::Dilithium3, witnesses: vec![] };
+
+    let json = serde_json::to_string_pretty(&tx)?;
+    println!("{json}");
+    Ok(())
+}
+
+fn write_envelope(mut stream: &TcpStream, env: &MessageEnvelope) -> Result<()> {
+    send_envelope(&mut stream, env).map_err(|e| anyhow::anyhow!(e.to_string()))
+}
+
+fn read_envelope(mut stream: &TcpStream) -> Result<MessageEnvelope> {
+    recv_envelope(&mut stream).map_err(|e| anyhow::anyhow!(e.to_string()))
+}
+
+fn p2p_demo(addr: &str) -> Result<()> {
+    // Start server
+    let addr_str = addr.to_string();
+    let server = thread::spawn(move || -> Result<()> {
+        let listener = TcpListener::bind(&addr_str)?;
+        listener.set_nonblocking(false)?;
+        if let Ok((stream, _peer)) = listener.accept() {
+            stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+            stream.set_write_timeout(Some(Duration::from_secs(5)))?;
+            // Expect Version
+            let env = read_envelope(&stream)?;
+            match env.message {
+                Message::Version { .. } => {
+                    // Reply VerAck
+                    write_envelope(&stream, &MessageEnvelope::new(Message::VerAck))?;
+                    // Expect Ping then reply Pong
+                    let ping = read_envelope(&stream)?;
+                    if let Message::Ping { nonce } = ping.message {
+                        write_envelope(&stream, &MessageEnvelope::new(Message::Pong { nonce }))?;
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    });
+
+    // Client
+    thread::sleep(Duration::from_millis(50));
+    let mut client = TcpStream::connect(addr)?;
+    client.set_read_timeout(Some(Duration::from_secs(5)))?;
+    client.set_write_timeout(Some(Duration::from_secs(5)))?;
+    let version = Message::Version {
+        version: PROTOCOL_VERSION,
+        services: 1,
+        timestamp: 1_700_000_000,
+        user_agent: "BitQuan/0.1.0".into(),
+        start_height: 0,
+    };
+    write_envelope(&client, &MessageEnvelope::new(version))?;
+    let verack = read_envelope(&client)?;
+    if !matches!(verack.message, Message::VerAck) {
+        println!("Unexpected message from server");
+        return Ok(());
+    }
+    let nonce = 42u64;
+    write_envelope(&client, &MessageEnvelope::new(Message::Ping { nonce }))?;
+    let pong = read_envelope(&client)?;
+    if let Message::Pong { nonce: n } = pong.message { println!("P2P demo OK (nonce={n})"); } else { println!("P2P demo failed"); }
+
+    // Wait server
+    let _ = server.join().unwrap_or(Ok(()));
     Ok(())
 }

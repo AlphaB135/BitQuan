@@ -1,5 +1,23 @@
 # BitQuan TODO Master Plan
 
+## Progress Update (2025-10-26T05:28:53.724Z)
+- Consensus: เพิ่มตรวจ merkle_root/witness_root และกติกา coinbase (ต้องเป็นตัวแรก/เดียว, มูลค่า ≤ subsidy).
+- Mining/Template: header.hashing/target check, MTP fallback (max(now, tip/MTP+1)), bits auto จาก DifficultyState, witness_root ใส่ใน header.
+- Types: merkle_root_from_txids, compute_witness_root; tx binary vectors พร้อม.
+- Node: miner เดโม, P2P demo; ต่อไปจะเสริม RPC/Stratum scaffolding และ persistence DB.
+- Next: canonical wire parsing (tx/block), persistent chainstore, RPC/Stratum job server, mempool/template จาก fee-per-weight.
+
+
+## 🚀 Progress Update (2025-10-26T05:15:59.703Z) - P2P scaffolding + Wallet CLI
+- Added P2P protocol scaffolding in crates/network:
+  - Message enum (Version/VerAck/Ping/Pong/Inv/GetData/Block/Tx/GetHeaders/Headers/Reject), envelopes with magic 'BQ' (0x42,0x51,0x01,0x01), MAX_MESSAGE_SIZE=10MB.
+  - Simple Peer/PeerManager (states, add/remove, limits) + unit tests (serialization round-trip, max peers, no duplicates).
+  - Next: implement TCP wire I/O, version/verack handshake, ping/keepalive, addr/getaddr peer discovery, headers/blocks relay, per-peer rate limiting.
+- Wallet CLI prototype in bitquan-node:
+  - New commands: WalletGen (Dilithium3 placeholder keypair) and BuildTx (1-in-1-out JSON tx builder).
+  - Next: real Dilithium keypair via pqc_dilithium, encrypted keystore, Bech32m addresses, TX signing/verification flow, coin selection, RPC/mempool integration.
+- Build/Test: cargo build+test green; no functional wire networking yet.
+
 ## 🔒 Progress Update (2025-10-25T18:40:00Z) - SECURITY HARDENING
 **Major Security Fixes Completed:**
 - ✅ **Dilithium Signature Verification**: Implemented real PQC signature verification (pqc_dilithium v0.2)
