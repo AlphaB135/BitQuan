@@ -358,13 +358,14 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
 fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_nonce: u64, threads: usize) -> Result<()> {
     use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::io::Write;
     
-    println!("🚀 BitQuan Continuous Miner");
-    println!("📁 Data directory: {}", datadir);
-    println!("⚙️  Threads: {}", if threads == 0 { num_cpus::get() } else { threads });
+    println!("BitQuan Continuous Miner");
+    println!("Data directory: {}", datadir);
+    println!("Threads: {}", if threads == 0 { num_cpus::get() } else { threads });
     
     // Open or create RocksDB store
-    let mut store = RocksDBStore::open(datadir)?;
+    let store = RocksDBStore::open(datadir)?;
     let store = Arc::new(Mutex::new(store));
     
     let payout_script = hex::decode(payout_script_hex)?;
@@ -377,7 +378,7 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             s.height()?
         };
         
-        println!("\n⛏️  Mining block #{} ...", height + 1);
+        println!("\n[Block #{}] Mining...", height + 1);
         
         // Get current time
         let now = std::time::SystemTime::now()
@@ -386,7 +387,7 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             .unwrap_or(0);
         
         if now == 0 {
-            eprintln!("❌ Error: System time is before UNIX epoch");
+            eprintln!("ERROR: System time is before UNIX epoch");
             return Ok(());
         }
         
@@ -459,8 +460,7 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             nonce: 0,
         };
         
-        println!("🎯 Target bits: 0x{:08x}", bits);
-        println!("💰 Block reward: {} satoshis", subsidy);
+        println!("Target: 0x{:08x} | Reward: {} sats", bits, subsidy);
         
         // Mining loop
         found.store(false, Ordering::Relaxed);
@@ -473,10 +473,9 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
                 let elapsed = start_time.elapsed();
                 let hashrate = (n as f64) / elapsed.as_secs_f64();
                 
-                println!("\n✅ FOUND! nonce={}", n);
-                println!("📦 Block hash: {}", hex::encode(id));
-                println!("⏱️  Time: {:.2}s", elapsed.as_secs_f64());
-                println!("⚡ Hashrate: {:.2} H/s", hashrate);
+                println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
+                println!("Hash: {}", hex::encode(id));
+                println!("Time: {:.2}s | Hashrate: {:.2} H/s", elapsed.as_secs_f64(), hashrate);
                 
                 let block = Block {
                     header: header.clone(),
@@ -489,21 +488,23 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
                 }
                 
                 blocks_mined.fetch_add(1, Ordering::Relaxed);
-                println!("💾 Block saved! Total mined: {}", blocks_mined.load(Ordering::Relaxed));
+                let total = blocks_mined.load(Ordering::Relaxed);
+                println!("Saved to DB | Session total: {}", total);
                 found.store(true, Ordering::Relaxed);
                 break;
             }
             
-            if n % 500_000 == 0 && n > 0 {
+            if n % 100_000 == 0 && n > 0 {
                 let elapsed = start_time.elapsed().as_secs_f64();
                 let hashrate = (n as f64) / elapsed;
-                print!("\r⏳ Tried {} nonces ({:.2} H/s)...", n, hashrate);
-                std::io::Write::flush(&mut std::io::stdout())?;
+                print!("\r[Block #{}] Nonce: {:>10} | Hashrate: {:.2} MH/s", 
+                    height + 1, n, hashrate / 1_000_000.0);
+                std::io::stdout().flush()?;
             }
         }
         
         if !found.load(Ordering::Relaxed) {
-            println!("\n⚠️  No valid nonce found in {} tries, adjusting difficulty...", max_nonce);
+            println!("\nNo valid nonce in {} tries, adjusting difficulty...", max_nonce);
             bits = (bits & 0x00ffffff) | ((((bits >> 24) + 1) & 0xff) << 24); // Easier
         }
     }
@@ -511,8 +512,8 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
 
 #[cfg(not(feature = "rocksdb-backend"))]
 fn mine_continuous(_datadir: &str, _payout_script_hex: &str, _bits: u32, _max_nonce: u64, _threads: usize) -> Result<()> {
-    eprintln!("❌ Error: Continuous mining requires 'rocksdb-backend' feature");
-    eprintln!("💡 Rebuild with: cargo build --release --features rocksdb-backend");
+    eprintln!("ERROR: Continuous mining requires 'rocksdb-backend' feature");
+    eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
 }
 
