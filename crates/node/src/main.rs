@@ -2,6 +2,7 @@
 
 mod wallet;
 mod keystore;
+mod mnemonic;
 
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};

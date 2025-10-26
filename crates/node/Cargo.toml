@@ -12,6 +12,7 @@ anyhow.workspace = true
 argon2 = "0.5"
 base64ct = "1.6.0"
 bech32 = "0.11.0"
+bip39 = "2.2.0"
 bitquan-consensus = { path = "../consensus", version = "0.1.0" }
 bitquan-mempool = { path = "../mempool", version = "0.1.0" }
 bitquan-network = { path = "../network", version = "0.1.0" }
