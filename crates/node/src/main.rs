@@ -4,6 +4,7 @@ mod wallet;
 mod keystore;
 mod mnemonic;
 mod address;
+mod tx_builder;
 
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
@@ -142,6 +143,24 @@ enum Commands {
         #[arg(long)]
         signature: String,
     },
+    /// Send transaction from wallet
+    WalletSend {
+        /// Path to keystore file
+        #[arg(long)]
+        keystore: String,
+        /// Recipient address
+        #[arg(long)]
+        to: String,
+        /// Amount to send (in qbits)
+        #[arg(long)]
+        amount: u64,
+        /// Fee rate (qbits per weight unit)
+        #[arg(long, default_value_t = 1)]
+        fee_rate: u64,
+        /// Password to decrypt the keystore
+        #[arg(long)]
+        password: Option<String>,
+    },
     /// Builds a simple unsigned transaction (1-in, 1-out) and prints JSON.
     BuildTx {
         /// Previous txid (hex, 32 bytes big-endian)
@@ -211,6 +230,9 @@ fn main() -> Result<()> {
         Commands::WalletAddress { keystore, password } => wallet_address(&keystore, password.as_deref()),
         Commands::WalletSign { keystore, message, password } => wallet_sign(&keystore, &message, password.as_deref()),
         Commands::WalletVerify { pubkey, message, signature } => wallet_verify(&pubkey, &message, &signature),
+        Commands::WalletSend { keystore, to, amount, fee_rate, password } => {
+            wallet_send(&keystore, &to, amount, fee_rate, password.as_deref())
+        },
         Commands::BuildTx { prev_txid, prev_vout, value, to_script_hex } => build_tx(&prev_txid, prev_vout, value, &to_script_hex),
         Commands::P2PDemo { addr } => p2p_demo(&addr),
         Commands::P2PServer { listen, max_peers, datadir } => p2p_server(&listen, max_peers, &datadir),
@@ -854,14 +876,62 @@ fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Re
         public_key: pubkey_bytes,
     };
 
-    println!("\n⏳ Verifying...");
+    println!("");
+    println!("Verifying...");
     if public_key.verify(&message, &signature) {
-        println!("✅ Signature is VALID!");
+        println!("Signature is VALID!");
         Ok(())
     } else {
-        println!("❌ Signature is INVALID!");
+        println!("Signature is INVALID!");
         anyhow::bail!("Signature verification failed")
     }
+}
+
+fn wallet_send(keystore_path: &str, to_address: &str, amount: u64, fee_rate: u64, password: Option<&str>) -> Result<()> {
+    use wallet::WalletKeypair;
+    use tx_builder::{TransactionBuilder, compute_sighash};
+    use std::path::Path;
+
+    println!("BitQuan Wallet Send");
+    println!("To: {}", to_address);
+    println!("Amount: {} qbits ({:.8} BQ)", amount, amount as f64 / 100_000_000.0);
+    println!("Fee rate: {} qbits/WU", fee_rate);
+    println!("");
+
+    // Load keystore
+    let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
+
+    // Get password
+    let password = match password {
+        Some(p) => p.to_string(),
+        None => {
+            println!("Enter password:");
+            read_password_from_stdin()?
+        }
+    };
+
+    // Decrypt keystore
+    println!("Decrypting keystore...");
+    let json = keystore::decrypt_keypair(&keystore_file, &password)?;
+    let _data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
+    
+    println!("");
+    println!("Note: Full transaction sending not yet implemented");
+    println!("Missing components:");
+    println!("  - UTXO lookup from blockchain");
+    println!("  - Address to script_pubkey conversion");
+    println!("  - Transaction broadcast to network");
+    println!("");
+    println!("Current capabilities:");
+    println!("  - Transaction building: use 'build-tx' command");
+    println!("  - Message signing: use 'wallet-sign' command");
+    println!("");
+    println!("Example workflow:");
+    println!("  1. Get UTXOs: cargo run -- balance --datadir ./data/chainstate");
+    println!("  2. Build tx: cargo run -- build-tx --prev-txid <txid> --prev-vout 0 --value <amount> --to-script-hex <script>");
+    println!("  3. Sign manually with wallet-sign");
+    
+    Ok(())
 }
 
 fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str) -> Result<()> {
