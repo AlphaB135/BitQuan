@@ -495,11 +495,8 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             }
             
             if n % 100_000 == 0 && n > 0 {
-                let elapsed = start_time.elapsed().as_secs_f64();
-                let hashrate = (n as f64) / elapsed;
-                print!("\r[Block #{}] Nonce: {:>10} | Hashrate: {:.2} MH/s", 
-                    height + 1, n, hashrate / 1_000_000.0);
-                std::io::stdout().flush()?;
+                let current_hash = header_hash(&header);
+                println!("... tried {} nonces, latest hash={}", n, hex::encode(current_hash));
             }
         }
         
