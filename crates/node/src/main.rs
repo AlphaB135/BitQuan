@@ -3,6 +3,7 @@
 mod wallet;
 mod keystore;
 mod mnemonic;
+mod address;
 
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
@@ -615,11 +616,13 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     let pubkey_hash = keypair.public_key_hash();
     let address_str = address::encode(&pubkey_hash);
 
+    use pqc_dilithium::{PUBLICKEYBYTES, SECRETKEYBYTES};
+    
     println!("\n✅ Keypair generated successfully!");
     println!("\n📍 Address: {}", address_str);
     println!("🔑 Public key hash: {}", hex::encode(pubkey_hash));
-    println!("📏 Public key: {} bytes", keypair.public_key.len());
-    println!("📏 Secret key: {} bytes", keypair.secret_key.len());
+    println!("📏 Public key: {} bytes", PUBLICKEYBYTES);
+    println!("📏 Secret key: {} bytes", SECRETKEYBYTES);
 
     // Get password for encryption
     let password = match password {
@@ -634,7 +637,7 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
         anyhow::bail!("Password must be at least 8 characters");
     }
 
-    // Serialize full keypair for encryption
+    // Serialize keypair metadata for encryption
     let serializable = keypair.to_serializable();
     let json = serde_json::to_string_pretty(&serializable)?;
 
@@ -649,7 +652,8 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     println!("   - Keep this file safe!");
     println!("   - Remember your password!");
     println!("   - Make backups!");
-    println!("\n✅ Full keypair is now persisted and can be used for signing!");
+    println!("\n⚠️  Note: Keypair metadata persisted (address, pubkey hash)");
+    println!("   Full signing requires session keypair due to pqc_dilithium 0.2 limitations");
 
     Ok(())
 }
@@ -679,7 +683,7 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
 
     println!("\n📍 Address: {}", data.address);
     println!("🔑 Public key hash: {}", data.public_key_hash);
-    println!("📏 Public key: {} bytes (base64 encoded)", data.public_key.len());
+    println!("📏 Metadata only (full keys require session keypair)");
 
     Ok(())
 }
@@ -707,27 +711,19 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
         }
     };
 
-    // Decrypt and restore keypair
+    // Decrypt keystore
     println!("\n⏳ Decrypting keystore...");
     let json = keystore::decrypt_keypair(&keystore_file, &password)?;
     let data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
-    let keypair = WalletKeypair::from_serializable(&data)?;
     
     println!("✅ Keystore decrypted!");
-    println!("\n⏳ Signing message...");
+    println!("📍 Address: {}", data.address);
+    println!("🔑 Public key hash: {}", data.public_key_hash);
     
-    let signature = keypair.sign(&message)?;
-    
-    println!("✅ Signature generated!");
-    println!("📏 Signature size: {} bytes", signature.len());
-    println!("📝 Signature: {}", hex::encode(&signature));
-    
-    // Verify immediately
-    if keypair.verify(&message, &signature) {
-        println!("\n✅ Signature verified successfully!");
-    } else {
-        println!("\n❌ Signature verification failed!");
-    }
+    println!("\n⚠️  Note: Signing with persisted keys not yet fully supported");
+    println!("   pqc_dilithium 0.2 doesn't expose keypair serialization");
+    println!("   Use a session-based keypair (wallet-gen without saving) for signing");
+    println!("\n💡 Workaround: Generate ephemeral keypair and sign immediately");
 
     Ok(())
 }
