@@ -5,6 +5,7 @@ mod keystore;
 mod mnemonic;
 mod address;
 mod tx_builder;
+mod utxo;
 
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
