@@ -165,35 +165,100 @@ impl WalletPublicKey {
     }
 }
 
-/// Simple Bech32-like address encoding (simplified for now).
+/// Bech32m address encoding (BIP 350 compatible).
 pub mod address {
-    use super::*;
+    use anyhow::{Result, bail};
+    use bech32::{Bech32m, Hrp};
 
-    /// Human-readable prefix for BitQuan addresses.
-    pub const HRP: &str = "bq";
+    /// Human-readable prefix for BitQuan mainnet addresses.
+    pub const HRP_MAINNET: &str = "bq";
+    
+    /// Human-readable prefix for BitQuan testnet addresses.
+    pub const HRP_TESTNET: &str = "bqt";
 
-    /// Encodes a public key hash to a BitQuan address.
-    /// Format: bq1<hex-encoded-hash> (simplified, will use real Bech32m later)
+    /// Encodes a public key hash to a Bech32m address.
+    /// 
+    /// Uses witness version 1 (for post-quantum signatures).
+    /// Format: bq1<bech32m-encoded-hash>
     pub fn encode(pubkey_hash: &[u8; 32]) -> String {
-        format!("{}1{}", HRP, hex::encode(pubkey_hash))
+        encode_with_hrp(pubkey_hash, HRP_MAINNET)
     }
 
-    /// Decodes a BitQuan address to a public key hash.
+    /// Encodes a public key hash with a custom HRP.
+    pub fn encode_with_hrp(pubkey_hash: &[u8; 32], hrp_str: &str) -> String {
+        // Witness version 1 (for Bech32m)
+        let witness_version = 1u8;
+        
+        // Combine witness version + pubkey hash
+        let mut data = Vec::with_capacity(33);
+        data.push(witness_version);
+        data.extend_from_slice(pubkey_hash);
+        
+        // Encode using Bech32m
+        let hrp = Hrp::parse(hrp_str).expect("Valid HRP");
+        bech32::encode::<Bech32m>(hrp, &data).expect("Valid encoding")
+    }
+
+    /// Decodes a Bech32m address to a public key hash.
     pub fn decode(address: &str) -> Result<[u8; 32]> {
-        if !address.starts_with(&format!("{}1", HRP)) {
-            bail!("Invalid address prefix");
+        decode_with_hrp(address, HRP_MAINNET)
+    }
+
+    /// Decodes a Bech32m address with HRP validation.
+    pub fn decode_with_hrp(address: &str, expected_hrp: &str) -> Result<[u8; 32]> {
+        // Decode Bech32m
+        let (hrp, data) = bech32::decode(address)
+            .map_err(|e| anyhow::anyhow!("Invalid Bech32m address: {}", e))?;
+        
+        // Verify HRP
+        if hrp.as_str() != expected_hrp {
+            bail!("Invalid HRP: expected '{}', got '{}'", expected_hrp, hrp);
         }
-
-        let hex_part = &address[3..]; // Skip "bq1"
-        let bytes = hex::decode(hex_part)?;
-
-        if bytes.len() != 32 {
-            bail!("Invalid address length");
+        
+        // Verify witness version
+        if data.is_empty() {
+            bail!("Address data is empty");
         }
+        
+        let witness_version = data[0];
+        if witness_version != 1 {
+            bail!("Invalid witness version: expected 1, got {}", witness_version);
+        }
+        
+        // Extract pubkey hash (skip witness version byte)
+        if data.len() != 33 {
+            bail!("Invalid address length: expected 33 bytes, got {}", data.len());
+        }
+        
+        let mut pubkey_hash = [0u8; 32];
+        pubkey_hash.copy_from_slice(&data[1..33]);
+        
+        Ok(pubkey_hash)
+    }
 
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&bytes);
-        Ok(hash)
+    /// Validates a Bech32m address without decoding.
+    pub fn validate(address: &str) -> bool {
+        decode(address).is_ok()
+    }
+
+    /// Returns helpful error message for invalid addresses.
+    pub fn validate_with_hint(address: &str) -> Result<()> {
+        match decode(address) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let hint = if !address.starts_with("bq1") {
+                    "Address should start with 'bq1'"
+                } else if address.len() < 42 {
+                    "Address is too short"
+                } else if address.len() > 90 {
+                    "Address is too long"
+                } else {
+                    "Address has invalid checksum or characters"
+                };
+                
+                Err(anyhow::anyhow!("{}\nHint: {}", e, hint))
+            }
+        }
     }
 }
 
@@ -239,10 +304,65 @@ mod tests {
         let pubkey_hash = keypair.public_key_hash();
         
         let address = address::encode(&pubkey_hash);
+        
+        // Should start with bq1
         assert!(address.starts_with("bq1"));
+        
+        // Should be valid Bech32m
+        assert!(address::validate(&address));
 
+        // Should decode back to same hash
         let decoded = address::decode(&address).unwrap();
         assert_eq!(decoded, pubkey_hash);
+    }
+
+    #[test]
+    fn test_address_validation() {
+        let keypair = WalletKeypair::generate_dilithium3().unwrap();
+        let pubkey_hash = keypair.public_key_hash();
+        let address = address::encode(&pubkey_hash);
+        
+        // Valid address
+        assert!(address::validate(&address));
+        
+        // Invalid addresses
+        assert!(!address::validate("invalid"));
+        assert!(!address::validate("bq1"));
+        assert!(!address::validate("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")); // Bitcoin address
+    }
+
+    #[test]
+    fn test_testnet_addresses() {
+        let pubkey_hash = [0u8; 32];
+        
+        // Mainnet
+        let mainnet = address::encode_with_hrp(&pubkey_hash, address::HRP_MAINNET);
+        assert!(mainnet.starts_with("bq1"));
+        
+        // Testnet
+        let testnet = address::encode_with_hrp(&pubkey_hash, address::HRP_TESTNET);
+        assert!(testnet.starts_with("bqt1"));
+        
+        // Should not cross-decode
+        assert!(address::decode_with_hrp(&mainnet, address::HRP_TESTNET).is_err());
+    }
+
+    #[test]
+    fn test_bech32m_checksum() {
+        let pubkey_hash = [0xAB; 32];
+        let address = address::encode(&pubkey_hash);
+        
+        // Corrupt the address (flip a character)
+        let mut corrupted = address.clone();
+        let bytes = unsafe { corrupted.as_bytes_mut() };
+        if bytes[10] == b'a' {
+            bytes[10] = b'b';
+        } else {
+            bytes[10] = b'a';
+        }
+        
+        // Should fail checksum
+        assert!(address::decode(&corrupted).is_err());
     }
 
     #[test]
