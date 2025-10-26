@@ -856,7 +856,9 @@ fn p2p_demo(addr: &str) -> Result<()> {
 /// P2P Server that accepts incoming connections
 fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
     use bitquan_network::{PeerManager, P2PListener};
+    use bitquan_network::protocol::{Message, InvVector, InvType};
     use std::sync::Arc;
+    use std::sync::Mutex;
 
     println!("BitQuan P2P Server");
     println!("Listen: {}", listen);
@@ -865,16 +867,18 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
     
     // Load current height from storage
     #[cfg(feature = "rocksdb-backend")]
-    let height = {
+    let (height, store) = {
         use bitquan_storage::rocksdb_store::RocksDBStore;
         let store = RocksDBStore::open(datadir)?;
-        store.height().unwrap_or(0)
+        let h = store.height().unwrap_or(0);
+        (h, Some(Arc::new(Mutex::new(store))))
     };
     
     #[cfg(not(feature = "rocksdb-backend"))]
-    let height = 0u64;
+    let (height, store) = (0u64, None);
     
     println!("Current height: {}", height);
+    println!("Storage: {}", if store.is_some() { "RocksDB" } else { "In-Memory" });
 
     let peer_manager = Arc::new(PeerManager::new(max_peers));
     peer_manager.update_height(height);
@@ -882,6 +886,15 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
     let listener = P2PListener::bind(listen, peer_manager.clone())?;
     println!("✅ Server started at {}", listener.local_addr()?);
     println!("Waiting for connections...");
+    println!("\nCommands:");
+    println!("  - Press Ctrl+C to stop");
+    println!("  - Peers will sync blockchain automatically");
+
+    // Example: Broadcast tip block when we have storage
+    if let Some(_s) = &store {
+        println!("\n💡 Tip: Use 'mine' command to mine blocks");
+        println!("   Newly mined blocks will be broadcast to peers");
+    }
 
     loop {
         match listener.accept_one() {
@@ -889,6 +902,9 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
                 let count = peer_manager.peer_count();
                 let ready = peer_manager.ready_peer_count();
                 println!("✅ Peer connected! Total: {}, Ready: {}", count, ready);
+                
+                // TODO: Send inv for our tip block to new peer
+                // This will trigger them to request it via getdata
             }
             Err(e) => {
                 eprintln!("❌ Accept error: {}", e);
