@@ -322,7 +322,7 @@ pub fn verify_script(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::SigAlgorithm;
+    use crate::transaction_sighash;
 
     #[test]
     fn script_push_and_verify_true() {

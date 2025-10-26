@@ -61,10 +61,10 @@ fn difficultystate_with_chainstore_mtp_anchor() {
             nonce: 0,
         };
         headers.push(header.clone());
-        store.insert_block(Block { header, transactions: Vec::<Transaction>::new() });
+        let _ = store.insert_block(Block { header, transactions: Vec::<Transaction>::new() });
     }
 
-    let tip = store.tip().expect("tip").clone();
+    let tip = store.tip().expect("tip").expect("tip block").clone();
     let anchor_height = 10; // zero-based index of tip in this test chain
     let mut state = DifficultyState::new(anchor_height, tip.time as u64, tip.bits);
 

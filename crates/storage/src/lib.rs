@@ -3,8 +3,11 @@
 
 use std::collections::HashMap;
 
-use bitquan_types::{Block, BlockHeader};
+use bitquan_types::{Block, BlockHeader, Transaction};
 use thiserror::Error;
+
+#[cfg(feature = "rocksdb-backend")]
+pub mod rocksdb_store;
 
 /// Errors produced by chain storage backends.
 #[derive(Debug, Error)]
@@ -12,16 +15,35 @@ pub enum StorageError {
     /// A requested block was not present in the storage backend.
     #[error("block not found")]
     BlockNotFound,
+    /// Transaction not found
+    #[error("transaction not found")]
+    TxNotFound,
+    /// Database I/O error
+    #[error("database error: {0}")]
+    DatabaseError(String),
+    /// Serialization error
+    #[error("serialization error: {0}")]
+    SerializationError(String),
 }
 
 /// Interface describing basic blockchain storage operations.
 pub trait ChainStore {
     /// Inserts a fully validated block.
-    fn insert_block(&mut self, block: Block);
-    /// Fetches a block by its header hash (placeholder identifier).
-    fn get_block(&self, id: &[u8; 32]) -> Option<&Block>;
+    fn insert_block(&mut self, block: Block) -> Result<(), StorageError>;
+    /// Fetches a block by its header hash.
+    fn get_block(&self, id: &[u8; 32]) -> Result<Option<Block>, StorageError>;
     /// Returns the latest known block header.
-    fn tip(&self) -> Option<&BlockHeader>;
+    fn tip(&self) -> Result<Option<BlockHeader>, StorageError>;
+    /// Get block by height
+    fn get_block_by_height(&self, height: u64) -> Result<Option<Block>, StorageError>;
+    /// Get transaction by txid
+    fn get_transaction(&self, txid: &[u8; 32]) -> Result<Option<Transaction>, StorageError>;
+    /// Store UTXO entry
+    fn put_utxo(&mut self, outpoint: &[u8], data: &[u8]) -> Result<(), StorageError>;
+    /// Get UTXO entry
+    fn get_utxo(&self, outpoint: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
+    /// Delete UTXO entry
+    fn delete_utxo(&mut self, outpoint: &[u8]) -> Result<(), StorageError>;
 }
 
 /// In-memory chain store for prototyping and tests.
@@ -51,22 +73,44 @@ impl Default for InMemoryChainStore {
 }
 
 impl ChainStore for InMemoryChainStore {
-    fn insert_block(&mut self, block: Block) {
-        // Use SHA256d(header) as the block id
+    fn insert_block(&mut self, block: Block) -> Result<(), StorageError> {
         let id = header_id(&block.header);
         self.times.push(block.header.time);
         if self.times.len() > 11 { self.times.remove(0); }
         self.height = self.height.saturating_add(1);
         self.tip = Some(block.header.clone());
         self.blocks.insert(id, block);
+        Ok(())
     }
 
-    fn get_block(&self, id: &[u8; 32]) -> Option<&Block> {
-        self.blocks.get(id)
+    fn get_block(&self, id: &[u8; 32]) -> Result<Option<Block>, StorageError> {
+        Ok(self.blocks.get(id).cloned())
     }
 
-    fn tip(&self) -> Option<&BlockHeader> {
-        self.tip.as_ref()
+    fn tip(&self) -> Result<Option<BlockHeader>, StorageError> {
+        Ok(self.tip.clone())
+    }
+
+    fn get_block_by_height(&self, _height: u64) -> Result<Option<Block>, StorageError> {
+        // InMemory store doesn't index by height efficiently
+        Ok(None)
+    }
+
+    fn get_transaction(&self, _txid: &[u8; 32]) -> Result<Option<Transaction>, StorageError> {
+        // Not implemented for in-memory store
+        Ok(None)
+    }
+
+    fn put_utxo(&mut self, _outpoint: &[u8], _data: &[u8]) -> Result<(), StorageError> {
+        Ok(())
+    }
+
+    fn get_utxo(&self, _outpoint: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        Ok(None)
+    }
+
+    fn delete_utxo(&mut self, _outpoint: &[u8]) -> Result<(), StorageError> {
+        Ok(())
     }
 }
 

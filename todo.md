@@ -1,5 +1,21 @@
 # BitQuan TODO Master Plan
 
+## Progress Update (2025-10-26T06:00:00Z) – Storage & RPC Complete ✅
+- **Storage**: RocksDB persistent backend สมบูรณ์ พร้อม column families (blocks/headers/height/tx/utxo/meta), atomic WriteBatch, และ ChainStore trait ที่ปรับปรุงแล้ว
+- **RPC**: JSON-RPC 2.0 server สมบูรณ์ พร้อม 8 methods (getblockcount, getblockchaininfo, getmininginfo, getblocktemplate, submitblock, gettransaction, getbestblockhash, getblockhash)
+- **Integration**: แก้ไข node/consensus ให้รองรับ ChainStore API ใหม่ (Result-based)
+- **Tests**: 51 tests passing (เพิ่ม 8 tests สำหรับ storage + RPC)
+- **Next**: Wire protocol binary parser, full P2P networking, enhanced Wallet CLI
+
+## Progress Update (2025-10-26T05:41:00Z) – Phase 6 Started
+- Starting implementation of persistent storage (RocksDB) and RPC server
+- Priority: Database layer → RPC interface → P2P completion → Wallet enhancement
+- Types: ปรับ `Transaction` ให้ใช้ `witnesses` (แทน signatures เดิม) พร้อมนับ signature ผ่าน witness และเตรียม serialization hint
+- Consensus: เพิ่ม `transaction_sighash` แบบ deterministic (SHA-256) ใช้ตรวจ Dilithium, สร้าง `DifficultyState` + ฟังก์ชัน ASERT helper (float) และรายงาน subsidy ใน `BlockValidationReport`
+- Node: คำสั่ง `check-block` แสดง subsidy; RNG ไม่จำเป็นใน consensus อีกต่อไป
+- Docs: เติมสเปก witness ใน `docs/spec/transactions_blocks.md` และอธิบาย ASERT helper ใน `docs/spec/consensus_economics.md`
+- Next: ผูก `DifficultyState` กับ chainstate/MTP จริง, เติม witness serialization vectors, และยืนยัน sighash กับ test vectors ข้ามภาษา
+
 ## Progress Update (2025-10-26T05:28:53.724Z)
 - Consensus: เพิ่มตรวจ merkle_root/witness_root และกติกา coinbase (ต้องเป็นตัวแรก/เดียว, มูลค่า ≤ subsidy).
 - Mining/Template: header.hashing/target check, MTP fallback (max(now, tip/MTP+1)), bits auto จาก DifficultyState, witness_root ใส่ใน header.
@@ -163,6 +179,8 @@
 - [ ] จัดทำ batch verification สำหรับลายเซ็น Dilithium/Falcon
 - [ ] นิยามกลยุทธ์ relay: Header-first sync, compact blocks, Erlay-style gossip
 - [ ] ตั้งเป้าหมาย orphan rate < 1.5% และกำหนดตัวชี้วัด latency propagation
+- [ ] ผูก DifficultyState/ASERT เข้ากับ chainstate จริง (anchor block, MTP, bits update)
+- [ ] พัฒนา canonical sighash test vectors (cross-language) สำหรับ witness layout ใหม่
 
 ## 5. เศรษฐศาสตร์การขุดและความแฟร์ (Phase 5 + ASIC notes)
 - [ ] กำหนดรางวัลบล็อกเริ่มต้น (50 BQ) และตาราง Halving ทุก 210,000 บล็อก (~4 ปี)
@@ -190,6 +208,7 @@
 - [ ] ตั้งค่า CI ให้รัน unit/integration/fuzz tests ทุก PR
 - [ ] Witness serialization/round-trip tests (ข้ามภาษา): เพิ่ม vectors ใน docs/spec/test-vectors.md และตัวอย่าง tx builder
 - [ ] Integration tests: DifficultyState + chainstate จริง (MTP, anchor block), รวม L2/witness relay/validation
+- [ ] ตรวจสอบและเปรียบเทียบ sighash ระหว่างภาษา (Rust/TS SDK) เพื่อป้องกัน mismatch
 
 ## 8. ความปลอดภัยซอฟต์แวร์และซัพพลายเชน (Phase 7)
 - [ ] บังคับ signed commits/tags (GPG) ใน CI
@@ -235,4 +254,3 @@
 - [ ] ตั้ง cadence update (รายสัปดาห์/รายเดือน) ให้ทีม core และชุมชน
 - [ ] วางระบบ feedback จากชุมชน (ช่องทาง report bug, เสนอ BQIP)
 - [ ] กำหนด KPI/OKR รายไตรมาสสำหรับ core team (เช่น throughput, latency, adoption)
-

@@ -3,6 +3,8 @@
 use anyhow::Result;
 use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
 use bitquan_storage::{ChainStore, InMemoryChainStore};
+#[cfg(feature = "rocksdb-backend")]
+use bitquan_storage::rocksdb_store::RocksDBStore;
 use bitquan_types::{Block, Transaction, TxIn, TxOut, SigAlgorithm};
 use bq_crypto::{
     rng::{RandomSource, RngService},
@@ -12,7 +14,6 @@ use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
 use bitquan_network::io::{recv_envelope, send_envelope};
 use clap::{Parser, Subcommand};
 use hex::encode as hex_encode;
-use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time::Duration;
@@ -64,6 +65,24 @@ enum Commands {
         #[arg(long, default_value_t = 0x207fffff)]
         bits: u32,
     },
+    /// Continuous mining mode with persistent storage
+    Mine {
+        /// Data directory for blockchain storage
+        #[arg(long, default_value = "./data/chainstate")]
+        datadir: String,
+        /// Hex-encoded script_pubkey for coinbase payout.
+        #[arg(long, default_value = "76a9140088ac")]
+        payout_script_hex: String,
+        /// Compact bits target (0 = auto-adjust from chain)
+        #[arg(long, default_value_t = 0)]
+        bits: u32,
+        /// Maximum nonce per block attempt
+        #[arg(long, default_value_t = 100_000_000u64)]
+        max_nonce: u64,
+        /// Number of threads for mining (0 = CPU count)
+        #[arg(long, default_value_t = 1)]
+        threads: usize,
+    },
     /// Generates a Dilithium3 keypair and prints hex-encoded keys.
     WalletGen {
         /// Algorithm (only "dilithium3" supported for now)
@@ -101,6 +120,9 @@ fn main() -> Result<()> {
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
         Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
+        Commands::Mine { datadir, payout_script_hex, bits, max_nonce, threads } => {
+            mine_continuous(&datadir, &payout_script_hex, bits, max_nonce, threads)
+        },
         Commands::WalletGen { algo } => wallet_gen(&algo),
         Commands::BuildTx { prev_txid, prev_vout, value, to_script_hex } => build_tx(&prev_txid, prev_vout, value, &to_script_hex),
         Commands::P2PDemo { addr } => p2p_demo(&addr),
@@ -258,7 +280,7 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
     let mut time = now;
     if let Some(mtp) = store.mtp() {
         time = time.max(mtp.saturating_add(1));
-    } else if let Some(tip) = store.tip() {
+    } else if let Ok(Some(tip)) = store.tip() {
         time = time.max(tip.time.saturating_add(1));
     }
 
@@ -290,14 +312,14 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
 
     // Determine prev_block from tip if any
     let mut prev = [0u8; 32];
-    if let Some(tip) = store.tip() {
-        prev = header_hash(tip);
+    if let Ok(Some(tip)) = store.tip() {
+        prev = header_hash(&tip);
     }
 
     // Auto-calc bits if zero using DifficultyState anchored at tip
     if bits == 0 {
         let params = ConsensusParams::phase3_defaults();
-        let (anchor_bits, anchor_time) = if let Some(tip) = store.tip() { (tip.bits, tip.time as u64) } else { (0x207fffff, now as u64) };
+        let (anchor_bits, anchor_time) = if let Ok(Some(tip)) = store.tip() { (tip.bits, tip.time as u64) } else { (0x207fffff, now as u64) };
         let mut state = DifficultyState::new(0, anchor_time, anchor_bits);
         bits = state.update(1, time as u64, &params);
     }
@@ -318,7 +340,7 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
             let id = header_hash(&header);
             println!("FOUND nonce={n} hash={}", hex::encode(id));
             let block = Block { header: header.clone(), transactions: vec![coinbase] };
-            store.insert_block(block);
+            let _ = store.insert_block(block);
             println!("Inserted block tip={}", hex::encode(id));
             return Ok(());
         }
@@ -328,6 +350,169 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         }
     }
     println!("No valid nonce found within {max_tries} tries.");
+    Ok(())
+}
+
+/// Continuous mining with persistent RocksDB storage
+#[cfg(feature = "rocksdb-backend")]
+fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_nonce: u64, threads: usize) -> Result<()> {
+    use std::sync::{Arc, Mutex};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    
+    println!("🚀 BitQuan Continuous Miner");
+    println!("📁 Data directory: {}", datadir);
+    println!("⚙️  Threads: {}", if threads == 0 { num_cpus::get() } else { threads });
+    
+    // Open or create RocksDB store
+    let mut store = RocksDBStore::open(datadir)?;
+    let store = Arc::new(Mutex::new(store));
+    
+    let payout_script = hex::decode(payout_script_hex)?;
+    let found = Arc::new(AtomicBool::new(false));
+    let blocks_mined = Arc::new(AtomicU64::new(0));
+    
+    loop {
+        let height = {
+            let s = store.lock().unwrap();
+            s.height()?
+        };
+        
+        println!("\n⛏️  Mining block #{} ...", height + 1);
+        
+        // Get current time
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as u32)
+            .unwrap_or(0);
+        
+        if now == 0 {
+            eprintln!("❌ Error: System time is before UNIX epoch");
+            return Ok(());
+        }
+        
+        let mut time = now;
+        {
+            let s = store.lock().unwrap();
+            if let Ok(Some(tip)) = s.tip() {
+                time = time.max(tip.time.saturating_add(1));
+            }
+        }
+        
+        // Build coinbase
+        let height_le = ((height + 1) as u32).to_le_bytes();
+        let mut script_sig = height_le.to_vec();
+        script_sig.extend_from_slice(&time.to_le_bytes());
+        
+        let coinbase_in = TxIn {
+            prev_txid: [0u8; 32],
+            prev_vout: u32::MAX,
+            sequence: u32::MAX,
+            script_sig,
+        };
+        
+        let subsidy = ConsensusParams::phase3_defaults().reward_schedule.subsidy_at_height(height);
+        let coinbase = Transaction {
+            version: 2,
+            lock_time: 0,
+            inputs: vec![coinbase_in],
+            outputs: vec![TxOut {
+                value: subsidy,
+                script_pubkey: payout_script.clone(),
+            }],
+            witnesses: vec![],
+            sig_algo: SigAlgorithm::Dilithium3,
+        };
+        
+        let merkle_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.txid()]);
+        let witness_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.wtxid()]);
+        
+        // Determine prev_block
+        let mut prev = [0u8; 32];
+        {
+            let s = store.lock().unwrap();
+            if let Ok(Some(tip)) = s.tip() {
+                prev = header_hash(&tip);
+            }
+        }
+        
+        // Auto-calc bits if zero
+        if bits == 0 {
+            let params = ConsensusParams::phase3_defaults();
+            let s = store.lock().unwrap();
+            let (anchor_bits, anchor_time) = if let Ok(Some(tip)) = s.tip() {
+                (tip.bits, tip.time as u64)
+            } else {
+                (0x207fffff, now as u64)
+            };
+            drop(s);
+            let mut state = DifficultyState::new(0, anchor_time, anchor_bits);
+            bits = state.update(1, time as u64, &params);
+        }
+        
+        let mut header = bitquan_types::BlockHeader {
+            version: 1,
+            prev_block: prev,
+            merkle_root,
+            pqc_agg_hint: witness_root,
+            time,
+            bits,
+            nonce: 0,
+        };
+        
+        println!("🎯 Target bits: 0x{:08x}", bits);
+        println!("💰 Block reward: {} satoshis", subsidy);
+        
+        // Mining loop
+        found.store(false, Ordering::Relaxed);
+        let start_time = std::time::Instant::now();
+        
+        for n in 0..max_nonce {
+            header.nonce = n;
+            if check_header_pow(&header) {
+                let id = header_hash(&header);
+                let elapsed = start_time.elapsed();
+                let hashrate = (n as f64) / elapsed.as_secs_f64();
+                
+                println!("\n✅ FOUND! nonce={}", n);
+                println!("📦 Block hash: {}", hex::encode(id));
+                println!("⏱️  Time: {:.2}s", elapsed.as_secs_f64());
+                println!("⚡ Hashrate: {:.2} H/s", hashrate);
+                
+                let block = Block {
+                    header: header.clone(),
+                    transactions: vec![coinbase.clone()],
+                };
+                
+                {
+                    let mut s = store.lock().unwrap();
+                    s.insert_block(block)?;
+                }
+                
+                blocks_mined.fetch_add(1, Ordering::Relaxed);
+                println!("💾 Block saved! Total mined: {}", blocks_mined.load(Ordering::Relaxed));
+                found.store(true, Ordering::Relaxed);
+                break;
+            }
+            
+            if n % 500_000 == 0 && n > 0 {
+                let elapsed = start_time.elapsed().as_secs_f64();
+                let hashrate = (n as f64) / elapsed;
+                print!("\r⏳ Tried {} nonces ({:.2} H/s)...", n, hashrate);
+                std::io::Write::flush(&mut std::io::stdout())?;
+            }
+        }
+        
+        if !found.load(Ordering::Relaxed) {
+            println!("\n⚠️  No valid nonce found in {} tries, adjusting difficulty...", max_nonce);
+            bits = (bits & 0x00ffffff) | ((((bits >> 24) + 1) & 0xff) << 24); // Easier
+        }
+    }
+}
+
+#[cfg(not(feature = "rocksdb-backend"))]
+fn mine_continuous(_datadir: &str, _payout_script_hex: &str, _bits: u32, _max_nonce: u64, _threads: usize) -> Result<()> {
+    eprintln!("❌ Error: Continuous mining requires 'rocksdb-backend' feature");
+    eprintln!("💡 Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
 }
 
@@ -405,7 +590,7 @@ fn p2p_demo(addr: &str) -> Result<()> {
 
     // Client
     thread::sleep(Duration::from_millis(50));
-    let mut client = TcpStream::connect(addr)?;
+    let client = TcpStream::connect(addr)?;
     client.set_read_timeout(Some(Duration::from_secs(5)))?;
     client.set_write_timeout(Some(Duration::from_secs(5)))?;
     let version = Message::Version {
