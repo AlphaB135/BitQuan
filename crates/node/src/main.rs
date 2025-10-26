@@ -460,7 +460,9 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             nonce: 0,
         };
         
-        println!("Target: 0x{:08x} | Reward: {} sats", bits, subsidy);
+        println!("Mining block #{} ...", height + 1);
+        println!("Target bits: 0x{:08x}", bits);
+        println!("Block reward: {} satoshis", subsidy);
         
         // Mining loop
         found.store(false, Ordering::Relaxed);
@@ -495,8 +497,11 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             }
             
             if n % 100_000 == 0 && n > 0 {
+                let elapsed = start_time.elapsed().as_secs_f64();
+                let hashrate = (n as f64) / elapsed;
                 let current_hash = header_hash(&header);
-                println!("... tried {} nonces, latest hash={}", n, hex::encode(current_hash));
+                println!("... tried {} nonces ({:.2} H/s), latest hash={}", 
+                    n, hashrate, hex::encode(current_hash));
             }
         }
         
