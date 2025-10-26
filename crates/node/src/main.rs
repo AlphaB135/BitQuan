@@ -618,6 +618,8 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     println!("\n✅ Keypair generated successfully!");
     println!("\n📍 Address: {}", address_str);
     println!("🔑 Public key hash: {}", hex::encode(pubkey_hash));
+    println!("📏 Public key: {} bytes", keypair.public_key.len());
+    println!("📏 Secret key: {} bytes", keypair.secret_key.len());
 
     // Get password for encryption
     let password = match password {
@@ -632,23 +634,9 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
         anyhow::bail!("Password must be at least 8 characters");
     }
 
-    // Serialize keypair for encryption
-    #[derive(serde::Serialize)]
-    struct KeypairData {
-        algorithm: String,
-        address: String,
-        public_key_hash: String,
-        note: String,
-    }
-
-    let data = KeypairData {
-        algorithm: "dilithium3".to_string(),
-        address: address_str.clone(),
-        public_key_hash: hex::encode(pubkey_hash),
-        note: "BitQuan encrypted wallet - keep this file safe!".to_string(),
-    };
-
-    let json = serde_json::to_string_pretty(&data)?;
+    // Serialize full keypair for encryption
+    let serializable = keypair.to_serializable();
+    let json = serde_json::to_string_pretty(&serializable)?;
 
     // Encrypt and save
     let keystore_file = keystore::encrypt_keypair(&json, &password)?;
@@ -661,15 +649,13 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     println!("   - Keep this file safe!");
     println!("   - Remember your password!");
     println!("   - Make backups!");
-    println!("\n⚠️  Note: Full keypair persistence coming soon");
-    println!("   For now, generate a new keypair each session");
+    println!("\n✅ Full keypair is now persisted and can be used for signing!");
 
     Ok(())
 }
 
 /// Show wallet address from encrypted keystore
 fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
-    use wallet::address;
     use std::path::Path;
 
     println!("BitQuan Wallet Address");
@@ -689,23 +675,18 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
 
     // Decrypt
     let json = keystore::decrypt_keypair(&keystore_file, &password)?;
-    
-    #[derive(serde::Deserialize)]
-    struct KeypairData {
-        address: String,
-        public_key_hash: String,
-    }
-
-    let data: KeypairData = serde_json::from_str(&json)?;
+    let data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
 
     println!("\n📍 Address: {}", data.address);
     println!("🔑 Public key hash: {}", data.public_key_hash);
+    println!("📏 Public key: {} bytes (base64 encoded)", data.public_key.len());
 
     Ok(())
 }
 
 /// Sign a message with encrypted wallet keypair
 fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -> Result<()> {
+    use wallet::WalletKeypair;
     use std::path::Path;
 
     println!("BitQuan Wallet Sign");
@@ -726,13 +707,27 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
         }
     };
 
-    // Decrypt
+    // Decrypt and restore keypair
     println!("\n⏳ Decrypting keystore...");
-    let _json = keystore::decrypt_keypair(&keystore_file, &password)?;
+    let json = keystore::decrypt_keypair(&keystore_file, &password)?;
+    let data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
+    let keypair = WalletKeypair::from_serializable(&data)?;
     
     println!("✅ Keystore decrypted!");
-    println!("\n⚠️  Note: Full signing with persisted keys coming soon");
-    println!("   For now, use session-based wallet-gen for signing");
+    println!("\n⏳ Signing message...");
+    
+    let signature = keypair.sign(&message)?;
+    
+    println!("✅ Signature generated!");
+    println!("📏 Signature size: {} bytes", signature.len());
+    println!("📝 Signature: {}", hex::encode(&signature));
+    
+    // Verify immediately
+    if keypair.verify(&message, &signature) {
+        println!("\n✅ Signature verified successfully!");
+    } else {
+        println!("\n❌ Signature verification failed!");
+    }
 
     Ok(())
 }
