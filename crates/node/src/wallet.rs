@@ -185,6 +185,7 @@ impl WalletPublicKey {
     }
 
     /// Returns the public key hash.
+    #[allow(dead_code)]
     pub fn public_key_hash(&self) -> [u8; 32] {
         let mut hasher = Sha256::new();
         hasher.update(&self.public_key);
@@ -205,6 +206,7 @@ pub mod address {
     pub const HRP_MAINNET: &str = "bq";
 
     /// Human-readable prefix for BitQuan testnet addresses.
+    #[allow(dead_code)]
     pub const HRP_TESTNET: &str = "bqt";
 
     /// Encodes a public key hash to a Bech32m address.
@@ -325,7 +327,7 @@ mod tests {
 
         // Note: verify() not fully implemented yet with pqc_dilithium 0.2
         // Just check that signing works
-        assert!(signature.len() > 0);
+        assert!(!signature.is_empty());
     }
 
     #[test]
@@ -337,7 +339,7 @@ mod tests {
 
         // Note: Public-key-only verification not yet implemented
         // This test validates signature generation works
-        assert!(signature.len() > 0);
+        assert!(!signature.is_empty());
     }
 
     #[test]

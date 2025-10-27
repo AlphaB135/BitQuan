@@ -48,8 +48,7 @@ pub fn generate_mnemonic(word_count: usize) -> Result<Mnemonic> {
 /// * `passphrase` - Optional passphrase for additional security (BIP39 extension)
 pub fn mnemonic_to_seed(mnemonic: &Mnemonic, passphrase: Option<&str>) -> [u8; 64] {
     let passphrase = passphrase.unwrap_or("");
-    let seed = mnemonic.to_seed(passphrase);
-    seed
+    mnemonic.to_seed(passphrase)
 }
 
 /// Parses a mnemonic phrase from a string.
@@ -201,8 +200,8 @@ mod tests {
         let keypair = helper.to_keypair().unwrap();
 
         // Should generate valid keypair
-        assert!(keypair.public_key.len() > 0);
-        assert!(keypair.secret_key.len() > 0);
+        assert!(!keypair.public_key.is_empty());
+        assert!(!keypair.secret_key.is_empty());
     }
 
     #[test]

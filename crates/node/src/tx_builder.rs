@@ -130,7 +130,7 @@ pub fn compute_sighash(tx: &Transaction, input_index: usize) -> Result<[u8; 32]>
     let mut hasher = sha2::Sha256::new();
 
     // Version
-    hasher.update(&tx.version.to_le_bytes());
+    hasher.update(tx.version.to_le_bytes());
 
     // Inputs (without script_sig)
     hasher.update(&(tx.inputs.len() as u32).to_le_bytes());
