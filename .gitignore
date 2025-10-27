@@ -7,3 +7,4 @@ data/
 genesis.json
 *.keystore
 command.txt
+MY_WALLET_INFO.txt

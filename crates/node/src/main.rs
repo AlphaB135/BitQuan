@@ -122,6 +122,12 @@ enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+    /// Convert Bech32m address to script hex for mining
+    AddressToScript {
+        /// Bech32m address (e.g., q1...)
+        #[arg(long)]
+        address: String,
+    },
     /// Sign a message with wallet keypair
     WalletSign {
         /// Path to keystore file
@@ -248,6 +254,7 @@ fn main() -> Result<()> {
         Commands::WalletAddress { keystore, password } => {
             wallet_address(&keystore, password.as_deref())
         }
+        Commands::AddressToScript { address } => address_to_script(&address),
         Commands::WalletSign {
             keystore,
             message,
@@ -908,6 +915,36 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+/// Convert Bech32m address to script hex for mining
+fn address_to_script(addr: &str) -> Result<()> {
+    println!("Converting address to script hex...");
+    println!("Address: {}", addr);
+
+    // Decode bech32m address to get pubkey hash
+    let pubkey_hash = address::decode_bech32m(addr)
+        .map_err(|e| anyhow::anyhow!("Failed to decode address: {}", e))?;
+
+    // Build P2PKH-like script: OP_DUP OP_HASH256 <pubkey_hash> OP_EQUALVERIFY OP_CHECKSIG
+    // For simplicity, we'll use: OP_HASH256 <32-byte hash> OP_EQUAL (0xa8 0x20 <hash> 0x87)
+    let mut script = Vec::new();
+    script.push(0xa8); // OP_HASH256
+    script.push(0x20); // Push 32 bytes
+    script.extend_from_slice(&pubkey_hash);
+    script.push(0x87); // OP_EQUAL
+
+    let script_hex = hex::encode(&script);
+
+    println!("\n✅ Script hex for mining:");
+    println!("{}", script_hex);
+    println!("\n💡 Use this with mine command:");
+    println!(
+        "   bitquan-node mine --payout-script-hex {} --threads 4",
+        script_hex
+    );
+
+    Ok(())
+}
+
 /// Sign a message with encrypted wallet keypair
 fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -> Result<()> {
     use std::path::Path;
@@ -1305,7 +1342,7 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
         // Decode bech32m address to pubkey hash
         let pubkey_hash = address::decode_bech32m(addr)
             .map_err(|e| anyhow::anyhow!("Failed to decode address: {}", e))?;
-        
+
         // Create P2PKH script: OP_DUP OP_HASH256 <pubkey_hash> OP_EQUALVERIFY OP_CHECKSIG
         // For simplicity, we'll use a direct format (adjust based on your script format)
         // Standard P2PKH: 76 a9 14 <20-byte-hash> 88 ac
@@ -1317,10 +1354,10 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
         script.extend_from_slice(&pubkey_hash);
         script.push(0x88); // OP_EQUALVERIFY
         script.push(0xac); // OP_CHECKSIG
-        
+
         println!("Decoded address: {}", addr);
         println!("Pubkey hash: {}", hex::encode(pubkey_hash));
-        
+
         script
     } else {
         anyhow::bail!("Either --script-hex or --address must be provided");
