@@ -303,6 +303,11 @@ impl ForkChoice {
             .unwrap_or(0)
     }
     
+    /// Gets the current best tip hash.
+    pub fn best_hash(&self) -> [u8; 32] {
+        self.best_tip.unwrap_or([0u8; 32])
+    }
+    
     /// Gets the chain from genesis to current tip.
     pub fn get_main_chain(&self) -> Vec<[u8; 32]> {
         let mut chain = Vec::new();
@@ -495,5 +500,109 @@ mod tests {
                 prev = header_hash(&block);
             }
         }
+    }
+
+    #[test]
+    fn deep_reorg_5_blocks() {
+        let mut fc = ForkChoice::with_max_reorg(10);
+        
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+        
+        // Build main chain: 5 blocks
+        let mut prev = genesis_hash;
+        for i in 1..=5 {
+            let block = make_header(prev, 0x207fffff, i);
+            fc.add_block(block.clone()).unwrap();
+            prev = header_hash(&block);
+        }
+        assert_eq!(fc.height(), 5);
+        
+        // Build competing chain from genesis: 6 blocks (longer)
+        let mut prev = genesis_hash;
+        for i in 10..=15 {
+            let block = make_header(prev, 0x207fffff, i);
+            let (is_tip, reorg) = fc.add_block(block.clone()).unwrap();
+            
+            if i == 15 {
+                assert!(is_tip);
+                assert!(reorg.is_some());
+                let r = reorg.unwrap();
+                assert_eq!(r.depth(), 5); // Disconnected 5 blocks
+                assert_eq!(r.new_blocks(), 6); // Connected 6 blocks
+            }
+            prev = header_hash(&block);
+        }
+        assert_eq!(fc.height(), 6);
+    }
+
+    #[test]
+    fn multiple_reorgs_same_chain() {
+        let mut fc = ForkChoice::with_max_reorg(10);
+        
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+        
+        // Chain A: 2 blocks
+        let mut prev_a = genesis_hash;
+        for i in 1..=2 {
+            let block = make_header(prev_a, 0x207fffff, i);
+            fc.add_block(block.clone()).unwrap();
+            prev_a = header_hash(&block);
+        }
+        assert_eq!(fc.height(), 2);
+        
+        // Chain B: 3 blocks (reorg #1)
+        let mut prev_b = genesis_hash;
+        for i in 10..=12 {
+            let block = make_header(prev_b, 0x207fffff, i);
+            fc.add_block(block.clone()).unwrap();
+            prev_b = header_hash(&block);
+        }
+        assert_eq!(fc.height(), 3);
+        
+        // Chain C: 4 blocks (reorg #2)
+        let mut prev_c = genesis_hash;
+        for i in 20..=23 {
+            let block = make_header(prev_c, 0x207fffff, i);
+            fc.add_block(block.clone()).unwrap();
+            prev_c = header_hash(&block);
+        }
+        assert_eq!(fc.height(), 4);
+    }
+
+    #[test]
+    fn reorg_with_equal_height_chooses_first() {
+        let mut fc = ForkChoice::new();
+        
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+        
+        // Chain A: 2 blocks
+        let a1 = make_header(genesis_hash, 0x207fffff, 1);
+        fc.add_block(a1.clone()).unwrap();
+        let a1_hash = header_hash(&a1);
+        
+        let a2 = make_header(a1_hash, 0x207fffff, 2);
+        fc.add_block(a2.clone()).unwrap();
+        let a2_hash = header_hash(&a2);
+        
+        // Chain B: 2 blocks (same height)
+        let b1 = make_header(genesis_hash, 0x207fffff, 10);
+        fc.add_block(b1.clone()).unwrap();
+        let b1_hash = header_hash(&b1);
+        
+        let b2 = make_header(b1_hash, 0x207fffff, 11);
+        let (is_tip, reorg) = fc.add_block(b2.clone()).unwrap();
+        
+        // Should NOT reorg for equal height
+        assert!(!is_tip);
+        assert!(reorg.is_none());
+        
+        // Tip should still be A2
+        assert_eq!(fc.best_hash(), a2_hash);
     }
 }
