@@ -1,0 +1,52 @@
+[package]
+name = "bitquan-node-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.bitquan-types]
+path = "../crates/types"
+
+[dependencies.bitquan-consensus]
+path = "../crates/consensus"
+
+[dependencies.bq-crypto]
+path = "../crates/crypto"
+
+[dependencies.bitquan-mempool]
+path = "../crates/mempool"
+
+# Fuzz Targets
+[[bin]]
+name = "fuzz_transaction"
+path = "fuzz_targets/fuzz_transaction.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_block"
+path = "fuzz_targets/fuzz_block.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_script"
+path = "fuzz_targets/fuzz_script.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mempool"
+path = "fuzz_targets/fuzz_mempool.rs"
+test = false
+doc = false
+bench = false

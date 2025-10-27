@@ -10,6 +10,7 @@ members = [
     "crates/storage",
     "crates/rpc",
 ]
+exclude = ["fuzz"]
 
 [workspace.package]
 edition = "2021"
