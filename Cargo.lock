@@ -207,6 +207,7 @@ dependencies = [
  "bitquan-types",
  "bq-crypto",
  "hex",
+ "proptest",
  "serde",
  "sha2",
  "thiserror",

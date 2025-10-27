@@ -280,3 +280,123 @@ fn test_signature_weight_scaling() {
     assert!(diff >= 768 && diff <= 800, "Expected ~768 WU difference, got {}", diff);
 }
 
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use proptest::prelude::*;
+    use bitquan_types::{Transaction, TxIn, TxOut, SigAlgorithm};
+
+    proptest! {
+        #[test]
+        fn weight_calculation_deterministic(
+            num_inputs in 1usize..10,
+            num_outputs in 1usize..10
+        ) {
+            let tx = Transaction {
+                version: 2,
+                lock_time: 0,
+                inputs: (0..num_inputs).map(|i| TxIn {
+                    prev_txid: [i as u8; 32],
+                    prev_vout: i as u32,
+                    script_sig: vec![],
+                    sequence: 0xffffffff,
+                }).collect(),
+                outputs: (0..num_outputs).map(|i| TxOut {
+                    value: 1000 * (i as u64 + 1),
+                    script_pubkey: vec![0x76, 0xa9],
+                }).collect(),
+                sig_algo: SigAlgorithm::Dilithium3,
+                witnesses: vec![],
+            };
+            
+            // Weight should be deterministic
+            let w1 = calculate_tx_weight(&tx);
+            let w2 = calculate_tx_weight(&tx);
+            prop_assert_eq!(w1, w2);
+            
+            // Weight should be positive
+            prop_assert!(w1 > 0);
+        }
+
+        #[test]
+        fn signature_weight_linear(
+            sig_count in 0usize..20
+        ) {
+            use bitquan_types::{Witness, SignaturePayload};
+            
+            let tx = Transaction {
+                version: 2,
+                lock_time: 0,
+                inputs: vec![TxIn {
+                    prev_txid: [0u8; 32],
+                    prev_vout: 0,
+                    script_sig: vec![],
+                    sequence: 0xffffffff,
+                }],
+                outputs: vec![TxOut {
+                    value: 1000,
+                    script_pubkey: vec![0x76, 0xa9],
+                }],
+                sig_algo: SigAlgorithm::Dilithium3,
+                witnesses: vec![Witness {
+                    signatures: (0..sig_count).map(|i| SignaturePayload {
+                        signer_index: i as u16,
+                        signature: vec![0u8; 10],
+                        public_key: vec![0u8; 10],
+                        aux: None,
+                    }).collect(),
+                }],
+            };
+            
+            let weight = calculate_tx_weight(&tx);
+            
+            // Weight should include signature_count * 384
+            let expected_sig_weight = sig_count * 384;
+            prop_assert!(weight >= expected_sig_weight);
+        }
+
+        #[test]
+        fn block_weight_is_sum_of_txs(
+            tx_count in 1usize..10
+        ) {
+            use bitquan_types::{Block, BlockHeader};
+            
+            let txs: Vec<Transaction> = (0..tx_count).map(|i| Transaction {
+                version: 2,
+                lock_time: 0,
+                inputs: vec![TxIn {
+                    prev_txid: [i as u8; 32],
+                    prev_vout: 0,
+                    script_sig: vec![],
+                    sequence: 0xffffffff,
+                }],
+                outputs: vec![TxOut {
+                    value: 1000,
+                    script_pubkey: vec![0x76, 0xa9],
+                }],
+                sig_algo: SigAlgorithm::Dilithium3,
+                witnesses: vec![],
+            }).collect();
+            
+            let block = Block {
+                header: BlockHeader {
+                    version: 1,
+                    prev_block: [0u8; 32],
+                    merkle_root: [0u8; 32],
+                    pqc_agg_hint: [0u8; 32],
+                    time: 1700000000,
+                    bits: 0x1d00ffff,
+                    nonce: 0,
+                },
+                transactions: txs.clone(),
+            };
+            
+            let block_weight = calculate_block_weight(&block);
+            let sum_weights: usize = txs.iter().map(|tx| calculate_tx_weight(tx)).sum();
+            
+            prop_assert_eq!(block_weight, sum_weights);
+        }
+    }
+}
+
+
