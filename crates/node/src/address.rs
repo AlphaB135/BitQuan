@@ -1,5 +1,7 @@
 //! Address encoding for BitQuan wallets.
 
+#![allow(dead_code)]
+
 use bech32::{Bech32m, Hrp};
 
 /// Human-readable part for mainnet addresses
@@ -12,11 +14,13 @@ pub fn encode_bech32m(pubkey_hash: &[u8; 32]) -> String {
 }
 
 /// Alias for encode_bech32m
+#[allow(dead_code)]
 pub fn encode(pubkey_hash: &[u8; 32]) -> String {
     encode_bech32m(pubkey_hash)
 }
 
 /// Decodes a Bech32m address to a public key hash.
+#[allow(dead_code)]
 pub fn decode_bech32m(address: &str) -> Result<[u8; 32], String> {
     let (_hrp, data) = bech32::decode(address).map_err(|e| format!("invalid bech32m: {}", e))?;
 

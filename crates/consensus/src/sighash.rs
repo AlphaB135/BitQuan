@@ -143,15 +143,15 @@ mod tests {
         );
         
         // Testnet hash (network_id = 0x02)
-        let testnet_expected = transaction_sighash(&tx, NetworkId::Testnet);
+        let _testnet_expected = transaction_sighash(&tx, NetworkId::Testnet);
         assert_eq!(hex::encode(testnet_hash).len(), 64);
         
         // Devnet hash (network_id = 0x03)  
-        let devnet_expected = transaction_sighash(&tx, NetworkId::Devnet);
+        let _devnet_expected = transaction_sighash(&tx, NetworkId::Devnet);
         assert_eq!(hex::encode(devnet_hash).len(), 64);
         
         // Regtest hash (network_id = 0x04)
-        let regtest_expected = transaction_sighash(&tx, NetworkId::Regtest);
+        let _regtest_expected = transaction_sighash(&tx, NetworkId::Regtest);
         assert_eq!(hex::encode(regtest_hash).len(), 64);
         
         // Verify network isolation: all hashes must be unique

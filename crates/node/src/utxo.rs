@@ -1,5 +1,7 @@
 //! UTXO set management and validation.
 
+#![allow(dead_code)]
+
 use anyhow::{bail, Result};
 use bitquan_types::{Transaction, TxOut};
 use std::collections::HashMap;

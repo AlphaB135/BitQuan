@@ -907,7 +907,6 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
 /// Sign a message with encrypted wallet keypair
 fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -> Result<()> {
     use std::path::Path;
-    use wallet::WalletKeypair;
 
     println!("BitQuan Wallet Sign");
     println!("Keystore: {}", keystore_path);
@@ -977,7 +976,7 @@ fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Re
         public_key: pubkey_bytes,
     };
 
-    println!("");
+    println!();
     println!("Verifying...");
     if public_key.verify(&message, &signature) {
         println!("Signature is VALID!");
@@ -996,8 +995,6 @@ fn wallet_send(
     password: Option<&str>,
 ) -> Result<()> {
     use std::path::Path;
-    use tx_builder::{compute_sighash, TransactionBuilder};
-    use wallet::WalletKeypair;
 
     println!("BitQuan Wallet Send");
     println!("To: {}", to_address);
@@ -1007,7 +1004,7 @@ fn wallet_send(
         amount as f64 / 100_000_000.0
     );
     println!("Fee rate: {} qbits/WU", fee_rate);
-    println!("");
+    println!();
 
     // Load keystore
     let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
@@ -1026,17 +1023,17 @@ fn wallet_send(
     let json = keystore::decrypt_keypair(&keystore_file, &password)?;
     let _data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
 
-    println!("");
+    println!();
     println!("Note: Full transaction sending not yet implemented");
     println!("Missing components:");
     println!("  - UTXO lookup from blockchain");
     println!("  - Address to script_pubkey conversion");
     println!("  - Transaction broadcast to network");
-    println!("");
+    println!();
     println!("Current capabilities:");
     println!("  - Transaction building: use 'build-tx' command");
     println!("  - Message signing: use 'wallet-sign' command");
-    println!("");
+    println!();
     println!("Example workflow:");
     println!("  1. Get UTXOs: cargo run -- balance --datadir ./data/chainstate");
     println!("  2. Build tx: cargo run -- build-tx --prev-txid <txid> --prev-vout 0 --value <amount> --to-script-hex <script>");
@@ -1148,7 +1145,6 @@ fn p2p_demo(addr: &str) -> Result<()> {
 
 /// P2P Server that accepts incoming connections
 fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
-    use bitquan_network::protocol::{InvType, InvVector, Message};
     use bitquan_network::{P2PListener, PeerManager};
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -1190,7 +1186,7 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
     let listener = P2PListener::bind(listen, peer_manager.clone())?;
     println!("Server started at {}", listener.local_addr()?);
     println!("Waiting for connections...");
-    println!("");
+    println!();
     println!("Commands:");
     println!("  - Press Ctrl+C to stop");
     println!("  - Peers will sync blockchain automatically");
@@ -1204,9 +1200,9 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
                 let tip_hash = header_hash(&tip);
                 drop(store_locked);
 
-                println!("");
+                println!();
                 println!("Tip: Use 'mine' command to mine blocks");
-                println!("Current tip: {}", hex_encode(&tip_hash));
+                println!("Current tip: {}", hex_encode(tip_hash));
                 println!("New blocks will be broadcast to peers");
             }
         }
@@ -1223,7 +1219,6 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
                 if let Some(s) = &store {
                     if height > 0 {
                         use bitquan_consensus::header_hash;
-                        use bitquan_network::create_block_inv;
 
                         let store_locked = s.lock().unwrap();
                         if let Ok(Some(tip)) = store_locked.tip() {

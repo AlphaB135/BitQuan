@@ -3,19 +3,24 @@
 //! Implements BIP39 standard for generating human-readable backup phrases
 //! that can restore wallet keys.
 
+#![allow(dead_code)]
+
 use anyhow::{bail, Result};
 use bip39::Mnemonic;
 
 /// Default mnemonic word count (12 words = 128 bits entropy).
+#[allow(dead_code)]
 pub const DEFAULT_WORD_COUNT: usize = 12;
 
 /// Extended mnemonic word count (24 words = 256 bits entropy).
+#[allow(dead_code)]
 pub const EXTENDED_WORD_COUNT: usize = 24;
 
 /// Generates a new BIP39 mnemonic phrase.
 ///
 /// # Arguments
 /// * `word_count` - Number of words (12 or 24)
+#[allow(dead_code)]
 pub fn generate_mnemonic(word_count: usize) -> Result<Mnemonic> {
     // bip39 crate v2.x uses different API
     // Generate entropy based on word count

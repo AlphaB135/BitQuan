@@ -1,9 +1,12 @@
 //! Transaction builder for wallet operations.
 
+#![allow(dead_code)]
+
 use anyhow::{bail, Result};
 use bitquan_types::{SigAlgorithm, Transaction, TxIn, TxOut, Witness};
 
 /// Builder for constructing transactions.
+#[allow(dead_code)]
 pub struct TransactionBuilder {
     version: i32,
     inputs: Vec<TxIn>,
@@ -113,6 +116,7 @@ impl Default for TransactionBuilder {
 }
 
 /// Computes the signature hash for a transaction input.
+#[allow(dead_code)]
 pub fn compute_sighash(tx: &Transaction, input_index: usize) -> Result<[u8; 32]> {
     use sha2::Digest;
 
