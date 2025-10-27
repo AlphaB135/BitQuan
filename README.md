@@ -102,8 +102,8 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 ## Development Status
 
 Current version: v0.0.1-alpha (devnet ready)
-Completion: 92%
-Tests: 121 passing
+Completion: 96%
+Tests: 129 passing
 
 See [ROADMAP.md](ROADMAP.md) for detailed progress and milestones.
 
