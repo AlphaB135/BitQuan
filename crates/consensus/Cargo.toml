@@ -17,4 +17,4 @@ serde.workspace = true
 
 [dev-dependencies]
 bitquan-storage = { path = "../storage", version = "0.1.0" }
-proptest = "1.4"
+proptest = "1.9"
