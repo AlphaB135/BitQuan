@@ -37,8 +37,30 @@ pub const PROTOCOL_VERSION: u32 = 1;
 /// Maximum message size (10 MB).
 pub const MAX_MESSAGE_SIZE: usize = 10_000_000;
 
+/// Maximum inv/getdata items per message.
+pub const MAX_INV_ITEMS: usize = 50_000;
+
 /// Network magic bytes for mainnet.
-pub const MAINNET_MAGIC: [u8; 4] = [0x42, 0x51, 0x01, 0x01]; // 'B''Q' mainnet
+pub const MAINNET_MAGIC: [u8; 4] = [0x42, 0x51, 0x01, 0x01]; // BQ mainnet
+
+/// Network magic bytes for testnet.
+pub const TESTNET_MAGIC: [u8; 4] = [0x42, 0x51, 0x02, 0x02]; // BQ testnet
+
+/// Network magic bytes for devnet.
+pub const DEVNET_MAGIC: [u8; 4] = [0x42, 0x51, 0x03, 0x03]; // BQ devnet
+
+/// Network magic bytes for regtest.
+pub const REGTEST_MAGIC: [u8; 4] = [0x42, 0x51, 0x04, 0x04]; // BQ regtest
+
+/// Returns network magic for the given NetworkId.
+pub fn network_magic(network: bitquan_types::NetworkId) -> [u8; 4] {
+    match network {
+        bitquan_types::NetworkId::Mainnet => MAINNET_MAGIC,
+        bitquan_types::NetworkId::Testnet => TESTNET_MAGIC,
+        bitquan_types::NetworkId::Devnet => DEVNET_MAGIC,
+        bitquan_types::NetworkId::Regtest => REGTEST_MAGIC,
+    }
+}
 
 /// P2P message types.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -434,5 +456,32 @@ mod tests {
         let result = pm.add_peer("127.0.0.1:8333".to_string());
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_network_magic_values() {
+        assert_eq!(MAINNET_MAGIC, [0x42, 0x51, 0x01, 0x01]);
+        assert_eq!(TESTNET_MAGIC, [0x42, 0x51, 0x02, 0x02]);
+        assert_eq!(DEVNET_MAGIC, [0x42, 0x51, 0x03, 0x03]);
+        assert_eq!(REGTEST_MAGIC, [0x42, 0x51, 0x04, 0x04]);
+    }
+
+    #[test]
+    fn test_network_magic_function() {
+        use bitquan_types::NetworkId;
+        assert_eq!(network_magic(NetworkId::Mainnet), MAINNET_MAGIC);
+        assert_eq!(network_magic(NetworkId::Testnet), TESTNET_MAGIC);
+        assert_eq!(network_magic(NetworkId::Devnet), DEVNET_MAGIC);
+        assert_eq!(network_magic(NetworkId::Regtest), REGTEST_MAGIC);
+    }
+
+    #[test]
+    fn test_all_network_magics_unique() {
+        let magics = [MAINNET_MAGIC, TESTNET_MAGIC, DEVNET_MAGIC, REGTEST_MAGIC];
+        for i in 0..magics.len() {
+            for j in (i + 1)..magics.len() {
+                assert_ne!(magics[i], magics[j]);
+            }
+        }
     }
 }

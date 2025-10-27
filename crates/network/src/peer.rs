@@ -40,6 +40,8 @@ pub struct Peer {
     pub message_count: u64,
     /// Last rate limit window reset.
     pub rate_limit_window: SystemTime,
+    /// Ban score for misbehavior (disconnect at 100).
+    pub ban_score: u32,
 }
 
 impl Peer {
@@ -62,7 +64,19 @@ impl Peer {
             last_seen: SystemTime::now(),
             message_count: 0,
             rate_limit_window: SystemTime::now(),
+            ban_score: 0,
         })
+    }
+
+    /// Adds to ban score and returns true if peer should be disconnected.
+    pub fn add_ban_score(&mut self, points: u32) -> bool {
+        self.ban_score += points;
+        self.ban_score >= 100
+    }
+
+    /// Checks if peer should be banned.
+    pub fn should_ban(&self) -> bool {
+        self.ban_score >= 100
     }
 
     /// Sends a message to the peer.
@@ -439,5 +453,32 @@ mod tests {
 
         let state = PeerState::Ready;
         assert_eq!(state, PeerState::Ready);
+    }
+
+    #[test]
+    fn test_ban_score_threshold() {
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        std::thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                drop(stream);
+            }
+        });
+
+        let stream = TcpStream::connect(addr).unwrap();
+        let mut peer = Peer::new(stream, addr).unwrap();
+
+        assert_eq!(peer.ban_score, 0);
+        assert!(!peer.should_ban());
+
+        assert!(!peer.add_ban_score(50));
+        assert_eq!(peer.ban_score, 50);
+        assert!(!peer.should_ban());
+
+        assert!(peer.add_ban_score(60));
+        assert_eq!(peer.ban_score, 110);
+        assert!(peer.should_ban());
     }
 }
