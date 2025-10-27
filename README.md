@@ -18,15 +18,20 @@ cargo build --release
 # Run tests
 cargo test --all --locked
 
-# Generate wallet
-./target/release/bitquan-node wallet create
+# Generate wallet keypair
+./target/release/bitquan-node wallet-gen --output wallet.keystore
 
-# Check balance
-./target/release/bitquan-node wallet balance
+# Get wallet address
+./target/release/bitquan-node wallet-address --keystore wallet.keystore
 
-# Start mining on devnet
-./target/release/bitquan-node start --devnet
-./target/release/bitquan-node mine --address $(./target/release/bitquan-node wallet address)
+# Check balance (requires script pubkey hex)
+./target/release/bitquan-node balance --script-hex <SCRIPT_HEX>
+
+# Mine genesis block
+./target/release/bitquan-node mine-genesis
+
+# Start continuous mining
+./target/release/bitquan-node mine
 ```
 
 See [command.txt](command.txt) for complete CLI reference.

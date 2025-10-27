@@ -159,3 +159,31 @@ jobs:
           asset_path: sbom.json
           asset_name: sbom.json
           asset_content_type: application/json
+
+  # SLSA provenance generation (Level 2+)
+  # Note: This uses a reusable workflow from SLSA framework
+  # Automatically generates build provenance attestations
+  provenance:
+    name: Generate SLSA Provenance
+    needs: create-release
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+      attestations: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+      
+      - name: Build for provenance
+        run: cargo build --release --locked
+      
+      - name: Generate provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            target/release/bitquan-node
+
+
