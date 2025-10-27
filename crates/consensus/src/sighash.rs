@@ -28,7 +28,7 @@ pub fn transaction_sighash(tx: &Transaction, network_id: NetworkId) -> [u8; 32] 
 fn hash_txins(hasher: &mut Sha256, inputs: &[TxIn]) {
     hash_len(hasher, inputs.len());
     for input in inputs {
-        hasher.update(&input.prev_txid);
+        hasher.update(input.prev_txid);
         hasher.update(input.prev_vout.to_le_bytes());
         hasher.update(input.sequence.to_le_bytes());
         hash_bytes(hasher, &input.script_sig);

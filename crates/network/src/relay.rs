@@ -1,7 +1,7 @@
 //! Transaction and block relay logic for P2P network.
 
 use crate::protocol::{InvType, InvVector, Message};
-use bitquan_types::{Block, Transaction};
+use bitquan_types::Transaction;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -51,10 +51,7 @@ impl RelayManager {
     /// Adds a pending request
     pub fn add_request(&self, hash: [u8; 32], peer_id: String) {
         let mut requests = self.pending_requests.lock().unwrap();
-        requests
-            .entry(hash)
-            .or_insert_with(HashSet::new)
-            .insert(peer_id);
+        requests.entry(hash).or_default().insert(peer_id);
     }
 
     /// Removes a pending request

@@ -143,7 +143,7 @@ impl ScriptInterpreter {
             pc += 1;
 
             // Handle push data (0x01-0x4b directly push N bytes)
-            if byte >= 0x01 && byte <= 0x4b {
+            if (0x01..=0x4b).contains(&byte) {
                 let len = byte as usize;
                 if pc + len > script.len() {
                     return Err(ScriptError::InvalidOpcode(byte));

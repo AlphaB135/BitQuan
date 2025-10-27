@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 pub fn header_hash(header: &BlockHeader) -> [u8; 32] {
     let bytes = header.to_bytes();
     let h1 = Sha256::digest(&bytes);
-    let h2 = Sha256::digest(&h1);
+    let h2 = Sha256::digest(h1);
     let mut out = [0u8; 32];
     out.copy_from_slice(&h2);
     out
@@ -30,7 +30,7 @@ pub fn compact_to_target_bytes(bits: u32) -> [u8; 32] {
         let byte_pos = exponent as usize - 3; // number of bytes mantissa occupies from the left
                                               // place mantissa at the leftmost bytes (big-endian)
         let mut m_bytes = [0u8; 4];
-        m_bytes.copy_from_slice(&(mantissa as u32).to_be_bytes());
+        m_bytes.copy_from_slice(&mantissa.to_be_bytes());
         // mantissa is 3 bytes; take the last 3 bytes of m_bytes
         let mantissa_bytes = &m_bytes[1..4];
         let start = 32 - byte_pos;

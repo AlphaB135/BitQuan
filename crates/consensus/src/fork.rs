@@ -28,6 +28,9 @@ pub enum ForkError {
     InvalidWork,
 }
 
+/// Result of finding fork point (disconnect blocks, connect blocks, fork point hash).
+type ForkPointResult = (Vec<[u8; 32]>, Vec<[u8; 32]>, [u8; 32]);
+
 /// Block with metadata for fork choice.
 #[derive(Clone, Debug)]
 pub struct BlockNode {
@@ -239,7 +242,7 @@ impl ForkChoice {
         &self,
         old_tip: [u8; 32],
         new_tip: [u8; 32],
-    ) -> Result<(Vec<[u8; 32]>, Vec<[u8; 32]>, [u8; 32]), ForkError> {
+    ) -> Result<ForkPointResult, ForkError> {
         let mut old_hash = old_tip;
         let mut new_hash = new_tip;
 

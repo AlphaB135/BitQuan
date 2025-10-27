@@ -158,11 +158,7 @@ pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> usize {
 ///
 /// Formula: sum of all transaction weights
 pub fn calculate_block_weight(block: &Block) -> usize {
-    block
-        .transactions
-        .iter()
-        .map(|tx| calculate_tx_weight(tx))
-        .sum()
+    block.transactions.iter().map(calculate_tx_weight).sum()
 }
 
 /// Legacy function - calculates the block weight given an `alpha` multiplier.

@@ -10,7 +10,7 @@ use serde::{
 pub type VarBytes = Vec<u8>;
 
 /// Network identifier for replay protection (BQIP-0002).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum NetworkId {
     /// Mainnet production network.
@@ -18,6 +18,7 @@ pub enum NetworkId {
     /// Public test network.
     Testnet = 0x02,
     /// Development network with easier difficulty.
+    #[default]
     Devnet = 0x03,
     /// Regression test network for isolated testing.
     Regtest = 0x04,
@@ -38,12 +39,6 @@ impl NetworkId {
             0x04 => Some(NetworkId::Regtest),
             _ => None,
         }
-    }
-}
-
-impl Default for NetworkId {
-    fn default() -> Self {
-        NetworkId::Devnet
     }
 }
 

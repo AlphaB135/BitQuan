@@ -48,7 +48,7 @@ impl CryptoRegistry {
     /// Installs the default set of signature providers (Dilithium only for now).
     pub fn with_default_providers() -> Self {
         let mut registry = Self::new();
-        registry.register(Box::new(DilithiumProvider::default()));
+        registry.register(Box::new(DilithiumProvider));
         registry
     }
 
@@ -72,7 +72,7 @@ impl CryptoRegistry {
     ) -> Result<(), CryptoError> {
         let provider = self
             .provider_for(tx.sig_algo)
-            .ok_or_else(|| CryptoError::NotImplemented(tx.sig_algo))?;
+            .ok_or(CryptoError::NotImplemented(tx.sig_algo))?;
 
         for witness in &tx.witnesses {
             for payload in &witness.signatures {

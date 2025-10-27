@@ -12,9 +12,6 @@ const SIGNATURE_WEIGHT: usize = 384;
 /// Witness scale factor (Bitcoin compatibility)
 const WITNESS_SCALE_FACTOR: usize = 4;
 
-/// Maximum block weight (BQIP-0002)
-const MAX_BLOCK_WEIGHT: usize = 4_000_000;
-
 /// Calculates transaction weight according to BQIP-0002.
 fn calculate_tx_weight(tx: &Transaction) -> usize {
     // Base size: transaction without witness data
@@ -164,10 +161,7 @@ impl Mempool {
 
         self.size_bytes += tx_size;
 
-        let bucket = self
-            .entries
-            .entry(entry.fee_per_weight)
-            .or_insert_with(Vec::new);
+        let bucket = self.entries.entry(entry.fee_per_weight).or_default();
         bucket.push(entry);
         Ok(())
     }
@@ -229,7 +223,7 @@ impl Mempool {
         let mut collected = Vec::new();
 
         while collected.len() < limit {
-            let next_key = match self.entries.iter().rev().next() {
+            let next_key = match self.entries.iter().next_back() {
                 Some((key, _)) => *key,
                 None => break,
             };
@@ -427,7 +421,7 @@ mod tests {
         mempool.insert(tx1, 5000).unwrap();
         mempool.insert(tx2, 3000).unwrap();
 
-        let selected = mempool.select_for_block(MAX_BLOCK_WEIGHT);
+        let selected = mempool.select_for_block(4_000_000);
 
         // Should select both if they fit
         assert!(selected.len() <= 2);

@@ -4,7 +4,7 @@
 //! RNG module exposed by the `bq-crypto` crate.
 
 mod hkdf;
-mod rng;
+mod rng_impl;
 
 pub use hkdf::hkdf_expand;
-pub use rng::{RandomSource, RngError, RngService};
+pub use rng_impl::{RandomSource, RngError, RngService};
