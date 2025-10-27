@@ -138,7 +138,37 @@ pub enum ConsensusError {
     Signature(#[from] CryptoError),
 }
 
-/// Calculates the block weight given an `alpha` multiplier.
+/// Calculates transaction weight according to BQIP-0002.
+/// 
+/// Formula: weight = (base_size * 4) + (signature_count * 384)
+pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> usize {
+    const WITNESS_SCALE_FACTOR: usize = 4;
+    const SIGNATURE_WEIGHT: usize = 384;
+    
+    // Base size: transaction without witness data
+    let base_size = tx.serialized_size_hint() - tx.witness_size_hint();
+    
+    // Count signatures in witnesses
+    let sig_count: usize = tx.witnesses.iter()
+        .map(|w| w.signatures.len())
+        .sum();
+    
+    (base_size * WITNESS_SCALE_FACTOR) + (sig_count * SIGNATURE_WEIGHT)
+}
+
+/// Calculates block weight according to BQIP-0002.
+/// 
+/// Formula: sum of all transaction weights
+pub fn calculate_block_weight(block: &Block) -> usize {
+    block.transactions.iter()
+        .map(|tx| calculate_tx_weight(tx))
+        .sum()
+}
+
+/// Legacy function - calculates the block weight given an `alpha` multiplier.
+/// 
+/// Deprecated: Use calculate_block_weight() instead for BQIP-0002 compliance.
+#[deprecated(note = "Use calculate_block_weight() for BQIP-0002 compliance")]
 pub fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
     use bitquan_types::CompactUint;
     // Total bytes (base + witness)
@@ -159,35 +189,34 @@ pub fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) ->
     base_bytes + signature_weight + witness_weight
 }
 
-/// Validates a block against the supplied consensus parameters.
+/// Validates a block against the supplied consensus parameters (BQIP-0002).
 pub fn validate_block(
     block: &Block,
     height: u64,
     params: &ConsensusParams,
     registry: &CryptoRegistry,
 ) -> Result<BlockValidationReport, ConsensusError> {
-    let block_weight = calculate_block_weight_with_beta(
-        block,
-        params.signature_weight_alpha,
-        params.witness_weight_beta,
-    );
+    // Calculate block weight using BQIP-0002 formula
+    let block_weight = calculate_block_weight(block);
     let signature_count = count_signatures(block);
     let block_subsidy = params.reward_schedule.subsidy_at_height(height);
 
-    if block_weight > params.block_weight_cap {
+    // Enforce MAX_BLOCK_WEIGHT = 4,000,000 WU (BQIP-0002)
+    if block_weight as u64 > params.block_weight_cap {
         return Err(ConsensusError::BlockWeightExceeded {
-            actual: block_weight,
+            actual: block_weight as u64,
             limit: params.block_weight_cap,
         });
     }
 
+    // Verify all transaction signatures
     for tx in &block.transactions {
         let digest = transaction_sighash(tx);
         registry.verify_transaction(tx, &digest)?;
     }
 
     Ok(BlockValidationReport {
-        block_weight,
+        block_weight: block_weight as u64,
         signature_count,
         block_subsidy,
     })
