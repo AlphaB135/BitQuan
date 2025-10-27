@@ -1,8 +1,8 @@
 # BitQuan Roadmap
 
-## Current Status: v0.0.1-alpha (Devnet Ready) - 2025-10-26
+## Current Status: v0.0.1-alpha (Devnet Ready) - 2025-10-27
 
-**Completion: 78%** | **Tests: 39 passing** | **Build: Clean**
+**Completion: 82%** | **Tests: 42 passing** | **Build: Clean**
 
 ### Phase Summary
 
@@ -14,14 +14,44 @@
 | Phase 3: Data Specs | ✅ Complete | 100% |
 | Phase 4: Validation | ✅ Complete | 95% |
 | Phase 5: Economics | ✅ Complete | 90% |
-| Phase 6: Implementation | 🟢 In Progress | 85% |
-| Phase 7: Security | 🟢 In Progress | 55% |
-| Phase 8: Governance Setup | 🟡 Started | 40% |
-| Phase 9: Network Launch | ⏳ Pending | 15% |
+| Phase 6: Implementation | 🟢 In Progress | 90% |
+| Phase 7: Security | 🟢 In Progress | 60% |
+| Phase 8: Governance Setup | 🟡 Started | 45% |
+| Phase 9: Network Launch | ⏳ Pending | 20% |
 
 ---
 
-## Latest Progress (2025-10-26T14:46:00Z) - Devnet Preparation ✅
+## Latest Progress (2025-10-27T07:20:00Z) - BQIP-0002 Implementation ✅
+
+**Completed Today:**
+- ✅ Mempool fee-per-weight ordering (BQIP-0002)
+- ✅ Block weight calculation and validation
+- ✅ Transaction weight formula: base_size*4 + sig_count*384
+- ✅ Block weight enforcement (MAX: 4,000,000 WU)
+- ✅ Fee market implementation (qbits/WU)
+- ✅ Protected fee rate policy (>= 10 qbits/WU)
+- ✅ Command reference (command.txt)
+- ✅ Mempool tests (7 passing)
+- ✅ Consensus tests (35 passing)
+- ✅ RPC getwork/submitwork implementation
+
+**Technical Implementation:**
+- WITNESS_SCALE_FACTOR: 4 (Bitcoin-compatible)
+- SIGNATURE_WEIGHT: 384 WU per PQC signature
+- Mempool eviction policy (lowest fee first)
+- Block template selection by fee density
+- Minimum fee rate enforcement (1 qbit/WU)
+- Size limit: 300 MB default
+
+**Commits Today:** 5  
+**Lines Added:** ~600  
+**Token Usage:** 38k/1,000k (3.8%)
+
+---
+
+## Previous Progress Updates
+
+### 2025-10-26T14:46:00Z - Devnet Preparation ✅
 
 **Completed Today:**
 - ✅ Core Specifications (transaction, block, block-weight)
@@ -56,18 +86,37 @@
 
 ## Remaining Tasks for v0.0.1-alpha
 
-### Phase 8: Code Implementation (2-3 days)
-- [ ] Mempool fee-per-weight ordering
-- [ ] Block weight enforcement in validation
-- [ ] ASERT difficulty implementation
+### Phase 8: Code Implementation (1-2 days)
+- [x] Mempool fee-per-weight ordering
+- [x] Block weight enforcement in validation
+- [ ] ASERT difficulty tuning (half-life validation)
 - [ ] Property tests (proptest)
-  - [ ] TXID determinism
-  - [ ] UTXO spend rules
+  - [x] Weight calculation determinism
+  - [ ] UTXO spend rules (no overspend)
   - [ ] ASERT monotonicity
 - [ ] Integration tests
-  - [ ] Block weight validation
-  - [ ] Mempool ordering
-  - [ ] Reorg handling
+  - [x] Block weight validation
+  - [x] Mempool ordering
+  - [ ] Reorg handling (2+ block depth)
+  - [ ] Orphan block handling
+
+### Phase 9: GitHub & Release (1 day)
+- [ ] Issue templates (bug_report.md, feature_request.md)
+- [ ] Pull request template
+- [ ] CODEOWNERS file
+- [ ] Release workflow (.github/workflows/release.yml)
+- [ ] Pre-release artifacts
+  - [ ] Binaries (Linux, macOS, Windows)
+  - [ ] SHA256/SHA512 checksums
+  - [ ] SBOM (CycloneDX)
+  - [ ] Release notes
+
+### Phase 10: Documentation Polish (1 day)
+- [ ] API documentation (cargo doc)
+- [ ] Architecture diagrams
+- [ ] Network protocol spec
+- [ ] Wallet integration guide
+- [ ] Mining pool setup guide
 
 ### Phase 9: GitHub & Release (1 day)
 - [ ] Issue templates (bug_report.md, feature_request.md)
