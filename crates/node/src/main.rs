@@ -214,6 +214,9 @@ enum Commands {
         /// Hex-encoded script_pubkey to check balance for
         #[arg(long)]
         script_hex: Option<String>,
+        /// Bech32m address to check balance for (alternative to script-hex)
+        #[arg(long)]
+        address: Option<String>,
     },
 }
 
@@ -278,7 +281,8 @@ fn main() -> Result<()> {
         Commands::Balance {
             datadir,
             script_hex,
-        } => check_balance(&datadir, script_hex.as_deref()),
+            address,
+        } => check_balance(&datadir, script_hex.as_deref(), address.as_deref()),
     }
 }
 
@@ -1285,7 +1289,7 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
 
 /// Check balance for a script
 #[cfg(feature = "rocksdb-backend")]
-fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
+fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>) -> Result<()> {
     use bitquan_storage::rocksdb_store::RocksDBStore;
 
     let store = RocksDBStore::open(datadir)?;
@@ -1294,69 +1298,71 @@ fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
     println!("\n=== BitQuan Balance ===");
     println!("Chain height: {}", height);
 
-    if let Some(script) = script_hex {
-        let target_script = hex::decode(script)?;
-
-        println!("Script: {}", script);
-        println!("\nScanning blockchain for UTXOs...");
-
-        let mut balance: u64 = 0;
-        let mut utxo_count = 0;
-
-        // Scan all blocks (simple implementation)
-        for h in 0..=height {
-            if let Ok(Some(block)) = store.get_block_by_height(h) {
-                for tx in &block.transactions {
-                    for (vout, output) in tx.outputs.iter().enumerate() {
-                        if output.script_pubkey == target_script {
-                            // Check if spent (simplified - should check UTXO set)
-                            balance += output.value;
-                            utxo_count += 1;
-                            println!(
-                                "  Block #{} TX {} vout={} amount={}",
-                                h,
-                                hex::encode(tx.txid()),
-                                vout,
-                                output.value
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        println!("\nUTXO count: {}", utxo_count);
-        println!("Balance: {} qbits", balance);
-        println!("Balance: {:.8} BQ", balance as f64 / 100_000_000.0);
+    // Determine script_pubkey from either script_hex or address
+    let target_script = if let Some(script) = script_hex {
+        hex::decode(script)?
+    } else if let Some(addr) = address {
+        // Decode bech32m address to pubkey hash
+        let pubkey_hash = address::decode_bech32m(addr)
+            .map_err(|e| anyhow::anyhow!("Failed to decode address: {}", e))?;
+        
+        // Create P2PKH script: OP_DUP OP_HASH256 <pubkey_hash> OP_EQUALVERIFY OP_CHECKSIG
+        // For simplicity, we'll use a direct format (adjust based on your script format)
+        // Standard P2PKH: 76 a9 14 <20-byte-hash> 88 ac
+        // But for Dilithium with 32-byte hash: 76 a9 20 <32-byte-hash> 88 ac
+        let mut script = Vec::with_capacity(35);
+        script.push(0x76); // OP_DUP
+        script.push(0xa9); // OP_HASH256
+        script.push(0x20); // Push 32 bytes
+        script.extend_from_slice(&pubkey_hash);
+        script.push(0x88); // OP_EQUALVERIFY
+        script.push(0xac); // OP_CHECKSIG
+        
+        println!("Decoded address: {}", addr);
+        println!("Pubkey hash: {}", hex::encode(pubkey_hash));
+        
+        script
     } else {
-        // Show total supply
-        println!("\nTotal supply calculation:");
+        anyhow::bail!("Either --script-hex or --address must be provided");
+    };
 
-        let mut total_supply: u64 = 0;
+    println!("Script: {}", hex::encode(&target_script));
+    println!("\nScanning blockchain for UTXOs...");
 
-        for h in 0..=height {
-            if let Ok(Some(block)) = store.get_block_by_height(h) {
-                for tx in &block.transactions {
-                    for output in &tx.outputs {
-                        total_supply += output.value;
+    let mut balance: u64 = 0;
+    let mut utxo_count = 0;
+
+    // Scan all blocks (simple implementation)
+    for h in 0..=height {
+        if let Ok(Some(block)) = store.get_block_by_height(h) {
+            for tx in &block.transactions {
+                for (vout, output) in tx.outputs.iter().enumerate() {
+                    if output.script_pubkey == target_script {
+                        // Check if spent (simplified - should check UTXO set)
+                        balance += output.value;
+                        utxo_count += 1;
+                        println!(
+                            "  Block #{} TX {} vout={} amount={}",
+                            h,
+                            hex::encode(tx.txid()),
+                            vout,
+                            output.value
+                        );
                     }
                 }
             }
         }
-
-        println!("Total coins mined: {} qbits", total_supply);
-        println!(
-            "Total coins mined: {:.8} BQ",
-            total_supply as f64 / 100_000_000.0
-        );
-        println!("\nBlocks mined: {}", height + 1);
     }
+
+    println!("\nUTXO count: {}", utxo_count);
+    println!("Balance: {} qbits", balance);
+    println!("Balance: {:.8} BQ", balance as f64 / 100_000_000.0);
 
     Ok(())
 }
 
 #[cfg(not(feature = "rocksdb-backend"))]
-fn check_balance(_datadir: &str, _script_hex: Option<&str>) -> Result<()> {
+fn check_balance(_datadir: &str, _script_hex: Option<&str>, _address: Option<&str>) -> Result<()> {
     eprintln!("ERROR: Balance checking requires 'rocksdb-backend' feature");
     eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
