@@ -10,13 +10,13 @@ use sha2::{Digest, Sha256};
 /// Includes network_id for cross-chain replay protection (BQIP-0002).
 pub fn transaction_sighash(tx: &Transaction, network_id: NetworkId) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(&[network_id.as_u8()]);
-    hasher.update(&tx.version.to_le_bytes());
-    hasher.update(&tx.lock_time.to_le_bytes());
+    hasher.update([network_id.as_u8()]);
+    hasher.update(tx.version.to_le_bytes());
+    hasher.update(tx.lock_time.to_le_bytes());
 
     hash_txins(&mut hasher, &tx.inputs);
     hash_txouts(&mut hasher, &tx.outputs);
-    hasher.update(&[tx.sig_algo.code()]);
+    hasher.update([tx.sig_algo.code()]);
     hash_witnesses(&mut hasher, &tx.witnesses);
 
     let digest = hasher.finalize();
@@ -29,8 +29,8 @@ fn hash_txins(hasher: &mut Sha256, inputs: &[TxIn]) {
     hash_len(hasher, inputs.len() as u64);
     for input in inputs {
         hasher.update(&input.prev_txid[..]);
-        hasher.update(&input.prev_vout.to_le_bytes());
-        hasher.update(&input.sequence.to_le_bytes());
+        hasher.update(input.prev_vout.to_le_bytes());
+        hasher.update(input.sequence.to_le_bytes());
         hash_bytes(hasher, &input.script_sig);
     }
 }
@@ -38,7 +38,7 @@ fn hash_txins(hasher: &mut Sha256, inputs: &[TxIn]) {
 fn hash_txouts(hasher: &mut Sha256, outputs: &[TxOut]) {
     hash_len(hasher, outputs.len() as u64);
     for output in outputs {
-        hasher.update(&output.value.to_le_bytes());
+        hasher.update(output.value.to_le_bytes());
         hash_bytes(hasher, &output.script_pubkey);
     }
 }
@@ -48,15 +48,15 @@ fn hash_witnesses(hasher: &mut Sha256, witnesses: &[Witness]) {
     for witness in witnesses {
         hash_len(hasher, witness.signatures.len() as u64);
         for sig in &witness.signatures {
-            hasher.update(&sig.signer_index.to_le_bytes());
+            hasher.update(sig.signer_index.to_le_bytes());
             hash_bytes(hasher, &sig.signature);
             hash_bytes(hasher, &sig.public_key);
             match &sig.aux {
                 Some(aux) => {
-                    hasher.update(&[1u8]);
+                    hasher.update([1u8]);
                     hash_bytes(hasher, &aux.payload);
                 }
-                None => hasher.update(&[0u8]),
+                None => hasher.update([0u8]),
             }
         }
     }
@@ -68,7 +68,7 @@ fn hash_bytes(hasher: &mut Sha256, data: &[u8]) {
 }
 
 fn hash_len(hasher: &mut Sha256, len: u64) {
-    hasher.update(&len.to_le_bytes());
+    hasher.update(len.to_le_bytes());
 }
 
 #[cfg(test)]
