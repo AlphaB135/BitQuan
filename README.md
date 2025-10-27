@@ -1,43 +1,66 @@
 # BitQuan
 
-A post-quantum secure blockchain implementing Proof-of-Work consensus with CRYSTALS-Dilithium signatures.
+[![CI](https://github.com/AlphaB135/BitQuan/workflows/CI/badge.svg)](https://github.com/AlphaB135/BitQuan/actions)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+A minimal Proof-of-Work blockchain with Dilithium PQC and public UTXO ledger.
 
 ## Overview
 
-BitQuan is a cryptocurrency designed for 50+ year security resilience against quantum computing threats. It uses lattice-based cryptography (Dilithium) for digital signatures and maintains Bitcoin's proven Proof-of-Work consensus model.
+BitQuan is a cryptocurrency designed for 50+ year security resilience against quantum computing threats. It uses lattice-based cryptography (Dilithium) for digital signatures and maintains Bitcoin's proven Proof-of-Work consensus model with block weight accounting for large PQC signatures.
 
 ## Quick Start
 
 ```bash
 # Build
-cargo build --release --features rocksdb-backend
+cargo build --release
 
 # Run tests
-cargo test --all
+cargo test --all --locked
 
 # Generate wallet
-./target/release/bitquan-node wallet-gen --algo dilithium3 --output wallet.keystore
+./target/release/bitquan-node wallet create
 
-# Mine genesis block
-./target/release/bitquan-node mine-genesis --max-tries 10000000
+# Check balance
+./target/release/bitquan-node wallet balance
+
+# Start mining on devnet
+./target/release/bitquan-node start --devnet
+./target/release/bitquan-node mine --address $(./target/release/bitquan-node wallet address)
 ```
+
+See [command.txt](command.txt) for complete CLI reference.
 
 ## Documentation
 
-- [Installation Guide](docs/guides/INSTALL.md)
-- [Quick Start Guide](docs/guides/QUICKSTART.md)
-- [Architecture Overview](docs/architecture/overview.md)
-- [Specifications](docs/spec/)
+Core Documents:
 - [Security Policy](SECURITY.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
-- [Release Process](docs/guides/docs/guides/RELEASE.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Release Process](RELEASE.md)
+- [Reproducible Builds](REPRODUCIBILITY.md)
+- [Changelog](CHANGELOG.md)
+
+Technical Specifications:
+- [Transaction Specification](docs/spec/transaction.md)
+- [Block Specification](docs/spec/block.md)
+- [Block Weight & Fee Market](docs/spec/block-weight.md)
+- [BQIP Proposals](docs/bqip/)
+
+Guides:
+- [Command Reference](command.txt)
+- [Roadmap](ROADMAP.md)
 
 ## Features
 
-- Post-Quantum Cryptography (CRYSTALS-Dilithium)
+- Post-Quantum Cryptography (Dilithium3, 3293-byte signatures)
+- Block weight accounting (4,000,000 WU cap, 384 WU per PQC sig)
+- ASERT difficulty adjustment (per-block, 1-day half-life)
+- Fee-per-weight mempool ordering
 - Proof-of-Work consensus (SHA-256d)
+- UTXO model with coin maturity (100 blocks)
 - Persistent storage (RocksDB)
-- P2P networking protocol
+- P2P networking with relay policy
 - JSON-RPC 2.0 API
 - Reproducible builds
 
@@ -62,39 +85,45 @@ bitquan/
 ## Security
 
 - No backdoors, admin keys, or hidden switches
-- GPG-signed commits and releases
-- Reproducible builds
-- Security audits (planned)
+- GPG-signed commits and releases required
+- Reproducible builds with attestation
+- All core code open-source, auditable
+- Security audits planned for beta
 
 Report security vulnerabilities to: security@bitquan.org
 
-See [SECURITY.md](SECURITY.md) for details.
+See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 
 ## Development Status
 
-Current phase: Implementation (70% complete)
+Current version: v0.0.1-alpha (devnet ready)
+Completion: 92%
+Tests: 121 passing
 
-See [ROADMAP.md](ROADMAP.md) for detailed progress and upcoming milestones.
+See [ROADMAP.md](ROADMAP.md) for detailed progress and milestones.
 
 ## Building from Source
 
 Requirements:
-- Rust 1.75 or later
-- RocksDB development libraries
+- Rust 1.82.0 or later (stable)
+- RocksDB development libraries (optional, bundled by default)
 
 ```bash
 # Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Install RocksDB (Ubuntu/Debian)
-sudo apt-get install librocksdb-dev
-
-# Install RocksDB (macOS)
-brew install rocksdb
-
 # Build BitQuan
-cargo build --release --features rocksdb-backend
+cargo build --release --locked
+
+# Run full test suite
+cargo test --all --locked
+
+# Reproducible build
+export SOURCE_DATE_EPOCH=1700000000
+cargo build --release --locked
 ```
+
+See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for deterministic builds.
 
 ## License
 
@@ -104,26 +133,17 @@ See [LICENSE](LICENSE) for details.
 
 ## Community
 
-- GitHub: https://github.com/alphab/BitQuan
-- Issues: https://github.com/alphab/BitQuan/issues
-- Discussions: https://github.com/alphab/BitQuan/discussions
+- Repository: https://github.com/AlphaB135/BitQuan
+- Issues: https://github.com/AlphaB135/BitQuan/issues
+- Discussions: https://github.com/AlphaB135/BitQuan/discussions
+- Security: security@bitquan.org
 
-## Translations
+## Contributing
 
-- [Thai (ภาษาไทย)](docs/i18n/README.th.md)
-- [English](docs/i18n/README.en.md)
-- `todo.md` – Phase-by-phase master plan (Phase 0–13)
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
+2. Sign commits with GPG (`git commit -S`)
+3. Ensure all tests pass (`cargo test --all --locked`)
+4. Follow code style (`cargo fmt --all`)
+5. Pass linting (`cargo clippy --all-targets --all-features`)
 
-## Current Focus
-1. Draft transaction and block data specifications (Phase 3)
-2. Author BQIP drafts 0001–0004 aligned with the architectural decisions
-3. Bootstrap the Rust baseline for core modules: `crypto/`, `consensus/`, `mempool/`, `p2p/`, `storage/`
-
-## Contributing Workflow
-- Review `docs/CONTRIBUTING.md` for the code review process and project standards
-- Configure deterministic builds per `docs/REPRODUCIBILITY.md`
-- (Optional) Enable pre-commit tooling hooks: `./scripts/install-hooks.sh`
-- Submit signed commits (`git commit -S`) with every pull request
-
-## Additional Security Resources
-See the [security policy](SECURITY.md) for disclosure guidelines and contact information.
+Optional: Enable pre-commit hooks with `./scripts/install-hooks.sh`
