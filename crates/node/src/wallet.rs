@@ -313,8 +313,8 @@ mod tests {
     fn test_keypair_generation() {
         let keypair = WalletKeypair::generate_dilithium3().unwrap();
         // With session-based storage, we don't check exact sizes
-        assert!(keypair.public_key.len() > 0);
-        assert!(keypair.secret_key.len() > 0);
+        assert!(!keypair.public_key.is_empty());
+        assert!(!keypair.secret_key.is_empty());
     }
 
     #[test]

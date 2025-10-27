@@ -116,7 +116,7 @@ impl UtxoSet {
             if !self.contains(&input.prev_txid, input.prev_vout) {
                 bail!(
                     "Input references non-existent UTXO: {}:{}",
-                    hex::encode(&input.prev_txid),
+                    hex::encode(input.prev_txid),
                     input.prev_vout
                 );
             }
@@ -152,20 +152,18 @@ impl UtxoSet {
             let utxo = self.get(&input.prev_txid, input.prev_vout).ok_or_else(|| {
                 anyhow::anyhow!(
                     "Input references non-existent UTXO: {}:{}",
-                    hex::encode(&input.prev_txid),
+                    hex::encode(input.prev_txid),
                     input.prev_vout
                 )
             })?;
 
             // Check coinbase maturity (100 blocks)
-            if utxo.is_coinbase {
-                if height < utxo.height + 100 {
-                    bail!(
-                        "Coinbase output not mature: created at {}, current {}",
-                        utxo.height,
-                        height
-                    );
-                }
+            if utxo.is_coinbase && height < utxo.height + 100 {
+                bail!(
+                    "Coinbase output not mature: created at {}, current {}",
+                    utxo.height,
+                    height
+                );
             }
 
             total_input_value = total_input_value

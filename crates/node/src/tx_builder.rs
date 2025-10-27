@@ -133,26 +133,26 @@ pub fn compute_sighash(tx: &Transaction, input_index: usize) -> Result<[u8; 32]>
     hasher.update(tx.version.to_le_bytes());
 
     // Inputs (without script_sig)
-    hasher.update(&(tx.inputs.len() as u32).to_le_bytes());
+    hasher.update((tx.inputs.len() as u32).to_le_bytes());
     for input in &tx.inputs {
-        hasher.update(&input.prev_txid);
-        hasher.update(&input.prev_vout.to_le_bytes());
-        hasher.update(&input.sequence.to_le_bytes());
+        hasher.update(input.prev_txid);
+        hasher.update(input.prev_vout.to_le_bytes());
+        hasher.update(input.sequence.to_le_bytes());
     }
 
     // Outputs
-    hasher.update(&(tx.outputs.len() as u32).to_le_bytes());
+    hasher.update((tx.outputs.len() as u32).to_le_bytes());
     for output in &tx.outputs {
-        hasher.update(&output.value.to_le_bytes());
-        hasher.update(&(output.script_pubkey.len() as u32).to_le_bytes());
+        hasher.update(output.value.to_le_bytes());
+        hasher.update((output.script_pubkey.len() as u32).to_le_bytes());
         hasher.update(&output.script_pubkey);
     }
 
     // Lock time
-    hasher.update(&tx.lock_time.to_le_bytes());
+    hasher.update(tx.lock_time.to_le_bytes());
 
     // Input index being signed
-    hasher.update(&(input_index as u32).to_le_bytes());
+    hasher.update((input_index as u32).to_le_bytes());
 
     let result = hasher.finalize();
     let mut hash = [0u8; 32];
@@ -289,7 +289,7 @@ mod tests {
 
         let selected =
             select_coins(&utxos, 25_000_000, 1, CoinSelection::SmallestSufficient).unwrap();
-        assert!(selected.len() >= 1);
+        assert!(!selected.is_empty());
 
         let total: u64 = selected.iter().map(|u| u.value).sum();
         assert!(total >= 25_000_000);

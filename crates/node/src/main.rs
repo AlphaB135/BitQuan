@@ -399,7 +399,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             println!("✅ GENESIS BLOCK FOUND!");
             println!();
             println!("Nonce:      {}", nonce);
-            println!("Hash:       {}", hex_encode(&hash));
+            println!("Hash:       {}", hex_encode(hash));
             println!("Time:       {:.2}s", elapsed.as_secs_f64());
             println!("Hashrate:   {:.2} H/s", hashrate);
             println!();
@@ -431,7 +431,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
                 "  ... {} attempts ({:.2} H/s) | Hash: {}",
                 nonce,
                 hashrate,
-                &hex_encode(&hash)[..16]
+                &hex_encode(hash)[..16]
             );
         }
     }
@@ -1095,17 +1095,14 @@ fn p2p_demo(addr: &str) -> Result<()> {
             stream.set_write_timeout(Some(Duration::from_secs(5)))?;
             // Expect Version
             let env = read_envelope(&stream)?;
-            match env.message {
-                Message::Version { .. } => {
-                    // Reply VerAck
-                    write_envelope(&stream, &MessageEnvelope::new(Message::VerAck))?;
-                    // Expect Ping then reply Pong
-                    let ping = read_envelope(&stream)?;
-                    if let Message::Ping { nonce } = ping.message {
-                        write_envelope(&stream, &MessageEnvelope::new(Message::Pong { nonce }))?;
-                    }
+            if let Message::Version { .. } = env.message {
+                // Reply VerAck
+                write_envelope(&stream, &MessageEnvelope::new(Message::VerAck))?;
+                // Expect Ping then reply Pong
+                let ping = read_envelope(&stream)?;
+                if let Message::Ping { nonce } = ping.message {
+                    write_envelope(&stream, &MessageEnvelope::new(Message::Pong { nonce }))?;
                 }
-                _ => {}
             }
         }
         Ok(())
