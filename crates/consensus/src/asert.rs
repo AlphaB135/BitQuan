@@ -93,7 +93,7 @@ mod tests {
         let t1 = asert_next_target(anchor, 1, 300, &params());
         let t2 = asert_next_target(anchor, 1, 600, &params());
         let t3 = asert_next_target(anchor, 1, 900, &params());
-        
+
         // Target should increase as time increases
         assert!(t1 < t2);
         assert!(t2 < t3);
@@ -155,7 +155,7 @@ mod property_tests {
             let anchor = 1000.0;
             let t1 = asert_next_target(anchor, height_delta, time_base as i64, &params());
             let t2 = asert_next_target(anchor, height_delta, (time_base * 2) as i64, &params());
-            
+
             // Longer time should give higher target (easier difficulty)
             prop_assert!(t2 >= t1);
         }

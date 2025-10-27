@@ -76,7 +76,9 @@ impl ChainStore for InMemoryChainStore {
     fn insert_block(&mut self, block: Block) -> Result<(), StorageError> {
         let id = header_id(&block.header);
         self.times.push(block.header.time);
-        if self.times.len() > 11 { self.times.remove(0); }
+        if self.times.len() > 11 {
+            self.times.remove(0);
+        }
         self.height = self.height.saturating_add(1);
         self.tip = Some(block.header.clone());
         self.blocks.insert(id, block);
@@ -117,13 +119,17 @@ impl ChainStore for InMemoryChainStore {
 impl InMemoryChainStore {
     /// Returns median-time-past of the last up to 11 blocks.
     pub fn mtp(&self) -> Option<u32> {
-        if self.times.is_empty() { return None; }
+        if self.times.is_empty() {
+            return None;
+        }
         let mut v = self.times.clone();
         v.sort_unstable();
-        Some(v[v.len()/2])
+        Some(v[v.len() / 2])
     }
     /// Returns the current height (number of blocks inserted).
-    pub fn height(&self) -> u64 { self.height }
+    pub fn height(&self) -> u64 {
+        self.height
+    }
 }
 
 fn header_id(h: &bitquan_types::BlockHeader) -> [u8; 32] {

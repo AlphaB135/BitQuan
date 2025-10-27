@@ -13,19 +13,19 @@ pub enum P2pError {
     /// Invalid message format.
     #[error("invalid message format")]
     InvalidMessage,
-    
+
     /// Message too large.
     #[error("message too large: {0} bytes")]
     MessageTooLarge(usize),
-    
+
     /// Protocol version mismatch.
     #[error("protocol version mismatch: got {0}, expected {1}")]
     VersionMismatch(u32, u32),
-    
+
     /// Peer connection error.
     #[error("peer connection error: {0}")]
     ConnectionError(String),
-    
+
     /// Serialization error.
     #[error("serialization error: {0}")]
     SerializationError(String),
@@ -57,55 +57,55 @@ pub enum Message {
         /// Starting block height
         start_height: u64,
     },
-    
+
     /// Version acknowledgment.
     VerAck,
-    
+
     /// Ping for keepalive.
     Ping {
         /// Random nonce for ping/pong matching
         nonce: u64,
     },
-    
+
     /// Pong response.
     Pong {
         /// Nonce from corresponding ping
         nonce: u64,
     },
-    
+
     /// Request peer addresses.
     GetAddr,
-    
+
     /// Advertise peer addresses.
     Addr {
         /// List of peer addresses
         addrs: Vec<PeerAddr>,
     },
-    
+
     /// Inventory announcement (blocks/txs available).
     Inv {
         /// Inventory vectors
         inventory: Vec<InvVector>,
     },
-    
+
     /// Request data.
     GetData {
         /// Requested inventory items
         inventory: Vec<InvVector>,
     },
-    
+
     /// Block data.
     Block {
         /// Full block
         block: Block,
     },
-    
+
     /// Transaction data.
     Tx {
         /// Full transaction
         transaction: Transaction,
     },
-    
+
     /// Request block headers.
     GetHeaders {
         /// Protocol version
@@ -115,16 +115,16 @@ pub enum Message {
         /// Stop hash
         stop_hash: [u8; 32],
     },
-    
+
     /// Block headers response.
     Headers {
         /// List of block headers
         headers: Vec<BlockHeader>,
     },
-    
+
     /// Mempool query.
     GetMempool,
-    
+
     /// Reject message.
     Reject {
         /// Message type being rejected
@@ -205,50 +205,50 @@ impl MessageEnvelope {
             message,
         }
     }
-    
+
     /// Serializes the message to bytes.
     pub fn serialize(&self) -> Result<Vec<u8>, P2pError> {
         let payload = serde_json::to_vec(&self.message)
             .map_err(|e| P2pError::SerializationError(e.to_string()))?;
-        
+
         if payload.len() > MAX_MESSAGE_SIZE {
             return Err(P2pError::MessageTooLarge(payload.len()));
         }
-        
+
         let mut buffer = Vec::new();
         buffer.extend_from_slice(&self.magic);
         buffer.extend_from_slice(&(payload.len() as u32).to_le_bytes());
         buffer.extend_from_slice(&payload);
-        
+
         Ok(buffer)
     }
-    
+
     /// Deserializes a message from bytes.
     pub fn deserialize(data: &[u8]) -> Result<Self, P2pError> {
         if data.len() < 8 {
             return Err(P2pError::InvalidMessage);
         }
-        
+
         let mut magic = [0u8; 4];
         magic.copy_from_slice(&data[0..4]);
-        
+
         if magic != MAINNET_MAGIC {
             return Err(P2pError::InvalidMessage);
         }
-        
+
         let length = u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize;
-        
+
         if length > MAX_MESSAGE_SIZE {
             return Err(P2pError::MessageTooLarge(length));
         }
-        
+
         if data.len() < 8 + length {
             return Err(P2pError::InvalidMessage);
         }
-        
+
         let message = serde_json::from_slice(&data[8..8 + length])
             .map_err(|e| P2pError::SerializationError(e.to_string()))?;
-        
+
         Ok(Self { magic, message })
     }
 }
@@ -298,7 +298,7 @@ impl Peer {
             last_seen: 0,
         }
     }
-    
+
     /// Checks if peer is active.
     pub fn is_active(&self) -> bool {
         self.state == PeerState::Active
@@ -321,37 +321,39 @@ impl PeerManager {
             max_peers,
         }
     }
-    
+
     /// Adds a peer.
     pub fn add_peer(&mut self, addr: String) -> Result<(), P2pError> {
         if self.peers.len() >= self.max_peers {
             return Err(P2pError::ConnectionError("max peers reached".to_string()));
         }
-        
+
         // Check for duplicate
         if self.peers.iter().any(|p| p.addr == addr) {
-            return Err(P2pError::ConnectionError("peer already connected".to_string()));
+            return Err(P2pError::ConnectionError(
+                "peer already connected".to_string(),
+            ));
         }
-        
+
         self.peers.push(Peer::new(addr));
         Ok(())
     }
-    
+
     /// Removes a peer.
     pub fn remove_peer(&mut self, addr: &str) {
         self.peers.retain(|p| p.addr != addr);
     }
-    
+
     /// Gets active peers.
     pub fn active_peers(&self) -> Vec<&Peer> {
         self.peers.iter().filter(|p| p.is_active()).collect()
     }
-    
+
     /// Gets peer count.
     pub fn peer_count(&self) -> usize {
         self.peers.len()
     }
-    
+
     /// Updates peer state.
     pub fn update_peer_state(&mut self, addr: &str, state: PeerState) {
         if let Some(peer) = self.peers.iter_mut().find(|p| p.addr == addr) {
@@ -373,11 +375,11 @@ mod tests {
             user_agent: "BitQuan/0.1.0".to_string(),
             start_height: 100,
         };
-        
+
         let envelope = MessageEnvelope::new(msg.clone());
         let serialized = envelope.serialize().unwrap();
         let deserialized = MessageEnvelope::deserialize(&serialized).unwrap();
-        
+
         assert_eq!(deserialized.message, msg);
         assert_eq!(deserialized.magic, MAINNET_MAGIC);
     }
@@ -390,25 +392,25 @@ mod tests {
             code: RejectCode::Invalid,
             reason: "test".to_string(),
         };
-        
+
         let envelope = MessageEnvelope::new(msg);
         let result = envelope.serialize();
-        
+
         assert!(matches!(result, Err(P2pError::MessageTooLarge(_))));
     }
 
     #[test]
     fn peer_manager_basic() {
         let mut pm = PeerManager::new(3);
-        
+
         pm.add_peer("127.0.0.1:8333".to_string()).unwrap();
         pm.add_peer("127.0.0.1:8334".to_string()).unwrap();
-        
+
         assert_eq!(pm.peer_count(), 2);
-        
+
         pm.update_peer_state("127.0.0.1:8333", PeerState::Active);
         assert_eq!(pm.active_peers().len(), 1);
-        
+
         pm.remove_peer("127.0.0.1:8333");
         assert_eq!(pm.peer_count(), 1);
     }
@@ -416,10 +418,10 @@ mod tests {
     #[test]
     fn peer_manager_max_peers() {
         let mut pm = PeerManager::new(2);
-        
+
         pm.add_peer("127.0.0.1:8333".to_string()).unwrap();
         pm.add_peer("127.0.0.1:8334".to_string()).unwrap();
-        
+
         let result = pm.add_peer("127.0.0.1:8335".to_string());
         assert!(result.is_err());
     }
@@ -427,10 +429,10 @@ mod tests {
     #[test]
     fn reject_duplicate_peer() {
         let mut pm = PeerManager::new(5);
-        
+
         pm.add_peer("127.0.0.1:8333".to_string()).unwrap();
         let result = pm.add_peer("127.0.0.1:8333".to_string());
-        
+
         assert!(result.is_err());
     }
 }

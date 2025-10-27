@@ -12,11 +12,11 @@ pub enum WireError {
     /// I/O error during reading or writing.
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
-    
+
     /// Invalid data format.
     #[error("invalid format: {0}")]
     InvalidFormat(String),
-    
+
     /// Data exceeds size limits.
     #[error("size limit exceeded: {0}")]
     SizeLimit(String),
@@ -32,7 +32,7 @@ pub const MAX_BLOCK_SIZE: usize = 4_000_000;
 pub trait WireEncode {
     /// Encodes the value into the writer.
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), WireError>;
-    
+
     /// Returns the encoded size in bytes.
     fn encoded_size(&self) -> usize;
 }
@@ -110,14 +110,14 @@ fn read_bytes<R: Read>(reader: &mut R, len: usize) -> Result<Vec<u8>, WireError>
 fn read_var_bytes<R: Read>(reader: &mut R, max_size: usize) -> Result<Vec<u8>, WireError> {
     let len = CompactUint::decode(reader)?;
     let len_usize = len.value() as usize;
-    
+
     if len_usize > max_size {
         return Err(WireError::SizeLimit(format!(
             "var_bytes length {} exceeds max {}",
             len_usize, max_size
         )));
     }
-    
+
     read_bytes(reader, len_usize)
 }
 
@@ -126,7 +126,7 @@ fn read_var_bytes<R: Read>(reader: &mut R, max_size: usize) -> Result<Vec<u8>, W
 impl WireEncode for CompactUint {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), WireError> {
         let value = self.value();
-        
+
         if value < 253 {
             write_u8(writer, value as u8)?;
         } else if value <= 0xFFFF {
@@ -139,10 +139,10 @@ impl WireEncode for CompactUint {
             write_u8(writer, 255)?;
             writer.write_all(&value.to_le_bytes())?;
         }
-        
+
         Ok(())
     }
-    
+
     fn encoded_size(&self) -> usize {
         self.encoded_length()
     }
@@ -151,7 +151,7 @@ impl WireEncode for CompactUint {
 impl WireDecode for CompactUint {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
         let first = read_u8(reader)?;
-        
+
         let value = match first {
             0..=252 => first as u64,
             253 => {
@@ -170,7 +170,7 @@ impl WireDecode for CompactUint {
                 u64::from_le_bytes(buf)
             }
         };
-        
+
         Ok(CompactUint::from(value))
     }
 }
@@ -185,10 +185,12 @@ impl WireEncode for TxIn {
         write_u32_le(writer, self.sequence)?;
         Ok(())
     }
-    
+
     fn encoded_size(&self) -> usize {
-        32 + 4 + CompactUint::from(self.script_sig.len() as u64).encoded_length() 
-            + self.script_sig.len() + 4
+        32 + 4
+            + CompactUint::from(self.script_sig.len() as u64).encoded_length()
+            + self.script_sig.len()
+            + 4
     }
 }
 
@@ -196,11 +198,11 @@ impl WireDecode for TxIn {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
         let mut prev_txid = [0u8; 32];
         reader.read_exact(&mut prev_txid)?;
-        
+
         let prev_vout = read_u32_le(reader)?;
         let script_sig = read_var_bytes(reader, 10_000)?; // Max script size
         let sequence = read_u32_le(reader)?;
-        
+
         Ok(TxIn {
             prev_txid,
             prev_vout,
@@ -218,9 +220,9 @@ impl WireEncode for TxOut {
         write_var_bytes(writer, &self.script_pubkey)?;
         Ok(())
     }
-    
+
     fn encoded_size(&self) -> usize {
-        8 + CompactUint::from(self.script_pubkey.len() as u64).encoded_length() 
+        8 + CompactUint::from(self.script_pubkey.len() as u64).encoded_length()
             + self.script_pubkey.len()
     }
 }
@@ -229,7 +231,7 @@ impl WireDecode for TxOut {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
         let value = read_u64_le(reader)?;
         let script_pubkey = read_var_bytes(reader, 10_000)?;
-        
+
         Ok(TxOut {
             value,
             script_pubkey,
@@ -243,12 +245,12 @@ impl WireEncode for Witness {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), WireError> {
         let sig_count = CompactUint::from(self.signatures.len() as u64);
         sig_count.encode(writer)?;
-        
+
         for sig in &self.signatures {
             write_u16_le(writer, sig.signer_index)?;
             write_var_bytes(writer, &sig.signature)?;
             write_var_bytes(writer, &sig.public_key)?;
-            
+
             match &sig.aux {
                 Some(aux) => {
                     write_u8(writer, 1)?;
@@ -259,23 +261,26 @@ impl WireEncode for Witness {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn encoded_size(&self) -> usize {
         let mut size = CompactUint::from(self.signatures.len() as u64).encoded_length();
-        
+
         for sig in &self.signatures {
             size += 2; // signer_index
-            size += CompactUint::from(sig.signature.len() as u64).encoded_length() + sig.signature.len();
-            size += CompactUint::from(sig.public_key.len() as u64).encoded_length() + sig.public_key.len();
+            size += CompactUint::from(sig.signature.len() as u64).encoded_length()
+                + sig.signature.len();
+            size += CompactUint::from(sig.public_key.len() as u64).encoded_length()
+                + sig.public_key.len();
             size += 1; // aux flag
             if let Some(aux) = &sig.aux {
-                size += CompactUint::from(aux.payload.len() as u64).encoded_length() + aux.payload.len();
+                size += CompactUint::from(aux.payload.len() as u64).encoded_length()
+                    + aux.payload.len();
             }
         }
-        
+
         size
     }
 }
@@ -284,18 +289,20 @@ impl WireDecode for Witness {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
         let sig_count = CompactUint::decode(reader)?;
         let sig_count_usize = sig_count.value() as usize;
-        
+
         if sig_count_usize > 10_000 {
-            return Err(WireError::SizeLimit("too many signatures in witness".into()));
+            return Err(WireError::SizeLimit(
+                "too many signatures in witness".into(),
+            ));
         }
-        
+
         let mut signatures = Vec::with_capacity(sig_count_usize);
-        
+
         for _ in 0..sig_count_usize {
             let signer_index = read_u16_le(reader)?;
             let signature = read_var_bytes(reader, 10_000)?;
             let public_key = read_var_bytes(reader, 10_000)?;
-            
+
             let has_aux = read_u8(reader)?;
             let aux = if has_aux == 1 {
                 let aux_payload = read_var_bytes(reader, 1_000)?;
@@ -305,7 +312,7 @@ impl WireDecode for Witness {
             } else {
                 None
             };
-            
+
             signatures.push(crate::SignaturePayload {
                 signer_index,
                 signature,
@@ -313,7 +320,7 @@ impl WireDecode for Witness {
                 aux,
             });
         }
-        
+
         Ok(Witness { signatures })
     }
 }
@@ -324,52 +331,56 @@ impl WireEncode for Transaction {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), WireError> {
         // Version
         write_u32_le(writer, self.version as u32)?;
-        
+
         // Lock time
         write_u32_le(writer, self.lock_time)?;
-        
+
         // Inputs
         let input_count = CompactUint::from(self.inputs.len() as u64);
         input_count.encode(writer)?;
         for input in &self.inputs {
             input.encode(writer)?;
         }
-        
+
         // Outputs
         let output_count = CompactUint::from(self.outputs.len() as u64);
         output_count.encode(writer)?;
         for output in &self.outputs {
             output.encode(writer)?;
         }
-        
+
         // Signature algorithm
         write_u8(writer, self.sig_algo.code())?;
-        
+
         // Witnesses
         let witness_count = CompactUint::from(self.witnesses.len() as u64);
         witness_count.encode(writer)?;
         for witness in &self.witnesses {
             witness.encode(writer)?;
         }
-        
+
         Ok(())
     }
-    
+
     fn encoded_size(&self) -> usize {
         let mut size = 4; // version
         size += 4; // lock_time
-        
+
         size += CompactUint::from(self.inputs.len() as u64).encoded_length();
         size += self.inputs.iter().map(|i| i.encoded_size()).sum::<usize>();
-        
+
         size += CompactUint::from(self.outputs.len() as u64).encoded_length();
         size += self.outputs.iter().map(|o| o.encoded_size()).sum::<usize>();
-        
+
         size += 1; // sig_algo
-        
+
         size += CompactUint::from(self.witnesses.len() as u64).encoded_length();
-        size += self.witnesses.iter().map(|w| w.encoded_size()).sum::<usize>();
-        
+        size += self
+            .witnesses
+            .iter()
+            .map(|w| w.encoded_size())
+            .sum::<usize>();
+
         size
     }
 }
@@ -378,50 +389,50 @@ impl WireDecode for Transaction {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
         let version = read_u32_le(reader)? as i32;
         let lock_time = read_u32_le(reader)?;
-        
+
         // Inputs
         let input_count = CompactUint::decode(reader)?;
         let input_count_usize = input_count.value() as usize;
-        
+
         if input_count_usize > 100_000 {
             return Err(WireError::SizeLimit("too many inputs".into()));
         }
-        
+
         let mut inputs = Vec::with_capacity(input_count_usize);
         for _ in 0..input_count_usize {
             inputs.push(TxIn::decode(reader)?);
         }
-        
+
         // Outputs
         let output_count = CompactUint::decode(reader)?;
         let output_count_usize = output_count.value() as usize;
-        
+
         if output_count_usize > 100_000 {
             return Err(WireError::SizeLimit("too many outputs".into()));
         }
-        
+
         let mut outputs = Vec::with_capacity(output_count_usize);
         for _ in 0..output_count_usize {
             outputs.push(TxOut::decode(reader)?);
         }
-        
+
         // Signature algorithm
         let sig_algo_code = read_u8(reader)?;
         let sig_algo = crate::SigAlgorithm::from_code(sig_algo_code);
-        
+
         // Witnesses
         let witness_count = CompactUint::decode(reader)?;
         let witness_count_usize = witness_count.value() as usize;
-        
+
         if witness_count_usize > 100_000 {
             return Err(WireError::SizeLimit("too many witnesses".into()));
         }
-        
+
         let mut witnesses = Vec::with_capacity(witness_count_usize);
         for _ in 0..witness_count_usize {
             witnesses.push(Witness::decode(reader)?);
         }
-        
+
         Ok(Transaction {
             version,
             lock_time,
@@ -446,7 +457,7 @@ impl WireEncode for BlockHeader {
         write_u64_le(writer, self.nonce)?;
         Ok(())
     }
-    
+
     fn encoded_size(&self) -> usize {
         4 + 32 + 32 + 32 + 4 + 4 + 8 // 116 bytes
     }
@@ -455,20 +466,20 @@ impl WireEncode for BlockHeader {
 impl WireDecode for BlockHeader {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
         let version = read_u32_le(reader)? as i32;
-        
+
         let mut prev_block = [0u8; 32];
         reader.read_exact(&mut prev_block)?;
-        
+
         let mut merkle_root = [0u8; 32];
         reader.read_exact(&mut merkle_root)?;
-        
+
         let mut pqc_agg_hint = [0u8; 32];
         reader.read_exact(&mut pqc_agg_hint)?;
-        
+
         let time = read_u32_le(reader)?;
         let bits = read_u32_le(reader)?;
         let nonce = read_u64_le(reader)?;
-        
+
         Ok(BlockHeader {
             version,
             prev_block,
@@ -486,21 +497,25 @@ impl WireDecode for BlockHeader {
 impl WireEncode for Block {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), WireError> {
         self.header.encode(writer)?;
-        
+
         let tx_count = CompactUint::from(self.transactions.len() as u64);
         tx_count.encode(writer)?;
-        
+
         for tx in &self.transactions {
             tx.encode(writer)?;
         }
-        
+
         Ok(())
     }
-    
+
     fn encoded_size(&self) -> usize {
         let mut size = self.header.encoded_size();
         size += CompactUint::from(self.transactions.len() as u64).encoded_length();
-        size += self.transactions.iter().map(|tx| tx.encoded_size()).sum::<usize>();
+        size += self
+            .transactions
+            .iter()
+            .map(|tx| tx.encoded_size())
+            .sum::<usize>();
         size
     }
 }
@@ -508,19 +523,19 @@ impl WireEncode for Block {
 impl WireDecode for Block {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
         let header = BlockHeader::decode(reader)?;
-        
+
         let tx_count = CompactUint::decode(reader)?;
         let tx_count_usize = tx_count.value() as usize;
-        
+
         if tx_count_usize > 100_000 {
             return Err(WireError::SizeLimit("too many transactions".into()));
         }
-        
+
         let mut transactions = Vec::with_capacity(tx_count_usize);
         for _ in 0..tx_count_usize {
             transactions.push(Transaction::decode(reader)?);
         }
-        
+
         Ok(Block {
             header,
             transactions,
@@ -536,12 +551,12 @@ mod tests {
     #[test]
     fn test_compact_uint_roundtrip() {
         let values = vec![0, 252, 253, 65535, 65536, 0xFFFFFFFF_u64];
-        
+
         for &val in &values {
             let compact = CompactUint::from(val);
             let mut buf = Vec::new();
             compact.encode(&mut buf).unwrap();
-            
+
             let decoded = CompactUint::decode(&mut &buf[..]).unwrap();
             assert_eq!(decoded.value(), val);
         }
@@ -575,7 +590,7 @@ mod tests {
 
         let mut buf = Vec::new();
         tx.encode(&mut buf).unwrap();
-        
+
         let decoded = Transaction::decode(&mut &buf[..]).unwrap();
         assert_eq!(decoded.version, tx.version);
         assert_eq!(decoded.inputs.len(), tx.inputs.len());
@@ -598,7 +613,7 @@ mod tests {
         let mut buf = Vec::new();
         header.encode(&mut buf).unwrap();
         assert_eq!(buf.len(), 116); // Fixed header size
-        
+
         let decoded = BlockHeader::decode(&mut &buf[..]).unwrap();
         assert_eq!(decoded.version, header.version);
         assert_eq!(decoded.time, header.time);
@@ -617,24 +632,22 @@ mod tests {
                 bits: 0x1d00ffff,
                 nonce: 424242,
             },
-            transactions: vec![
-                Transaction {
-                    version: 1,
-                    lock_time: 0,
-                    inputs: vec![],
-                    outputs: vec![TxOut {
-                        value: 5000000000,
-                        script_pubkey: vec![],
-                    }],
-                    sig_algo: SigAlgorithm::Dilithium3,
-                    witnesses: vec![],
-                }
-            ],
+            transactions: vec![Transaction {
+                version: 1,
+                lock_time: 0,
+                inputs: vec![],
+                outputs: vec![TxOut {
+                    value: 5000000000,
+                    script_pubkey: vec![],
+                }],
+                sig_algo: SigAlgorithm::Dilithium3,
+                witnesses: vec![],
+            }],
         };
 
         let mut buf = Vec::new();
         block.encode(&mut buf).unwrap();
-        
+
         let decoded = Block::decode(&mut &buf[..]).unwrap();
         assert_eq!(decoded.transactions.len(), block.transactions.len());
     }

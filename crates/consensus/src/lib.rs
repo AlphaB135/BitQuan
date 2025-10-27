@@ -7,22 +7,22 @@ use thiserror::Error;
 
 mod asert;
 mod difficulty;
-mod sighash;
-mod pow;
-pub mod utxo;
 pub mod fork;
+mod pow;
 pub mod script;
+mod sighash;
+pub mod utxo;
 
 #[cfg(test)]
 mod tests;
 
 pub use asert::asert_next_target;
 pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
-pub use sighash::transaction_sighash;
-pub use pow::{check_header_pow, compact_to_target_bytes, header_hash};
-pub use utxo::{OutPoint, UtxoEntry, UtxoError, UtxoSet};
 pub use fork::{BlockNode, ForkChoice, ForkError, ReorgInfo};
-pub use script::{OpCode, ScriptError, ScriptInterpreter, verify_script, MAX_SCRIPT_SIZE};
+pub use pow::{check_header_pow, compact_to_target_bytes, header_hash};
+pub use script::{verify_script, OpCode, ScriptError, ScriptInterpreter, MAX_SCRIPT_SIZE};
+pub use sighash::transaction_sighash;
+pub use utxo::{OutPoint, UtxoEntry, UtxoError, UtxoSet};
 
 /// Parameters controlling consensus validation.
 #[derive(Clone, Debug)]
@@ -116,7 +116,7 @@ pub enum ConsensusError {
         /// Actual block weight
         actual: u64,
         /// Maximum allowed weight
-        limit: u64
+        limit: u64,
     },
     /// Merkle root in header does not match computed root of txids.
     #[error("merkle_root mismatch")]
@@ -139,34 +139,34 @@ pub enum ConsensusError {
 }
 
 /// Calculates transaction weight according to BQIP-0002.
-/// 
+///
 /// Formula: weight = (base_size * 4) + (signature_count * 384)
 pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> usize {
     const WITNESS_SCALE_FACTOR: usize = 4;
     const SIGNATURE_WEIGHT: usize = 384;
-    
+
     // Base size: transaction without witness data
     let base_size = tx.serialized_size_hint() - tx.witness_size_hint();
-    
+
     // Count signatures in witnesses
-    let sig_count: usize = tx.witnesses.iter()
-        .map(|w| w.signatures.len())
-        .sum();
-    
+    let sig_count: usize = tx.witnesses.iter().map(|w| w.signatures.len()).sum();
+
     (base_size * WITNESS_SCALE_FACTOR) + (sig_count * SIGNATURE_WEIGHT)
 }
 
 /// Calculates block weight according to BQIP-0002.
-/// 
+///
 /// Formula: sum of all transaction weights
 pub fn calculate_block_weight(block: &Block) -> usize {
-    block.transactions.iter()
+    block
+        .transactions
+        .iter()
         .map(|tx| calculate_tx_weight(tx))
         .sum()
 }
 
 /// Legacy function - calculates the block weight given an `alpha` multiplier.
-/// 
+///
 /// Deprecated: Use calculate_block_weight() instead for BQIP-0002 compliance.
 #[deprecated(note = "Use calculate_block_weight() for BQIP-0002 compliance")]
 pub fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
@@ -195,6 +195,7 @@ pub fn validate_block(
     height: u64,
     params: &ConsensusParams,
     registry: &CryptoRegistry,
+    network_id: bitquan_types::NetworkId,
 ) -> Result<BlockValidationReport, ConsensusError> {
     // Calculate block weight using BQIP-0002 formula
     let block_weight = calculate_block_weight(block);
@@ -211,7 +212,7 @@ pub fn validate_block(
 
     // Verify all transaction signatures
     for tx in &block.transactions {
-        let digest = transaction_sighash(tx);
+        let digest = transaction_sighash(tx, network_id);
         registry.verify_transaction(tx, &digest)?;
     }
 
@@ -225,7 +226,9 @@ pub fn validate_block(
 /// Consensus engine bundling parameters, crypto registry, and RNG state.
 #[allow(dead_code)]
 fn is_coinbase_tx(tx: &bitquan_types::Transaction) -> bool {
-    if tx.inputs.is_empty() { return false; }
+    if tx.inputs.is_empty() {
+        return false;
+    }
     let first = &tx.inputs[0];
     first.prev_txid == [0u8; 32] && first.prev_vout == u32::MAX
 }
@@ -238,6 +241,8 @@ pub struct ConsensusEngine {
     registry: CryptoRegistry,
     /// Difficulty adjustment state
     difficulty: Option<DifficultyState>,
+    /// Network identifier for sighash
+    network_id: bitquan_types::NetworkId,
 }
 
 impl ConsensusEngine {
@@ -247,6 +252,21 @@ impl ConsensusEngine {
             params,
             registry,
             difficulty: None,
+            network_id: bitquan_types::NetworkId::default(),
+        }
+    }
+
+    /// Constructs a new engine with explicit network ID.
+    pub fn with_network(
+        params: ConsensusParams,
+        registry: CryptoRegistry,
+        network_id: bitquan_types::NetworkId,
+    ) -> Self {
+        Self {
+            params,
+            registry,
+            difficulty: None,
+            network_id,
         }
     }
 
@@ -286,6 +306,6 @@ impl ConsensusEngine {
         block: &Block,
         height: u64,
     ) -> Result<BlockValidationReport, ConsensusError> {
-        validate_block(block, height, &self.params, &self.registry)
+        validate_block(block, height, &self.params, &self.registry, self.network_id)
     }
 }

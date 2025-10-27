@@ -31,16 +31,18 @@ impl BlockHeader {
 
     /// Serializes the header to bytes (little-endian fields per wire format).
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(Self {
-            version: 0,
-            prev_block: [0u8; 32],
-            merkle_root: [0u8; 32],
-            pqc_agg_hint: [0u8; 32],
-            time: 0,
-            bits: 0,
-            nonce: 0,
-        }
-        .serialized_size());
+        let mut out = Vec::with_capacity(
+            Self {
+                version: 0,
+                prev_block: [0u8; 32],
+                merkle_root: [0u8; 32],
+                pqc_agg_hint: [0u8; 32],
+                time: 0,
+                bits: 0,
+                nonce: 0,
+            }
+            .serialized_size(),
+        );
         out.extend_from_slice(&self.version.to_le_bytes());
         out.extend_from_slice(&self.prev_block);
         out.extend_from_slice(&self.merkle_root);
@@ -95,16 +97,16 @@ impl Block {
 }
 
 /// Computes merkle root (Bitcoin-style) from a slice of txids.
-/// 
+///
 /// Security: Prevents CVE-2012-2459 style duplicate attacks by rejecting
 /// duplicate internal nodes and odd-length layers without duplication.
 pub fn merkle_root_from_txids(txids: &[[u8; 32]]) -> [u8; 32] {
     if txids.is_empty() {
         return [0u8; 32];
     }
-    
+
     let mut layer: Vec<[u8; 32]> = txids.to_vec();
-    
+
     // Detect duplicates in the input layer (invalid block)
     for i in 0..layer.len() {
         for j in (i + 1)..layer.len() {
@@ -114,11 +116,11 @@ pub fn merkle_root_from_txids(txids: &[[u8; 32]]) -> [u8; 32] {
             }
         }
     }
-    
+
     while layer.len() > 1 {
         let mut next = Vec::with_capacity(layer.len().div_ceil(2));
         let mut i = 0;
-        
+
         while i < layer.len() {
             let a = layer[i];
             let b = if i + 1 < layer.len() {
@@ -134,7 +136,7 @@ pub fn merkle_root_from_txids(txids: &[[u8; 32]]) -> [u8; 32] {
                 }
                 a
             };
-            
+
             let mut data = [0u8; 64];
             data[..32].copy_from_slice(&a);
             data[32..].copy_from_slice(&b);

@@ -9,6 +9,44 @@ use serde::{
 /// Variable-length byte buffer used throughout wire-level data.
 pub type VarBytes = Vec<u8>;
 
+/// Network identifier for replay protection (BQIP-0002).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum NetworkId {
+    /// Mainnet production network.
+    Mainnet = 0x01,
+    /// Public test network.
+    Testnet = 0x02,
+    /// Development network with easier difficulty.
+    Devnet = 0x03,
+    /// Regression test network for isolated testing.
+    Regtest = 0x04,
+}
+
+impl NetworkId {
+    /// Returns the network byte for sighash inclusion.
+    pub const fn as_u8(self) -> u8 {
+        self as u8
+    }
+
+    /// Constructs NetworkId from protocol code.
+    pub const fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0x01 => Some(NetworkId::Mainnet),
+            0x02 => Some(NetworkId::Testnet),
+            0x03 => Some(NetworkId::Devnet),
+            0x04 => Some(NetworkId::Regtest),
+            _ => None,
+        }
+    }
+}
+
+impl Default for NetworkId {
+    fn default() -> Self {
+        NetworkId::Devnet
+    }
+}
+
 /// Additional metadata attached to a signature, reserved for advanced schemes.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuxiliarySignatureData {
@@ -179,21 +217,39 @@ pub struct Transaction {
 
 impl Transaction {
     /// Returns the number of inputs.
-    pub fn inputs_len(&self) -> usize { self.inputs.len() }
+    pub fn inputs_len(&self) -> usize {
+        self.inputs.len()
+    }
     /// Returns the number of outputs.
-    pub fn outputs_len(&self) -> usize { self.outputs.len() }
+    pub fn outputs_len(&self) -> usize {
+        self.outputs.len()
+    }
     /// Returns the number of explicit signatures across all witnesses.
-    pub fn signature_count(&self) -> usize { self.witnesses.iter().map(|w| w.signatures.len()).sum() }
+    pub fn signature_count(&self) -> usize {
+        self.witnesses.iter().map(|w| w.signatures.len()).sum()
+    }
     /// Provides a heuristic serialized size used by consensus weight calculations.
     pub fn serialized_size_hint(&self) -> usize {
         let mut len = 4 + 4; // version + lock_time
         len += CompactUint::from_usize(self.inputs.len()).encoded_length();
-        len += self.inputs.iter().map(TxIn::serialized_size_hint).sum::<usize>();
+        len += self
+            .inputs
+            .iter()
+            .map(TxIn::serialized_size_hint)
+            .sum::<usize>();
         len += CompactUint::from_usize(self.outputs.len()).encoded_length();
-        len += self.outputs.iter().map(TxOut::serialized_size_hint).sum::<usize>();
+        len += self
+            .outputs
+            .iter()
+            .map(TxOut::serialized_size_hint)
+            .sum::<usize>();
         len += 1; // sig_algo code
         len += CompactUint::from_usize(self.witnesses.len()).encoded_length();
-        len += self.witnesses.iter().map(Witness::serialized_size_hint).sum::<usize>();
+        len += self
+            .witnesses
+            .iter()
+            .map(Witness::serialized_size_hint)
+            .sum::<usize>();
         len
     }
 }
@@ -202,7 +258,11 @@ impl Transaction {
     /// Returns the estimated size of witness-only data for this transaction.
     pub fn witness_size_hint(&self) -> usize {
         CompactUint::from_usize(self.witnesses.len()).encoded_length()
-            + self.witnesses.iter().map(Witness::serialized_size_hint).sum::<usize>()
+            + self
+                .witnesses
+                .iter()
+                .map(Witness::serialized_size_hint)
+                .sum::<usize>()
     }
 
     /// Serializes the transaction body without witness.
@@ -237,7 +297,10 @@ impl Transaction {
                 write_varbytes(&mut out, &s.signature);
                 write_varbytes(&mut out, &s.public_key);
                 match &s.aux {
-                    Some(aux) => { out.push(1); write_varbytes(&mut out, &aux.payload); }
+                    Some(aux) => {
+                        out.push(1);
+                        write_varbytes(&mut out, &aux.payload);
+                    }
                     None => out.push(0),
                 }
             }
@@ -246,19 +309,34 @@ impl Transaction {
     }
 
     /// Double-SHA256 over base serialization (txid).
-    pub fn txid(&self) -> [u8; 32] { sha256d(&self.to_bytes_base()) }
+    pub fn txid(&self) -> [u8; 32] {
+        sha256d(&self.to_bytes_base())
+    }
     /// Double-SHA256 over full serialization (wtxid).
-    pub fn wtxid(&self) -> [u8; 32] { sha256d(&self.to_bytes_with_witness()) }
+    pub fn wtxid(&self) -> [u8; 32] {
+        sha256d(&self.to_bytes_with_witness())
+    }
 }
 
 fn write_compact(out: &mut Vec<u8>, value: u64) {
-    if value <= 0xFC { out.push(value as u8); }
-    else if value <= 0xFFFF { out.push(0xFD); out.extend_from_slice(&(value as u16).to_le_bytes()); }
-    else if value <= 0xFFFF_FFFF { out.push(0xFE); out.extend_from_slice(&(value as u32).to_le_bytes()); }
-    else { out.push(0xFF); out.extend_from_slice(&value.to_le_bytes()); }
+    if value <= 0xFC {
+        out.push(value as u8);
+    } else if value <= 0xFFFF {
+        out.push(0xFD);
+        out.extend_from_slice(&(value as u16).to_le_bytes());
+    } else if value <= 0xFFFF_FFFF {
+        out.push(0xFE);
+        out.extend_from_slice(&(value as u32).to_le_bytes());
+    } else {
+        out.push(0xFF);
+        out.extend_from_slice(&value.to_le_bytes());
+    }
 }
 
-fn write_varbytes(out: &mut Vec<u8>, data: &[u8]) { write_compact(out, data.len() as u64); out.extend_from_slice(data); }
+fn write_varbytes(out: &mut Vec<u8>, data: &[u8]) {
+    write_compact(out, data.len() as u64);
+    out.extend_from_slice(data);
+}
 
 fn sha256d(data: &[u8]) -> [u8; 32] {
     use sha2::{Digest, Sha256};

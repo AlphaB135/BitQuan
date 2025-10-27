@@ -1,13 +1,13 @@
 //! Peer-to-peer networking scaffolding for BitQuan.
 #![warn(missing_docs)]
 
-pub mod protocol;
 pub mod io;
 pub mod peer;
+pub mod protocol;
 pub mod relay;
 
-pub use peer::{Peer, PeerManager, PeerState, P2PListener};
-pub use relay::{RelayManager, RelayPolicy, create_tx_inv, create_block_inv};
+pub use peer::{P2PListener, Peer, PeerManager, PeerState};
+pub use relay::{create_block_inv, create_tx_inv, RelayManager, RelayPolicy};
 
 use bitquan_types::Block;
 use thiserror::Error;

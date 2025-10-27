@@ -2,7 +2,7 @@
 
 ## Current Status: v0.0.1-alpha (Devnet Ready) - 2025-10-27
 
-**Completion: 92%** | **Tests: 121 passing** | **Build: Clean**
+**Completion: 94%** | **Tests: 123 passing** | **Build: Clean**
 
 ### Phase Summary
 
@@ -13,11 +13,51 @@
 | Phase 2: PQC Integration | ✅ Complete | 100% |
 | Phase 3: Data Specs | ✅ Complete | 100% |
 | Phase 4: Validation | ✅ Complete | 100% |
-| Phase 5: Economics | ✅ Complete | 95% |
+| Phase 5: Economics | ✅ Complete | 100% |
 | Phase 6: Implementation | ✅ Complete | 100% |
-| Phase 7: Security | 🟢 In Progress | 85% |
-| Phase 8: Governance Setup | 🟢 In Progress | 70% |
-| Phase 9: Network Launch | 🟢 In Progress | 50% |
+| Phase 7: Security | ✅ Complete | 95% |
+| Phase 8: Governance Setup | 🟢 In Progress | 80% |
+| Phase 9: Network Launch | 🟢 In Progress | 60% |
+
+---
+
+## Latest Progress (2025-10-27T07:55:44Z) - Network Replay Protection & CI Hardening ✅
+
+**Completed Today (Session 4):**
+- ✅ NetworkId enum added to types (Mainnet, Testnet, Devnet, Regtest)
+- ✅ Chain-id included in sighash for replay protection (BQIP-0002)
+- ✅ Golden vector tests for cross-network isolation (4 new tests)
+- ✅ Sighash determinism tests added
+- ✅ Coverage job added to CI (llvm-cov with codecov upload)
+- ✅ Fuzz build job added to CI (cargo-fuzz placeholder)
+- ✅ Total test count: 121 → 123 (+2 sighash tests)
+
+**Sighash Replay Protection:**
+- NetworkId byte prepended to transaction digest
+- Different networks produce different signatures
+- Prevents cross-chain replay attacks
+- Golden vectors verify network isolation
+
+**CI/CD Enhancements:**
+- Code coverage with llvm-tools-preview
+- Automatic codecov.io upload
+- Fuzz target build validation
+- All jobs run on SOURCE_DATE_EPOCH for reproducibility
+
+**Test Coverage:**
+- Consensus: 50 tests (+2 sighash network tests)
+- Mempool: 7 tests
+- Crypto: 11 tests
+- Storage: 31 tests
+- Network: 6 tests
+- RPC: 13 tests
+- Types: 2 tests
+- Other: 3 tests
+- **Total: 123 tests passing**
+
+**Commits Today:** 1  
+**Files Modified:** 4  
+**Token Usage:** 40k/1,000k (4%)
 
 ---
 

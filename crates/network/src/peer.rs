@@ -1,7 +1,7 @@
 //! TCP-based P2P connection handler.
 
 use crate::protocol::{Message, MessageEnvelope, P2pError, PROTOCOL_VERSION};
-use std::net::{TcpListener, TcpStream, SocketAddr};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -76,19 +76,23 @@ impl Peer {
     pub fn recv_message(&mut self) -> Result<Message, P2pError> {
         let envelope = crate::io::recv_envelope(&mut self.stream)?;
         self.last_seen = SystemTime::now();
-        
+
         // Rate limiting check
         let now = SystemTime::now();
-        if now.duration_since(self.rate_limit_window).unwrap_or_default() >= Duration::from_secs(1) {
+        if now
+            .duration_since(self.rate_limit_window)
+            .unwrap_or_default()
+            >= Duration::from_secs(1)
+        {
             self.message_count = 0;
             self.rate_limit_window = now;
         }
-        
+
         self.message_count += 1;
         if self.message_count > 100 {
             return Err(P2pError::ConnectionError("rate limit exceeded".into()));
         }
-        
+
         Ok(envelope.message)
     }
 
@@ -105,7 +109,7 @@ impl Peer {
             user_agent: "BitQuan/0.1.0".to_string(),
             start_height: our_height,
         };
-        
+
         self.send_message(version_msg)?;
         self.state = PeerState::VersionSent;
 
@@ -176,7 +180,7 @@ impl Peer {
             user_agent: "BitQuan/0.1.0".to_string(),
             start_height: our_height,
         };
-        
+
         self.send_message(version_msg)?;
         self.send_message(Message::VerAck)?;
         self.state = PeerState::VersionSent;
@@ -252,7 +256,7 @@ impl PeerManager {
     /// Adds a new peer connection (inbound).
     pub fn add_peer_inbound(&self, stream: TcpStream, addr: SocketAddr) -> Result<(), P2pError> {
         let mut peers = self.peers.lock().unwrap();
-        
+
         if peers.len() >= self.max_peers {
             return Err(P2pError::ConnectionError("max peers reached".into()));
         }
@@ -260,7 +264,7 @@ impl PeerManager {
         let mut peer = Peer::new(stream, addr)?;
         let height = *self.current_height.lock().unwrap();
         peer.handshake_inbound(height)?;
-        
+
         peers.push(peer);
         Ok(())
     }
@@ -268,18 +272,18 @@ impl PeerManager {
     /// Connects to a new peer (outbound).
     pub fn connect_peer(&self, addr: SocketAddr) -> Result<(), P2pError> {
         let mut peers = self.peers.lock().unwrap();
-        
+
         if peers.len() >= self.max_peers {
             return Err(P2pError::ConnectionError("max peers reached".into()));
         }
 
-        let stream = TcpStream::connect(addr)
-            .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-        
+        let stream =
+            TcpStream::connect(addr).map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+
         let mut peer = Peer::new(stream, addr)?;
         let height = *self.current_height.lock().unwrap();
         peer.handshake_outbound(height)?;
-        
+
         peers.push(peer);
         Ok(())
     }
@@ -303,23 +307,27 @@ impl PeerManager {
     /// Broadcasts inventory to all peers (with relay tracking).
     pub fn broadcast_inv(&self, inv: crate::protocol::InvVector) -> Result<usize, P2pError> {
         use crate::protocol::Message;
-        
+
         // Track announcement if relay manager exists
         if let Some(relay) = &self.relay_manager {
             relay.announce(&inv);
         }
-        
+
         let msg = Message::Inv {
             inventory: vec![inv],
         };
-        
+
         self.broadcast(msg)
     }
 
     /// Handles incoming inventory announcement.
-    pub fn handle_inv(&self, peer_id: &str, inventory: Vec<crate::protocol::InvVector>) -> Vec<crate::protocol::InvVector> {
+    pub fn handle_inv(
+        &self,
+        peer_id: &str,
+        inventory: Vec<crate::protocol::InvVector>,
+    ) -> Vec<crate::protocol::InvVector> {
         let mut needed = Vec::new();
-        
+
         if let Some(relay) = &self.relay_manager {
             for inv in inventory {
                 // Only request if we haven't seen it
@@ -332,7 +340,7 @@ impl PeerManager {
             // No relay manager, request everything
             needed = inventory;
         }
-        
+
         needed
     }
 
@@ -374,9 +382,9 @@ pub struct P2PListener {
 impl P2PListener {
     /// Creates a new P2P listener bound to the specified address.
     pub fn bind(addr: &str, peer_manager: Arc<PeerManager>) -> Result<Self, P2pError> {
-        let listener = TcpListener::bind(addr)
-            .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-        
+        let listener =
+            TcpListener::bind(addr).map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+
         listener
             .set_nonblocking(false)
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
@@ -428,7 +436,7 @@ mod tests {
     fn test_peer_state_transitions() {
         let state = PeerState::Connected;
         assert_eq!(state, PeerState::Connected);
-        
+
         let state = PeerState::Ready;
         assert_eq!(state, PeerState::Ready);
     }

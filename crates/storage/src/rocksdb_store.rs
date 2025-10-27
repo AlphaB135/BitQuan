@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use rocksdb::{DB, Options, WriteBatch};
+use rocksdb::{Options, WriteBatch, DB};
 
 use crate::{ChainStore, StorageError};
 use bitquan_types::{Block, BlockHeader, Transaction};
@@ -32,32 +32,43 @@ impl RocksDBStore {
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
 
-        let cfs = vec![CF_BLOCKS, CF_HEADERS, CF_HEIGHT_INDEX, CF_TX_INDEX, CF_UTXO, CF_META];
-        
+        let cfs = vec![
+            CF_BLOCKS,
+            CF_HEADERS,
+            CF_HEIGHT_INDEX,
+            CF_TX_INDEX,
+            CF_UTXO,
+            CF_META,
+        ];
+
         let db = DB::open_cf(&opts, path, &cfs)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
 
-        Ok(Self {
-            db: Arc::new(db),
-        })
+        Ok(Self { db: Arc::new(db) })
     }
 
     /// Get metadata value
     fn get_meta(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        let cf = self.db.cf_handle(CF_META)
+        let cf = self
+            .db
+            .cf_handle(CF_META)
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
-        
-        self.db.get_cf(&cf, key)
+
+        self.db
+            .get_cf(&cf, key)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))
     }
 
     /// Put metadata value
     #[allow(dead_code)]
     fn put_meta(&self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
-        let cf = self.db.cf_handle(CF_META)
+        let cf = self
+            .db
+            .cf_handle(CF_META)
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
-        
-        self.db.put_cf(&cf, key, value)
+
+        self.db
+            .put_cf(&cf, key, value)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))
     }
 
@@ -65,7 +76,8 @@ impl RocksDBStore {
     pub fn height(&self) -> Result<u64, StorageError> {
         match self.get_meta(KEY_HEIGHT)? {
             Some(bytes) => {
-                let arr: [u8; 8] = bytes.try_into()
+                let arr: [u8; 8] = bytes
+                    .try_into()
                     .map_err(|_| StorageError::DatabaseError("invalid height bytes".into()))?;
                 Ok(u64::from_le_bytes(arr))
             }
@@ -90,13 +102,21 @@ impl ChainStore for RocksDBStore {
         let block_id = Self::block_id(&block.header);
         let height = self.height()? + 1;
 
-        let cf_blocks = self.db.cf_handle(CF_BLOCKS)
+        let cf_blocks = self
+            .db
+            .cf_handle(CF_BLOCKS)
             .ok_or_else(|| StorageError::DatabaseError("blocks CF not found".into()))?;
-        let cf_headers = self.db.cf_handle(CF_HEADERS)
+        let cf_headers = self
+            .db
+            .cf_handle(CF_HEADERS)
             .ok_or_else(|| StorageError::DatabaseError("headers CF not found".into()))?;
-        let cf_height = self.db.cf_handle(CF_HEIGHT_INDEX)
+        let cf_height = self
+            .db
+            .cf_handle(CF_HEIGHT_INDEX)
             .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
-        let cf_tx = self.db.cf_handle(CF_TX_INDEX)
+        let cf_tx = self
+            .db
+            .cf_handle(CF_TX_INDEX)
             .ok_or_else(|| StorageError::DatabaseError("tx_index CF not found".into()))?;
 
         let mut batch = WriteBatch::default();
@@ -123,24 +143,32 @@ impl ChainStore for RocksDBStore {
         }
 
         // Update metadata
-        let cf_meta = self.db.cf_handle(CF_META)
+        let cf_meta = self
+            .db
+            .cf_handle(CF_META)
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
         batch.put_cf(&cf_meta, KEY_TIP, header_json.clone());
         batch.put_cf(&cf_meta, KEY_HEIGHT, height.to_le_bytes());
 
         // Write batch atomically
-        self.db.write(batch)
+        self.db
+            .write(batch)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
 
         Ok(())
     }
 
     fn get_block(&self, id: &[u8; 32]) -> Result<Option<Block>, StorageError> {
-        let cf = self.db.cf_handle(CF_BLOCKS)
+        let cf = self
+            .db
+            .cf_handle(CF_BLOCKS)
             .ok_or_else(|| StorageError::DatabaseError("blocks CF not found".into()))?;
 
-        match self.db.get_cf(&cf, id)
-            .map_err(|e| StorageError::DatabaseError(e.to_string()))? {
+        match self
+            .db
+            .get_cf(&cf, id)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+        {
             Some(bytes) => {
                 let block: Block = serde_json::from_slice(&bytes)
                     .map_err(|e| StorageError::SerializationError(e.to_string()))?;
@@ -162,11 +190,16 @@ impl ChainStore for RocksDBStore {
     }
 
     fn get_block_by_height(&self, height: u64) -> Result<Option<Block>, StorageError> {
-        let cf_height = self.db.cf_handle(CF_HEIGHT_INDEX)
+        let cf_height = self
+            .db
+            .cf_handle(CF_HEIGHT_INDEX)
             .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
 
-        match self.db.get_cf(&cf_height, height.to_le_bytes())
-            .map_err(|e| StorageError::DatabaseError(e.to_string()))? {
+        match self
+            .db
+            .get_cf(&cf_height, height.to_le_bytes())
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+        {
             Some(block_id_bytes) => {
                 let mut block_id = [0u8; 32];
                 block_id.copy_from_slice(&block_id_bytes);
@@ -177,11 +210,16 @@ impl ChainStore for RocksDBStore {
     }
 
     fn get_transaction(&self, txid: &[u8; 32]) -> Result<Option<Transaction>, StorageError> {
-        let cf = self.db.cf_handle(CF_TX_INDEX)
+        let cf = self
+            .db
+            .cf_handle(CF_TX_INDEX)
             .ok_or_else(|| StorageError::DatabaseError("tx_index CF not found".into()))?;
 
-        match self.db.get_cf(&cf, txid)
-            .map_err(|e| StorageError::DatabaseError(e.to_string()))? {
+        match self
+            .db
+            .get_cf(&cf, txid)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+        {
             Some(bytes) => {
                 let tx: Transaction = serde_json::from_slice(&bytes)
                     .map_err(|e| StorageError::SerializationError(e.to_string()))?;
@@ -192,26 +230,35 @@ impl ChainStore for RocksDBStore {
     }
 
     fn put_utxo(&mut self, outpoint: &[u8], data: &[u8]) -> Result<(), StorageError> {
-        let cf = self.db.cf_handle(CF_UTXO)
+        let cf = self
+            .db
+            .cf_handle(CF_UTXO)
             .ok_or_else(|| StorageError::DatabaseError("utxo CF not found".into()))?;
-        
-        self.db.put_cf(&cf, outpoint, data)
+
+        self.db
+            .put_cf(&cf, outpoint, data)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))
     }
 
     fn get_utxo(&self, outpoint: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        let cf = self.db.cf_handle(CF_UTXO)
+        let cf = self
+            .db
+            .cf_handle(CF_UTXO)
             .ok_or_else(|| StorageError::DatabaseError("utxo CF not found".into()))?;
-        
-        self.db.get_cf(&cf, outpoint)
+
+        self.db
+            .get_cf(&cf, outpoint)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))
     }
 
     fn delete_utxo(&mut self, outpoint: &[u8]) -> Result<(), StorageError> {
-        let cf = self.db.cf_handle(CF_UTXO)
+        let cf = self
+            .db
+            .cf_handle(CF_UTXO)
             .ok_or_else(|| StorageError::DatabaseError("utxo CF not found".into()))?;
-        
-        self.db.delete_cf(&cf, outpoint)
+
+        self.db
+            .delete_cf(&cf, outpoint)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))
     }
 }
@@ -219,7 +266,7 @@ impl ChainStore for RocksDBStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{Transaction, TxIn, TxOut, SigAlgorithm};
+    use bitquan_types::{SigAlgorithm, Transaction, TxIn, TxOut};
 
     #[test]
     fn test_rocksdb_store_basic() {

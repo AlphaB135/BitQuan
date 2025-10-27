@@ -3,7 +3,7 @@
 //! Implements BIP39 standard for generating human-readable backup phrases
 //! that can restore wallet keys.
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use bip39::Mnemonic;
 
 /// Default mnemonic word count (12 words = 128 bits entropy).
@@ -27,11 +27,11 @@ pub fn generate_mnemonic(word_count: usize) -> Result<Mnemonic> {
         24 => 256,
         _ => bail!("Invalid word count: must be 12, 15, 18, 21, or 24"),
     };
-    
+
     let entropy_bytes = entropy_bits / 8;
     let mut entropy = vec![0u8; entropy_bytes];
     getrandom::getrandom(&mut entropy)?;
-    
+
     Mnemonic::from_entropy(&entropy)
         .map_err(|e| anyhow::anyhow!("Failed to generate mnemonic: {:?}", e))
 }
@@ -49,8 +49,7 @@ pub fn mnemonic_to_seed(mnemonic: &Mnemonic, passphrase: Option<&str>) -> [u8; 6
 
 /// Parses a mnemonic phrase from a string.
 pub fn parse_mnemonic(phrase: &str) -> Result<Mnemonic> {
-    Mnemonic::parse(phrase)
-        .map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))
+    Mnemonic::parse(phrase).map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))
 }
 
 /// Validates a mnemonic phrase.
@@ -68,17 +67,17 @@ pub fn seed_to_keypair(_seed: &[u8; 64]) -> Result<crate::wallet::WalletKeypair>
     // 1. Use HMAC-SHA512 with seed to get master key
     // 2. Derive child keys using BIP32 derivation
     // 3. Use derived key material to seed Dilithium key generation
-    
+
     // Simple approach: Hash the seed to get deterministic randomness
     // then use it to generate the keypair
     // TODO: Implement proper BIP32-style derivation
-    
+
     // For now, just generate a new keypair (will be enhanced later)
     let keypair = crate::wallet::WalletKeypair::generate_dilithium3()?;
-    
+
     // Store the seed in the keypair metadata for future use
     // (This is a placeholder - proper implementation coming)
-    
+
     Ok(keypair)
 }
 
@@ -98,7 +97,7 @@ impl MnemonicHelper {
     pub fn generate_with_word_count(word_count: usize) -> Result<Self> {
         let mnemonic = generate_mnemonic(word_count)?;
         let seed = mnemonic_to_seed(&mnemonic, None);
-        
+
         Ok(MnemonicHelper { mnemonic, seed })
     }
 
@@ -106,7 +105,7 @@ impl MnemonicHelper {
     pub fn from_phrase(phrase: &str, passphrase: Option<&str>) -> Result<Self> {
         let mnemonic = parse_mnemonic(phrase)?;
         let seed = mnemonic_to_seed(&mnemonic, passphrase);
-        
+
         Ok(MnemonicHelper { mnemonic, seed })
     }
 
@@ -138,7 +137,7 @@ mod tests {
         let mnemonic = generate_mnemonic(12).unwrap();
         let phrase = mnemonic.to_string();
         let words: Vec<&str> = phrase.split_whitespace().collect();
-        
+
         assert_eq!(words.len(), 12);
     }
 
@@ -147,7 +146,7 @@ mod tests {
         let mnemonic = generate_mnemonic(24).unwrap();
         let phrase = mnemonic.to_string();
         let words: Vec<&str> = phrase.split_whitespace().collect();
-        
+
         assert_eq!(words.len(), 24);
     }
 
@@ -155,10 +154,10 @@ mod tests {
     fn test_mnemonic_roundtrip() {
         let helper = MnemonicHelper::generate().unwrap();
         let phrase = helper.phrase();
-        
+
         // Parse it back
         let restored = MnemonicHelper::from_phrase(&phrase, None).unwrap();
-        
+
         // Should generate same seed
         assert_eq!(helper.seed, restored.seed);
     }
@@ -167,10 +166,10 @@ mod tests {
     fn test_validate_mnemonic() {
         let helper = MnemonicHelper::generate().unwrap();
         let phrase = helper.phrase();
-        
+
         // Valid phrase
         assert!(validate_mnemonic(&phrase));
-        
+
         // Invalid phrases
         assert!(!validate_mnemonic("invalid phrase here"));
         assert!(!validate_mnemonic(""));
@@ -181,11 +180,11 @@ mod tests {
     fn test_passphrase_changes_seed() {
         let helper1 = MnemonicHelper::generate().unwrap();
         let phrase = helper1.phrase();
-        
+
         // Same phrase, no passphrase
         let helper2 = MnemonicHelper::from_phrase(&phrase, None).unwrap();
         assert_eq!(helper1.seed, helper2.seed);
-        
+
         // Same phrase, with passphrase
         let helper3 = MnemonicHelper::from_phrase(&phrase, Some("password123")).unwrap();
         assert_ne!(helper1.seed, helper3.seed);
@@ -195,7 +194,7 @@ mod tests {
     fn test_mnemonic_to_keypair() {
         let helper = MnemonicHelper::generate().unwrap();
         let keypair = helper.to_keypair().unwrap();
-        
+
         // Should generate valid keypair
         assert!(keypair.public_key.len() > 0);
         assert!(keypair.secret_key.len() > 0);
@@ -205,9 +204,9 @@ mod tests {
     fn test_word_list() {
         let helper = MnemonicHelper::generate().unwrap();
         let words = helper.words();
-        
+
         assert_eq!(words.len(), 12);
-        
+
         // All words should be non-empty
         for word in words {
             assert!(!word.is_empty());
@@ -219,7 +218,7 @@ mod tests {
         // Test with a known valid BIP39 phrase
         let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let helper = MnemonicHelper::from_phrase(phrase, None).unwrap();
-        
+
         // Should be valid
         assert_eq!(helper.words().len(), 12);
         assert_eq!(helper.phrase(), phrase);

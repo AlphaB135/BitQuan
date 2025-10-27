@@ -81,31 +81,31 @@ pub struct TxInfo {
 pub trait RpcMethods {
     /// Get current block count
     fn getblockcount(&self) -> Result<u64, RpcError>;
-    
+
     /// Get blockchain info
     fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError>;
-    
+
     /// Get mining info
     fn getmininginfo(&self) -> Result<MiningInfo, RpcError>;
-    
+
     /// Get block template for mining
     fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError>;
-    
+
     /// Get work for mining (simple interface)
     fn getwork(&self) -> Result<WorkData, RpcError>;
-    
+
     /// Submit mined block
     fn submitblock(&self, block_hex: String) -> Result<bool, RpcError>;
-    
+
     /// Submit work (getwork style)
     fn submitwork(&self, data: String) -> Result<bool, RpcError>;
-    
+
     /// Get transaction by txid
     fn gettransaction(&self, txid: String) -> Result<TxInfo, RpcError>;
-    
+
     /// Get best block hash
     fn getbestblockhash(&self) -> Result<String, RpcError>;
-    
+
     /// Get block hash by height
     fn getblockhash(&self, height: u64) -> Result<String, RpcError>;
 }
@@ -122,76 +122,112 @@ pub fn dispatch_call<T: RpcMethods>(
             Ok(count) => JsonRpcResponse::success(id, serde_json::json!(count)),
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
-        
+
         "getblockchaininfo" => match handler.getblockchaininfo() {
             Ok(info) => JsonRpcResponse::success(id, serde_json::to_value(info).unwrap()),
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
-        
+
         "getmininginfo" => match handler.getmininginfo() {
             Ok(info) => JsonRpcResponse::success(id, serde_json::to_value(info).unwrap()),
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
-        
+
         "getblocktemplate" => match handler.getblocktemplate() {
             Ok(template) => JsonRpcResponse::success(id, serde_json::to_value(template).unwrap()),
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
-        
+
         "getwork" => match handler.getwork() {
             Ok(work) => JsonRpcResponse::success(id, serde_json::to_value(work).unwrap()),
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
-        
+
         "submitblock" => {
-            if let Some(block_hex) = params.as_array().and_then(|a| a.first()).and_then(|v| v.as_str()) {
+            if let Some(block_hex) = params
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+            {
                 match handler.submitblock(block_hex.to_string()) {
                     Ok(accepted) => JsonRpcResponse::success(id, serde_json::json!(accepted)),
-                    Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+                    Err(e) => {
+                        JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
+                    }
                 }
             } else {
-                JsonRpcResponse::error(id, error_codes::INVALID_PARAMS, "expected block hex".to_string())
+                JsonRpcResponse::error(
+                    id,
+                    error_codes::INVALID_PARAMS,
+                    "expected block hex".to_string(),
+                )
             }
-        },
-        
+        }
+
         "submitwork" => {
-            if let Some(data) = params.as_array().and_then(|a| a.first()).and_then(|v| v.as_str()) {
+            if let Some(data) = params
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+            {
                 match handler.submitwork(data.to_string()) {
                     Ok(accepted) => JsonRpcResponse::success(id, serde_json::json!(accepted)),
-                    Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+                    Err(e) => {
+                        JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
+                    }
                 }
             } else {
-                JsonRpcResponse::error(id, error_codes::INVALID_PARAMS, "expected work data".to_string())
+                JsonRpcResponse::error(
+                    id,
+                    error_codes::INVALID_PARAMS,
+                    "expected work data".to_string(),
+                )
             }
-        },
-        
+        }
+
         "gettransaction" => {
-            if let Some(txid) = params.as_array().and_then(|a| a.first()).and_then(|v| v.as_str()) {
+            if let Some(txid) = params
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+            {
                 match handler.gettransaction(txid.to_string()) {
                     Ok(tx) => JsonRpcResponse::success(id, serde_json::to_value(tx).unwrap()),
-                    Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+                    Err(e) => {
+                        JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
+                    }
                 }
             } else {
                 JsonRpcResponse::error(id, error_codes::INVALID_PARAMS, "expected txid".to_string())
             }
-        },
-        
+        }
+
         "getbestblockhash" => match handler.getbestblockhash() {
             Ok(hash) => JsonRpcResponse::success(id, serde_json::json!(hash)),
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
-        
+
         "getblockhash" => {
-            if let Some(height) = params.as_array().and_then(|a| a.first()).and_then(|v| v.as_u64()) {
+            if let Some(height) = params
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_u64())
+            {
                 match handler.getblockhash(height) {
                     Ok(hash) => JsonRpcResponse::success(id, serde_json::json!(hash)),
-                    Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+                    Err(e) => {
+                        JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
+                    }
                 }
             } else {
-                JsonRpcResponse::error(id, error_codes::INVALID_PARAMS, "expected height".to_string())
+                JsonRpcResponse::error(
+                    id,
+                    error_codes::INVALID_PARAMS,
+                    "expected height".to_string(),
+                )
             }
-        },
-        
+        }
+
         _ => JsonRpcResponse::error(
             id,
             error_codes::METHOD_NOT_FOUND,
@@ -205,12 +241,12 @@ mod tests {
     use super::*;
 
     struct MockRpc;
-    
+
     impl RpcMethods for MockRpc {
         fn getblockcount(&self) -> Result<u64, RpcError> {
             Ok(12345)
         }
-        
+
         fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError> {
             Ok(BlockchainInfo {
                 chain: "main".to_string(),
@@ -220,7 +256,7 @@ mod tests {
                 chainwork: "0000000000000000".to_string(),
             })
         }
-        
+
         fn getmininginfo(&self) -> Result<MiningInfo, RpcError> {
             Ok(MiningInfo {
                 blocks: 12345,
@@ -228,34 +264,35 @@ mod tests {
                 networkhashps: 1e12,
             })
         }
-        
+
         fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError> {
             Err(RpcError::InternalError("not implemented".to_string()))
         }
-        
+
         fn submitblock(&self, _block_hex: String) -> Result<bool, RpcError> {
             Ok(true)
         }
-        
+
         fn gettransaction(&self, _txid: String) -> Result<TxInfo, RpcError> {
             Err(RpcError::InternalError("not found".to_string()))
         }
-        
+
         fn getbestblockhash(&self) -> Result<String, RpcError> {
             Ok("00000000000000000".to_string())
         }
-        
+
         fn getblockhash(&self, _height: u64) -> Result<String, RpcError> {
             Ok("00000000000000000".to_string())
         }
-        
+
         fn getwork(&self) -> Result<WorkData, RpcError> {
             Ok(WorkData {
                 data: "00000000000000000000000000000000".to_string(),
-                target: "00000000ffff0000000000000000000000000000000000000000000000000000".to_string(),
+                target: "00000000ffff0000000000000000000000000000000000000000000000000000"
+                    .to_string(),
             })
         }
-        
+
         fn submitwork(&self, _data: String) -> Result<bool, RpcError> {
             Ok(true)
         }
@@ -264,7 +301,12 @@ mod tests {
     #[test]
     fn test_dispatch_getblockcount() {
         let handler = MockRpc;
-        let response = dispatch_call(&handler, "getblockcount", serde_json::json!([]), serde_json::json!(1));
+        let response = dispatch_call(
+            &handler,
+            "getblockcount",
+            serde_json::json!([]),
+            serde_json::json!(1),
+        );
         assert!(response.result.is_some());
         assert_eq!(response.result.unwrap(), 12345);
     }
@@ -272,7 +314,12 @@ mod tests {
     #[test]
     fn test_dispatch_unknown_method() {
         let handler = MockRpc;
-        let response = dispatch_call(&handler, "unknownmethod", serde_json::json!([]), serde_json::json!(1));
+        let response = dispatch_call(
+            &handler,
+            "unknownmethod",
+            serde_json::json!([]),
+            serde_json::json!(1),
+        );
         assert!(response.error.is_some());
         assert_eq!(response.error.unwrap().code, error_codes::METHOD_NOT_FOUND);
     }

@@ -1,6 +1,6 @@
 //! UTXO set management and validation.
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use bitquan_types::{Transaction, TxOut};
 use std::collections::HashMap;
 
@@ -112,8 +112,11 @@ impl UtxoSet {
             }
 
             if !self.contains(&input.prev_txid, input.prev_vout) {
-                bail!("Input references non-existent UTXO: {}:{}", 
-                      hex::encode(&input.prev_txid), input.prev_vout);
+                bail!(
+                    "Input references non-existent UTXO: {}:{}",
+                    hex::encode(&input.prev_txid),
+                    input.prev_vout
+                );
             }
 
             self.remove(&input.prev_txid, input.prev_vout);
@@ -144,33 +147,44 @@ impl UtxoSet {
             }
 
             // Get the UTXO
-            let utxo = self.get(&input.prev_txid, input.prev_vout)
-                .ok_or_else(|| anyhow::anyhow!(
-                    "Input references non-existent UTXO: {}:{}", 
-                    hex::encode(&input.prev_txid), input.prev_vout
-                ))?;
+            let utxo = self.get(&input.prev_txid, input.prev_vout).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Input references non-existent UTXO: {}:{}",
+                    hex::encode(&input.prev_txid),
+                    input.prev_vout
+                )
+            })?;
 
             // Check coinbase maturity (100 blocks)
             if utxo.is_coinbase {
                 if height < utxo.height + 100 {
-                    bail!("Coinbase output not mature: created at {}, current {}", 
-                          utxo.height, height);
+                    bail!(
+                        "Coinbase output not mature: created at {}, current {}",
+                        utxo.height,
+                        height
+                    );
                 }
             }
 
-            total_input_value = total_input_value.checked_add(utxo.value())
+            total_input_value = total_input_value
+                .checked_add(utxo.value())
                 .ok_or_else(|| anyhow::anyhow!("Input value overflow"))?;
         }
 
         // Check outputs
         for output in &tx.outputs {
-            total_output_value = total_output_value.checked_add(output.value)
+            total_output_value = total_output_value
+                .checked_add(output.value)
                 .ok_or_else(|| anyhow::anyhow!("Output value overflow"))?;
         }
 
         // Validate fees (inputs >= outputs)
         if total_input_value < total_output_value {
-            bail!("Outputs exceed inputs: {} < {}", total_input_value, total_output_value);
+            bail!(
+                "Outputs exceed inputs: {} < {}",
+                total_input_value,
+                total_output_value
+            );
         }
 
         Ok(())
@@ -191,9 +205,13 @@ impl Default for UtxoSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{TxIn, SigAlgorithm};
+    use bitquan_types::{SigAlgorithm, TxIn};
 
-    fn create_test_tx(prev_txid: [u8; 32], prev_vout: u32, outputs: Vec<(u64, Vec<u8>)>) -> Transaction {
+    fn create_test_tx(
+        prev_txid: [u8; 32],
+        prev_vout: u32,
+        outputs: Vec<(u64, Vec<u8>)>,
+    ) -> Transaction {
         let inputs = vec![TxIn {
             prev_txid,
             prev_vout,
@@ -201,10 +219,13 @@ mod tests {
             sequence: 0xffffffff,
         }];
 
-        let outputs = outputs.into_iter().map(|(value, script)| TxOut {
-            value,
-            script_pubkey: script,
-        }).collect();
+        let outputs = outputs
+            .into_iter()
+            .map(|(value, script)| TxOut {
+                value,
+                script_pubkey: script,
+            })
+            .collect();
 
         Transaction {
             version: 2,
@@ -219,11 +240,14 @@ mod tests {
     #[test]
     fn test_utxo_set_basic() {
         let mut set = UtxoSet::new();
-        
+
         let utxo = Utxo::new(
             [0x01; 32],
             0,
-            TxOut { value: 100, script_pubkey: vec![0x76, 0xa9] },
+            TxOut {
+                value: 100,
+                script_pubkey: vec![0x76, 0xa9],
+            },
             1,
             false,
         );
@@ -236,8 +260,17 @@ mod tests {
     #[test]
     fn test_utxo_set_remove() {
         let mut set = UtxoSet::new();
-        
-        let utxo = Utxo::new([0x01; 32], 0, TxOut { value: 100, script_pubkey: vec![] }, 1, false);
+
+        let utxo = Utxo::new(
+            [0x01; 32],
+            0,
+            TxOut {
+                value: 100,
+                script_pubkey: vec![],
+            },
+            1,
+            false,
+        );
         set.add(utxo);
 
         let removed = set.remove(&[0x01; 32], 0);
@@ -250,17 +283,26 @@ mod tests {
         let mut set = UtxoSet::new();
 
         // Add initial UTXO
-        let utxo = Utxo::new([0x01; 32], 0, TxOut { value: 100, script_pubkey: vec![] }, 1, false);
+        let utxo = Utxo::new(
+            [0x01; 32],
+            0,
+            TxOut {
+                value: 100,
+                script_pubkey: vec![],
+            },
+            1,
+            false,
+        );
         set.add(utxo);
 
         // Create transaction spending it
         let tx = create_test_tx([0x01; 32], 0, vec![(50, vec![0x00]), (40, vec![0x01])]);
-        
+
         set.apply_transaction(&tx, 2).unwrap();
 
         // Original UTXO should be removed
         assert!(!set.contains(&[0x01; 32], 0));
-        
+
         // New UTXOs should be added
         let txid = tx.txid();
         assert!(set.contains(&txid, 0));
@@ -273,7 +315,16 @@ mod tests {
         let mut set = UtxoSet::new();
 
         // Add UTXO
-        let utxo = Utxo::new([0x01; 32], 0, TxOut { value: 100, script_pubkey: vec![] }, 1, false);
+        let utxo = Utxo::new(
+            [0x01; 32],
+            0,
+            TxOut {
+                value: 100,
+                script_pubkey: vec![],
+            },
+            1,
+            false,
+        );
         set.add(utxo);
 
         // Valid transaction
@@ -290,7 +341,16 @@ mod tests {
         let mut set = UtxoSet::new();
 
         // Add coinbase UTXO at height 1
-        let utxo = Utxo::new([0x01; 32], 0, TxOut { value: 5000000000, script_pubkey: vec![] }, 1, true);
+        let utxo = Utxo::new(
+            [0x01; 32],
+            0,
+            TxOut {
+                value: 5000000000,
+                script_pubkey: vec![],
+            },
+            1,
+            true,
+        );
         set.add(utxo);
 
         let tx = create_test_tx([0x01; 32], 0, vec![(4000000000, vec![0x00])]);
@@ -307,9 +367,36 @@ mod tests {
         let mut set = UtxoSet::new();
         let script = vec![0x76, 0xa9];
 
-        let utxo1 = Utxo::new([0x01; 32], 0, TxOut { value: 100, script_pubkey: script.clone() }, 1, false);
-        let utxo2 = Utxo::new([0x02; 32], 0, TxOut { value: 200, script_pubkey: script.clone() }, 2, false);
-        let utxo3 = Utxo::new([0x03; 32], 0, TxOut { value: 50, script_pubkey: vec![0x00] }, 3, false);
+        let utxo1 = Utxo::new(
+            [0x01; 32],
+            0,
+            TxOut {
+                value: 100,
+                script_pubkey: script.clone(),
+            },
+            1,
+            false,
+        );
+        let utxo2 = Utxo::new(
+            [0x02; 32],
+            0,
+            TxOut {
+                value: 200,
+                script_pubkey: script.clone(),
+            },
+            2,
+            false,
+        );
+        let utxo3 = Utxo::new(
+            [0x03; 32],
+            0,
+            TxOut {
+                value: 50,
+                script_pubkey: vec![0x00],
+            },
+            3,
+            false,
+        );
 
         set.add(utxo1);
         set.add(utxo2);

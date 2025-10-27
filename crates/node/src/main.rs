@@ -1,27 +1,29 @@
 //! BitQuan reference node entrypoint.
 
-mod wallet;
+mod address;
 mod keystore;
 mod mnemonic;
-mod address;
 mod tx_builder;
 mod utxo;
+mod wallet;
 
 use anyhow::Result;
-use bitquan_consensus::{check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState};
-use bitquan_storage::{ChainStore, InMemoryChainStore};
+use bitquan_consensus::{
+    check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState,
+};
+use bitquan_network::io::{recv_envelope, send_envelope};
+use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
-use bitquan_types::{Block, Transaction, TxIn, TxOut, SigAlgorithm};
+use bitquan_storage::{ChainStore, InMemoryChainStore};
+use bitquan_types::{Block, SigAlgorithm, Transaction, TxIn, TxOut};
 use bq_crypto::{
     rng::{RandomSource, RngService},
     CryptoRegistry,
 };
-use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
-use bitquan_network::io::{recv_envelope, send_envelope};
 use clap::{Parser, Subcommand};
 use hex::encode as hex_encode;
-use std::net::{TcpListener, TcpStream, SocketAddr};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 use std::time::Duration;
 
@@ -223,22 +225,60 @@ fn main() -> Result<()> {
         Commands::MineGenesis { max_tries, output } => mine_genesis(max_tries, &output),
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
-        Commands::MineOnce { max_tries, payout_script_hex, bits } => mine_once(max_tries, &payout_script_hex, bits),
-        Commands::Mine { datadir, payout_script_hex, bits, max_nonce, threads } => {
-            mine_continuous(&datadir, &payout_script_hex, bits, max_nonce, threads)
-        },
-        Commands::WalletGen { algo, output, password } => wallet_gen(&algo, output.as_deref(), password.as_deref()),
-        Commands::WalletAddress { keystore, password } => wallet_address(&keystore, password.as_deref()),
-        Commands::WalletSign { keystore, message, password } => wallet_sign(&keystore, &message, password.as_deref()),
-        Commands::WalletVerify { pubkey, message, signature } => wallet_verify(&pubkey, &message, &signature),
-        Commands::WalletSend { keystore, to, amount, fee_rate, password } => {
-            wallet_send(&keystore, &to, amount, fee_rate, password.as_deref())
-        },
-        Commands::BuildTx { prev_txid, prev_vout, value, to_script_hex } => build_tx(&prev_txid, prev_vout, value, &to_script_hex),
+        Commands::MineOnce {
+            max_tries,
+            payout_script_hex,
+            bits,
+        } => mine_once(max_tries, &payout_script_hex, bits),
+        Commands::Mine {
+            datadir,
+            payout_script_hex,
+            bits,
+            max_nonce,
+            threads,
+        } => mine_continuous(&datadir, &payout_script_hex, bits, max_nonce, threads),
+        Commands::WalletGen {
+            algo,
+            output,
+            password,
+        } => wallet_gen(&algo, output.as_deref(), password.as_deref()),
+        Commands::WalletAddress { keystore, password } => {
+            wallet_address(&keystore, password.as_deref())
+        }
+        Commands::WalletSign {
+            keystore,
+            message,
+            password,
+        } => wallet_sign(&keystore, &message, password.as_deref()),
+        Commands::WalletVerify {
+            pubkey,
+            message,
+            signature,
+        } => wallet_verify(&pubkey, &message, &signature),
+        Commands::WalletSend {
+            keystore,
+            to,
+            amount,
+            fee_rate,
+            password,
+        } => wallet_send(&keystore, &to, amount, fee_rate, password.as_deref()),
+        Commands::BuildTx {
+            prev_txid,
+            prev_vout,
+            value,
+            to_script_hex,
+        } => build_tx(&prev_txid, prev_vout, value, &to_script_hex),
         Commands::P2PDemo { addr } => p2p_demo(&addr),
-        Commands::P2PServer { listen, max_peers, datadir } => p2p_server(&listen, max_peers, &datadir),
+        Commands::P2PServer {
+            listen,
+            max_peers,
+            datadir,
+        } => p2p_server(&listen, max_peers, &datadir),
         Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
-        Commands::Balance { datadir, script_hex } => check_balance(&datadir, script_hex.as_deref()),
+        Commands::Balance {
+            datadir,
+            script_hex,
+        } => check_balance(&datadir, script_hex.as_deref()),
     }
 }
 
@@ -291,7 +331,11 @@ fn handle_peer(stream: TcpStream) -> Result<()> {
         _ => {
             write_envelope(
                 &stream,
-                &MessageEnvelope::new(Message::Reject { message: "expected version".into(), code: bitquan_network::protocol::RejectCode::Malformed, reason: "handshake".into() })
+                &MessageEnvelope::new(Message::Reject {
+                    message: "expected version".into(),
+                    code: bitquan_network::protocol::RejectCode::Malformed,
+                    reason: "handshake".into(),
+                }),
             )?;
             return Ok(());
         }
@@ -301,8 +345,13 @@ fn handle_peer(stream: TcpStream) -> Result<()> {
     loop {
         let msg = read_envelope(&stream)?;
         match msg.message {
-            Message::Ping { nonce } => write_envelope(&stream, &MessageEnvelope::new(Message::Pong { nonce }))?,
-            Message::GetAddr => write_envelope(&stream, &MessageEnvelope::new(Message::Addr { addrs: vec![] }))?,
+            Message::Ping { nonce } => {
+                write_envelope(&stream, &MessageEnvelope::new(Message::Pong { nonce }))?
+            }
+            Message::GetAddr => write_envelope(
+                &stream,
+                &MessageEnvelope::new(Message::Addr { addrs: vec![] }),
+            )?,
             _ => {}
         }
     }
@@ -310,10 +359,10 @@ fn handle_peer(stream: TcpStream) -> Result<()> {
 
 /// Mine the genesis block
 fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
-    use bitquan_types::{create_genesis_block, is_valid_genesis, GENESIS_TIME, GENESIS_BITS};
+    use bitquan_types::{create_genesis_block, is_valid_genesis, GENESIS_BITS, GENESIS_TIME};
     use std::fs;
     use std::time::Instant;
-    
+
     println!("╔══════════════════════════════════════════════════╗");
     println!("║      BitQuan Genesis Block Miner                ║");
     println!("╚══════════════════════════════════════════════════╝");
@@ -324,29 +373,29 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
     println!("  Max tries:  {}", max_tries);
     println!("  Output:     {}", output);
     println!();
-    
+
     // Create genesis block template
     let mut genesis = create_genesis_block();
-    
+
     println!("Genesis Message:");
     let msg = &genesis.transactions[0].inputs[0].script_sig;
     println!("  {}", String::from_utf8_lossy(msg));
     println!();
-    
+
     println!("🔨 Mining genesis block...");
     println!();
-    
+
     let start_time = Instant::now();
     let mut found = false;
-    
+
     for nonce in 0..max_tries {
         genesis.header.nonce = nonce;
-        
+
         if check_header_pow(&genesis.header) {
             let hash = header_hash(&genesis.header);
             let elapsed = start_time.elapsed();
             let hashrate = (nonce as f64) / elapsed.as_secs_f64();
-            
+
             println!("✅ GENESIS BLOCK FOUND!");
             println!();
             println!("Nonce:      {}", nonce);
@@ -354,14 +403,14 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             println!("Time:       {:.2}s", elapsed.as_secs_f64());
             println!("Hashrate:   {:.2} H/s", hashrate);
             println!();
-            
+
             // Validate genesis
             assert!(is_valid_genesis(&genesis), "Invalid genesis block");
-            
+
             // Save to JSON
             let json = serde_json::to_string_pretty(&genesis)?;
             fs::write(output, json)?;
-            
+
             println!("💾 Genesis block saved to: {}", output);
             println!();
             println!("Next steps:");
@@ -369,25 +418,32 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             println!("  2. Commit genesis block to repository");
             println!("  3. Use this block to initialize blockchain");
             println!();
-            
+
             found = true;
             break;
         }
-        
+
         if nonce % 100_000 == 0 && nonce > 0 {
             let elapsed = start_time.elapsed().as_secs_f64();
             let hashrate = (nonce as f64) / elapsed;
             let hash = header_hash(&genesis.header);
-            println!("  ... {} attempts ({:.2} H/s) | Hash: {}",
-                nonce, hashrate, &hex_encode(&hash)[..16]);
+            println!(
+                "  ... {} attempts ({:.2} H/s) | Hash: {}",
+                nonce,
+                hashrate,
+                &hex_encode(&hash)[..16]
+            );
         }
     }
-    
+
     if !found {
-        println!("❌ Failed to find valid genesis block in {} attempts", max_tries);
+        println!(
+            "❌ Failed to find valid genesis block in {} attempts",
+            max_tries
+        );
         println!("Try increasing --max-tries or adjusting difficulty");
     }
-    
+
     Ok(())
 }
 
@@ -459,7 +515,7 @@ fn load_block_placeholder() -> Result<Block> {
 }
 
 fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<()> {
-    use bitquan_types::{Block, BlockHeader, Transaction, TxOut, SigAlgorithm};
+    use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
     let mut store = InMemoryChainStore::new();
 
     // Determine timestamp safely with bounds checking
@@ -467,12 +523,12 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as u32)
         .unwrap_or(0);
-    
+
     if now == 0 {
         eprintln!("Error: System time is before UNIX epoch");
         return Ok(());
     }
-    
+
     let mut time = now;
     if let Some(mtp) = store.mtp() {
         time = time.max(mtp.saturating_add(1));
@@ -492,12 +548,17 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         sequence: u32::MAX,
         script_sig,
     };
-    let subsidy = bitquan_consensus::ConsensusParams::phase3_defaults().reward_schedule.subsidy_at_height(store.height());
+    let subsidy = bitquan_consensus::ConsensusParams::phase3_defaults()
+        .reward_schedule
+        .subsidy_at_height(store.height());
     let coinbase = Transaction {
         version: 2,
         lock_time: 0,
         inputs: vec![coinbase_in],
-        outputs: vec![TxOut { value: subsidy, script_pubkey: payout_script }],
+        outputs: vec![TxOut {
+            value: subsidy,
+            script_pubkey: payout_script,
+        }],
         sig_algo: SigAlgorithm::Dilithium3,
         witnesses: vec![],
     };
@@ -515,7 +576,11 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
     // Auto-calc bits if zero using DifficultyState anchored at tip
     if bits == 0 {
         let params = ConsensusParams::phase3_defaults();
-        let (anchor_bits, anchor_time) = if let Ok(Some(tip)) = store.tip() { (tip.bits, tip.time as u64) } else { (0x207fffff, now as u64) };
+        let (anchor_bits, anchor_time) = if let Ok(Some(tip)) = store.tip() {
+            (tip.bits, tip.time as u64)
+        } else {
+            (0x207fffff, now as u64)
+        };
         let mut state = DifficultyState::new(0, anchor_time, anchor_bits);
         bits = state.update(1, time as u64, &params);
     }
@@ -535,7 +600,10 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         if check_header_pow(&header) {
             let id = header_hash(&header);
             println!("FOUND nonce={n} hash={}", hex::encode(id));
-            let block = Block { header: header.clone(), transactions: vec![coinbase] };
+            let block = Block {
+                header: header.clone(),
+                transactions: vec![coinbase],
+            };
             let _ = store.insert_block(block);
             println!("Inserted block tip={}", hex::encode(id));
             return Ok(());
@@ -551,41 +619,54 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
 
 /// Continuous mining with persistent RocksDB storage
 #[cfg(feature = "rocksdb-backend")]
-fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_nonce: u64, threads: usize) -> Result<()> {
-    use std::sync::{Arc, Mutex};
+fn mine_continuous(
+    datadir: &str,
+    payout_script_hex: &str,
+    mut bits: u32,
+    max_nonce: u64,
+    threads: usize,
+) -> Result<()> {
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    
+    use std::sync::{Arc, Mutex};
+
     println!("BitQuan Continuous Miner");
     println!("Data directory: {}", datadir);
-    println!("Threads: {}", if threads == 0 { num_cpus::get() } else { threads });
-    
+    println!(
+        "Threads: {}",
+        if threads == 0 {
+            num_cpus::get()
+        } else {
+            threads
+        }
+    );
+
     // Open or create RocksDB store
     let store = RocksDBStore::open(datadir)?;
     let store = Arc::new(Mutex::new(store));
-    
+
     let payout_script = hex::decode(payout_script_hex)?;
     let found = Arc::new(AtomicBool::new(false));
     let blocks_mined = Arc::new(AtomicU64::new(0));
-    
+
     loop {
         let height = {
             let s = store.lock().unwrap();
             s.height()?
         };
-        
+
         println!("\n[Block #{}] Mining...", height + 1);
-        
+
         // Get current time
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as u32)
             .unwrap_or(0);
-        
+
         if now == 0 {
             eprintln!("ERROR: System time is before UNIX epoch");
             return Ok(());
         }
-        
+
         let mut time = now;
         {
             let s = store.lock().unwrap();
@@ -593,20 +674,22 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
                 time = time.max(tip.time.saturating_add(1));
             }
         }
-        
+
         // Build coinbase
         let height_le = ((height + 1) as u32).to_le_bytes();
         let mut script_sig = height_le.to_vec();
         script_sig.extend_from_slice(&time.to_le_bytes());
-        
+
         let coinbase_in = TxIn {
             prev_txid: [0u8; 32],
             prev_vout: u32::MAX,
             sequence: u32::MAX,
             script_sig,
         };
-        
-        let subsidy = ConsensusParams::phase3_defaults().reward_schedule.subsidy_at_height(height);
+
+        let subsidy = ConsensusParams::phase3_defaults()
+            .reward_schedule
+            .subsidy_at_height(height);
         let coinbase = Transaction {
             version: 2,
             lock_time: 0,
@@ -618,10 +701,10 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             witnesses: vec![],
             sig_algo: SigAlgorithm::Dilithium3,
         };
-        
+
         let merkle_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.txid()]);
         let witness_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.wtxid()]);
-        
+
         // Determine prev_block
         let mut prev = [0u8; 32];
         {
@@ -630,7 +713,7 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
                 prev = header_hash(&tip);
             }
         }
-        
+
         // Auto-calc bits if zero
         if bits == 0 {
             let params = ConsensusParams::phase3_defaults();
@@ -644,7 +727,7 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             let mut state = DifficultyState::new(0, anchor_time, anchor_bits);
             bits = state.update(1, time as u64, &params);
         }
-        
+
         let mut header = bitquan_types::BlockHeader {
             version: 1,
             prev_block: prev,
@@ -654,61 +737,78 @@ fn mine_continuous(datadir: &str, payout_script_hex: &str, mut bits: u32, max_no
             bits,
             nonce: 0,
         };
-        
+
         println!("Mining block #{} ...", height + 1);
         println!("Target bits: 0x{:08x}", bits);
         println!("Block reward: {} qbits", subsidy);
-        
+
         // Mining loop
         found.store(false, Ordering::Relaxed);
         let start_time = std::time::Instant::now();
-        
+
         for n in 0..max_nonce {
             header.nonce = n;
             if check_header_pow(&header) {
                 let id = header_hash(&header);
                 let elapsed = start_time.elapsed();
                 let hashrate = (n as f64) / elapsed.as_secs_f64();
-                
+
                 println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
                 println!("Hash: {}", hex::encode(id));
-                println!("Time: {:.2}s | Hashrate: {:.2} H/s", elapsed.as_secs_f64(), hashrate);
-                
+                println!(
+                    "Time: {:.2}s | Hashrate: {:.2} H/s",
+                    elapsed.as_secs_f64(),
+                    hashrate
+                );
+
                 let block = Block {
                     header: header.clone(),
                     transactions: vec![coinbase.clone()],
                 };
-                
+
                 {
                     let mut s = store.lock().unwrap();
                     s.insert_block(block)?;
                 }
-                
+
                 blocks_mined.fetch_add(1, Ordering::Relaxed);
                 let total = blocks_mined.load(Ordering::Relaxed);
                 println!("Saved to DB | Session total: {}", total);
                 found.store(true, Ordering::Relaxed);
                 break;
             }
-            
+
             if n % 100_000 == 0 && n > 0 {
                 let elapsed = start_time.elapsed().as_secs_f64();
                 let hashrate = (n as f64) / elapsed;
                 let current_hash = header_hash(&header);
-                println!("... tried {} nonces ({:.2} H/s), latest hash={}", 
-                    n, hashrate, hex::encode(current_hash));
+                println!(
+                    "... tried {} nonces ({:.2} H/s), latest hash={}",
+                    n,
+                    hashrate,
+                    hex::encode(current_hash)
+                );
             }
         }
-        
+
         if !found.load(Ordering::Relaxed) {
-            println!("\nNo valid nonce in {} tries, adjusting difficulty...", max_nonce);
+            println!(
+                "\nNo valid nonce in {} tries, adjusting difficulty...",
+                max_nonce
+            );
             bits = (bits & 0x00ffffff) | ((((bits >> 24) + 1) & 0xff) << 24); // Easier
         }
     }
 }
 
 #[cfg(not(feature = "rocksdb-backend"))]
-fn mine_continuous(_datadir: &str, _payout_script_hex: &str, _bits: u32, _max_nonce: u64, _threads: usize) -> Result<()> {
+fn mine_continuous(
+    _datadir: &str,
+    _payout_script_hex: &str,
+    _bits: u32,
+    _max_nonce: u64,
+    _threads: usize,
+) -> Result<()> {
     eprintln!("ERROR: Continuous mining requires 'rocksdb-backend' feature");
     eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
@@ -716,8 +816,8 @@ fn mine_continuous(_datadir: &str, _payout_script_hex: &str, _bits: u32, _max_no
 
 /// Generate a wallet keypair with encrypted storage
 fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> Result<()> {
-    use wallet::{WalletKeypair, address};
     use std::path::Path;
+    use wallet::{address, WalletKeypair};
 
     println!("BitQuan Wallet Generator");
     println!("Algorithm: {}", algo);
@@ -733,7 +833,7 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     let address_str = address::encode(&pubkey_hash);
 
     use pqc_dilithium::{PUBLICKEYBYTES, SECRETKEYBYTES};
-    
+
     println!("\n✅ Keypair generated successfully!");
     println!("\n📍 Address: {}", address_str);
     println!("🔑 Public key hash: {}", hex::encode(pubkey_hash));
@@ -759,7 +859,7 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
 
     // Encrypt and save
     let keystore_file = keystore::encrypt_keypair(&json, &password)?;
-    
+
     let path = output_path.unwrap_or("wallet.keystore");
     keystore::save_keystore(&keystore_file, Path::new(path))?;
 
@@ -806,8 +906,8 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
 
 /// Sign a message with encrypted wallet keypair
 fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -> Result<()> {
-    use wallet::WalletKeypair;
     use std::path::Path;
+    use wallet::WalletKeypair;
 
     println!("BitQuan Wallet Sign");
     println!("Keystore: {}", keystore_path);
@@ -831,11 +931,11 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
     println!("\n⏳ Decrypting keystore...");
     let json = keystore::decrypt_keypair(&keystore_file, &password)?;
     let data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
-    
+
     println!("✅ Keystore decrypted!");
     println!("📍 Address: {}", data.address);
     println!("🔑 Public key hash: {}", data.public_key_hash);
-    
+
     println!("\n⚠️  Note: Signing with persisted keys not yet fully supported");
     println!("   pqc_dilithium 0.2 doesn't expose keypair serialization");
     println!("   Use a session-based keypair (wallet-gen without saving) for signing");
@@ -847,20 +947,20 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
 /// Helper to read password from stdin securely
 fn read_password_from_stdin() -> Result<String> {
     use std::io::{self, Write};
-    
+
     print!("Password: ");
     io::stdout().flush()?;
-    
+
     let mut password = String::new();
     io::stdin().read_line(&mut password)?;
-    
+
     // Trim newline
     Ok(password.trim().to_string())
 }
 
 /// Verify a signature
 fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Result<()> {
-    use wallet::{WalletPublicKey, WalletAlgorithm};
+    use wallet::{WalletAlgorithm, WalletPublicKey};
 
     println!("BitQuan Wallet Verify");
 
@@ -888,14 +988,24 @@ fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Re
     }
 }
 
-fn wallet_send(keystore_path: &str, to_address: &str, amount: u64, fee_rate: u64, password: Option<&str>) -> Result<()> {
-    use wallet::WalletKeypair;
-    use tx_builder::{TransactionBuilder, compute_sighash};
+fn wallet_send(
+    keystore_path: &str,
+    to_address: &str,
+    amount: u64,
+    fee_rate: u64,
+    password: Option<&str>,
+) -> Result<()> {
     use std::path::Path;
+    use tx_builder::{compute_sighash, TransactionBuilder};
+    use wallet::WalletKeypair;
 
     println!("BitQuan Wallet Send");
     println!("To: {}", to_address);
-    println!("Amount: {} qbits ({:.8} BQ)", amount, amount as f64 / 100_000_000.0);
+    println!(
+        "Amount: {} qbits ({:.8} BQ)",
+        amount,
+        amount as f64 / 100_000_000.0
+    );
     println!("Fee rate: {} qbits/WU", fee_rate);
     println!("");
 
@@ -915,7 +1025,7 @@ fn wallet_send(keystore_path: &str, to_address: &str, amount: u64, fee_rate: u64
     println!("Decrypting keystore...");
     let json = keystore::decrypt_keypair(&keystore_file, &password)?;
     let _data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
-    
+
     println!("");
     println!("Note: Full transaction sending not yet implemented");
     println!("Missing components:");
@@ -931,7 +1041,7 @@ fn wallet_send(keystore_path: &str, to_address: &str, amount: u64, fee_rate: u64
     println!("  1. Get UTXOs: cargo run -- balance --datadir ./data/chainstate");
     println!("  2. Build tx: cargo run -- build-tx --prev-txid <txid> --prev-vout 0 --value <amount> --to-script-hex <script>");
     println!("  3. Sign manually with wallet-sign");
-    
+
     Ok(())
 }
 
@@ -945,9 +1055,24 @@ fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str
     prev.copy_from_slice(&prev_vec);
     let script_pubkey = hex::decode(to_script_hex)?;
 
-    let input = TxIn { prev_txid: prev, prev_vout, sequence: u32::MAX, script_sig: Vec::new() };
-    let output = TxOut { value, script_pubkey };
-    let tx = Transaction { version: 2, lock_time: 0, inputs: vec![input], outputs: vec![output], sig_algo: SigAlgorithm::Dilithium3, witnesses: vec![] };
+    let input = TxIn {
+        prev_txid: prev,
+        prev_vout,
+        sequence: u32::MAX,
+        script_sig: Vec::new(),
+    };
+    let output = TxOut {
+        value,
+        script_pubkey,
+    };
+    let tx = Transaction {
+        version: 2,
+        lock_time: 0,
+        inputs: vec![input],
+        outputs: vec![output],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses: vec![],
+    };
 
     let json = serde_json::to_string_pretty(&tx)?;
     println!("{json}");
@@ -1010,7 +1135,11 @@ fn p2p_demo(addr: &str) -> Result<()> {
     let nonce = 42u64;
     write_envelope(&client, &MessageEnvelope::new(Message::Ping { nonce }))?;
     let pong = read_envelope(&client)?;
-    if let Message::Pong { nonce: n } = pong.message { println!("P2P demo OK (nonce={n})"); } else { println!("P2P demo failed"); }
+    if let Message::Pong { nonce: n } = pong.message {
+        println!("P2P demo OK (nonce={n})");
+    } else {
+        println!("P2P demo failed");
+    }
 
     // Wait server
     let _ = server.join().unwrap_or(Ok(()));
@@ -1019,8 +1148,8 @@ fn p2p_demo(addr: &str) -> Result<()> {
 
 /// P2P Server that accepts incoming connections
 fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
-    use bitquan_network::{PeerManager, P2PListener};
-    use bitquan_network::protocol::{Message, InvVector, InvType};
+    use bitquan_network::protocol::{InvType, InvVector, Message};
+    use bitquan_network::{P2PListener, PeerManager};
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -1028,7 +1157,7 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
     println!("Listen: {}", listen);
     println!("Max peers: {}", max_peers);
     println!("Data dir: {}", datadir);
-    
+
     // Load current height from storage
     #[cfg(feature = "rocksdb-backend")]
     let (height, store) = {
@@ -1037,20 +1166,27 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
         let h = store.height().unwrap_or(0);
         (h, Some(Arc::new(Mutex::new(store))))
     };
-    
+
     #[cfg(not(feature = "rocksdb-backend"))]
     let (height, store) = (0u64, None);
-    
+
     println!("Current height: {}", height);
-    println!("Storage: {}", if store.is_some() { "RocksDB" } else { "In-Memory" });
+    println!(
+        "Storage: {}",
+        if store.is_some() {
+            "RocksDB"
+        } else {
+            "In-Memory"
+        }
+    );
 
     // Create relay manager
     use bitquan_network::RelayManager;
     let relay_manager = Arc::new(RelayManager::new(10000));
-    
+
     let peer_manager = Arc::new(PeerManager::with_relay(max_peers, relay_manager.clone()));
     peer_manager.update_height(height);
-    
+
     let listener = P2PListener::bind(listen, peer_manager.clone())?;
     println!("Server started at {}", listener.local_addr()?);
     println!("Waiting for connections...");
@@ -1067,7 +1203,7 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
             if let Ok(Some(tip)) = store_locked.tip() {
                 let tip_hash = header_hash(&tip);
                 drop(store_locked);
-                
+
                 println!("");
                 println!("Tip: Use 'mine' command to mine blocks");
                 println!("Current tip: {}", hex_encode(&tip_hash));
@@ -1082,23 +1218,23 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
                 let count = peer_manager.peer_count();
                 let ready = peer_manager.ready_peer_count();
                 println!("Peer connected! Total: {}, Ready: {}", count, ready);
-                
+
                 // Send inv for our tip block to new peer
                 if let Some(s) = &store {
                     if height > 0 {
                         use bitquan_consensus::header_hash;
                         use bitquan_network::create_block_inv;
-                        
+
                         let store_locked = s.lock().unwrap();
                         if let Ok(Some(tip)) = store_locked.tip() {
                             let tip_hash = header_hash(&tip);
                             drop(store_locked);
-                            
+
                             let inv = bitquan_network::protocol::InvVector {
                                 inv_type: bitquan_network::protocol::InvType::Block,
                                 hash: tip_hash,
                             };
-                            
+
                             if let Ok(sent) = peer_manager.broadcast_inv(inv) {
                                 println!("Announced tip block to {} peers", sent);
                             }
@@ -1110,11 +1246,11 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
                 eprintln!("Accept error: {}", e);
             }
         }
-        
+
         // Cleanup dead peers and old relay data
         peer_manager.cleanup_peers();
         relay_manager.cleanup();
-        
+
         thread::sleep(Duration::from_millis(100));
     }
 }
@@ -1130,21 +1266,21 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
 
     let peer_manager = Arc::new(PeerManager::new(1));
     peer_manager.update_height(height);
-    
+
     let addr: SocketAddr = peer.parse()?;
-    
+
     println!("⏳ Connecting...");
     match peer_manager.connect_peer(addr) {
         Ok(()) => {
             println!("✅ Connected and handshake complete!");
             println!("Ready peers: {}", peer_manager.ready_peer_count());
-            
+
             // Keep connection alive for a bit
             for i in 1..=5 {
                 thread::sleep(Duration::from_secs(1));
                 println!("Connection alive... {}/5", i);
             }
-            
+
             println!("✅ Test complete");
             Ok(())
         }
@@ -1159,22 +1295,22 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
 #[cfg(feature = "rocksdb-backend")]
 fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
     use bitquan_storage::rocksdb_store::RocksDBStore;
-    
+
     let store = RocksDBStore::open(datadir)?;
     let height = store.height()?;
-    
+
     println!("\n=== BitQuan Balance ===");
     println!("Chain height: {}", height);
-    
+
     if let Some(script) = script_hex {
         let target_script = hex::decode(script)?;
-        
+
         println!("Script: {}", script);
         println!("\nScanning blockchain for UTXOs...");
-        
+
         let mut balance: u64 = 0;
         let mut utxo_count = 0;
-        
+
         // Scan all blocks (simple implementation)
         for h in 0..=height {
             if let Ok(Some(block)) = store.get_block_by_height(h) {
@@ -1184,23 +1320,28 @@ fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
                             // Check if spent (simplified - should check UTXO set)
                             balance += output.value;
                             utxo_count += 1;
-                            println!("  Block #{} TX {} vout={} amount={}", 
-                                h, hex::encode(tx.txid()), vout, output.value);
+                            println!(
+                                "  Block #{} TX {} vout={} amount={}",
+                                h,
+                                hex::encode(tx.txid()),
+                                vout,
+                                output.value
+                            );
                         }
                     }
                 }
             }
         }
-        
+
         println!("\nUTXO count: {}", utxo_count);
         println!("Balance: {} qbits", balance);
         println!("Balance: {:.8} BQ", balance as f64 / 100_000_000.0);
     } else {
         // Show total supply
         println!("\nTotal supply calculation:");
-        
+
         let mut total_supply: u64 = 0;
-        
+
         for h in 0..=height {
             if let Ok(Some(block)) = store.get_block_by_height(h) {
                 for tx in &block.transactions {
@@ -1210,12 +1351,15 @@ fn check_balance(datadir: &str, script_hex: Option<&str>) -> Result<()> {
                 }
             }
         }
-        
+
         println!("Total coins mined: {} qbits", total_supply);
-        println!("Total coins mined: {:.8} BQ", total_supply as f64 / 100_000_000.0);
+        println!(
+            "Total coins mined: {:.8} BQ",
+            total_supply as f64 / 100_000_000.0
+        );
         println!("\nBlocks mined: {}", height + 1);
     }
-    
+
     Ok(())
 }
 

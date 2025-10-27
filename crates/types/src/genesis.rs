@@ -1,6 +1,6 @@
 //! Genesis block constants and utilities for BitQuan blockchain.
 
-use crate::{Block, BlockHeader, Transaction, TxIn, TxOut, SigAlgorithm};
+use crate::{Block, BlockHeader, SigAlgorithm, Transaction, TxIn, TxOut};
 use sha2::{Digest, Sha256};
 
 /// Genesis block timestamp (Unix epoch)
@@ -14,7 +14,8 @@ pub const GENESIS_BITS: u32 = 0x207fffff;
 pub const GENESIS_VERSION: i32 = 1;
 
 /// Genesis coinbase message
-pub const GENESIS_MESSAGE: &[u8] = b"The Quantum Age Begins - 26 Oct 2025. Ownerless. Verifiable. For everyone.";
+pub const GENESIS_MESSAGE: &[u8] =
+    b"The Quantum Age Begins - 26 Oct 2025. Ownerless. Verifiable. For everyone.";
 
 /// Genesis block reward (50 BQ)
 pub const GENESIS_REWARD: u64 = 5_000_000_000; // 50 BQ in qbits
@@ -82,7 +83,7 @@ fn compute_merkle_root(txids: &[[u8; 32]]) -> [u8; 32] {
     let mut level = txids.to_vec();
     while level.len() > 1 {
         let mut next_level = Vec::new();
-        
+
         for chunk in level.chunks(2) {
             let hash = if chunk.len() == 2 {
                 // Hash pair
@@ -105,7 +106,7 @@ fn compute_merkle_root(txids: &[[u8; 32]]) -> [u8; 32] {
             };
             next_level.push(hash);
         }
-        
+
         level = next_level;
     }
 
@@ -115,7 +116,7 @@ fn compute_merkle_root(txids: &[[u8; 32]]) -> [u8; 32] {
 /// Validates that a block is the correct genesis block
 pub fn is_valid_genesis(block: &Block) -> bool {
     let genesis = create_genesis_block();
-    
+
     // Compare all fields except nonce (which varies)
     block.header.version == genesis.header.version
         && block.header.prev_block == genesis.header.prev_block
@@ -141,7 +142,7 @@ mod tests {
     #[test]
     fn test_genesis_block_creation() {
         let genesis = create_genesis_block();
-        
+
         assert_eq!(genesis.header.version, GENESIS_VERSION);
         assert_eq!(genesis.header.time, GENESIS_TIME);
         assert_eq!(genesis.header.bits, GENESIS_BITS);
@@ -153,7 +154,7 @@ mod tests {
     fn test_genesis_coinbase() {
         let genesis = create_genesis_block();
         let coinbase = &genesis.transactions[0];
-        
+
         assert_eq!(coinbase.inputs.len(), 1);
         assert_eq!(coinbase.outputs.len(), 1);
         assert_eq!(coinbase.outputs[0].value, GENESIS_REWARD);
@@ -178,7 +179,7 @@ mod tests {
         let txid1 = [0x01u8; 32];
         let txid2 = [0x02u8; 32];
         let root = compute_merkle_root(&[txid1, txid2]);
-        
+
         // Should be SHA256(SHA256(txid1 || txid2))
         assert_ne!(root, [0u8; 32]);
         assert_ne!(root, txid1);

@@ -32,13 +32,13 @@ impl RelayManager {
     /// Records an inventory announcement
     pub fn announce(&self, inv: &InvVector) {
         let mut announced = self.announced.lock().unwrap();
-        
+
         // Cleanup old entries if needed
         if announced.len() >= self.max_items {
             let cutoff = Instant::now() - Duration::from_secs(600); // 10 minutes
             announced.retain(|_, time| *time > cutoff);
         }
-        
+
         announced.insert(inv.hash, Instant::now());
     }
 
@@ -51,7 +51,10 @@ impl RelayManager {
     /// Adds a pending request
     pub fn add_request(&self, hash: [u8; 32], peer_id: String) {
         let mut requests = self.pending_requests.lock().unwrap();
-        requests.entry(hash).or_insert_with(HashSet::new).insert(peer_id);
+        requests
+            .entry(hash)
+            .or_insert_with(HashSet::new)
+            .insert(peer_id);
     }
 
     /// Removes a pending request
@@ -63,18 +66,21 @@ impl RelayManager {
     /// Gets peers waiting for this item
     pub fn get_requesters(&self, hash: &[u8; 32]) -> Vec<String> {
         let requests = self.pending_requests.lock().unwrap();
-        requests.get(hash).map(|s| s.iter().cloned().collect()).unwrap_or_default()
+        requests
+            .get(hash)
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// Marks an item as relayed
     pub fn mark_relayed(&self, hash: [u8; 32]) {
         let mut relayed = self.relayed.lock().unwrap();
-        
+
         // Limit size
         if relayed.len() >= self.max_items {
             relayed.clear(); // Simple cleanup
         }
-        
+
         relayed.insert(hash);
     }
 
@@ -87,7 +93,7 @@ impl RelayManager {
     /// Cleans up old data
     pub fn cleanup(&self) {
         let cutoff = Instant::now() - Duration::from_secs(600);
-        
+
         let mut announced = self.announced.lock().unwrap();
         announced.retain(|_, time| *time > cutoff);
     }
@@ -106,9 +112,9 @@ pub struct RelayPolicy {
 impl Default for RelayPolicy {
     fn default() -> Self {
         Self {
-            min_fee_rate: 1, // 1 qbit per WU
+            min_fee_rate: 1,      // 1 qbit per WU
             max_tx_size: 400_000, // 400 KB
-            max_signatures: 100, // Reasonable limit
+            max_signatures: 100,  // Reasonable limit
         }
     }
 }
@@ -138,9 +144,9 @@ impl RelayPolicy {
         // Rough estimate: base + inputs + outputs + witnesses
         let base = 10; // version, locktime
         let inputs = tx.inputs.len() * 100; // ~100 bytes per input
-        let outputs = tx.outputs.len() * 50; // ~50 bytes per output  
+        let outputs = tx.outputs.len() * 50; // ~50 bytes per output
         let witnesses = tx.witnesses.len() * 3000; // ~3KB per Dilithium sig
-        
+
         base + inputs + outputs + witnesses
     }
 }
@@ -168,20 +174,26 @@ pub fn create_block_inv(block_hash: [u8; 32]) -> Message {
 /// Creates a getdata request for transactions
 pub fn create_tx_getdata(txids: Vec<[u8; 32]>) -> Message {
     Message::GetData {
-        inventory: txids.into_iter().map(|hash| InvVector {
-            inv_type: InvType::Tx,
-            hash,
-        }).collect(),
+        inventory: txids
+            .into_iter()
+            .map(|hash| InvVector {
+                inv_type: InvType::Tx,
+                hash,
+            })
+            .collect(),
     }
 }
 
 /// Creates a getdata request for blocks
 pub fn create_block_getdata(block_hashes: Vec<[u8; 32]>) -> Message {
     Message::GetData {
-        inventory: block_hashes.into_iter().map(|hash| InvVector {
-            inv_type: InvType::Block,
-            hash,
-        }).collect(),
+        inventory: block_hashes
+            .into_iter()
+            .map(|hash| InvVector {
+                inv_type: InvType::Block,
+                hash,
+            })
+            .collect(),
     }
 }
 
@@ -193,15 +205,15 @@ mod tests {
     fn test_relay_manager() {
         let manager = RelayManager::new(100);
         let hash = [0x42u8; 32];
-        
+
         let inv = InvVector {
             inv_type: InvType::Tx,
             hash,
         };
-        
+
         manager.announce(&inv);
         assert!(manager.has_announced(&hash));
-        
+
         manager.mark_relayed(hash);
         assert!(manager.was_relayed(&hash));
     }
@@ -209,7 +221,7 @@ mod tests {
     #[test]
     fn test_relay_policy() {
         let policy = RelayPolicy::default();
-        
+
         // Create test transaction
         let tx = Transaction {
             version: 2,
@@ -219,14 +231,14 @@ mod tests {
             sig_algo: bitquan_types::SigAlgorithm::Dilithium3,
             witnesses: vec![],
         };
-        
+
         assert!(policy.should_relay(&tx));
     }
 
     #[test]
     fn test_create_inv_messages() {
         let hash = [0x42u8; 32];
-        
+
         let tx_inv = create_tx_inv(hash);
         match tx_inv {
             Message::Inv { inventory } => {
@@ -235,7 +247,7 @@ mod tests {
             }
             _ => panic!("Wrong message type"),
         }
-        
+
         let block_inv = create_block_inv(hash);
         match block_inv {
             Message::Inv { inventory } => {

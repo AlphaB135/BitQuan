@@ -3,12 +3,14 @@
 
 //! Canonical transaction digest construction for PQC signature verification.
 
-use bitquan_types::{Transaction, TxIn, TxOut, Witness};
+use bitquan_types::{NetworkId, Transaction, TxIn, TxOut, Witness};
 use sha2::{Digest, Sha256};
 
 /// Computes a 32-byte digest for the supplied transaction.
-pub fn transaction_sighash(tx: &Transaction) -> [u8; 32] {
+/// Includes network_id for cross-chain replay protection (BQIP-0002).
+pub fn transaction_sighash(tx: &Transaction, network_id: NetworkId) -> [u8; 32] {
     let mut hasher = Sha256::new();
+    hasher.update([network_id.as_u8()]);
     hasher.update(tx.version.to_le_bytes());
     hasher.update(tx.lock_time.to_le_bytes());
 
@@ -73,25 +75,50 @@ fn hash_len(hasher: &mut Sha256, len: usize) {
 mod tests {
     use super::*;
     use bitquan_types::{
-        AuxiliarySignatureData, SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut, Witness,
+        AuxiliarySignatureData, NetworkId, SigAlgorithm, SignaturePayload, Transaction, TxIn,
+        TxOut, Witness,
     };
 
     #[test]
     fn digest_changes_with_witness() {
         let mut tx = sample_tx();
-        let original = transaction_sighash(&tx);
+        let original = transaction_sighash(&tx, NetworkId::Devnet);
         tx.witnesses[0].signatures[0].signature[0] ^= 0xFF;
-        let mutated = transaction_sighash(&tx);
+        let mutated = transaction_sighash(&tx, NetworkId::Devnet);
         assert_ne!(original, mutated);
     }
 
     #[test]
     fn digest_changes_with_lock_time() {
         let mut tx = sample_tx();
-        let original = transaction_sighash(&tx);
+        let original = transaction_sighash(&tx, NetworkId::Devnet);
         tx.lock_time = 42;
-        let mutated = transaction_sighash(&tx);
+        let mutated = transaction_sighash(&tx, NetworkId::Devnet);
         assert_ne!(original, mutated);
+    }
+
+    #[test]
+    fn digest_changes_with_network_id() {
+        let tx = sample_tx();
+        let mainnet = transaction_sighash(&tx, NetworkId::Mainnet);
+        let testnet = transaction_sighash(&tx, NetworkId::Testnet);
+        let devnet = transaction_sighash(&tx, NetworkId::Devnet);
+        let regtest = transaction_sighash(&tx, NetworkId::Regtest);
+
+        assert_ne!(mainnet, testnet);
+        assert_ne!(mainnet, devnet);
+        assert_ne!(mainnet, regtest);
+        assert_ne!(testnet, devnet);
+        assert_ne!(testnet, regtest);
+        assert_ne!(devnet, regtest);
+    }
+
+    #[test]
+    fn digest_deterministic_same_network() {
+        let tx = sample_tx();
+        let hash1 = transaction_sighash(&tx, NetworkId::Mainnet);
+        let hash2 = transaction_sighash(&tx, NetworkId::Mainnet);
+        assert_eq!(hash1, hash2);
     }
 
     fn sample_tx() -> Transaction {

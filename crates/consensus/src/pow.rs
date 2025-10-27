@@ -28,7 +28,7 @@ pub fn compact_to_target_bytes(bits: u32) -> [u8; 32] {
         target[24..32].copy_from_slice(&m.to_be_bytes());
     } else {
         let byte_pos = exponent as usize - 3; // number of bytes mantissa occupies from the left
-        // place mantissa at the leftmost bytes (big-endian)
+                                              // place mantissa at the leftmost bytes (big-endian)
         let mut m_bytes = [0u8; 4];
         m_bytes.copy_from_slice(&(mantissa as u32).to_be_bytes());
         // mantissa is 3 bytes; take the last 3 bytes of m_bytes

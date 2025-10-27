@@ -61,7 +61,10 @@ fn difficultystate_with_chainstore_mtp_anchor() {
             nonce: 0,
         };
         headers.push(header.clone());
-        let _ = store.insert_block(Block { header, transactions: Vec::<Transaction>::new() });
+        let _ = store.insert_block(Block {
+            header,
+            transactions: Vec::<Transaction>::new(),
+        });
     }
 
     let tip = store.tip().expect("tip").expect("tip block").clone();
@@ -76,8 +79,8 @@ fn difficultystate_with_chainstore_mtp_anchor() {
 
 #[test]
 fn test_calculate_tx_weight_bqip0002() {
-    use bitquan_types::{Transaction, TxIn, TxOut, Witness, SignaturePayload, SigAlgorithm};
-    
+    use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut, Witness};
+
     // Create transaction with 1 input, 2 outputs, 1 signature
     let tx = Transaction {
         version: 2,
@@ -89,8 +92,14 @@ fn test_calculate_tx_weight_bqip0002() {
             sequence: 0xffffffff,
         }],
         outputs: vec![
-            TxOut { value: 1000, script_pubkey: vec![0x76, 0xa9] },
-            TxOut { value: 2000, script_pubkey: vec![0x76, 0xa9] },
+            TxOut {
+                value: 1000,
+                script_pubkey: vec![0x76, 0xa9],
+            },
+            TxOut {
+                value: 2000,
+                script_pubkey: vec![0x76, 0xa9],
+            },
         ],
         sig_algo: SigAlgorithm::Dilithium3,
         witnesses: vec![Witness {
@@ -102,23 +111,23 @@ fn test_calculate_tx_weight_bqip0002() {
             }],
         }],
     };
-    
+
     let weight = calculate_tx_weight(&tx);
-    
+
     // Weight should be: base_size*4 + 1*384
     // At minimum: 384 (1 signature weight)
     assert!(weight >= 384);
-    
+
     // Should be deterministic
     assert_eq!(weight, calculate_tx_weight(&tx));
 }
 
 #[test]
 fn test_block_weight_calculation() {
-    use bitquan_types::{Block, BlockHeader, Transaction, TxIn, TxOut, SigAlgorithm};
-    
+    use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxIn, TxOut};
+
     let params = ConsensusParams::phase3_defaults();
-    
+
     // Create a block with single coinbase transaction
     let coinbase = Transaction {
         version: 2,
@@ -129,14 +138,14 @@ fn test_block_weight_calculation() {
             script_sig: vec![0x01, 0x00],
             sequence: 0xffffffff,
         }],
-        outputs: vec![TxOut { 
-            value: params.reward_schedule.subsidy_at_height(0), 
-            script_pubkey: vec![0x76, 0xa9] 
+        outputs: vec![TxOut {
+            value: params.reward_schedule.subsidy_at_height(0),
+            script_pubkey: vec![0x76, 0xa9],
         }],
         sig_algo: SigAlgorithm::Dilithium3,
         witnesses: vec![],
     };
-    
+
     let block = Block {
         header: BlockHeader {
             version: 1,
@@ -149,23 +158,25 @@ fn test_block_weight_calculation() {
         },
         transactions: vec![coinbase],
     };
-    
+
     let weight = calculate_block_weight(&block);
-    
+
     // Verify weight is within limit
     assert!(weight < params.block_weight_cap as usize);
-    
+
     // Weight should be deterministic
     assert_eq!(weight, calculate_block_weight(&block));
 }
 
 #[test]
 fn test_block_weight_exceeds_limit() {
-    use bitquan_types::{Block, BlockHeader, Transaction, TxIn, TxOut, Witness, SignaturePayload, SigAlgorithm};
-    
+    use bitquan_types::{
+        Block, BlockHeader, SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut, Witness,
+    };
+
     // Create a block that would exceed weight limit
     let mut transactions = vec![];
-    
+
     // Add many transactions with signatures
     for i in 0..15000 {
         transactions.push(Transaction {
@@ -177,7 +188,10 @@ fn test_block_weight_exceeds_limit() {
                 script_sig: vec![],
                 sequence: 0xffffffff,
             }],
-            outputs: vec![TxOut { value: 1000, script_pubkey: vec![0x76, 0xa9] }],
+            outputs: vec![TxOut {
+                value: 1000,
+                script_pubkey: vec![0x76, 0xa9],
+            }],
             sig_algo: SigAlgorithm::Dilithium3,
             witnesses: vec![Witness {
                 signatures: vec![SignaturePayload {
@@ -189,7 +203,7 @@ fn test_block_weight_exceeds_limit() {
             }],
         });
     }
-    
+
     let block = Block {
         header: BlockHeader {
             version: 1,
@@ -202,18 +216,18 @@ fn test_block_weight_exceeds_limit() {
         },
         transactions,
     };
-    
+
     let weight = calculate_block_weight(&block);
     let params = ConsensusParams::phase3_defaults();
-    
+
     // Weight should exceed limit
     assert!(weight as u64 > params.block_weight_cap);
 }
 
 #[test]
 fn test_signature_weight_scaling() {
-    use bitquan_types::{Transaction, TxIn, TxOut, Witness, SignaturePayload, SigAlgorithm};
-    
+    use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut, Witness};
+
     // Transaction with 1 signature
     let tx1 = Transaction {
         version: 2,
@@ -224,7 +238,10 @@ fn test_signature_weight_scaling() {
             script_sig: vec![],
             sequence: 0xffffffff,
         }],
-        outputs: vec![TxOut { value: 1000, script_pubkey: vec![0x76, 0xa9] }],
+        outputs: vec![TxOut {
+            value: 1000,
+            script_pubkey: vec![0x76, 0xa9],
+        }],
         sig_algo: SigAlgorithm::Dilithium3,
         witnesses: vec![Witness {
             signatures: vec![SignaturePayload {
@@ -235,7 +252,7 @@ fn test_signature_weight_scaling() {
             }],
         }],
     };
-    
+
     // Transaction with 3 signatures
     let tx3 = Transaction {
         version: 2,
@@ -246,7 +263,10 @@ fn test_signature_weight_scaling() {
             script_sig: vec![],
             sequence: 0xffffffff,
         }],
-        outputs: vec![TxOut { value: 1000, script_pubkey: vec![0x76, 0xa9] }],
+        outputs: vec![TxOut {
+            value: 1000,
+            script_pubkey: vec![0x76, 0xa9],
+        }],
         sig_algo: SigAlgorithm::Dilithium3,
         witnesses: vec![Witness {
             signatures: vec![
@@ -271,20 +291,24 @@ fn test_signature_weight_scaling() {
             ],
         }],
     };
-    
+
     let weight1 = calculate_tx_weight(&tx1);
     let weight3 = calculate_tx_weight(&tx3);
-    
+
     // Weight difference should be approximately 2 * 384 = 768
     let diff = weight3 - weight1;
-    assert!(diff >= 768 && diff <= 800, "Expected ~768 WU difference, got {}", diff);
+    assert!(
+        diff >= 768 && diff <= 800,
+        "Expected ~768 WU difference, got {}",
+        diff
+    );
 }
 
 #[cfg(test)]
 mod property_tests {
     use super::*;
+    use bitquan_types::{SigAlgorithm, Transaction, TxIn, TxOut};
     use proptest::prelude::*;
-    use bitquan_types::{Transaction, TxIn, TxOut, SigAlgorithm};
 
     proptest! {
         #[test]
@@ -308,12 +332,12 @@ mod property_tests {
                 sig_algo: SigAlgorithm::Dilithium3,
                 witnesses: vec![],
             };
-            
+
             // Weight should be deterministic
             let w1 = calculate_tx_weight(&tx);
             let w2 = calculate_tx_weight(&tx);
             prop_assert_eq!(w1, w2);
-            
+
             // Weight should be positive
             prop_assert!(w1 > 0);
         }
@@ -323,7 +347,7 @@ mod property_tests {
             sig_count in 0usize..20
         ) {
             use bitquan_types::{Witness, SignaturePayload};
-            
+
             let tx = Transaction {
                 version: 2,
                 lock_time: 0,
@@ -347,9 +371,9 @@ mod property_tests {
                     }).collect(),
                 }],
             };
-            
+
             let weight = calculate_tx_weight(&tx);
-            
+
             // Weight should include signature_count * 384
             let expected_sig_weight = sig_count * 384;
             prop_assert!(weight >= expected_sig_weight);
@@ -360,7 +384,7 @@ mod property_tests {
             tx_count in 1usize..10
         ) {
             use bitquan_types::{Block, BlockHeader};
-            
+
             let txs: Vec<Transaction> = (0..tx_count).map(|i| Transaction {
                 version: 2,
                 lock_time: 0,
@@ -377,7 +401,7 @@ mod property_tests {
                 sig_algo: SigAlgorithm::Dilithium3,
                 witnesses: vec![],
             }).collect();
-            
+
             let block = Block {
                 header: BlockHeader {
                     version: 1,
@@ -390,13 +414,11 @@ mod property_tests {
                 },
                 transactions: txs.clone(),
             };
-            
+
             let block_weight = calculate_block_weight(&block);
             let sum_weights: usize = txs.iter().map(|tx| calculate_tx_weight(tx)).sum();
-            
+
             prop_assert_eq!(block_weight, sum_weights);
         }
     }
 }
-
-

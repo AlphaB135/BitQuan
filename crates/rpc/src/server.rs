@@ -108,7 +108,7 @@ fn handle_connection<T: methods::RpcMethods>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::methods::{BlockchainInfo, MiningInfo, RpcMethods, BlockTemplate, TxInfo};
+    use crate::methods::{BlockTemplate, BlockchainInfo, MiningInfo, RpcMethods, TxInfo};
     use crate::RpcError;
 
     struct TestHandler;
@@ -155,14 +155,14 @@ mod tests {
         fn getblockhash(&self, _: u64) -> Result<String, RpcError> {
             Ok("test".to_string())
         }
-        
+
         fn getwork(&self) -> Result<crate::methods::WorkData, RpcError> {
             Ok(crate::methods::WorkData {
                 data: "00000000".to_string(),
                 target: "00000000ffff".to_string(),
             })
         }
-        
+
         fn submitwork(&self, _: String) -> Result<bool, RpcError> {
             Ok(true)
         }

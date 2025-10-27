@@ -1,9 +1,9 @@
 //! Wallet functionality for BitQuan.
-//! 
+//!
 //! This module provides key management, address generation, and transaction signing
 //! using post-quantum cryptography (Dilithium).
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use pqc_dilithium::{Keypair, PUBLICKEYBYTES, SECRETKEYBYTES, SIGNBYTES};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -50,7 +50,7 @@ impl WalletKeypair {
     /// Generates a new Dilithium3 keypair using OS randomness.
     pub fn generate_dilithium3() -> Result<Self> {
         let keypair = Keypair::generate();
-        
+
         // For now, we keep the keypair object and extract displayable info
         // Full serialization would need pqc_dilithium library support
         Ok(WalletKeypair {
@@ -84,10 +84,10 @@ impl WalletKeypair {
     /// Converts to serializable format.
     pub fn to_serializable(&self) -> SerializableKeypair {
         use crate::address;
-        
+
         let pubkey_hash = self.public_key_hash();
         let address_str = address::encode_bech32m(&pubkey_hash);
-        
+
         // Note: We can't actually serialize Dilithium keypair bytes
         // This is a limitation of pqc_dilithium 0.2
         // For now, we store metadata only
@@ -113,7 +113,7 @@ impl WalletKeypair {
         let mut hasher = Sha256::new();
         hasher.update(&self.public_key);
         let result = hasher.finalize();
-        
+
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&result);
         hash
@@ -129,14 +129,14 @@ impl WalletKeypair {
             secret_key_len: usize,
             note: String,
         }
-        
+
         let data = KeypairFile {
             algorithm: self.algorithm,
             public_key_len: PUBLICKEYBYTES,
             secret_key_len: SECRETKEYBYTES,
             note: "BitQuan Dilithium3 Keypair - Keep Secret!".to_string(),
         };
-        
+
         let json = serde_json::to_string_pretty(&data)?;
         fs::write(path, json)?;
         println!("⚠️  Note: Full key serialization not yet implemented");
@@ -181,7 +181,7 @@ impl WalletPublicKey {
         let mut hasher = Sha256::new();
         hasher.update(&self.public_key);
         let result = hasher.finalize();
-        
+
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&result);
         hash
@@ -190,17 +190,17 @@ impl WalletPublicKey {
 
 /// Bech32m address encoding (BIP 350 compatible).
 pub mod address {
-    use anyhow::{Result, bail};
+    use anyhow::{bail, Result};
     use bech32::{Bech32m, Hrp};
 
     /// Human-readable prefix for BitQuan mainnet addresses.
     pub const HRP_MAINNET: &str = "bq";
-    
+
     /// Human-readable prefix for BitQuan testnet addresses.
     pub const HRP_TESTNET: &str = "bqt";
 
     /// Encodes a public key hash to a Bech32m address.
-    /// 
+    ///
     /// Uses witness version 1 (for post-quantum signatures).
     /// Format: bq1<bech32m-encoded-hash>
     pub fn encode(pubkey_hash: &[u8; 32]) -> String {
@@ -211,12 +211,12 @@ pub mod address {
     pub fn encode_with_hrp(pubkey_hash: &[u8; 32], hrp_str: &str) -> String {
         // Witness version 1 (for Bech32m)
         let witness_version = 1u8;
-        
+
         // Combine witness version + pubkey hash
         let mut data = Vec::with_capacity(33);
         data.push(witness_version);
         data.extend_from_slice(pubkey_hash);
-        
+
         // Encode using Bech32m
         let hrp = Hrp::parse(hrp_str).expect("Valid HRP");
         bech32::encode::<Bech32m>(hrp, &data).expect("Valid encoding")
@@ -232,30 +232,36 @@ pub mod address {
         // Decode Bech32m
         let (hrp, data) = bech32::decode(address)
             .map_err(|e| anyhow::anyhow!("Invalid Bech32m address: {}", e))?;
-        
+
         // Verify HRP
         if hrp.as_str() != expected_hrp {
             bail!("Invalid HRP: expected '{}', got '{}'", expected_hrp, hrp);
         }
-        
+
         // Verify witness version
         if data.is_empty() {
             bail!("Address data is empty");
         }
-        
+
         let witness_version = data[0];
         if witness_version != 1 {
-            bail!("Invalid witness version: expected 1, got {}", witness_version);
+            bail!(
+                "Invalid witness version: expected 1, got {}",
+                witness_version
+            );
         }
-        
+
         // Extract pubkey hash (skip witness version byte)
         if data.len() != 33 {
-            bail!("Invalid address length: expected 33 bytes, got {}", data.len());
+            bail!(
+                "Invalid address length: expected 33 bytes, got {}",
+                data.len()
+            );
         }
-        
+
         let mut pubkey_hash = [0u8; 32];
         pubkey_hash.copy_from_slice(&data[1..33]);
-        
+
         Ok(pubkey_hash)
     }
 
@@ -278,7 +284,7 @@ pub mod address {
                 } else {
                     "Address has invalid checksum or characters"
                 };
-                
+
                 Err(anyhow::anyhow!("{}\nHint: {}", e, hint))
             }
         }
@@ -316,7 +322,7 @@ mod tests {
         let message = b"Test message";
 
         let signature = keypair.sign(message).unwrap();
-        
+
         // Note: Public-key-only verification not yet implemented
         // This test validates signature generation works
         assert!(signature.len() > 0);
@@ -326,12 +332,12 @@ mod tests {
     fn test_address_encoding() {
         let keypair = WalletKeypair::generate_dilithium3().unwrap();
         let pubkey_hash = keypair.public_key_hash();
-        
+
         let address = address::encode(&pubkey_hash);
-        
+
         // Should start with bq1
         assert!(address.starts_with("bq1"));
-        
+
         // Should be valid Bech32m
         assert!(address::validate(&address));
 
@@ -345,28 +351,30 @@ mod tests {
         let keypair = WalletKeypair::generate_dilithium3().unwrap();
         let pubkey_hash = keypair.public_key_hash();
         let address = address::encode(&pubkey_hash);
-        
+
         // Valid address
         assert!(address::validate(&address));
-        
+
         // Invalid addresses
         assert!(!address::validate("invalid"));
         assert!(!address::validate("bq1"));
-        assert!(!address::validate("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")); // Bitcoin address
+        assert!(!address::validate(
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
+        )); // Bitcoin address
     }
 
     #[test]
     fn test_testnet_addresses() {
         let pubkey_hash = [0u8; 32];
-        
+
         // Mainnet
         let mainnet = address::encode_with_hrp(&pubkey_hash, address::HRP_MAINNET);
         assert!(mainnet.starts_with("bq1"));
-        
+
         // Testnet
         let testnet = address::encode_with_hrp(&pubkey_hash, address::HRP_TESTNET);
         assert!(testnet.starts_with("bqt1"));
-        
+
         // Should not cross-decode
         assert!(address::decode_with_hrp(&mainnet, address::HRP_TESTNET).is_err());
     }
@@ -375,7 +383,7 @@ mod tests {
     fn test_bech32m_checksum() {
         let pubkey_hash = [0xAB; 32];
         let address = address::encode(&pubkey_hash);
-        
+
         // Corrupt the address (flip a character)
         let mut corrupted = address.clone();
         let bytes = unsafe { corrupted.as_bytes_mut() };
@@ -384,7 +392,7 @@ mod tests {
         } else {
             bytes[10] = b'a';
         }
-        
+
         // Should fail checksum
         assert!(address::decode(&corrupted).is_err());
     }
@@ -394,7 +402,7 @@ mod tests {
         let keypair = WalletKeypair::generate_dilithium3().unwrap();
         let hash1 = keypair.public_key_hash();
         let hash2 = keypair.public_key_hash();
-        
+
         assert_eq!(hash1, hash2); // Should be deterministic
         assert_eq!(hash1.len(), 32);
     }
