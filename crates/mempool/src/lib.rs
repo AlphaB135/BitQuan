@@ -389,7 +389,7 @@ mod tests {
         mempool.insert(tx1, weight as u64 * 11).unwrap();
         
         // Fill mempool more
-        for i in 0..5 {
+        for _ in 0..5 {
             let tx = create_test_tx(1, 2, 1);
             let _ = mempool.insert(tx, weight as u64 * 11);
         }

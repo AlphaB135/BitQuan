@@ -248,6 +248,17 @@ mod tests {
         fn getblockhash(&self, _height: u64) -> Result<String, RpcError> {
             Ok("00000000000000000".to_string())
         }
+        
+        fn getwork(&self) -> Result<WorkData, RpcError> {
+            Ok(WorkData {
+                data: "00000000000000000000000000000000".to_string(),
+                target: "00000000ffff0000000000000000000000000000000000000000000000000000".to_string(),
+            })
+        }
+        
+        fn submitwork(&self, _data: String) -> Result<bool, RpcError> {
+            Ok(true)
+        }
     }
 
     #[test]
