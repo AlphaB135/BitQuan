@@ -6,39 +6,20 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  attestations: write
+  id-token: write
+
 env:
   CARGO_TERM_COLOR: always
   SOURCE_DATE_EPOCH: 1700000000
 
 jobs:
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: BitQuan ${{ steps.get_version.outputs.VERSION }}
-          draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
-          body: |
-            See CHANGELOG.md for details.
+  # No create-release job needed - release already exists when tag is pushed
 
   build-artifacts:
     name: Build ${{ matrix.os }}
-    needs: create-release
     strategy:
       matrix:
         include:
@@ -91,53 +72,26 @@ jobs:
           certutil -hashfile ${{ matrix.asset_name }}.zip SHA256 > ${{ matrix.asset_name }}.zip.sha256
           certutil -hashfile ${{ matrix.asset_name }}.zip SHA512 > ${{ matrix.asset_name }}.zip.sha512
       
-      - name: Upload tarball
-        if: matrix.os != 'windows-latest'
-        uses: actions/upload-release-asset@v1
+      - name: Upload assets to release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz
-          asset_name: ${{ matrix.asset_name }}.tar.gz
-          asset_content_type: application/gzip
-      
-      - name: Upload zip (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip
-          asset_name: ${{ matrix.asset_name }}.zip
-          asset_content_type: application/zip
-      
-      - name: Upload SHA256 (Unix)
-        if: matrix.os != 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha256
-          asset_name: ${{ matrix.asset_name }}.tar.gz.sha256
-          asset_content_type: text/plain
-      
-      - name: Upload SHA512 (Unix)
-        if: matrix.os != 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha512
-          asset_name: ${{ matrix.asset_name }}.tar.gz.sha512
-          asset_content_type: text/plain
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            gh release upload ${{ github.ref_name }} \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha256 \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha512 \
+              --clobber
+          else
+            gh release upload ${{ github.ref_name }} \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip.sha256 \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip.sha512 \
+              --clobber
+          fi
 
   generate-sbom:
     name: Generate SBOM
-    needs: create-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -151,26 +105,15 @@ jobs:
         run: cargo sbom --output-format cyclone_dx_json_1_4 > sbom.json
       
       - name: Upload SBOM
-        uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: sbom.json
-          asset_name: sbom.json
-          asset_content_type: application/json
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ github.ref_name }} sbom.json --clobber
 
   # SLSA provenance generation (Level 2+)
   # Note: This uses a reusable workflow from SLSA framework
   # Automatically generates build provenance attestations
   provenance:
     name: Generate SLSA Provenance
-    needs: create-release
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-      attestations: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
