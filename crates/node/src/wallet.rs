@@ -4,7 +4,7 @@
 //! using post-quantum cryptography (Dilithium).
 
 use anyhow::{bail, Result};
-use pqc_dilithium::{Keypair, PUBLICKEYBYTES, SECRETKEYBYTES, SIGNBYTES};
+use pqc_dilithium::{Keypair, PUBLICKEYBYTES, SECRETKEYBYTES};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -39,6 +39,7 @@ pub struct WalletKeypair {
     pub algorithm: WalletAlgorithm,
     /// Serialized keypair (stores the whole Keypair internally)
     #[serde(skip)]
+    #[allow(dead_code)]
     keypair: Option<Keypair>,
     /// Public key bytes for display
     pub public_key: Vec<u8>,
@@ -62,6 +63,7 @@ impl WalletKeypair {
     }
 
     /// Signs a message using the secret key.
+    #[allow(dead_code)]
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
         match &self.keypair {
             Some(kp) => {
@@ -73,6 +75,7 @@ impl WalletKeypair {
     }
 
     /// Verifies a signature using the public key.
+    #[allow(dead_code)]
     pub fn verify(&self, _message: &[u8], _signature: &[u8]) -> bool {
         // For Dilithium, verification would need the public key
         // Since pqc_dilithium 0.2 doesn't expose verify easily,
@@ -101,6 +104,7 @@ impl WalletKeypair {
     }
 
     /// Creates from serializable format.
+    #[allow(dead_code)]
     pub fn from_serializable(_data: &SerializableKeypair) -> Result<Self> {
         // Cannot reconstruct keypair from serialized format
         // with current pqc_dilithium 0.2 API
@@ -109,6 +113,7 @@ impl WalletKeypair {
     }
 
     /// Returns the public key hash (for address generation).
+    #[allow(dead_code)]
     pub fn public_key_hash(&self) -> [u8; 32] {
         let mut hasher = Sha256::new();
         hasher.update(&self.public_key);
@@ -120,6 +125,7 @@ impl WalletKeypair {
     }
 
     /// Saves keypair to a file (warning: stores in JSON - not encrypted!).
+    #[allow(dead_code)]
     pub fn save_to_file(&self, path: &Path) -> Result<()> {
         // For development: serialize keys as hex
         #[derive(Serialize)]
@@ -145,11 +151,13 @@ impl WalletKeypair {
     }
 
     /// Loads keypair from a file.
+    #[allow(dead_code)]
     pub fn load_from_file(_path: &Path) -> Result<Self> {
         bail!("Keypair loading not yet implemented - generate new keypair for now")
     }
 
     /// Exports public key only (safe to share).
+    #[allow(dead_code)]
     pub fn export_public(&self) -> WalletPublicKey {
         WalletPublicKey {
             algorithm: self.algorithm,
@@ -169,7 +177,7 @@ pub struct WalletPublicKey {
 
 impl WalletPublicKey {
     /// Verifies a signature using this public key.
-    pub fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
+    pub fn verify(&self, _message: &[u8], _signature: &[u8]) -> bool {
         // For now, since we can't reconstruct keypair from public key alone,
         // verification requires the full keypair
         // TODO: Implement proper public-key-only verification
@@ -177,6 +185,7 @@ impl WalletPublicKey {
     }
 
     /// Returns the public key hash.
+    #[allow(dead_code)]
     pub fn public_key_hash(&self) -> [u8; 32] {
         let mut hasher = Sha256::new();
         hasher.update(&self.public_key);
@@ -197,6 +206,7 @@ pub mod address {
     pub const HRP_MAINNET: &str = "bq";
 
     /// Human-readable prefix for BitQuan testnet addresses.
+    #[allow(dead_code)]
     pub const HRP_TESTNET: &str = "bqt";
 
     /// Encodes a public key hash to a Bech32m address.
@@ -223,11 +233,13 @@ pub mod address {
     }
 
     /// Decodes a Bech32m address to a public key hash.
+    #[allow(dead_code)]
     pub fn decode(address: &str) -> Result<[u8; 32]> {
         decode_with_hrp(address, HRP_MAINNET)
     }
 
     /// Decodes a Bech32m address with HRP validation.
+    #[allow(dead_code)]
     pub fn decode_with_hrp(address: &str, expected_hrp: &str) -> Result<[u8; 32]> {
         // Decode Bech32m
         let (hrp, data) = bech32::decode(address)
@@ -266,11 +278,13 @@ pub mod address {
     }
 
     /// Validates a Bech32m address without decoding.
+    #[allow(dead_code)]
     pub fn validate(address: &str) -> bool {
         decode(address).is_ok()
     }
 
     /// Returns helpful error message for invalid addresses.
+    #[allow(dead_code)]
     pub fn validate_with_hint(address: &str) -> Result<()> {
         match decode(address) {
             Ok(_) => Ok(()),
@@ -309,11 +323,11 @@ mod tests {
         let message = b"Hello, BitQuan!";
 
         let signature = keypair.sign(message).unwrap();
-        assert_eq!(signature.len(), SIGNBYTES);
+        assert_eq!(signature.len(), pqc_dilithium::SIGNBYTES);
 
         // Note: verify() not fully implemented yet with pqc_dilithium 0.2
         // Just check that signing works
-        assert!(signature.len() > 0);
+        assert!(!signature.is_empty());
     }
 
     #[test]
@@ -325,7 +339,7 @@ mod tests {
 
         // Note: Public-key-only verification not yet implemented
         // This test validates signature generation works
-        assert!(signature.len() > 0);
+        assert!(!signature.is_empty());
     }
 
     #[test]

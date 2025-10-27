@@ -298,7 +298,7 @@ fn test_signature_weight_scaling() {
     // Weight difference should be approximately 2 * 384 = 768
     let diff = weight3 - weight1;
     assert!(
-        diff >= 768 && diff <= 800,
+        (768..=800).contains(&diff),
         "Expected ~768 WU difference, got {}",
         diff
     );
@@ -416,7 +416,7 @@ mod property_tests {
             };
 
             let block_weight = calculate_block_weight(&block);
-            let sum_weights: usize = txs.iter().map(|tx| calculate_tx_weight(tx)).sum();
+            let sum_weights: usize = txs.iter().map(calculate_tx_weight).sum();
 
             prop_assert_eq!(block_weight, sum_weights);
         }

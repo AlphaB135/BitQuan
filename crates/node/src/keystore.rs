@@ -99,11 +99,11 @@ pub fn encrypt_keypair(keypair_json: &str, password: &str) -> Result<KeystoreFil
     // Generate random nonce
     let mut nonce_bytes = [0u8; NONCE_SIZE];
     getrandom::getrandom(&mut nonce_bytes)?;
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let nonce = Nonce::from(nonce_bytes);
 
     // Encrypt the keypair data
     let ciphertext = cipher
-        .encrypt(nonce, keypair_json.as_bytes())
+        .encrypt(&nonce, keypair_json.as_bytes())
         .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
 
     // Zeroize sensitive data
@@ -158,11 +158,14 @@ pub fn decrypt_keypair(keystore: &KeystoreFile, password: &str) -> Result<String
         bail!("Invalid nonce size");
     }
 
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    // Convert Vec to array
+    let mut nonce_array = [0u8; NONCE_SIZE];
+    nonce_array.copy_from_slice(&nonce_bytes);
+    let nonce = Nonce::from(nonce_array);
 
     // Decrypt
     let plaintext = cipher
-        .decrypt(nonce, ciphertext.as_ref())
+        .decrypt(&nonce, ciphertext.as_ref())
         .map_err(|_| anyhow::anyhow!("Decryption failed - wrong password or corrupted file"))?;
 
     // Zeroize sensitive data
