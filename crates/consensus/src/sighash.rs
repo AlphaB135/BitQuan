@@ -126,13 +126,13 @@ mod tests {
     #[test]
     fn golden_vectors_network_isolation() {
         let tx = sample_tx();
-        
+
         // Expected hashes for sample_tx() on each network
         let mainnet_hash = transaction_sighash(&tx, NetworkId::Mainnet);
         let testnet_hash = transaction_sighash(&tx, NetworkId::Testnet);
         let devnet_hash = transaction_sighash(&tx, NetworkId::Devnet);
         let regtest_hash = transaction_sighash(&tx, NetworkId::Regtest);
-        
+
         // Golden vectors (generated from sample_tx on 2025-10-27)
         // These ensure determinism across implementations
         // DO NOT CHANGE these values - they are protocol constants
@@ -141,26 +141,44 @@ mod tests {
             "d3ed60e20f2163df5019216a374a85584c95420072f0d2dff3b2bb79e31d8935",
             "Mainnet sighash changed - breaking protocol change!"
         );
-        
+
         // Testnet hash (network_id = 0x02)
         let _testnet_expected = transaction_sighash(&tx, NetworkId::Testnet);
         assert_eq!(hex::encode(testnet_hash).len(), 64);
-        
-        // Devnet hash (network_id = 0x03)  
+
+        // Devnet hash (network_id = 0x03)
         let _devnet_expected = transaction_sighash(&tx, NetworkId::Devnet);
         assert_eq!(hex::encode(devnet_hash).len(), 64);
-        
+
         // Regtest hash (network_id = 0x04)
         let _regtest_expected = transaction_sighash(&tx, NetworkId::Regtest);
         assert_eq!(hex::encode(regtest_hash).len(), 64);
-        
+
         // Verify network isolation: all hashes must be unique
-        assert_ne!(mainnet_hash, testnet_hash, "Mainnet == Testnet (replay risk!)");
-        assert_ne!(mainnet_hash, devnet_hash, "Mainnet == Devnet (replay risk!)");
-        assert_ne!(mainnet_hash, regtest_hash, "Mainnet == Regtest (replay risk!)");
-        assert_ne!(testnet_hash, devnet_hash, "Testnet == Devnet (replay risk!)");
-        assert_ne!(testnet_hash, regtest_hash, "Testnet == Regtest (replay risk!)");
-        assert_ne!(devnet_hash, regtest_hash, "Devnet == Regtest (replay risk!)");
+        assert_ne!(
+            mainnet_hash, testnet_hash,
+            "Mainnet == Testnet (replay risk!)"
+        );
+        assert_ne!(
+            mainnet_hash, devnet_hash,
+            "Mainnet == Devnet (replay risk!)"
+        );
+        assert_ne!(
+            mainnet_hash, regtest_hash,
+            "Mainnet == Regtest (replay risk!)"
+        );
+        assert_ne!(
+            testnet_hash, devnet_hash,
+            "Testnet == Devnet (replay risk!)"
+        );
+        assert_ne!(
+            testnet_hash, regtest_hash,
+            "Testnet == Regtest (replay risk!)"
+        );
+        assert_ne!(
+            devnet_hash, regtest_hash,
+            "Devnet == Regtest (replay risk!)"
+        );
     }
 
     /// Regression test: Verify hash stability across code changes.
@@ -169,15 +187,15 @@ mod tests {
     fn regression_test_sighash_stability() {
         let tx = sample_tx();
         let hash = transaction_sighash(&tx, NetworkId::Mainnet);
-        
+
         // This hash was computed with the current implementation
         // Any change to this value indicates a breaking protocol change
         let expected = hex::encode(hash);
-        
+
         // Store for future verification
         // Note: Update this comment with actual hash after first run
         assert_eq!(expected.len(), 64, "Hash must be 32 bytes (64 hex chars)");
-        
+
         // Verify consistency
         let hash2 = transaction_sighash(&tx, NetworkId::Mainnet);
         assert_eq!(hash, hash2, "Sighash must be deterministic");
