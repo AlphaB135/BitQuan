@@ -1,11 +1,30 @@
-# BitQuan
+<div align="center">
+	<a href="./docs/README.md">
+		<img src="./docs/img/BitQuan.png" alt="BitQuan logo" width="200"/>
+	</a>
 
-[a href="./docs/README.md"><img src="./docs/img/BitQuan.png" alt="BitQuan logo" width="200"/></a>
+	<h1>BitQuan</h1>
 
-[![CI](https://github.com/AlphaB135/BitQuan/workflows/CI/badge.svg)](https://github.com/AlphaB135/BitQuan/actions)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+	<p><strong>A minimal Proof-of-Work blockchain with Dilithium PQC and a public UTXO ledger.</strong></p>
 
-A minimal Proof-of-Work blockchain with Dilithium PQC and public UTXO ledger.
+	<p>
+		<a href="https://github.com/AlphaB135/BitQuan/actions"><img alt="CI" src="https://github.com/AlphaB135/BitQuan/workflows/CI/badge.svg"></a>
+		<a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
+	</p>
+</div>
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [Features](#features)
+- [Repository Structure](#repository-structure)
+- [Contributing](#contributing)
+
+---
 
 ## Overview
 
