@@ -14,8 +14,7 @@ pub fn asert_next_target(
     anchor_target: f64,
     height_delta: i64,
     time_delta: i64,
-    params: &ConsensusParams,
-) -> f64 {
+    params: &ConsensusParams,) -> f64 {
     let block_time = params.target_block_time as f64;
     let half_life = params.difficulty_half_life as f64;
 
