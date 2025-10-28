@@ -1,17 +1,18 @@
-<div align="center">
-	<a href="./docs/README.md">
-		<img src="./docs/img/BitQuan.png" alt="BitQuan logo" width="200"/>
-	</a>
+<p align="center">
+  <a href="./docs/README.md">
+    <img src="./docs/img/BitQuan.png" alt="BitQuan logo" width="200"/>
+  </a>
+</p>
 
-	<h1>BitQuan</h1>
+<h1 align="center">BitQuan</h1>
 
-	<p><strong>A minimal Proof-of-Work blockchain with Dilithium PQC and a public UTXO ledger.</strong></p>
+<p align="center"><strong>A minimal Proof-of-Work blockchain with Dilithium PQC and a public UTXO ledger.</strong></p>
 
-	<p>
-		<a href="https://github.com/AlphaB135/BitQuan/actions"><img alt="CI" src="https://github.com/AlphaB135/BitQuan/workflows/CI/badge.svg"></a>
-		<a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
-	</p>
-</div>
+<p align="center">
+  <a href="https://github.com/AlphaB135/BitQuan/actions"><img alt="CI" src="https://github.com/AlphaB135/BitQuan/workflows/CI/badge.svg"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
+</p>
+
 
 ---
 
