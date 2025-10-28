@@ -1,6 +1,6 @@
 # BitQuan
 
-![BitQuan logo](./BitQuan.png)
+[a href="./docs/README.md"><img src="./docs/img/BitQuan.png" alt="BitQuan logo" width="200"/></a>
 
 [![CI](https://github.com/AlphaB135/BitQuan/workflows/CI/badge.svg)](https://github.com/AlphaB135/BitQuan/actions)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
