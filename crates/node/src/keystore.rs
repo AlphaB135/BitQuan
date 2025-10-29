@@ -74,13 +74,8 @@ fn derive_symmetric_key(
     salt: &SaltString,
     crypto: &CryptoParams,
 ) -> Result<[u8; 32]> {
-    let params = Params::new(
-        crypto.mem_cost,
-        crypto.time_cost,
-        1,
-        Some(32),
-    )
-    .map_err(|e| anyhow::anyhow!("Invalid Argon2 parameters: {}", e))?;
+    let params = Params::new(crypto.mem_cost, crypto.time_cost, 1, Some(32))
+        .map_err(|e| anyhow::anyhow!("Invalid Argon2 parameters: {}", e))?;
 
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
     let password_hash = argon2
@@ -302,11 +297,8 @@ mod tests {
         tampered.crypto.mem_cost = 1024;
         let err = decrypt_keypair(&tampered, password).unwrap_err();
         assert!(
-            err.to_string()
-                .contains("Failed to hash password")
-                || err
-                    .to_string()
-                    .contains("Invalid Argon2 parameters")
+            err.to_string().contains("Failed to hash password")
+                || err.to_string().contains("Invalid Argon2 parameters")
                 || err.to_string().contains("Decryption failed"),
             "unexpected error: {err}"
         );

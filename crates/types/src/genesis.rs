@@ -20,9 +20,17 @@ pub const GENESIS_MESSAGE: &[u8] =
 /// Genesis block reward (50 BQ)
 pub const GENESIS_REWARD: u64 = 5_000_000_000; // 50 BQ in qbits
 
-/// Genesis block hash (to be filled after mining)
-/// This will be updated once we mine the actual genesis block
-pub const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+/// Genesis block nonce discovered during genesis mining
+pub const GENESIS_NONCE: u64 = 71_683_936;
+
+/// Genesis block hash (double SHA256, displayed big-endian)
+pub const GENESIS_HASH: &str = "0000005ceb7f527d22a5bfb5bc578ff16c27b62c75a63b480d7e719ce65535d6";
+
+/// Genesis block hash bytes (big-endian)
+pub const GENESIS_HASH_BYTES: [u8; 32] = [
+    0x00, 0x00, 0x00, 0x5c, 0xeb, 0x7f, 0x52, 0x7d, 0x22, 0xa5, 0xbf, 0xb5, 0xbc, 0x57, 0x8f, 0xf1,
+    0x6c, 0x27, 0xb6, 0x2c, 0x75, 0xa6, 0x3b, 0x48, 0x0d, 0x7e, 0x71, 0x9c, 0xe6, 0x55, 0x35, 0xd6,
+];
 
 /// Creates the genesis block for BitQuan blockchain
 pub fn create_genesis_block() -> Block {
@@ -62,7 +70,7 @@ pub fn create_genesis_block() -> Block {
         pqc_agg_hint: witness_root,
         time: GENESIS_TIME,
         bits: GENESIS_BITS,
-        nonce: 0, // Will be set during mining
+        nonce: GENESIS_NONCE,
     };
 
     Block {
@@ -117,22 +125,21 @@ fn compute_merkle_root(txids: &[[u8; 32]]) -> [u8; 32] {
 pub fn is_valid_genesis(block: &Block) -> bool {
     let genesis = create_genesis_block();
 
-    // Compare all fields except nonce (which varies)
+    // Compare all core header fields and ensure the canonical nonce is used
     block.header.version == genesis.header.version
         && block.header.prev_block == genesis.header.prev_block
         && block.header.merkle_root == genesis.header.merkle_root
         && block.header.pqc_agg_hint == genesis.header.pqc_agg_hint
         && block.header.time == genesis.header.time
         && block.header.bits == genesis.header.bits
+        && block.header.nonce == GENESIS_NONCE
         && block.transactions.len() == 1
         && block.transactions[0].inputs[0].script_sig == GENESIS_MESSAGE
 }
 
 /// Gets the genesis block hash (after mining)
 pub fn genesis_hash() -> [u8; 32] {
-    // This will be filled in after we mine the genesis block
-    // For now, return zeros
-    [0u8; 32]
+    GENESIS_HASH_BYTES
 }
 
 #[cfg(test)]
@@ -165,6 +172,17 @@ mod tests {
     fn test_genesis_validation() {
         let genesis = create_genesis_block();
         assert!(is_valid_genesis(&genesis));
+    }
+
+    #[test]
+    fn test_genesis_hash_matches_constant() {
+        let genesis = create_genesis_block();
+        let bytes = genesis.header.to_bytes();
+        let first = Sha256::digest(&bytes);
+        let second = Sha256::digest(first);
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&second);
+        assert_eq!(hex::encode(hash), GENESIS_HASH);
     }
 
     #[test]
