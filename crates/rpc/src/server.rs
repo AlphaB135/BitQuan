@@ -5,6 +5,8 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 
+const MAX_REQUEST_SIZE: usize = 1_048_576; // 1 MiB
+
 /// Simple HTTP JSON-RPC server
 pub struct RpcServer<T> {
     handler: Arc<T>,
@@ -66,6 +68,11 @@ fn handle_connection<T: methods::RpcMethods>(
         stream.write_all(response.as_bytes())?;
         return Ok(());
     }
+    if content_length > MAX_REQUEST_SIZE {
+        let response = "HTTP/1.1 413 Payload Too Large\r\nContent-Length: 0\r\n\r\n";
+        stream.write_all(response.as_bytes())?;
+        return Ok(());
+    }
 
     // Read body
     let mut body = vec![0u8; content_length];
@@ -110,6 +117,9 @@ mod tests {
     use super::*;
     use crate::methods::{BlockTemplate, BlockchainInfo, MiningInfo, RpcMethods, TxInfo};
     use crate::RpcError;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
 
     struct TestHandler;
 
@@ -172,5 +182,36 @@ mod tests {
     fn test_server_creation() {
         let handler = TestHandler;
         let _server = RpcServer::new(handler, "127.0.0.1:0".to_string());
+    }
+
+    #[test]
+    fn rejects_request_exceeding_max_body() {
+        let handler = TestHandler;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server_thread = thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                handle_connection(stream, &handler).unwrap();
+            }
+        });
+
+        let mut stream = TcpStream::connect(addr).unwrap();
+        let request = format!(
+            "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n",
+            super::MAX_REQUEST_SIZE + 1
+        );
+        stream.write_all(request.as_bytes()).unwrap();
+        stream.flush().unwrap();
+
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        assert!(
+            response.starts_with("HTTP/1.1 413"),
+            "unexpected response: {}",
+            response
+        );
+
+        server_thread.join().unwrap();
     }
 }

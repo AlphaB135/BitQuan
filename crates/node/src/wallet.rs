@@ -51,14 +51,16 @@ impl WalletKeypair {
     /// Generates a new Dilithium3 keypair using OS randomness.
     pub fn generate_dilithium3() -> Result<Self> {
         let keypair = Keypair::generate();
+        let public_key = keypair.public.to_vec();
+        let secret_key = keypair.expose_secret().to_vec();
 
         // For now, we keep the keypair object and extract displayable info
         // Full serialization would need pqc_dilithium library support
         Ok(WalletKeypair {
             algorithm: WalletAlgorithm::Dilithium3,
             keypair: Some(keypair),
-            public_key: vec![0; PUBLICKEYBYTES], // Placeholder
-            secret_key: vec![0; SECRETKEYBYTES], // Placeholder
+            public_key,
+            secret_key,
         })
     }
 
@@ -90,14 +92,18 @@ impl WalletKeypair {
 
         let pubkey_hash = self.public_key_hash();
         let address_str = address::encode_bech32m(&pubkey_hash);
+        let pubkey_hex = hex::encode(&self.public_key);
+        let secret_source = if let Some(kp) = &self.keypair {
+            kp.expose_secret()
+        } else {
+            &self.secret_key
+        };
+        let secret_hex = hex::encode(secret_source);
 
-        // Note: We can't actually serialize Dilithium keypair bytes
-        // This is a limitation of pqc_dilithium 0.2
-        // For now, we store metadata only
         SerializableKeypair {
             algorithm: "dilithium3".to_string(),
-            public_key: format!("{}bytes", PUBLICKEYBYTES),
-            secret_key: format!("{}bytes", SECRETKEYBYTES),
+            public_key: pubkey_hex,
+            secret_key: secret_hex,
             address: address_str,
             public_key_hash: hex::encode(pubkey_hash),
         }
@@ -308,6 +314,7 @@ pub mod address {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
 
     #[test]
     fn test_keypair_generation() {
@@ -315,6 +322,8 @@ mod tests {
         // With session-based storage, we don't check exact sizes
         assert!(!keypair.public_key.is_empty());
         assert!(!keypair.secret_key.is_empty());
+        assert!(keypair.public_key.iter().any(|&b| b != 0));
+        assert!(keypair.secret_key.iter().any(|&b| b != 0));
     }
 
     #[test]
@@ -419,5 +428,20 @@ mod tests {
 
         assert_eq!(hash1, hash2); // Should be deterministic
         assert_eq!(hash1.len(), 32);
+
+        let mut zero_hasher = Sha256::new();
+        zero_hasher.update(vec![0u8; PUBLICKEYBYTES]);
+        let zero_hash = zero_hasher.finalize();
+        let mut zero_arr = [0u8; 32];
+        zero_arr.copy_from_slice(zero_hash.as_ref());
+        assert_ne!(hash1, zero_arr);
+    }
+
+    #[test]
+    fn serializable_contains_hex_keys() {
+        let keypair = WalletKeypair::generate_dilithium3().unwrap();
+        let serializable = keypair.to_serializable();
+        assert_eq!(serializable.public_key.len(), PUBLICKEYBYTES * 2);
+        assert_eq!(serializable.secret_key.len(), SECRETKEYBYTES * 2);
     }
 }

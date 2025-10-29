@@ -66,23 +66,7 @@ pub fn validate_mnemonic(phrase: &str) -> bool {
 /// Note: This is a simplified derivation. A full BIP32-style HD wallet
 /// would use hierarchical derivation with paths like m/44'/0'/0'/0/0.
 pub fn seed_to_keypair(_seed: &[u8; 64]) -> Result<crate::wallet::WalletKeypair> {
-    // For now, we use the seed directly to derive a deterministic keypair
-    // In a full HD wallet implementation, we would:
-    // 1. Use HMAC-SHA512 with seed to get master key
-    // 2. Derive child keys using BIP32 derivation
-    // 3. Use derived key material to seed Dilithium key generation
-
-    // Simple approach: Hash the seed to get deterministic randomness
-    // then use it to generate the keypair
-    // TODO: Implement proper BIP32-style derivation
-
-    // For now, just generate a new keypair (will be enhanced later)
-    let keypair = crate::wallet::WalletKeypair::generate_dilithium3()?;
-
-    // Store the seed in the keypair metadata for future use
-    // (This is a placeholder - proper implementation coming)
-
-    Ok(keypair)
+    bail!("Deterministic key derivation from mnemonic is not yet implemented; refusing to produce unrecoverable keypair")
 }
 
 /// Mnemonic helper that wraps phrase generation and seed derivation.
@@ -195,13 +179,9 @@ mod tests {
     }
 
     #[test]
-    fn test_mnemonic_to_keypair() {
+    fn test_mnemonic_to_keypair_rejects() {
         let helper = MnemonicHelper::generate().unwrap();
-        let keypair = helper.to_keypair().unwrap();
-
-        // Should generate valid keypair
-        assert!(!keypair.public_key.is_empty());
-        assert!(!keypair.secret_key.is_empty());
+        assert!(helper.to_keypair().is_err());
     }
 
     #[test]

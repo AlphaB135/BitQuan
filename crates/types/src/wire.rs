@@ -157,17 +157,35 @@ impl WireDecode for CompactUint {
             253 => {
                 let mut buf = [0u8; 2];
                 reader.read_exact(&mut buf)?;
-                u16::from_le_bytes(buf) as u64
+                let value = u16::from_le_bytes(buf) as u64;
+                if value < 0xFD {
+                    return Err(WireError::InvalidFormat(
+                        "non-canonical compact uint (16-bit)".into(),
+                    ));
+                }
+                value
             }
             254 => {
                 let mut buf = [0u8; 4];
                 reader.read_exact(&mut buf)?;
-                u32::from_le_bytes(buf) as u64
+                let value = u32::from_le_bytes(buf) as u64;
+                if value <= 0xFFFF {
+                    return Err(WireError::InvalidFormat(
+                        "non-canonical compact uint (32-bit)".into(),
+                    ));
+                }
+                value
             }
             255 => {
                 let mut buf = [0u8; 8];
                 reader.read_exact(&mut buf)?;
-                u64::from_le_bytes(buf)
+                let value = u64::from_le_bytes(buf);
+                if value <= 0xFFFF_FFFF {
+                    return Err(WireError::InvalidFormat(
+                        "non-canonical compact uint (64-bit)".into(),
+                    ));
+                }
+                value
             }
         };
 
@@ -560,6 +578,30 @@ mod tests {
             let decoded = CompactUint::decode(&mut &buf[..]).unwrap();
             assert_eq!(decoded.value(), val);
         }
+    }
+
+    #[test]
+    fn rejects_non_canonical_compact_uint() {
+        // 253 encoding must not be used for values below 0xfd.
+        let invalid_fd = vec![0xfd, 0xfc, 0x00];
+        assert!(matches!(
+            CompactUint::decode(&mut &invalid_fd[..]),
+            Err(WireError::InvalidFormat(_))
+        ));
+
+        // 254 encoding must not be used for <= 0xffff.
+        let invalid_fe = vec![0xfe, 0xff, 0xff, 0x00, 0x00];
+        assert!(matches!(
+            CompactUint::decode(&mut &invalid_fe[..]),
+            Err(WireError::InvalidFormat(_))
+        ));
+
+        // 255 encoding must not be used for <= 0xffff_ffff.
+        let invalid_ff = vec![0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00];
+        assert!(matches!(
+            CompactUint::decode(&mut &invalid_ff[..]),
+            Err(WireError::InvalidFormat(_))
+        ));
     }
 
     #[test]

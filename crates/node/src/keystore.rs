@@ -6,7 +6,7 @@
 use anyhow::{bail, Result};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-    Argon2,
+    Algorithm, Argon2, Params, Version,
 };
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
@@ -24,7 +24,7 @@ const KEYSTORE_VERSION: u32 = 1;
 const NONCE_SIZE: usize = 12;
 
 /// Encrypted keystore file format.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct KeystoreFile {
     /// Format version.
     pub version: u32,
@@ -43,7 +43,7 @@ pub struct KeystoreFile {
 }
 
 /// Cryptographic parameters for the keystore.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CryptoParams {
     /// Algorithm identifier.
     pub cipher: String,
@@ -69,29 +69,45 @@ impl Default for CryptoParams {
     }
 }
 
-/// Encrypts keypair data with a password.
-pub fn encrypt_keypair(keypair_json: &str, password: &str) -> Result<KeystoreFile> {
-    // Generate random salt for Argon2
-    let salt = SaltString::generate(&mut OsRng);
+fn derive_symmetric_key(
+    password: &str,
+    salt: &SaltString,
+    crypto: &CryptoParams,
+) -> Result<[u8; 32]> {
+    let params = Params::new(
+        crypto.mem_cost,
+        crypto.time_cost,
+        1,
+        Some(32),
+    )
+    .map_err(|e| anyhow::anyhow!("Invalid Argon2 parameters: {}", e))?;
 
-    // Derive encryption key from password using Argon2id
-    let argon2 = Argon2::default();
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
     let password_hash = argon2
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes(), salt)
         .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?;
 
-    // Extract the hash bytes as the encryption key (32 bytes)
     let hash = password_hash
         .hash
         .ok_or_else(|| anyhow::anyhow!("No hash generated"))?;
     let key_bytes = hash.as_bytes();
 
     if key_bytes.len() < 32 {
-        bail!("Derived key too short");
+        anyhow::bail!("Derived key too short");
     }
 
     let mut key = [0u8; 32];
     key.copy_from_slice(&key_bytes[..32]);
+    Ok(key)
+}
+
+/// Encrypts keypair data with a password.
+pub fn encrypt_keypair(keypair_json: &str, password: &str) -> Result<KeystoreFile> {
+    // Generate random salt for Argon2
+    let salt = SaltString::generate(&mut OsRng);
+
+    let crypto = CryptoParams::default();
+    let mut key = derive_symmetric_key(password, &salt, &crypto)?;
 
     // Create cipher
     let cipher = ChaCha20Poly1305::new(&key.into());
@@ -114,7 +130,7 @@ pub fn encrypt_keypair(keypair_json: &str, password: &str) -> Result<KeystoreFil
         salt: salt.to_string(),
         nonce: base64::encode(&nonce_bytes),
         ciphertext: base64::encode(&ciphertext),
-        crypto: CryptoParams::default(),
+        crypto,
     })
 }
 
@@ -129,23 +145,7 @@ pub fn decrypt_keypair(keystore: &KeystoreFile, password: &str) -> Result<String
     let salt =
         SaltString::from_b64(&keystore.salt).map_err(|e| anyhow::anyhow!("Invalid salt: {}", e))?;
 
-    // Derive encryption key from password
-    let argon2 = Argon2::default();
-    let password_hash = argon2
-        .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?;
-
-    let hash = password_hash
-        .hash
-        .ok_or_else(|| anyhow::anyhow!("No hash generated"))?;
-    let key_bytes = hash.as_bytes();
-
-    if key_bytes.len() < 32 {
-        bail!("Derived key too short");
-    }
-
-    let mut key = [0u8; 32];
-    key.copy_from_slice(&key_bytes[..32]);
+    let mut key = derive_symmetric_key(password, &salt, &keystore.crypto)?;
 
     // Create cipher
     let cipher = ChaCha20Poly1305::new(&key.into());
@@ -290,5 +290,25 @@ mod tests {
         // Different salts and ciphertexts
         assert_ne!(ks1.salt, ks2.salt);
         assert_ne!(ks1.ciphertext, ks2.ciphertext);
+    }
+
+    #[test]
+    fn decrypt_rejects_tampered_kdf_params() {
+        let original = r#"{"secret":"value"}"#;
+        let password = "correct horse battery staple";
+        let keystore = encrypt_keypair(original, password).unwrap();
+
+        let mut tampered = keystore.clone();
+        tampered.crypto.mem_cost = 1024;
+        let err = decrypt_keypair(&tampered, password).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("Failed to hash password")
+                || err
+                    .to_string()
+                    .contains("Invalid Argon2 parameters")
+                || err.to_string().contains("Decryption failed"),
+            "unexpected error: {err}"
+        );
     }
 }
