@@ -2,6 +2,7 @@
 **/*.rs.bk
 /.trunk/tmp/
 data/
+.DS_Store
 
 # Test/temp files
 genesis.json
