@@ -3,6 +3,8 @@
 mod address;
 mod keystore;
 mod mnemonic;
+#[cfg(feature = "rocksdb-backend")]
+mod rpc;
 mod tx_builder;
 mod utxo;
 mod wallet;
@@ -13,6 +15,8 @@ use bitquan_consensus::{
 };
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
+#[cfg(feature = "rocksdb-backend")]
+use bitquan_rpc::server::{RpcAuth, RpcServer};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
 use bitquan_storage::{ChainStore, InMemoryChainStore};
@@ -26,6 +30,9 @@ use hex::encode as hex_encode;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 use std::time::Duration;
+
+#[cfg(feature = "rocksdb-backend")]
+use rpc::NodeRpcHandler;
 
 #[derive(Parser)]
 #[command(
@@ -202,6 +209,18 @@ enum Commands {
         /// Data directory for blockchain storage
         #[arg(long, default_value = "./data/chainstate")]
         datadir: String,
+        /// Optional RPC bind address (e.g., 127.0.0.1:8332)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long)]
+        rpc_listen: Option<String>,
+        /// RPC username (required if RPC server enabled)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long)]
+        rpc_username: Option<String>,
+        /// RPC password (required if RPC server enabled)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long)]
+        rpc_password: Option<String>,
     },
     /// Connect to a peer as a client
     P2PConnect {
@@ -283,7 +302,30 @@ fn main() -> Result<()> {
             listen,
             max_peers,
             datadir,
-        } => p2p_server(&listen, max_peers, &datadir),
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_listen,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_username,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_password,
+        } => {
+            #[cfg(feature = "rocksdb-backend")]
+            {
+                p2p_server(
+                    &listen,
+                    max_peers,
+                    &datadir,
+                    rpc_listen.as_deref(),
+                    rpc_username.as_deref(),
+                    rpc_password.as_deref(),
+                )
+            }
+            #[cfg(not(feature = "rocksdb-backend"))]
+            {
+                let _ = (&listen, max_peers, &datadir);
+                p2p_server(&listen, max_peers, &datadir, None, None, None)
+            }
+        }
         Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
         Commands::Balance {
             datadir,
@@ -1182,7 +1224,15 @@ fn p2p_demo(addr: &str) -> Result<()> {
 }
 
 /// P2P Server that accepts incoming connections
-fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
+#[allow(unused_variables)]
+fn p2p_server(
+    listen: &str,
+    max_peers: usize,
+    datadir: &str,
+    rpc_listen: Option<&str>,
+    rpc_username: Option<&str>,
+    rpc_password: Option<&str>,
+) -> Result<()> {
     use bitquan_network::{P2PListener, PeerManager};
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -1213,6 +1263,54 @@ fn p2p_server(listen: &str, max_peers: usize, datadir: &str) -> Result<()> {
             "In-Memory"
         }
     );
+
+    #[cfg(feature = "rocksdb-backend")]
+    if let Some(addr) = rpc_listen {
+        let username = rpc_username.ok_or_else(|| {
+            anyhow::anyhow!("--rpc-username is required when enabling RPC server")
+        })?;
+
+        let password_value = if let Some(pass) = rpc_password {
+            pass.to_string()
+        } else {
+            println!("Enter RPC password:");
+            let input = read_password_from_stdin()?;
+            if input.is_empty() {
+                anyhow::bail!("RPC password cannot be empty");
+            }
+            input
+        };
+
+        if password_value.is_empty() {
+            anyhow::bail!("RPC password cannot be empty");
+        }
+
+        if username.is_empty() {
+            anyhow::bail!("RPC username cannot be empty");
+        }
+
+        if !addr.starts_with("127.") && !addr.starts_with("localhost") {
+            println!(
+                "Warning: RPC server binding to '{}'. Ensure firewall and authentication are configured.",
+                addr
+            );
+        }
+
+        let Some(store_arc) = store.clone() else {
+            anyhow::bail!("RPC server requires RocksDB storage backend");
+        };
+
+        let handler = NodeRpcHandler::new(store_arc, "mainnet");
+        let auth = RpcAuth::new(username.to_string(), password_value.clone());
+        let rpc_addr = addr.to_string();
+        thread::spawn(move || {
+            let server = RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth));
+            if let Err(e) = server.serve() {
+                eprintln!("RPC server error ({}): {}", rpc_addr, e);
+            }
+        });
+        println!("RPC server listening on {}", addr);
+    }
 
     // Create relay manager
     use bitquan_network::RelayManager;

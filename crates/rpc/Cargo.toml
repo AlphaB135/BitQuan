@@ -16,3 +16,4 @@ serde_json.workspace = true
 thiserror.workspace = true
 hex.workspace = true
 anyhow.workspace = true
+base64 = "0.22"

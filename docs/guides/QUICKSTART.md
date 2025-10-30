@@ -89,12 +89,20 @@ Your address will start with `q1...` (Bech32m format)
 
 ## RPC API Usage
 
-### Start RPC Server (TODO: Coming soon)
+### Start RPC Server (loopback + Basic Auth)
 
 ```bash
-./target/release/bitquan-node rpc-server \
-  --listen 127.0.0.1:8332
+./target/release/bitquan-node p2p-server \
+  --listen 0.0.0.0:8333 \
+  --datadir ./data/node1 \
+  --rpc-listen 127.0.0.1:8332 \
+  --rpc-username alice \
+  --rpc-password "superSecret"
 ```
+
+- RPC binds to `127.0.0.1` by default. Change the address only if you have a firewall/proxy in front.
+- Both `--rpc-username` and `--rpc-password` are required when enabling the RPC server. You can also set `BITQUAN_RPC_USERNAME` and `BITQUAN_RPC_PASSWORD` environment variables instead of CLI flags.
+- Clients must send HTTP Basic Authentication credentials (`Authorization: Basic ...`) with every request.
 
 ### Python Client Example
 

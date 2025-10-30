@@ -7,18 +7,46 @@ use std::sync::Arc;
 
 const MAX_REQUEST_SIZE: usize = 1_048_576; // 1 MiB
 
+/// Basic authentication configuration for RPC server.
+#[derive(Clone, Debug)]
+pub struct RpcAuth {
+    username: String,
+    password: String,
+}
+
+impl RpcAuth {
+    /// Creates a new auth configuration from username/password strings.
+    pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
+        Self {
+            username: username.into(),
+            password: password.into(),
+        }
+    }
+
+    fn matches(&self, provided: &str) -> bool {
+        provided == format!("{}:{}", self.username, self.password)
+    }
+}
+
 /// Simple HTTP JSON-RPC server
 pub struct RpcServer<T> {
     handler: Arc<T>,
     addr: String,
+    auth: Option<RpcAuth>,
 }
 
 impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     /// Create new RPC server
     pub fn new(handler: T, addr: String) -> Self {
+        Self::with_auth(handler, addr, None)
+    }
+
+    /// Create RPC server with optional authentication.
+    pub fn with_auth(handler: T, addr: String, auth: Option<RpcAuth>) -> Self {
         Self {
             handler: Arc::new(handler),
             addr,
+            auth,
         }
     }
 
@@ -31,8 +59,9 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             match stream {
                 Ok(stream) => {
                     let handler = Arc::clone(&self.handler);
+                    let auth = self.auth.clone();
                     std::thread::spawn(move || {
-                        if let Err(e) = handle_connection(stream, handler.as_ref()) {
+                        if let Err(e) = handle_connection(stream, handler.as_ref(), auth.as_ref()) {
                             eprintln!("Error handling connection: {}", e);
                         }
                     });
@@ -47,6 +76,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
 fn handle_connection<T: methods::RpcMethods>(
     mut stream: TcpStream,
     handler: &T,
+    auth: Option<&RpcAuth>,
 ) -> std::io::Result<()> {
     let buf_reader = BufReader::new(&stream);
     let http_request: Vec<_> = buf_reader
@@ -72,6 +102,13 @@ fn handle_connection<T: methods::RpcMethods>(
         let response = "HTTP/1.1 413 Payload Too Large\r\nContent-Length: 0\r\n\r\n";
         stream.write_all(response.as_bytes())?;
         return Ok(());
+    }
+
+    if let Some(auth_cfg) = auth {
+        if !is_authorized(&http_request, auth_cfg) {
+            send_unauthorized(&mut stream)?;
+            return Ok(());
+        }
     }
 
     // Read body
@@ -110,6 +147,51 @@ fn handle_connection<T: methods::RpcMethods>(
 
     stream.write_all(http_response.as_bytes())?;
     Ok(())
+}
+
+fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
+    let header = request_headers
+        .iter()
+        .find(|line| line.to_ascii_lowercase().starts_with("authorization:"));
+
+    let Some(header) = header else {
+        return false;
+    };
+
+    let mut parts = header.splitn(2, ':');
+    parts.next(); // skip "Authorization"
+    let value = parts.next().map(str::trim).unwrap_or_default();
+
+    if !value.to_ascii_lowercase().starts_with("basic ") {
+        return false;
+    }
+
+    let encoded = value[5..].trim();
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let decoded = match STANDARD.decode(encoded) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
+
+    let credential = match String::from_utf8(decoded) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    auth.matches(&credential)
+}
+
+fn send_unauthorized(stream: &mut TcpStream) -> std::io::Result<()> {
+    let response = concat!(
+        "HTTP/1.1 401 Unauthorized\r\n",
+        "WWW-Authenticate: Basic realm=\"BitQuan RPC\"\r\n",
+        "Content-Length: 0\r\n",
+        "Content-Type: text/plain\r\n",
+        "Connection: close\r\n",
+        "\r\n"
+    );
+    stream.write_all(response.as_bytes())
 }
 
 #[cfg(test)]
@@ -192,7 +274,7 @@ mod tests {
 
         let server_thread = thread::spawn(move || {
             if let Ok((stream, _)) = listener.accept() {
-                handle_connection(stream, &handler).unwrap();
+                handle_connection(stream, &handler, None).unwrap();
             }
         });
 
@@ -208,6 +290,81 @@ mod tests {
         stream.read_to_string(&mut response).unwrap();
         assert!(
             response.starts_with("HTTP/1.1 413"),
+            "unexpected response: {}",
+            response
+        );
+
+        server_thread.join().unwrap();
+    }
+
+    #[test]
+    fn rejects_request_without_auth() {
+        let handler = TestHandler;
+        let auth = RpcAuth::new("user", "pass");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server_thread = thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                handle_connection(stream, &handler, Some(&auth)).unwrap();
+            }
+        });
+
+        let mut stream = TcpStream::connect(addr).unwrap();
+        let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
+        let request = format!(
+            "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        stream.write_all(request.as_bytes()).unwrap();
+        stream.flush().unwrap();
+
+        let mut buf = [0u8; 512];
+        let n = stream.read(&mut buf).unwrap();
+        let response = String::from_utf8_lossy(&buf[..n]);
+        assert!(
+            response.starts_with("HTTP/1.1 401"),
+            "unexpected response: {}",
+            response
+        );
+
+        server_thread.join().unwrap();
+    }
+
+    #[test]
+    fn accepts_request_with_valid_auth() {
+        let handler = TestHandler;
+        let auth = RpcAuth::new("alice", "secret");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server_thread = thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                handle_connection(stream, &handler, Some(&auth)).unwrap();
+            }
+        });
+
+        use base64::engine::general_purpose::STANDARD;
+        use base64::Engine;
+        let credential = STANDARD.encode(b"alice:secret");
+
+        let mut stream = TcpStream::connect(addr).unwrap();
+        let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
+        let request = format!(
+            "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nAuthorization: Basic {}\r\nContent-Length: {}\r\n\r\n{}",
+            credential,
+            body.len(),
+            body
+        );
+        stream.write_all(request.as_bytes()).unwrap();
+        stream.flush().unwrap();
+
+        let mut buf = [0u8; 512];
+        let n = stream.read(&mut buf).unwrap();
+        let response = String::from_utf8_lossy(&buf[..n]);
+        assert!(
+            response.starts_with("HTTP/1.1 200"),
             "unexpected response: {}",
             response
         );
