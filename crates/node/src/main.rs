@@ -129,8 +129,15 @@ enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
-    /// Convert Bech32m address to script hex for mining
-    AddressToScript {
+    /// Convert a Bech32m address to script hex (stdout emits only the hex value).
+    #[command(alias = "address-to-script")]
+    ScriptFromAddress {
+        /// Bech32m address (e.g., q1...)
+        #[arg(long)]
+        address: String,
+    },
+    /// Validate a Bech32m address and display decoded metadata.
+    AddressValidate {
         /// Bech32m address (e.g., q1...)
         #[arg(long)]
         address: String,
@@ -273,7 +280,8 @@ fn main() -> Result<()> {
         Commands::WalletAddress { keystore, password } => {
             wallet_address(&keystore, password.as_deref())
         }
-        Commands::AddressToScript { address } => address_to_script(&address),
+        Commands::ScriptFromAddress { address } => script_from_address(&address),
+        Commands::AddressValidate { address } => address_validate(&address),
         Commands::WalletSign {
             keystore,
             message,
@@ -957,31 +965,51 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-/// Convert Bech32m address to script hex for mining
-fn address_to_script(addr: &str) -> Result<()> {
-    println!("Converting address to script hex...");
-    println!("Address: {}", addr);
+fn address_network_label(network: address::AddressNetwork) -> &'static str {
+    match network {
+        address::AddressNetwork::Mainnet => "mainnet",
+    }
+}
 
-    // Decode bech32m address to get pubkey hash
-    let pubkey_hash = address::decode_bech32m(addr)
-        .map_err(|e| anyhow::anyhow!("Failed to decode address: {}", e))?;
+/// Convert Bech32m address to script hex for mining/balance checks.
+fn script_from_address(addr: &str) -> Result<()> {
+    let info =
+        address::inspect(addr).map_err(|e| anyhow::anyhow!("Failed to decode address: {}", e))?;
 
-    // Build P2PKH-like script: OP_DUP OP_HASH256 <pubkey_hash> OP_EQUALVERIFY OP_CHECKSIG
-    // For simplicity, we'll use: OP_HASH256 <32-byte hash> OP_EQUAL (0xa8 0x20 <hash> 0x87)
-    let mut script = Vec::new();
-    script.push(0xa8); // OP_HASH256
-    script.push(0x20); // Push 32 bytes
-    script.extend_from_slice(&pubkey_hash);
-    script.push(0x87); // OP_EQUAL
+    let script = address::script_from_pubkey_hash(&info.payload);
+    let script_hex = hex::encode(script);
+    let trimmed = addr.trim();
 
-    let script_hex = hex::encode(&script);
+    eprintln!("Bech32m checksum: OK");
+    eprintln!("Network         : {}", address_network_label(info.network));
+    if trimmed != info.normalized {
+        eprintln!("Normalized      : {}", info.normalized);
+    }
+    eprintln!("Pubkey hash     : {}", hex::encode(info.payload));
+    println!("{script_hex}");
 
-    println!("\n✅ Script hex for mining:");
-    println!("{}", script_hex);
-    println!("\n💡 Use this with mine command:");
+    Ok(())
+}
+
+/// Validate a Bech32m address and display decoded metadata.
+fn address_validate(addr: &str) -> Result<()> {
+    let info =
+        address::inspect(addr).map_err(|e| anyhow::anyhow!("Address validation failed: {}", e))?;
+    let trimmed = addr.trim();
+
+    println!("BitQuan Address Validation");
+    println!("Input      : {}", trimmed);
+    if trimmed != info.normalized {
+        println!("Normalized  : {}", info.normalized);
+    }
+    println!("Network     : {}", address_network_label(info.network));
+    println!("HRP         : {}", info.hrp);
+    println!("Checksum    : OK (Bech32m)");
+    println!("Payload size: {} bytes", info.payload.len());
+    println!("Pubkey hash : {}", hex::encode(info.payload));
     println!(
-        "   bitquan-node mine --payout-script-hex {} --threads 4",
-        script_hex
+        "Script hex  : {}",
+        hex::encode(address::script_from_pubkey_hash(&info.payload))
     );
 
     Ok(())
@@ -1437,26 +1465,13 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
     let target_script = if let Some(script) = script_hex {
         hex::decode(script)?
     } else if let Some(addr) = address {
-        // Decode bech32m address to pubkey hash
-        let pubkey_hash = address::decode_bech32m(addr)
+        let info = address::inspect(addr)
             .map_err(|e| anyhow::anyhow!("Failed to decode address: {}", e))?;
 
-        // Create P2PKH script: OP_DUP OP_HASH256 <pubkey_hash> OP_EQUALVERIFY OP_CHECKSIG
-        // For simplicity, we'll use a direct format (adjust based on your script format)
-        // Standard P2PKH: 76 a9 14 <20-byte-hash> 88 ac
-        // But for Dilithium with 32-byte hash: 76 a9 20 <32-byte-hash> 88 ac
-        let mut script = Vec::with_capacity(35);
-        script.push(0x76); // OP_DUP
-        script.push(0xa9); // OP_HASH256
-        script.push(0x20); // Push 32 bytes
-        script.extend_from_slice(&pubkey_hash);
-        script.push(0x88); // OP_EQUALVERIFY
-        script.push(0xac); // OP_CHECKSIG
+        println!("Decoded address: {}", info.normalized);
+        println!("Pubkey hash: {}", hex::encode(info.payload));
 
-        println!("Decoded address: {}", addr);
-        println!("Pubkey hash: {}", hex::encode(pubkey_hash));
-
-        script
+        address::script_from_pubkey_hash(&info.payload)
     } else {
         anyhow::bail!("Either --script-hex or --address must be provided");
     };
