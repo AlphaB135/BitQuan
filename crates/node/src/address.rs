@@ -3,14 +3,22 @@
 
 use bech32::{self, Bech32m, Hrp};
 
-/// Human-readable part for mainnet addresses.
-const HRP_MAINNET: &str = "q";
+/// Human-readable part for mainnet addresses (current).
+const HRP_MAINNET: &str = "bq";
+/// Legacy mainnet HRP retained for backward compatibility.
+const HRP_MAINNET_LEGACY: &str = "q";
+/// Human-readable part for public test networks.
+const HRP_TESTNET: &str = "bqt";
 
 /// Known BitQuan address networks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AddressNetwork {
-    /// Mainnet network (prefix `q`).
+    /// Mainnet network (prefix `bq`).
     Mainnet,
+    /// Public testnet network (prefix `bqt`).
+    Testnet,
+    /// Legacy mainnet format preserved for migration (prefix `q`).
+    LegacyMainnet,
 }
 
 /// Decoded information about a BitQuan address.
@@ -26,10 +34,13 @@ pub struct AddressInfo {
     pub payload: [u8; 32],
 }
 
-/// Encodes a public key hash as a Bech32m address.
+/// Encodes a public key hash as a Bech32m address using witness version 1.
 pub fn encode_bech32m(pubkey_hash: &[u8; 32]) -> String {
     let hrp = Hrp::parse(HRP_MAINNET).expect("valid HRP");
-    bech32::encode::<Bech32m>(hrp, pubkey_hash).expect("valid bech32m encoding")
+    let mut data = Vec::with_capacity(33);
+    data.push(1u8); // witness version
+    data.extend_from_slice(pubkey_hash);
+    bech32::encode::<Bech32m>(hrp, &data).expect("valid bech32m encoding")
 }
 
 /// Alias for `encode_bech32m`.
@@ -58,22 +69,50 @@ pub fn inspect(address: &str) -> Result<AddressInfo, String> {
 
     let network = match hrp.as_str() {
         HRP_MAINNET => AddressNetwork::Mainnet,
+        HRP_TESTNET => AddressNetwork::Testnet,
+        HRP_MAINNET_LEGACY => AddressNetwork::LegacyMainnet,
         other => {
             return Err(format!(
-                "unsupported HRP `{other}` (expected `{HRP_MAINNET}` for mainnet)"
+                "unsupported HRP `{other}` (expected `{HRP_MAINNET}` for mainnet or `{HRP_TESTNET}` for testnet)"
             ))
         }
     };
 
-    if data.len() != 32 {
-        return Err(format!(
-            "invalid data length: expected 32, got {}",
-            data.len()
-        ));
-    }
+    let payload_slice: &[u8] = match network {
+        AddressNetwork::Mainnet | AddressNetwork::Testnet => {
+            if data.is_empty() {
+                return Err("address missing witness data".to_string());
+            }
+
+            let witness_version = data[0];
+            if witness_version != 1 {
+                return Err(format!(
+                    "unsupported witness version {} (expected 1)",
+                    witness_version
+                ));
+            }
+
+            if data.len() != 33 {
+                return Err(format!(
+                    "invalid payload length: expected 33 (version + hash), got {}",
+                    data.len()
+                ));
+            }
+            &data[1..]
+        }
+        AddressNetwork::LegacyMainnet => {
+            if data.len() != 32 {
+                return Err(format!(
+                    "invalid payload length: expected 32, got {}",
+                    data.len()
+                ));
+            }
+            &data
+        }
+    };
 
     let mut payload = [0u8; 32];
-    payload.copy_from_slice(&data);
+    payload.copy_from_slice(payload_slice);
 
     Ok(AddressInfo {
         hrp,
@@ -107,7 +146,7 @@ mod tests {
     fn test_encode_decode_roundtrip() {
         let hash = [0x42; 32];
         let address = encode_bech32m(&hash);
-        assert!(address.starts_with("q1"));
+        assert!(address.starts_with("bq1"));
 
         let decoded = decode_bech32m(&address).unwrap();
         assert_eq!(decoded, hash);
@@ -121,6 +160,18 @@ mod tests {
 
         assert_eq!(info.network, AddressNetwork::Mainnet);
         assert_eq!(info.normalized, address);
+        assert_eq!(info.payload, hash);
+    }
+
+    #[test]
+    fn test_inspect_legacy_q_address() {
+        // Legacy format: witnessless Bech32m with HRP `q`.
+        let hrp = Hrp::parse(HRP_MAINNET_LEGACY).unwrap();
+        let hash = [0x44; 32];
+        let legacy = bech32::encode::<Bech32m>(hrp, &hash).expect("encode legacy");
+        let info = inspect(&legacy).expect("legacy address should validate");
+
+        assert_eq!(info.network, AddressNetwork::LegacyMainnet);
         assert_eq!(info.payload, hash);
     }
 

@@ -56,7 +56,7 @@ cargo test --all --locked
 ./target/release/bitquan-node mine
 ```
 
-See [command.txt](command.txt) for complete CLI reference.
+See [docs/command.md](docs/command.md) for the complete CLI reference.
 
 ## Documentation
 
@@ -75,7 +75,8 @@ Technical Specifications:
 - [BQIP Proposals](docs/bqip/)
 
 Guides:
-- [Command Reference](command.txt)
+- [Address ↔︎ Script Guide](docs/address-and-script.md)
+- [Command Reference](docs/command.md)
 - [Roadmap](ROADMAP.md)
 
 ## Features

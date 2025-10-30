@@ -1,56 +1,76 @@
-BitQuan reference node (prototype)
+# BitQuan CLI Reference
 
-Usage: bitquan-node <COMMAND>
+The `bitquan-node` binary bundles wallet tooling, mining demos, address utilities, and
+networking scaffolding for the BitQuan prototype. Every invocation follows:
 
-Commands:
-  run                Runs a placeholder node loop
-  mine-genesis       Mine the genesis block for BitQuan blockchain
-  check-block        Validates a block provided via an external source (placeholder)
-  rng                Generates random bytes and derived streams using the BitQuan RNG
-  mine-once          Mines a single block template by iterating nonces up to a limit (demo CPU miner)
-  mine               Continuous mining mode with persistent storage
-  wallet-gen         Generates a post-quantum keypair for wallet
-  wallet-address     Import/show wallet address from keypair file
-  address-to-script  Convert Bech32m address to script hex for mining
-  wallet-sign        Sign a message with wallet keypair
-  wallet-verify      Verify a signature
-  wallet-send        Send transaction from wallet
-  build-tx           Builds a simple unsigned transaction (1-in, 1-out) and prints JSON
-  p2p-demo           Run a local P2P handshake demo (server+client) on a TCP address
-  p2p-server         Start a P2P server that accepts peer connections
-  p2p-connect        Connect to a peer as a client
-  balance            Check balance for a given script/address
-  help               Print this message or the help of the given subcommand(s)
+```bash
+bitquan-node <COMMAND> [OPTIONS]
+```
 
-Options:
-  -h, --help     Print help
-  -V, --version  Print version
-Continuous mining mode with persistent storage
+Run `bitquan-node help <COMMAND>` to inspect flags for a specific subcommand.
 
-Usage: bitquan-node mine [OPTIONS]
+## Address & Script Utilities
 
-Options:
-      --datadir <DATADIR>
-          Data directory for blockchain storage [default: ./data/chainstate]
-      --payout-script-hex <PAYOUT_SCRIPT_HEX>
-          Hex-encoded script_pubkey for coinbase payout [default: 76a9140088ac]
-      --bits <BITS>
-          Compact bits target (0 = auto-adjust from chain) [default: 0]
-      --max-nonce <MAX_NONCE>
-          Maximum nonce per block attempt [default: 100000000]
-      --threads <THREADS>
-          Number of threads for mining (0 = CPU count) [default: 1]
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-Generates a post-quantum keypair for wallet
+| Command | What it does | Typical usage |
+|---------|--------------|----------------|
+| `script-from-address` | Emits the scriptPubKey (hex) for a Bech32m address. Writes metadata to `stderr` so pipelines can safely consume stdout. | `./target/release/bitquan-node script-from-address --address bq1... > script.hex` |
+| `validateaddress` | Verifies checksum/HRP, prints normalized form, public-key hash, and derived script. | `./target/release/bitquan-node validateaddress --address bq1...` |
 
-Usage: bitquan-node wallet-gen [OPTIONS]
+See also [`docs/address-and-script.md`](./address-and-script.md) for a walkthrough that pairs these commands.
 
-Options:
-      --algo <ALGO>          Algorithm (dilithium3, falcon512, sphincs) [default: dilithium3]
-      --output <OUTPUT>      Output file for keypair (optional)
-      --password <PASSWORD>  Password to encrypt the keystore (interactive prompt if not provided)
-  -h, --help                 Print help
-  -V, --version              Print version
+## Wallet & Signing
+
+| Command | Purpose |
+|---------|---------|
+| `wallet-gen` | Create a Dilithium3 keypair and encrypted keystore. |
+| `wallet-address` | Show the Bech32m address and pubkey hash from a keystore. |
+| `wallet-sign` | Produce a Dilithium signature over a hex-encoded message. |
+| `wallet-verify` | Verify a signature against a public key (placeholder implementation). |
+| `wallet-send` | Construct, sign, and submit a basic transaction from a keystore. |
+
+Combined example:
+
+```bash
+./target/release/bitquan-node wallet-gen --output wallet.keystore
+./target/release/bitquan-node wallet-address --keystore wallet.keystore
+./target/release/bitquan-node wallet-sign --keystore wallet.keystore --message deadbeef
+```
+
+## Mining & Consensus
+
+| Command | Purpose |
+|---------|---------|
+| `mine-genesis` | Brute-force the devnet genesis block. |
+| `mine-once` | Mine a single block template to illustrate PoW inner loop. |
+| `mine` | Continuous CPU mining demo with configurable threads and payout script. |
+| `run` | Launch prototype node loop (prints configured endpoints). |
+
+Example payout flow:
+
+```bash
+SCRIPT_HEX=$(./target/release/bitquan-node script-from-address --address bq1...)
+./target/release/bitquan-node mine --payout-script-hex "$SCRIPT_HEX" --threads 4
+```
+
+## Blockchain Inspection
+
+| Command | Purpose |
+|---------|---------|
+| `balance` | Scan the local chainstate to sum UTXOs for a script or address. |
+| `check-block` | Validate a serialized block from disk (placeholder). |
+| `rng` | Display random bytes derived from the consensus RNG (debug). |
+| `build-tx` | Generate a JSON template for a simple 1-in/1-out transaction. |
+
+## Networking & P2P
+
+| Command | Purpose |
+|---------|---------|
+| `p2p-demo` | Local handshake demo running client/server in a single process. |
+| `p2p-server` | Bind a listening node for inbound peers (optionally with RPC when built). |
+| `p2p-connect` | Dial a remote peer and perform a basic handshake. |
+
+## Getting Help
+
+- `bitquan-node --help` — global options and the command list.
+- `bitquan-node help <command>` — detailed flags for any subcommand.
+- `cargo run -p bitquan-node -- --help` — regenerate this reference from source.

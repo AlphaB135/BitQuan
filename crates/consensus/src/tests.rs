@@ -225,6 +225,73 @@ fn test_block_weight_exceeds_limit() {
 }
 
 #[test]
+fn test_transaction_and_block_hash_determinism() {
+    use crate::pow::header_hash;
+    use crate::transaction_sighash;
+    use bitquan_types::{
+        Block, BlockHeader, NetworkId, SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut,
+        Witness,
+    };
+
+    // Sample transaction with witness payload.
+    let tx = Transaction {
+        version: 2,
+        lock_time: 42,
+        inputs: vec![TxIn {
+            prev_txid: [0x10; 32],
+            prev_vout: 7,
+            script_sig: vec![0xaa, 0xbb, 0xcc],
+            sequence: 0xffff_fffe,
+        }],
+        outputs: vec![TxOut {
+            value: 42_000,
+            script_pubkey: vec![0x51, 0x20, 0x99],
+        }],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses: vec![Witness {
+            signatures: vec![SignaturePayload {
+                signer_index: 0,
+                signature: vec![0xde, 0xad, 0xbe, 0xef],
+                public_key: vec![0x01, 0x02],
+                aux: None,
+            }],
+        }],
+    };
+
+    // Transaction sighash must be deterministic across repeated invocations.
+    let expected_tx_hash = transaction_sighash(&tx, NetworkId::Mainnet);
+    for _ in 0..32 {
+        assert_eq!(
+            transaction_sighash(&tx, NetworkId::Mainnet),
+            expected_tx_hash
+        );
+    }
+
+    // Build a block and ensure header hashing is deterministic as well.
+    let block = Block {
+        header: BlockHeader {
+            version: 1,
+            prev_block: [0x55; 32],
+            merkle_root: [0x33; 32],
+            pqc_agg_hint: [0x44; 32],
+            time: 1_700_000_123,
+            bits: 0x1d00ffff,
+            nonce: 99,
+        },
+        transactions: vec![tx.clone()],
+    };
+
+    let expected_header_hash = header_hash(&block.header);
+    for _ in 0..32 {
+        assert_eq!(header_hash(&block.header), expected_header_hash);
+    }
+
+    // Recomputing via freshly constructed block components must stay stable.
+    let expected_again = transaction_sighash(&block.transactions[0], NetworkId::Mainnet);
+    assert_eq!(expected_again, expected_tx_hash);
+}
+
+#[test]
 fn test_signature_weight_scaling() {
     use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut, Witness};
 

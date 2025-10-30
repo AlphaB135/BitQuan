@@ -137,7 +137,8 @@ enum Commands {
         address: String,
     },
     /// Validate a Bech32m address and display decoded metadata.
-    AddressValidate {
+    #[command(name = "validateaddress", alias = "address-validate")]
+    ValidateAddress {
         /// Bech32m address (e.g., q1...)
         #[arg(long)]
         address: String,
@@ -281,7 +282,7 @@ fn main() -> Result<()> {
             wallet_address(&keystore, password.as_deref())
         }
         Commands::ScriptFromAddress { address } => script_from_address(&address),
-        Commands::AddressValidate { address } => address_validate(&address),
+        Commands::ValidateAddress { address } => address_validate(&address),
         Commands::WalletSign {
             keystore,
             message,
@@ -968,6 +969,8 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
 fn address_network_label(network: address::AddressNetwork) -> &'static str {
     match network {
         address::AddressNetwork::Mainnet => "mainnet",
+        address::AddressNetwork::Testnet => "testnet",
+        address::AddressNetwork::LegacyMainnet => "mainnet (legacy q1)",
     }
 }
 
