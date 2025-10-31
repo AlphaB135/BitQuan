@@ -7,6 +7,9 @@ use thiserror::Error;
 pub mod methods;
 pub mod server;
 
+#[cfg(test)]
+pub(crate) mod test_util;
+
 /// RPC error types
 #[derive(Debug, Error)]
 pub enum RpcError {

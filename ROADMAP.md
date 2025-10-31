@@ -1,8 +1,8 @@
 # BitQuan Roadmap
 
-## Current Status: v0.0.1-alpha (Devnet Ready) - 2025-10-27
+## Current Status: v0.0.1-alpha (Devnet Ready) - 2025-10-31
 
-**Completion: 96%** | **Tests: 127 passing** | **Build: Clean (warnings-as-errors)**
+**Completion: 96%** | **Tests: 128 passing** | **Build: Clean (warnings-as-errors)**
 
 ### Phase Summary
 
@@ -18,6 +18,52 @@
 | Phase 7: Security | ✅ Complete | 100% |
 | Phase 8: Governance Setup | ✅ Complete | 100% |
 | Phase 9: Network Launch | 🟢 Ready | 85% |
+
+---
+
+## Latest Progress (2025-10-31T09:20:00Z) - Address UX & Quantum Mining Review ✅
+
+**Completed Today (Session 6):**
+- ✅ Added `script-from-address` / `validateaddress` CLI with shared Bech32m+legacy decoding
+- ✅ Documented address→script workflow (`docs/address-and-script.md`, updated CLI reference)
+- ✅ Strengthened consensus regression test: deterministic tx/block hashing loop
+- ✅ Responded to community concern on quantum miners; captured follow-up actions below
+
+**Quantum Mining Risk Tracking:**
+- Research queue: evaluate Grover-based mining feasibility & hash function options (Phase 5→9)
+- Monitoring: add hashrate anomaly alerting before beta net launch
+- Contingency backlog: design hybrid mitigation (difficulty retarget, consensus fallback)
+
+**Next Focus:**
+1. Implement RPC test harness (spawn helper, health endpoint, mock auth) to stabilise CI
+2. Instrument roadmap tasks for quantum-mining monitoring (alert policy, documentation)
+3. Prepare beta readiness checklist (confirm total tests ≥130, end-to-end wallet flow)
+
+**Upcoming RPC Stabilisation Tasks:**
+1. ~~Diagnosis (read-only): audit existing RPC tests and identify hang risks.~~ ✅ (2025-10-31)
+2. ~~Test Server Helper:** `spawn_test_server`, `wait_ready`, tracing init.~~ ✅ (`crates/rpc/src/test_util.rs`)
+3. ~~Health Endpoint:** `/health` no-auth + connection close.~~ ✅ (`server.rs`)
+4. ~~Refactor server tests:** async tokio tests with helper + timeouts.~~ ✅ (`rpc_max_body_returns_413`, `rpc_without_auth_is_401`, `rpc_concurrency_smoke`)
+5. Mock AuthVerifier (optional) – revisit when real verifier lands (current static basic auth sufficient).
+6. ~~Test Logging:** tracing test writer initialised once.~~ ✅
+7. ~~Timeout Guards:** reqwest 2 s timeout + 5 s `tokio::time::timeout` wrappers.~~ ✅
+8. ~~Dev dependencies:** `reqwest` (rustls), `tokio`, `tracing-subscriber`, `futures`.~~ ✅
+9. CI follow-up (TODO): add `cargo nextest` or `RUST_LOG=warn cargo test -p bitquan-rpc` job; avoid unstable `-Z` on stable toolchain.
+10. ~~Verification commands:** `cargo clean`, `cargo test -p bitquan-rpc -- --list`, `RUST_LOG=debug ...accepts_request_with_valid_auth`, full crate tests.~~ ✅
+
+**Next RPC TODOs:**
+- Evaluate lightweight rate limiting / connection budget before beta launch.
+- Document production override for `MAX_REQUEST_SIZE` (currently 1 MiB).
+- Keep `/health` unauthenticated only; plan transition notes if moving to bearer/JWT auth.
+
+**CI Snapshot:**
+- cargo fmt / clippy -D warnings / test --all --locked ✅
+- bitquan-consensus targeted tests ✅ (53 unit tests)
+- Documentation build/manual lint pending (tracked in Phase 9)
+
+**Commits Today:** 2  
+**Files Modified:** 6  
+**Token Usage:** 48k/1,000k (4.8%)
 
 ---
 

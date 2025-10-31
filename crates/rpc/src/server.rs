@@ -2,8 +2,10 @@
 
 use crate::{error_codes, methods, JsonRpcRequest, JsonRpcResponse};
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{Shutdown, TcpListener, TcpStream};
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
+use std::time::Duration;
 
 const MAX_REQUEST_SIZE: usize = 1_048_576; // 1 MiB
 
@@ -25,6 +27,18 @@ impl RpcAuth {
 
     fn matches(&self, provided: &str) -> bool {
         provided == format!("{}:{}", self.username, self.password)
+    }
+
+    /// Username accessor (primarily for tests).
+    #[cfg(test)]
+    pub(crate) fn username(&self) -> &str {
+        &self.username
+    }
+
+    /// Password accessor (primarily for tests).
+    #[cfg(test)]
+    pub(crate) fn password(&self) -> &str {
+        &self.password
     }
 }
 
@@ -53,23 +67,69 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     /// Start serving requests (blocking)
     pub fn serve(&self) -> std::io::Result<()> {
         let listener = TcpListener::bind(&self.addr)?;
-        println!("RPC server listening on {}", self.addr);
+        self.accept_loop(listener, None)
+    }
 
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    let handler = Arc::clone(&self.handler);
-                    let auth = self.auth.clone();
-                    std::thread::spawn(move || {
-                        if let Err(e) = handle_connection(stream, handler.as_ref(), auth.as_ref()) {
-                            eprintln!("Error handling connection: {}", e);
-                        }
-                    });
+    #[cfg(test)]
+    pub(crate) fn serve_with_listener_and_shutdown(
+        &self,
+        listener: TcpListener,
+        shutdown: Option<Receiver<()>>,
+    ) -> std::io::Result<()> {
+        self.accept_loop(listener, shutdown)
+    }
+
+    fn accept_loop(
+        &self,
+        listener: TcpListener,
+        mut shutdown: Option<Receiver<()>>,
+    ) -> std::io::Result<()> {
+        let bound_addr = listener.local_addr()?;
+        println!("RPC server listening on {}", bound_addr);
+
+        if shutdown.is_none() {
+            for stream in listener.incoming() {
+                match stream {
+                    Ok(stream) => self.spawn_worker(stream),
+                    Err(e) => eprintln!("Connection error: {}", e),
                 }
-                Err(e) => eprintln!("Connection error: {}", e),
+            }
+            return Ok(());
+        }
+
+        listener.set_nonblocking(true)?;
+
+        loop {
+            if let Some(rx) = shutdown.as_mut() {
+                match rx.try_recv() {
+                    Ok(()) | Err(TryRecvError::Disconnected) => break,
+                    Err(TryRecvError::Empty) => {}
+                }
+            }
+
+            match listener.accept() {
+                Ok((stream, _)) => self.spawn_worker(stream),
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Err(e) => {
+                    eprintln!("Connection error: {}", e);
+                    std::thread::sleep(Duration::from_millis(25));
+                }
             }
         }
+
         Ok(())
+    }
+
+    fn spawn_worker(&self, stream: TcpStream) {
+        let handler = Arc::clone(&self.handler);
+        let auth = self.auth.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = handle_connection(stream, handler.as_ref(), auth.as_ref()) {
+                eprintln!("Error handling connection: {}", e);
+            }
+        });
     }
 }
 
@@ -78,12 +138,34 @@ fn handle_connection<T: methods::RpcMethods>(
     handler: &T,
     auth: Option<&RpcAuth>,
 ) -> std::io::Result<()> {
-    let buf_reader = BufReader::new(&stream);
+    stream.set_nonblocking(false)?;
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(5)))?;
+
+    let mut buf_reader = BufReader::new(&stream);
     let http_request: Vec<_> = buf_reader
+        .by_ref()
         .lines()
         .map_while(Result::ok)
         .take_while(|line| !line.is_empty())
         .collect();
+
+    let request_line = http_request.first().map(|s| s.as_str()).unwrap_or("");
+
+    if request_line.starts_with("GET /health") {
+        let response = concat!(
+            "HTTP/1.1 200 OK\r\n",
+            "Content-Length: 2\r\n",
+            "Content-Type: text/plain\r\n",
+            "Connection: close\r\n",
+            "\r\n",
+            "ok"
+        );
+        stream.write_all(response.as_bytes())?;
+        stream.flush()?;
+        let _ = stream.shutdown(Shutdown::Write);
+        return Ok(());
+    }
 
     // Read Content-Length header
     let content_length = http_request
@@ -94,13 +176,27 @@ fn handle_connection<T: methods::RpcMethods>(
         .unwrap_or(0);
 
     if content_length == 0 {
-        let response = "HTTP/1.1 400 Bad Request\r\n\r\n";
+        let response = concat!(
+            "HTTP/1.1 400 Bad Request\r\n",
+            "Content-Length: 0\r\n",
+            "Connection: close\r\n",
+            "\r\n"
+        );
         stream.write_all(response.as_bytes())?;
+        stream.flush()?;
+        let _ = stream.shutdown(Shutdown::Write);
         return Ok(());
     }
     if content_length > MAX_REQUEST_SIZE {
-        let response = "HTTP/1.1 413 Payload Too Large\r\nContent-Length: 0\r\n\r\n";
+        let response = concat!(
+            "HTTP/1.1 413 Payload Too Large\r\n",
+            "Content-Length: 0\r\n",
+            "Connection: close\r\n",
+            "\r\n"
+        );
         stream.write_all(response.as_bytes())?;
+        stream.flush()?;
+        let _ = stream.shutdown(Shutdown::Write);
         return Ok(());
     }
 
@@ -113,7 +209,7 @@ fn handle_connection<T: methods::RpcMethods>(
 
     // Read body
     let mut body = vec![0u8; content_length];
-    stream.read_exact(&mut body)?;
+    buf_reader.read_exact(&mut body)?;
 
     // Parse JSON-RPC request
     let json_response = match serde_json::from_slice::<JsonRpcRequest>(&body) {
@@ -140,12 +236,14 @@ fn handle_connection<T: methods::RpcMethods>(
 
     // Send HTTP response
     let http_response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         response_body.len(),
         response_body
     );
 
     stream.write_all(http_response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
     Ok(())
 }
 
@@ -191,17 +289,22 @@ fn send_unauthorized(stream: &mut TcpStream) -> std::io::Result<()> {
         "Connection: close\r\n",
         "\r\n"
     );
-    stream.write_all(response.as_bytes())
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::methods::{BlockTemplate, BlockchainInfo, MiningInfo, RpcMethods, TxInfo};
+    use crate::test_util::{basic_auth_header, init_test_tracing, spawn_test_server, wait_ready};
     use crate::RpcError;
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
-    use std::thread;
+    use anyhow::Result;
+    use futures::future::try_join_all;
+    use reqwest::StatusCode;
+    use tokio::time::{timeout, Duration};
 
     struct TestHandler;
 
@@ -266,109 +369,132 @@ mod tests {
         let _server = RpcServer::new(handler, "127.0.0.1:0".to_string());
     }
 
-    #[test]
-    fn rejects_request_exceeding_max_body() {
-        let handler = TestHandler;
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn health_requires_no_auth_and_closes() -> Result<()> {
+        init_test_tracing();
+        let server = RpcServer::new(TestHandler, "127.0.0.1:0".to_string());
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
-        let server_thread = thread::spawn(move || {
-            if let Ok((stream, _)) = listener.accept() {
-                handle_connection(stream, &handler, None).unwrap();
-            }
-        });
+        wait_ready(&base_url).await?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
 
-        let mut stream = TcpStream::connect(addr).unwrap();
-        let request = format!(
-            "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n",
-            super::MAX_REQUEST_SIZE + 1
-        );
-        stream.write_all(request.as_bytes()).unwrap();
-        stream.flush().unwrap();
+        let resp = timeout(
+            Duration::from_secs(5),
+            client.get(format!("{}/health", base_url)).send(),
+        )
+        .await??;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.text().await?, "ok");
 
-        let mut response = String::new();
-        stream.read_to_string(&mut response).unwrap();
-        assert!(
-            response.starts_with("HTTP/1.1 413"),
-            "unexpected response: {}",
-            response
-        );
-
-        server_thread.join().unwrap();
+        let _ = shutdown_tx.send(());
+        let _ = timeout(Duration::from_secs(5), handle).await??;
+        Ok(())
     }
 
-    #[test]
-    fn rejects_request_without_auth() {
-        let handler = TestHandler;
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_max_body_returns_413() -> Result<()> {
+        init_test_tracing();
+        let server = RpcServer::new(TestHandler, "127.0.0.1:0".to_string());
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
+
+        wait_ready(&base_url).await?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+
+        let oversized = vec![b'a'; MAX_REQUEST_SIZE + 1];
+        let resp = timeout(
+            Duration::from_secs(5),
+            client
+                .post(&base_url)
+                .header("Content-Type", "application/json")
+                .body(oversized)
+                .send(),
+        )
+        .await??;
+        assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+        let _ = shutdown_tx.send(());
+        let _ = timeout(Duration::from_secs(5), handle).await??;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_without_auth_is_401() -> Result<()> {
+        init_test_tracing();
         let auth = RpcAuth::new("user", "pass");
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+        let server =
+            RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), Some(auth.clone()));
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
-        let server_thread = thread::spawn(move || {
-            if let Ok((stream, _)) = listener.accept() {
-                handle_connection(stream, &handler, Some(&auth)).unwrap();
-            }
-        });
+        wait_ready(&base_url).await?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
 
-        let mut stream = TcpStream::connect(addr).unwrap();
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
-        let request = format!(
-            "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-            body.len(),
-            body
-        );
-        stream.write_all(request.as_bytes()).unwrap();
-        stream.flush().unwrap();
+        let resp = timeout(
+            Duration::from_secs(5),
+            client
+                .post(&base_url)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .send(),
+        )
+        .await??;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
-        let mut buf = [0u8; 512];
-        let n = stream.read(&mut buf).unwrap();
-        let response = String::from_utf8_lossy(&buf[..n]);
-        assert!(
-            response.starts_with("HTTP/1.1 401"),
-            "unexpected response: {}",
-            response
-        );
-
-        server_thread.join().unwrap();
+        let _ = shutdown_tx.send(());
+        let _ = timeout(Duration::from_secs(5), handle).await??;
+        Ok(())
     }
 
-    #[test]
-    fn accepts_request_with_valid_auth() {
-        let handler = TestHandler;
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_concurrency_smoke() -> Result<()> {
+        init_test_tracing();
         let auth = RpcAuth::new("alice", "secret");
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+        let server =
+            RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), Some(auth.clone()));
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
-        let server_thread = thread::spawn(move || {
-            if let Ok((stream, _)) = listener.accept() {
-                handle_connection(stream, &handler, Some(&auth)).unwrap();
-            }
-        });
+        wait_ready(&base_url).await?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
 
-        use base64::engine::general_purpose::STANDARD;
-        use base64::Engine;
-        let credential = STANDARD.encode(b"alice:secret");
-
-        let mut stream = TcpStream::connect(addr).unwrap();
+        let auth_header = basic_auth_header(auth.username(), auth.password());
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
-        let request = format!(
-            "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nAuthorization: Basic {}\r\nContent-Length: {}\r\n\r\n{}",
-            credential,
-            body.len(),
-            body
-        );
-        stream.write_all(request.as_bytes()).unwrap();
-        stream.flush().unwrap();
 
-        let mut buf = [0u8; 512];
-        let n = stream.read(&mut buf).unwrap();
-        let response = String::from_utf8_lossy(&buf[..n]);
-        assert!(
-            response.starts_with("HTTP/1.1 200"),
-            "unexpected response: {}",
-            response
-        );
+        let mut requests = Vec::with_capacity(10);
+        for _ in 0..10 {
+            let client = client.clone();
+            let url = base_url.clone();
+            let auth_header = auth_header.clone();
+            let body = body.to_string();
+            requests.push(async move {
+                let resp = timeout(
+                    Duration::from_secs(5),
+                    client
+                        .post(&url)
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", &auth_header)
+                        .body(body)
+                        .send(),
+                )
+                .await??;
+                anyhow::Result::<String>::Ok(resp.text().await?)
+            });
+        }
 
-        server_thread.join().unwrap();
+        let responses = try_join_all(requests).await?;
+        for text in responses {
+            assert!(text.contains("100"));
+        }
+
+        let _ = shutdown_tx.send(());
+        let _ = timeout(Duration::from_secs(5), handle).await??;
+        Ok(())
     }
 }

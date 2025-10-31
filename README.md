@@ -56,6 +56,26 @@ cargo test --all --locked
 ./target/release/bitquan-node mine
 ```
 
+## RPC Health & Testing
+
+```bash
+# Health check (no auth required)
+curl -i http://127.0.0.1:8332/health
+
+# Unauthorized request (expects 401)
+curl -i \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}' \
+  http://127.0.0.1:8332/
+
+# Authorized request (replace user/pass accordingly)
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Basic $(printf "alice:secret" | base64)' \
+  -d '{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}' \
+  http://127.0.0.1:8332/
+```
+
 See [docs/command.md](docs/command.md) for the complete CLI reference.
 
 ## Documentation
@@ -76,6 +96,7 @@ Technical Specifications:
 
 Guides:
 - [Address ↔︎ Script Guide](docs/address-and-script.md)
+- [RPC Testing Guide](docs/rpc/testing.md)
 - [Command Reference](docs/command.md)
 - [Roadmap](ROADMAP.md)
 

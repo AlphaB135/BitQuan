@@ -17,3 +17,9 @@ thiserror.workspace = true
 hex.workspace = true
 anyhow.workspace = true
 base64 = "0.22"
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+futures = "0.3"
