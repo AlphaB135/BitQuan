@@ -501,7 +501,6 @@ fn handle_connection<T: methods::RpcMethods>(
     Ok(())
 }
 
-
 fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
     let header = request_headers
         .iter()
@@ -808,8 +807,7 @@ impl RpcMetrics {
             self.header_limit_total.fetch_add(1, Ordering::Relaxed);
         }
 
-        self.latency_sum_ms
-            .fetch_add(latency_ms, Ordering::Relaxed);
+        self.latency_sum_ms.fetch_add(latency_ms, Ordering::Relaxed);
         self.latency_count.fetch_add(1, Ordering::Relaxed);
 
         let bucket = if latency_ms <= 50 {
@@ -880,7 +878,14 @@ fn record_response(
     header_limit: bool,
 ) {
     let latency_ms = start.elapsed().as_millis() as u64;
-    METRICS.record(status, latency_ms, rate_limited, body_limit, auth_fail, header_limit);
+    METRICS.record(
+        status,
+        latency_ms,
+        rate_limited,
+        body_limit,
+        auth_fail,
+        header_limit,
+    );
 
     if rate_limited || body_limit || auth_fail || header_limit {
         let reason = if rate_limited {
@@ -995,12 +1000,7 @@ mod tests {
         let mut config = base_config();
         config.rl_burst = 1;
         config.rl_refill_per_sec = 0;
-        let server = RpcServer::with_auth(
-            TestHandler,
-            "127.0.0.1:0".to_string(),
-            None,
-            config,
-        );
+        let server = RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), None, config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;

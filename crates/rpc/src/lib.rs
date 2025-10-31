@@ -37,10 +37,10 @@ impl Default for RpcConfig {
             rl_burst: 20,
             rl_refill_per_sec: 10,
             conn_cooldown_ms: 10,
-             trust_proxy: false,
-             trusted_proxies: Vec::new(),
-             max_header_bytes: 8 * 1024,
-             header_read_timeout_ms: 1_000,
+            trust_proxy: false,
+            trusted_proxies: Vec::new(),
+            max_header_bytes: 8 * 1024,
+            header_read_timeout_ms: 1_000,
         }
     }
 }

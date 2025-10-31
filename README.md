@@ -110,7 +110,7 @@ Guides:
 
 - Post-Quantum Cryptography (Dilithium3, 3293-byte signatures)
 - Block weight accounting (4,000,000 WU cap, 384 WU per PQC sig)
-- ASERT difficulty adjustment (per-block, 1-day half-life)
+- Quantum-aware difficulty (ASERT + burst guard) with 4 h half-life, 11-block window, 0.33 floor ratio, 1.5× clamp
 - Fee-per-weight mempool ordering
 - Proof-of-Work consensus (SHA-256d)
 - UTXO model with coin maturity (100 blocks)

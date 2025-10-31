@@ -19,7 +19,10 @@ mod tests;
 pub use asert::asert_next_target;
 pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
 pub use fork::{BlockNode, ForkChoice, ForkError, ReorgInfo};
-pub use pow::{check_header_pow, compact_to_target_bytes, header_hash};
+pub use pow::{
+    check_header_pow, clamp_bits_within_bounds, compact_to_target_bytes, header_hash, PowError,
+    DEVNET_MAX_BITS, DEVNET_MIN_BITS,
+};
 pub use script::{verify_script, OpCode, ScriptError, ScriptInterpreter, MAX_SCRIPT_SIZE};
 pub use sighash::transaction_sighash;
 pub use utxo::{OutPoint, UtxoEntry, UtxoError, UtxoSet};

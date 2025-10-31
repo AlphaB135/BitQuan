@@ -38,6 +38,34 @@ This note captures the initial production assumptions for Proof-of-Work security
   - Encourage non-custodial pooling through BQIP proposals (e.g., payout scripts with multisig timelocks).
   - Integrate compact blocks + erasฝure-coded relay for low bandwidth regions; Phase 4 introduces gossip-level changes.
 
+### 2.1 Quantum-aware Difficulty (Burst Guard)
+
+BitQuan layers a **burst guard** on top of ASERT to dampen sudden hash-rate spikes that become easier to stage with rented quantum or FPGA capacity. The guard inspects the last `burst_guard_window` blocks and, when the observed wall-clock time collapses below a floor ratio, temporarily hardens the difficulty target.
+
+**Default parameters**
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| `difficulty_half_life` | **14,400 s** (4 hours) | Compensates faster for hash bursts than the 1-day curve used in Bitcoin. |
+| `burst_guard_window` | **11 blocks** | Evaluates roughly two hours of history. |
+| `burst_guard_floor_ratio` | **0.33** | Guard activates if the window clears in <33% of the expected time (~<200 s per block). |
+| `burst_guard_multiplier` | **1.5×** | Caps the instantaneous difficulty tightening applied when the guard fires. |
+
+When the guard triggers, the next target is divided by `max(multiplier, 1.0)` before being clamped to the usual consensus bounds. The guard automatically disengages once window averages return above the floor; hysteresis tuning is tracked in [ROADMAP.md](../../ROADMAP.md#q1-2025).
+
+**Activation & rollout**
+
+- **Devnet:** Enabled from genesis (height ≥ 1) to provide immediate feedback during simulations.
+- **Testnet:** Flag day activation at height **70,000** (targeting 2025-02-01); nodes prior to this build must upgrade before that height.
+- **Mainnet:** Planned activation at height **210,000** (synced with the first subsidy halving) or earlier via governance vote; activation date will be published 90 days in advance.
+
+Guard telemetry is emitted through:
+
+- `scripts/bench` (simulation harness) and `devnet_sim` binary with `--verbose` for deterministic analysis.
+- `bitquan-node mine --limit-blocks ...` which prints `[ASERT] guard=` diagnostics per block for real or mocked mining runs.
+
+> _TODO:_ Integrate before/after hash-rate response charts once the benchmarking notebook lands (`docs/img/quantum-aware-difficulty.png` placeholder).
+
 ## 3. Operational Guidance
 - **Reward schedule API:** `RewardSchedule::subsidy_at_height(height)` now returns the correct subsidy including tail emission. The `ConsensusEngine` exposes this via the block validation report.
 - **Difficulty metadata:** `ConsensusParams` tracks `target_block_time` and `difficulty_half_life`. Consensus code still uses placeholder digest generation—full difficulty/retarget logic will land alongside Phase 4 validation.

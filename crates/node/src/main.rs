@@ -11,19 +11,18 @@ mod wallet;
 
 use anyhow::Result;
 use bitquan_consensus::{
-    check_header_pow, header_hash, ConsensusEngine, ConsensusParams, DifficultyState,
+    asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
+    target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState,
 };
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_rpc::{
     server::{RpcAuth, RpcServer},
-    IpNetwork,
-    RpcConfig,
+    IpNetwork, RpcConfig,
 };
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
-use std::str::FromStr;
 use bitquan_storage::{ChainStore, InMemoryChainStore};
 use bitquan_types::{Block, SigAlgorithm, Transaction, TxIn, TxOut};
 use bq_crypto::{
@@ -32,7 +31,9 @@ use bq_crypto::{
 };
 use clap::{Parser, Subcommand};
 use hex::encode as hex_encode;
+use std::collections::VecDeque;
 use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
 
@@ -112,6 +113,9 @@ enum Commands {
         /// Number of threads for mining (0 = CPU count)
         #[arg(long, default_value_t = 1)]
         threads: usize,
+        /// Optional limit on number of blocks to mine in this session.
+        #[arg(long)]
+        limit_blocks: Option<u64>,
     },
     /// Generates a post-quantum keypair for wallet
     WalletGen {
@@ -309,7 +313,15 @@ fn main() -> Result<()> {
             bits,
             max_nonce,
             threads,
-        } => mine_continuous(&datadir, &payout_script_hex, bits, max_nonce, threads),
+            limit_blocks,
+        } => mine_continuous(
+            &datadir,
+            &payout_script_hex,
+            bits,
+            max_nonce,
+            threads,
+            limit_blocks,
+        ),
         Commands::WalletGen {
             algo,
             output,
@@ -514,7 +526,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
     for nonce in 0..max_tries {
         genesis.header.nonce = nonce;
 
-        if check_header_pow(&genesis.header) {
+        if let Ok(true) = check_header_pow(&genesis.header) {
             let hash = header_hash(&genesis.header);
             let elapsed = start_time.elapsed();
             let hashrate = (nonce as f64) / elapsed.as_secs_f64();
@@ -708,6 +720,8 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         bits = state.update(1, time as u64, &params);
     }
 
+    bits = clamp_bits_within_bounds(bits);
+
     let mut header = BlockHeader {
         version: 1,
         prev_block: prev,
@@ -720,7 +734,7 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
 
     for n in 0..max_tries {
         header.nonce = n;
-        if check_header_pow(&header) {
+        if let Ok(true) = check_header_pow(&header) {
             let id = header_hash(&header);
             println!("FOUND nonce={n} hash={}", hex::encode(id));
             let block = Block {
@@ -745,12 +759,20 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
 fn mine_continuous(
     datadir: &str,
     payout_script_hex: &str,
-    mut bits: u32,
+    bits_override: u32,
     max_nonce: u64,
     threads: usize,
+    limit_blocks: Option<u64>,
 ) -> Result<()> {
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Copy)]
+    struct BlockLog {
+        height: u64,
+        timestamp: i64,
+        target: f64,
+    }
 
     println!("BitQuan Continuous Miner");
     println!("Data directory: {}", datadir);
@@ -763,6 +785,9 @@ fn mine_continuous(
         }
     );
 
+    let params = ConsensusParams::phase3_defaults();
+    let window = params.burst_guard_window as usize;
+
     // Open or create RocksDB store
     let store = RocksDBStore::open(datadir)?;
     let store = Arc::new(Mutex::new(store));
@@ -770,6 +795,44 @@ fn mine_continuous(
     let payout_script = hex::decode(payout_script_hex)?;
     let found = Arc::new(AtomicBool::new(false));
     let blocks_mined = Arc::new(AtomicU64::new(0));
+
+    let mut history: VecDeque<BlockLog> = VecDeque::with_capacity(window + 2);
+    let mut last_timestamp: Option<i64> = None;
+    let mut bits = bits_override;
+
+    {
+        let s = store.lock().unwrap();
+        let current_height = s.height()?;
+        if current_height > 0 {
+            let start = current_height
+                .saturating_sub(params.burst_guard_window)
+                .saturating_add(1);
+            for h in start..=current_height {
+                if let Some(block) = s.get_block_by_height(h)? {
+                    let log = BlockLog {
+                        height: h,
+                        timestamp: block.header.time as i64,
+                        target: compact_to_target(block.header.bits),
+                    };
+                    last_timestamp = Some(log.timestamp);
+                    history.push_back(log);
+                }
+            }
+            if bits == 0 {
+                bits = s.tip()?.map(|tip| tip.bits).unwrap_or(0x207fffff);
+            }
+        } else if bits == 0 {
+            bits = 0x207fffff;
+        }
+    }
+
+    if bits != 0 {
+        bits = clamp_bits_within_bounds(bits);
+    }
+
+    let mut total_intervals = 0.0;
+    let mut interval_count = 0u64;
+    let mut guard_total = 0u64;
 
     loop {
         let height = {
@@ -787,6 +850,7 @@ fn mine_continuous(
 
         if now == 0 {
             eprintln!("ERROR: System time is before UNIX epoch");
+            print_session_summary(interval_count, total_intervals, guard_total);
             return Ok(());
         }
 
@@ -810,9 +874,7 @@ fn mine_continuous(
             script_sig,
         };
 
-        let subsidy = ConsensusParams::phase3_defaults()
-            .reward_schedule
-            .subsidy_at_height(height);
+        let subsidy = params.reward_schedule.subsidy_at_height(height);
         let coinbase = Transaction {
             version: 2,
             lock_time: 0,
@@ -837,20 +899,6 @@ fn mine_continuous(
             }
         }
 
-        // Auto-calc bits if zero
-        if bits == 0 {
-            let params = ConsensusParams::phase3_defaults();
-            let s = store.lock().unwrap();
-            let (anchor_bits, anchor_time) = if let Ok(Some(tip)) = s.tip() {
-                (tip.bits, tip.time as u64)
-            } else {
-                (0x207fffff, now as u64)
-            };
-            drop(s);
-            let mut state = DifficultyState::new(0, anchor_time, anchor_bits);
-            bits = state.update(1, time as u64, &params);
-        }
-
         let mut header = bitquan_types::BlockHeader {
             version: 1,
             prev_block: prev,
@@ -871,7 +919,7 @@ fn mine_continuous(
 
         for n in 0..max_nonce {
             header.nonce = n;
-            if check_header_pow(&header) {
+            if let Ok(true) = check_header_pow(&header) {
                 let id = header_hash(&header);
                 let elapsed = start_time.elapsed();
                 let hashrate = (n as f64) / elapsed.as_secs_f64();
@@ -894,10 +942,88 @@ fn mine_continuous(
                     s.insert_block(block)?;
                 }
 
-                blocks_mined.fetch_add(1, Ordering::Relaxed);
-                let total = blocks_mined.load(Ordering::Relaxed);
+                let block_height = height + 1;
+                let block_time = header.time as i64;
+                let block_bits = header.bits;
+                let block_target = compact_to_target(block_bits);
+
+                if let Some(prev_ts) = last_timestamp {
+                    let interval = (block_time - prev_ts).max(0) as f64;
+                    total_intervals += interval;
+                    interval_count += 1;
+                }
+                last_timestamp = Some(block_time);
+
+                history.push_back(BlockLog {
+                    height: block_height,
+                    timestamp: block_time,
+                    target: block_target,
+                });
+                if history.len() > window + 1 {
+                    history.pop_front();
+                }
+
+                let anchor = if block_height as usize > window && history.len() > window {
+                    history[history.len() - 1 - window]
+                } else {
+                    *history
+                        .front()
+                        .expect("history always contains at least the mined block")
+                };
+
+                let height_delta = block_height as i64 - anchor.height as i64;
+                let time_delta = block_time - anchor.timestamp;
+                let expected_time = params.target_block_time as f64 * height_delta.max(1) as f64;
+                let average = if height_delta > 0 {
+                    time_delta as f64 / height_delta as f64
+                } else {
+                    params.target_block_time as f64
+                };
+                let ratio = if expected_time > 0.0 {
+                    time_delta as f64 / expected_time
+                } else {
+                    1.0
+                };
+                let guard_triggered = height_delta as u64 >= params.burst_guard_window
+                    && time_delta > 0
+                    && ratio < params.burst_guard_floor_ratio;
+                if guard_triggered {
+                    guard_total += 1;
+                }
+
+                let next_target =
+                    asert_next_target(anchor.target, height_delta, time_delta, &params);
+                let mut next_bits = target_to_compact(next_target);
+                if next_bits == 0 {
+                    next_bits = block_bits;
+                }
+                next_bits = clamp_bits_within_bounds(next_bits);
+
+                println!(
+                    "[ASERT] height={} guard={} window={} avg={:.2}s ratio={:.3} target=0x{:08x} next_bits=0x{:08x}",
+                    block_height,
+                    if guard_triggered { "ON " } else { "off" },
+                    height_delta,
+                    average,
+                    ratio,
+                    block_bits,
+                    next_bits
+                );
+
+                bits = next_bits;
+
+                let total = blocks_mined.fetch_add(1, Ordering::Relaxed) + 1;
                 println!("Saved to DB | Session total: {}", total);
                 found.store(true, Ordering::Relaxed);
+
+                if let Some(limit) = limit_blocks {
+                    if total >= limit {
+                        print_session_summary(interval_count, total_intervals, guard_total);
+                        println!("Reached block limit ({limit}). Session complete.");
+                        return Ok(());
+                    }
+                }
+
                 break;
             }
 
@@ -919,9 +1045,23 @@ fn mine_continuous(
                 "\nNo valid nonce in {} tries, adjusting difficulty...",
                 max_nonce
             );
-            bits = (bits & 0x00ffffff) | ((((bits >> 24) + 1) & 0xff) << 24); // Easier
+            bits = (bits & 0x00ff_ffff) | ((((bits >> 24) + 1) & 0xff) << 24);
+            bits = clamp_bits_within_bounds(bits);
         }
     }
+}
+
+fn print_session_summary(interval_count: u64, total_intervals: f64, guard_total: u64) {
+    if interval_count == 0 {
+        println!("Session summary -> insufficient interval data to compute averages.");
+        return;
+    }
+    let average = total_intervals / interval_count as f64;
+    let guard_rate = guard_total as f64 * 100.0 / interval_count as f64;
+    println!(
+        "Session summary -> avg {:.2}s across {} intervals | guard {} activations ({:.2}/100)",
+        average, interval_count, guard_total, guard_rate
+    );
 }
 
 #[cfg(not(feature = "rocksdb-backend"))]
@@ -1409,9 +1549,8 @@ fn p2p_server(
             if trimmed.is_empty() {
                 continue;
             }
-            let network = IpNetwork::from_str(trimmed).map_err(|e| {
-                anyhow::anyhow!("invalid --rpc-trusted-cidr '{}': {}", trimmed, e)
-            })?;
+            let network = IpNetwork::from_str(trimmed)
+                .map_err(|e| anyhow::anyhow!("invalid --rpc-trusted-cidr '{}': {}", trimmed, e))?;
             trusted_proxies.push(network);
         }
 
