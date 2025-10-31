@@ -38,6 +38,14 @@
 2. Integrate PoW bound checks into RPC validation endpoints.
 3. Publish before/after difficulty response charts in docs once plotting pipeline ready.
 
+## TODO (2025-10-31T11:05:00Z) - Upcoming Guard Enhancements 🚧
+
+- ⏳ Implement developer mock-PoW toggle (`--pow=mock`) with network gating (dev/test only) across miner/node CLI.
+- ⏳ Add burst guard hysteresis (release ratio 0.38) plus cooldown tracking (5 blocks) and activation heights (dev=1, test=10 000, main=TBD).
+- ⏳ Extend bench tooling with CSV export and document before/after guard behaviour with illustrative graphs.
+- ⏳ Ensure new consensus params/tests (`guard_no_flap_on_boundary`, `guard_cooldown_blocks_respected`, activation gating coverage) green.
+- ⏳ Verify long devnet mining runs avoid panic/overflow under mock-PoW and updated guard rules.
+
 ## Latest Progress (2025-10-31T09:20:00Z) - Address UX & Quantum Mining Review ✅
 
 **Completed Today (Session 6):**
