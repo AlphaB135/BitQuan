@@ -54,8 +54,8 @@
 
 **Next RPC TODOs:**
 - Monitor rate-limit metrics and adjust defaults before beta launch.
-- Document production overrides for request limits and publish ops guidance.
-- Keep `/health` unauthenticated only; plan transition notes if moving to bearer/JWT auth.
+- Publish production playbook (recommended flags, proxy examples, observability hooks).
+- Expand fuzz/DoS coverage (slowloris, header flood) and plan JWT transition story.
 
 **CI Snapshot:**
 - cargo fmt / clippy -D warnings / test --all --locked ✅

@@ -386,7 +386,7 @@ fn main() -> Result<()> {
                     rpc_conn_cooldown_ms,
                     rpc_max_header,
                     rpc_header_timeout_ms,
-                    *rpc_trust_proxy,
+                    rpc_trust_proxy,
                     rpc_trusted_cidr,
                 )
             }

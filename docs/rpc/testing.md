@@ -68,3 +68,15 @@ Tests should always:
 
 Following this pattern keeps the RPC tests deterministic and makes
 troubleshooting in CI much easier.
+
+## Configurable limits
+
+The node exposes CLI flags (forwarded to `RpcConfig`) to tune runtime limits:
+
+- `--rpc-max-body=<bytes>` (default 1_048_576)
+- `--rpc-rl-burst=<tokens>` and `--rpc-rl-refill-per-sec=<tokens>` for the
+  in-memory token bucket (per IP)
+- `--rpc-conn-cooldown-ms=<millis>` to slow down abusive connections
+
+Tests customise these values by constructing `RpcConfig` directly; production
+operators can set the flags when launching `bitquan-node p2p-server`.

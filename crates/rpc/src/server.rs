@@ -227,8 +227,7 @@ fn handle_connection<T: methods::RpcMethods>(
             return Ok(());
         }
 
-        let trimmed = line.trim_end_matches(['', '
-']);
+        let trimmed = line.trim_end_matches(['\r', '\n']);
         if request_line.is_empty() {
             if trimmed.is_empty() {
                 send_bad_request(&mut stream)?;
@@ -321,12 +320,7 @@ fn handle_connection<T: methods::RpcMethods>(
 
         let body = render_metrics();
         let response = format!(
-            "HTTP/1.1 200 OK
-Content-Type: text/plain; version=0.0.4
-Content-Length: {}
-Connection: close
-
-{}",
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             body.len(),
             body
         );
@@ -349,12 +343,7 @@ Connection: close
     }
 
     if is_health {
-        let response = "HTTP/1.1 200 OK
-Content-Length: 2
-Content-Type: text/plain
-Connection: close
-
-ok";
+        let response = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nok";
         stream.write_all(response.as_bytes())?;
         stream.flush()?;
         let _ = stream.shutdown(Shutdown::Write);
