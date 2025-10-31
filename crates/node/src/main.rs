@@ -9,10 +9,10 @@ mod tx_builder;
 mod utxo;
 mod wallet;
 
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
-    target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState,
+    target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
 };
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
@@ -24,7 +24,7 @@ use bitquan_rpc::{
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
 use bitquan_storage::{ChainStore, InMemoryChainStore};
-use bitquan_types::{Block, SigAlgorithm, Transaction, TxIn, TxOut};
+use bitquan_types::{Block, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
 use bq_crypto::{
     rng::{RandomSource, RngService},
     CryptoRegistry,
@@ -39,6 +39,39 @@ use std::time::Duration;
 
 #[cfg(feature = "rocksdb-backend")]
 use rpc::NodeRpcHandler;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PowMode {
+    Hashcash,
+    Mock,
+}
+
+impl PowMode {
+    fn parse(value: &str) -> Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "hashcash" | "sha256d" | "real" => Ok(PowMode::Hashcash),
+            "mock" | "dev-fast-pow" => Ok(PowMode::Mock),
+            other => bail!("unknown pow engine '{}'", other),
+        }
+    }
+}
+
+fn parse_network_id(value: &str) -> Result<NetworkId> {
+    match value.to_ascii_lowercase().as_str() {
+        "mainnet" => Ok(NetworkId::Mainnet),
+        "testnet" => Ok(NetworkId::Testnet),
+        "devnet" => Ok(NetworkId::Devnet),
+        "regtest" => Ok(NetworkId::Regtest),
+        other => bail!("unknown network '{}'", other),
+    }
+}
+
+fn ensure_pow_allowed(pow_mode: PowMode, network: NetworkId) -> Result<()> {
+    if matches!(pow_mode, PowMode::Mock) && matches!(network, NetworkId::Mainnet) {
+        bail!("mock PoW is disabled on mainnet");
+    }
+    Ok(())
+}
 
 #[derive(Parser)]
 #[command(
@@ -95,6 +128,12 @@ enum Commands {
         /// Compact bits target (e.g., 0x207fffff for very easy target).
         #[arg(long, default_value_t = 0x207fffff)]
         bits: u32,
+        /// Network to target (mainnet|testnet|devnet|regtest).
+        #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
+        network: String,
+        /// Proof-of-Work engine (hashcash|mock).
+        #[arg(long, value_name = "POW", default_value = "hashcash")]
+        pow: String,
     },
     /// Continuous mining mode with persistent storage
     Mine {
@@ -110,6 +149,12 @@ enum Commands {
         /// Maximum nonce per block attempt
         #[arg(long, default_value_t = 100_000_000u64)]
         max_nonce: u64,
+        /// Network to target (mainnet|testnet|devnet|regtest).
+        #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
+        network: String,
+        /// Proof-of-Work engine (hashcash|mock).
+        #[arg(long, value_name = "POW", default_value = "hashcash")]
+        pow: String,
         /// Number of threads for mining (0 = CPU count)
         #[arg(long, default_value_t = 1)]
         threads: usize,
@@ -306,22 +351,38 @@ fn main() -> Result<()> {
             max_tries,
             payout_script_hex,
             bits,
-        } => mine_once(max_tries, &payout_script_hex, bits),
+            network,
+            pow,
+        } => {
+            let network_id = parse_network_id(&network)?;
+            let pow_mode = PowMode::parse(&pow)?;
+            ensure_pow_allowed(pow_mode, network_id)?;
+            mine_once(max_tries, &payout_script_hex, bits, network_id, pow_mode)
+        }
         Commands::Mine {
             datadir,
             payout_script_hex,
             bits,
             max_nonce,
+            network,
+            pow,
             threads,
             limit_blocks,
-        } => mine_continuous(
-            &datadir,
-            &payout_script_hex,
-            bits,
-            max_nonce,
-            threads,
-            limit_blocks,
-        ),
+        } => {
+            let network_id = parse_network_id(&network)?;
+            let pow_mode = PowMode::parse(&pow)?;
+            ensure_pow_allowed(pow_mode, network_id)?;
+            mine_continuous(
+                &datadir,
+                &payout_script_hex,
+                bits,
+                max_nonce,
+                threads,
+                limit_blocks,
+                network_id,
+                pow_mode,
+            )
+        }
         Commands::WalletGen {
             algo,
             output,
@@ -649,9 +710,17 @@ fn load_block_placeholder() -> Result<Block> {
     Ok(block)
 }
 
-fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<()> {
+fn mine_once(
+    max_tries: u64,
+    payout_script_hex: &str,
+    mut bits: u32,
+    network: NetworkId,
+    pow_mode: PowMode,
+) -> Result<()> {
     use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
     let mut store = InMemoryChainStore::new();
+
+    let allow_mock = matches!(pow_mode, PowMode::Mock);
 
     // Determine timestamp safely with bounds checking
     let now = std::time::SystemTime::now()
@@ -732,9 +801,22 @@ fn mine_once(max_tries: u64, payout_script_hex: &str, mut bits: u32) -> Result<(
         nonce: 0,
     };
 
+    if allow_mock {
+        println!(
+            "[mock-pow] enabled on {:?}: nonce=0 or bits>=0x{:08x} will satisfy difficulty",
+            network, DEVNET_MAX_BITS
+        );
+    }
+
     for n in 0..max_tries {
         header.nonce = n;
-        if let Ok(true) = check_header_pow(&header) {
+        let pow_valid = if allow_mock {
+            header.nonce == 0 || header.bits >= DEVNET_MAX_BITS
+        } else {
+            check_header_pow(&header).with_context(|| "pow verification failed")?
+        };
+
+        if pow_valid {
             let id = header_hash(&header);
             println!("FOUND nonce={n} hash={}", hex::encode(id));
             let block = Block {
@@ -763,6 +845,8 @@ fn mine_continuous(
     max_nonce: u64,
     threads: usize,
     limit_blocks: Option<u64>,
+    network: NetworkId,
+    pow_mode: PowMode,
 ) -> Result<()> {
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
@@ -773,17 +857,6 @@ fn mine_continuous(
         timestamp: i64,
         target: f64,
     }
-
-    println!("BitQuan Continuous Miner");
-    println!("Data directory: {}", datadir);
-    println!(
-        "Threads: {}",
-        if threads == 0 {
-            num_cpus::get()
-        } else {
-            threads
-        }
-    );
 
     let params = ConsensusParams::phase3_defaults();
     let window = params.burst_guard_window as usize;
@@ -799,6 +872,26 @@ fn mine_continuous(
     let mut history: VecDeque<BlockLog> = VecDeque::with_capacity(window + 2);
     let mut last_timestamp: Option<i64> = None;
     let mut bits = bits_override;
+    let allow_mock = matches!(pow_mode, PowMode::Mock);
+
+    println!("BitQuan Continuous Miner");
+    println!("Data directory: {}", datadir);
+    println!(
+        "Threads: {}",
+        if threads == 0 {
+            num_cpus::get()
+        } else {
+            threads
+        }
+    );
+    println!("Network: {:?}", network);
+    println!("PoW mode: {:?}", pow_mode);
+    if allow_mock {
+        println!(
+            "[mock-pow] enabled: nonce=0 or bits>=0x{:08x} will satisfy difficulty",
+            DEVNET_MAX_BITS
+        );
+    }
 
     {
         let s = store.lock().unwrap();
@@ -919,7 +1012,13 @@ fn mine_continuous(
 
         for n in 0..max_nonce {
             header.nonce = n;
-            if let Ok(true) = check_header_pow(&header) {
+            let pow_valid = if allow_mock {
+                header.nonce == 0 || header.bits >= DEVNET_MAX_BITS
+            } else {
+                check_header_pow(&header).with_context(|| "pow verification failed")?
+            };
+
+            if pow_valid {
                 let id = header_hash(&header);
                 let elapsed = start_time.elapsed();
                 let hashrate = (n as f64) / elapsed.as_secs_f64();
@@ -1071,6 +1170,9 @@ fn mine_continuous(
     _bits: u32,
     _max_nonce: u64,
     _threads: usize,
+    _limit_blocks: Option<u64>,
+    _network: NetworkId,
+    _pow_mode: PowMode,
 ) -> Result<()> {
     eprintln!("ERROR: Continuous mining requires 'rocksdb-backend' feature");
     eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");

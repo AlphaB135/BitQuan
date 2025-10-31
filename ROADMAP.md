@@ -40,7 +40,7 @@
 
 ## TODO (2025-10-31T11:05:00Z) - Upcoming Guard Enhancements 🚧
 
-- ⏳ Implement developer mock-PoW toggle (`--pow=mock`) with network gating (dev/test only) across miner/node CLI.
+- ✅ Implement developer mock-PoW toggle (`--pow=mock`) with network gating (dev/test only) across miner/node CLI.
 - ⏳ Add burst guard hysteresis (release ratio 0.38) plus cooldown tracking (5 blocks) and activation heights (dev=1, test=10 000, main=TBD).
 - ⏳ Extend bench tooling with CSV export and document before/after guard behaviour with illustrative graphs.
 - ⏳ Ensure new consensus params/tests (`guard_no_flap_on_boundary`, `guard_cooldown_blocks_respected`, activation gating coverage) green.

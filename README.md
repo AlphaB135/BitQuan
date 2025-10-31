@@ -54,6 +54,12 @@ cargo test --all --locked
 
 # Start continuous mining
 ./target/release/bitquan-node mine
+
+# Dev/test fast mining with mock PoW (nonce=0 shortcut)
+./target/debug/bitquan-node mine --network devnet --pow mock --limit-blocks 20
+
+# Mainnet forbids mock PoW (returns an error)
+./target/debug/bitquan-node mine --network mainnet --pow mock
 ```
 
 ## RPC Health & Testing
