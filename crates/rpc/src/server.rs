@@ -1,13 +1,17 @@
 //! HTTP server for handling JSON-RPC requests
 
-use crate::{error_codes, methods, JsonRpcRequest, JsonRpcResponse};
+use crate::{error_codes, methods, JsonRpcRequest, JsonRpcResponse, RpcConfig};
+use http::StatusCode;
+use once_cell::sync::Lazy;
+use serde_json::json;
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::{IpAddr, Shutdown, TcpListener, TcpStream};
+use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
-use std::sync::Arc;
-use std::time::Duration;
-
-const MAX_REQUEST_SIZE: usize = 1_048_576; // 1 MiB
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// Basic authentication configuration for RPC server.
 #[derive(Clone, Debug)]
@@ -47,20 +51,26 @@ pub struct RpcServer<T> {
     handler: Arc<T>,
     addr: String,
     auth: Option<RpcAuth>,
+    config: RpcConfig,
+    limiter: Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    auth_backoff: Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
 }
 
 impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     /// Create new RPC server
     pub fn new(handler: T, addr: String) -> Self {
-        Self::with_auth(handler, addr, None)
+        Self::with_auth(handler, addr, None, RpcConfig::default())
     }
 
     /// Create RPC server with optional authentication.
-    pub fn with_auth(handler: T, addr: String, auth: Option<RpcAuth>) -> Self {
+    pub fn with_auth(handler: T, addr: String, auth: Option<RpcAuth>, config: RpcConfig) -> Self {
         Self {
             handler: Arc::new(handler),
             addr,
             auth,
+            config,
+            limiter: Arc::new(Mutex::new(HashMap::new())),
+            auth_backoff: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -86,11 +96,22 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     ) -> std::io::Result<()> {
         let bound_addr = listener.local_addr()?;
         println!("RPC server listening on {}", bound_addr);
+        println!(
+            "RPC config: max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={}",
+            self.config.max_body_bytes,
+            self.config.rl_burst,
+            self.config.rl_refill_per_sec,
+            self.config.conn_cooldown_ms
+        );
+        println!("RPC health endpoint: GET /health (no auth)");
 
         if shutdown.is_none() {
             for stream in listener.incoming() {
                 match stream {
-                    Ok(stream) => self.spawn_worker(stream),
+                    Ok(stream) => {
+                        let peer = stream.peer_addr().ok().map(|addr| addr.ip());
+                        self.spawn_worker(stream, peer);
+                    }
                     Err(e) => eprintln!("Connection error: {}", e),
                 }
             }
@@ -108,7 +129,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             }
 
             match listener.accept() {
-                Ok((stream, _)) => self.spawn_worker(stream),
+                Ok((stream, peer)) => self.spawn_worker(stream, Some(peer.ip())),
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     std::thread::sleep(Duration::from_millis(25));
                 }
@@ -122,11 +143,25 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
         Ok(())
     }
 
-    fn spawn_worker(&self, stream: TcpStream) {
+    fn spawn_worker(&self, stream: TcpStream, peer: Option<IpAddr>) {
         let handler = Arc::clone(&self.handler);
         let auth = self.auth.clone();
+        let config = self.config.clone();
+        let limiter = Arc::clone(&self.limiter);
+        let auth_backoff = Arc::clone(&self.auth_backoff);
         std::thread::spawn(move || {
-            if let Err(e) = handle_connection(stream, handler.as_ref(), auth.as_ref()) {
+            let peer_ip = peer
+                .or_else(|| stream.peer_addr().ok().map(|addr| addr.ip()))
+                .unwrap_or(IpAddr::from([127, 0, 0, 1]));
+            if let Err(e) = handle_connection(
+                stream,
+                peer_ip,
+                handler.as_ref(),
+                auth.as_ref(),
+                &config,
+                &limiter,
+                &auth_backoff,
+            ) {
                 eprintln!("Error handling connection: {}", e);
             }
         });
@@ -135,117 +170,348 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
 
 fn handle_connection<T: methods::RpcMethods>(
     mut stream: TcpStream,
+    peer_ip: IpAddr,
     handler: &T,
     auth: Option<&RpcAuth>,
+    config: &RpcConfig,
+    limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    auth_backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
 ) -> std::io::Result<()> {
+    let start = Instant::now();
     stream.set_nonblocking(false)?;
-    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    stream.set_read_timeout(Some(Duration::from_millis(config.header_read_timeout_ms)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
 
     let mut buf_reader = BufReader::new(&stream);
-    let http_request: Vec<_> = buf_reader
-        .by_ref()
-        .lines()
-        .map_while(Result::ok)
-        .take_while(|line| !line.is_empty())
-        .collect();
+    let mut total_header_bytes: usize = 0;
+    let mut request_line = String::new();
+    let mut headers: Vec<String> = Vec::new();
 
-    let request_line = http_request.first().map(|s| s.as_str()).unwrap_or("");
+    loop {
+        let mut line = String::new();
+        let bytes = buf_reader.read_line(&mut line)?;
+        if bytes == 0 {
+            send_bad_request(&mut stream)?;
+            record_response(
+                "INVALID",
+                "invalid",
+                StatusCode::BAD_REQUEST,
+                0,
+                start,
+                peer_ip,
+                false,
+                false,
+                false,
+                false,
+            );
+            apply_cooldown(config);
+            return Ok(());
+        }
 
-    if request_line.starts_with("GET /health") {
-        let response = concat!(
-            "HTTP/1.1 200 OK\r\n",
-            "Content-Length: 2\r\n",
-            "Content-Type: text/plain\r\n",
-            "Connection: close\r\n",
-            "\r\n",
-            "ok"
+        total_header_bytes += bytes;
+        if total_header_bytes > config.max_header_bytes {
+            send_header_too_large(&mut stream)?;
+            record_response(
+                "INVALID",
+                "header",
+                StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+                0,
+                start,
+                peer_ip,
+                false,
+                false,
+                false,
+                true,
+            );
+            apply_cooldown(config);
+            return Ok(());
+        }
+
+        let trimmed = line.trim_end_matches(['', '
+']);
+        if request_line.is_empty() {
+            if trimmed.is_empty() {
+                send_bad_request(&mut stream)?;
+                record_response(
+                    "INVALID",
+                    "invalid",
+                    StatusCode::BAD_REQUEST,
+                    0,
+                    start,
+                    peer_ip,
+                    false,
+                    false,
+                    false,
+                    false,
+                );
+                apply_cooldown(config);
+                return Ok(());
+            }
+            request_line = trimmed.to_string();
+            continue;
+        }
+
+        if trimmed.is_empty() {
+            break;
+        }
+
+        headers.push(trimmed.to_string());
+    }
+
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+
+    if request_line.is_empty() {
+        send_bad_request(&mut stream)?;
+        record_response(
+            "INVALID",
+            "invalid",
+            StatusCode::BAD_REQUEST,
+            0,
+            start,
+            peer_ip,
+            false,
+            false,
+            false,
+            false,
         );
-        stream.write_all(response.as_bytes())?;
-        stream.flush()?;
-        let _ = stream.shutdown(Shutdown::Write);
+        apply_cooldown(config);
         return Ok(());
     }
 
-    // Read Content-Length header
-    let content_length = http_request
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or("");
+    let path = parts.next().unwrap_or("/");
+    let path_owned = path.to_string();
+
+    let client_ip = resolve_client_ip(peer_ip, &headers, config);
+
+    let is_health = method.eq_ignore_ascii_case("GET") && path == "/health";
+    let is_metrics = method.eq_ignore_ascii_case("GET") && path == "/metrics";
+
+    let content_length = headers
         .iter()
-        .find(|line| line.to_lowercase().starts_with("content-length:"))
-        .and_then(|line| line.split(':').nth(1))
-        .and_then(|s| s.trim().parse::<usize>().ok())
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.trim().eq_ignore_ascii_case("content-length") {
+                value.trim().parse::<usize>().ok()
+            } else {
+                None
+            }
+        })
         .unwrap_or(0);
 
-    if content_length == 0 {
-        let response = concat!(
-            "HTTP/1.1 400 Bad Request\r\n",
-            "Content-Length: 0\r\n",
-            "Connection: close\r\n",
-            "\r\n"
+    if is_metrics {
+        if !client_ip.is_loopback() {
+            send_forbidden(&mut stream)?;
+            record_response(
+                method,
+                &path_owned,
+                StatusCode::FORBIDDEN,
+                0,
+                start,
+                client_ip,
+                false,
+                false,
+                false,
+                false,
+            );
+            apply_cooldown(config);
+            return Ok(());
+        }
+
+        let body = render_metrics();
+        let response = format!(
+            "HTTP/1.1 200 OK
+Content-Type: text/plain; version=0.0.4
+Content-Length: {}
+Connection: close
+
+{}",
+            body.len(),
+            body
         );
         stream.write_all(response.as_bytes())?;
         stream.flush()?;
         let _ = stream.shutdown(Shutdown::Write);
+        record_response(
+            method,
+            &path_owned,
+            StatusCode::OK,
+            0,
+            start,
+            client_ip,
+            false,
+            false,
+            false,
+            false,
+        );
         return Ok(());
     }
-    if content_length > MAX_REQUEST_SIZE {
-        let response = concat!(
-            "HTTP/1.1 413 Payload Too Large\r\n",
-            "Content-Length: 0\r\n",
-            "Connection: close\r\n",
-            "\r\n"
-        );
+
+    if is_health {
+        let response = "HTTP/1.1 200 OK
+Content-Length: 2
+Content-Type: text/plain
+Connection: close
+
+ok";
         stream.write_all(response.as_bytes())?;
         stream.flush()?;
         let _ = stream.shutdown(Shutdown::Write);
+        record_response(
+            method,
+            &path_owned,
+            StatusCode::OK,
+            0,
+            start,
+            client_ip,
+            false,
+            false,
+            false,
+            false,
+        );
+        return Ok(());
+    }
+
+    if content_length == 0 {
+        send_bad_request(&mut stream)?;
+        record_response(
+            method,
+            &path_owned,
+            StatusCode::BAD_REQUEST,
+            content_length,
+            start,
+            client_ip,
+            false,
+            false,
+            false,
+            false,
+        );
+        apply_cooldown(config);
+        return Ok(());
+    }
+
+    if content_length > config.max_body_bytes {
+        send_payload_too_large(&mut stream)?;
+        record_response(
+            method,
+            &path_owned,
+            StatusCode::PAYLOAD_TOO_LARGE,
+            content_length,
+            start,
+            client_ip,
+            false,
+            true,
+            false,
+            false,
+        );
+        apply_cooldown(config);
+        return Ok(());
+    }
+
+    if !take_token(client_ip, limiter, config) {
+        send_too_many_requests(&mut stream)?;
+        record_response(
+            method,
+            &path_owned,
+            StatusCode::TOO_MANY_REQUESTS,
+            content_length,
+            start,
+            client_ip,
+            true,
+            false,
+            false,
+            false,
+        );
+        apply_cooldown(config);
         return Ok(());
     }
 
     if let Some(auth_cfg) = auth {
-        if !is_authorized(&http_request, auth_cfg) {
+        if !is_authorized(&headers, auth_cfg) {
             send_unauthorized(&mut stream)?;
+            record_response(
+                method,
+                &path_owned,
+                StatusCode::UNAUTHORIZED,
+                content_length,
+                start,
+                client_ip,
+                false,
+                false,
+                true,
+                false,
+            );
+            apply_auth_backoff(client_ip, auth_backoff);
+            apply_cooldown(config);
             return Ok(());
+        } else {
+            reset_auth_backoff(client_ip, auth_backoff);
         }
     }
 
-    // Read body
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
     let mut body = vec![0u8; content_length];
     buf_reader.read_exact(&mut body)?;
 
-    // Parse JSON-RPC request
-    let json_response = match serde_json::from_slice::<JsonRpcRequest>(&body) {
-        Ok(request) => {
-            if request.jsonrpc != "2.0" {
-                JsonRpcResponse::error(
-                    request.id,
-                    error_codes::INVALID_REQUEST,
-                    "Invalid JSON-RPC version".to_string(),
-                )
-            } else {
-                methods::dispatch_call(handler, &request.method, request.params, request.id)
-            }
+    let json_request = match serde_json::from_slice::<JsonRpcRequest>(&body) {
+        Ok(req) => req,
+        Err(e) => {
+            let error_response = JsonRpcResponse::error(
+                serde_json::Value::Null,
+                error_codes::PARSE_ERROR,
+                format!("Parse error: {e}"),
+            );
+            respond_json(&mut stream, &error_response)?;
+            record_response(
+                method,
+                &path_owned,
+                StatusCode::OK,
+                content_length,
+                start,
+                client_ip,
+                false,
+                false,
+                false,
+                false,
+            );
+            apply_cooldown(config);
+            return Ok(());
         }
-        Err(e) => JsonRpcResponse::error(
-            serde_json::Value::Null,
-            error_codes::PARSE_ERROR,
-            format!("Parse error: {}", e),
-        ),
     };
 
-    // Serialize response
-    let response_body = serde_json::to_string(&json_response).unwrap();
+    let json_response = if json_request.jsonrpc != "2.0" {
+        JsonRpcResponse::error(
+            json_request.id,
+            error_codes::INVALID_REQUEST,
+            "Invalid JSON-RPC version".to_string(),
+        )
+    } else {
+        methods::dispatch_call(
+            handler,
+            &json_request.method,
+            json_request.params,
+            json_request.id,
+        )
+    };
 
-    // Send HTTP response
-    let http_response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        response_body.len(),
-        response_body
+    respond_json(&mut stream, &json_response)?;
+    record_response(
+        method,
+        &path_owned,
+        StatusCode::OK,
+        content_length,
+        start,
+        client_ip,
+        false,
+        false,
+        false,
+        false,
     );
-
-    stream.write_all(http_response.as_bytes())?;
-    stream.flush()?;
-    let _ = stream.shutdown(Shutdown::Write);
+    apply_cooldown(config);
     Ok(())
 }
+
 
 fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
     let header = request_headers
@@ -280,6 +546,71 @@ fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
     auth.matches(&credential)
 }
 
+fn respond_json(stream: &mut TcpStream, response: &JsonRpcResponse) -> std::io::Result<()> {
+    let response_body = serde_json::to_string(response).unwrap();
+    let http_response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        response_body.len(),
+        response_body
+    );
+    stream.write_all(http_response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
+    Ok(())
+}
+
+fn send_bad_request(stream: &mut TcpStream) -> std::io::Result<()> {
+    let response = concat!(
+        "HTTP/1.1 400 Bad Request\r\n",
+        "Content-Length: 0\r\n",
+        "Connection: close\r\n",
+        "\r\n"
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
+    Ok(())
+}
+
+fn send_payload_too_large(stream: &mut TcpStream) -> std::io::Result<()> {
+    let response = concat!(
+        "HTTP/1.1 413 Payload Too Large\r\n",
+        "Content-Length: 0\r\n",
+        "Connection: close\r\n",
+        "\r\n"
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
+    Ok(())
+}
+
+fn send_header_too_large(stream: &mut TcpStream) -> std::io::Result<()> {
+    let response = concat!(
+        "HTTP/1.1 431 Request Header Fields Too Large\r\n",
+        "Content-Length: 0\r\n",
+        "Connection: close\r\n",
+        "\r\n"
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
+    Ok(())
+}
+
+fn send_forbidden(stream: &mut TcpStream) -> std::io::Result<()> {
+    let response = concat!(
+        "HTTP/1.1 403 Forbidden\r\n",
+        "Content-Length: 0\r\n",
+        "Connection: close\r\n",
+        "\r\n"
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
+    Ok(())
+}
+
 fn send_unauthorized(stream: &mut TcpStream) -> std::io::Result<()> {
     let response = concat!(
         "HTTP/1.1 401 Unauthorized\r\n",
@@ -295,16 +626,308 @@ fn send_unauthorized(stream: &mut TcpStream) -> std::io::Result<()> {
     Ok(())
 }
 
+fn send_too_many_requests(stream: &mut TcpStream) -> std::io::Result<()> {
+    let response = concat!(
+        "HTTP/1.1 429 Too Many Requests\r\n",
+        "Content-Length: 0\r\n",
+        "Connection: close\r\n",
+        "\r\n"
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
+    Ok(())
+}
+
+fn apply_cooldown(config: &RpcConfig) {
+    if config.conn_cooldown_ms > 0 {
+        std::thread::sleep(Duration::from_millis(config.conn_cooldown_ms));
+    }
+}
+
+fn take_token(
+    ip: IpAddr,
+    limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    config: &RpcConfig,
+) -> bool {
+    let mut map = limiter.lock().unwrap();
+    let bucket = map.entry(ip).or_insert_with(|| TokenBucket {
+        tokens: config.rl_burst as f64,
+        last: Instant::now(),
+    });
+
+    let now = Instant::now();
+    let elapsed = now.duration_since(bucket.last).as_secs_f64();
+    bucket.last = now;
+
+    if config.rl_refill_per_sec > 0 {
+        bucket.tokens =
+            (bucket.tokens + elapsed * config.rl_refill_per_sec as f64).min(config.rl_burst as f64);
+    }
+
+    if bucket.tokens >= 1.0 {
+        bucket.tokens -= 1.0;
+        true
+    } else {
+        false
+    }
+}
+
+struct TokenBucket {
+    tokens: f64,
+    last: Instant,
+}
+
+struct BackoffState {
+    fails: u32,
+    last: Instant,
+}
+
+fn resolve_client_ip(peer_ip: IpAddr, headers: &[String], config: &RpcConfig) -> IpAddr {
+    if !config.trust_proxy {
+        return peer_ip;
+    }
+
+    if !config
+        .trusted_proxies
+        .iter()
+        .any(|cidr| cidr.contains(peer_ip))
+    {
+        return peer_ip;
+    }
+
+    for line in headers {
+        if let Some((name, value)) = line.split_once(':') {
+            if name.trim().eq_ignore_ascii_case("x-forwarded-for") {
+                if let Some(first) = value.split(',').next() {
+                    if let Ok(addr) = IpAddr::from_str(first.trim()) {
+                        return addr;
+                    }
+                }
+            }
+        }
+    }
+
+    peer_ip
+}
+
+fn apply_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
+    let mut map = backoff.lock().unwrap();
+    let state = map.entry(ip).or_insert(BackoffState {
+        fails: 0,
+        last: Instant::now(),
+    });
+    state.fails = state.fails.saturating_add(1);
+    state.last = Instant::now();
+    let exponent = (state.fails - 1).min(4);
+    let delay_ms = 100u64.saturating_mul(1u64 << exponent);
+    drop(map);
+    std::thread::sleep(Duration::from_millis(delay_ms));
+}
+
+fn reset_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
+    let mut map = backoff.lock().unwrap();
+    map.remove(&ip);
+}
+
+struct RpcMetrics {
+    requests_total: AtomicU64,
+    status_200: AtomicU64,
+    status_400: AtomicU64,
+    status_401: AtomicU64,
+    status_403: AtomicU64,
+    status_413: AtomicU64,
+    status_429: AtomicU64,
+    status_431: AtomicU64,
+    status_other: AtomicU64,
+    rl_drops_total: AtomicU64,
+    auth_fail_total: AtomicU64,
+    body_too_large_total: AtomicU64,
+    header_limit_total: AtomicU64,
+    latency_sum_ms: AtomicU64,
+    latency_count: AtomicU64,
+    latency_bucket_50: AtomicU64,
+    latency_bucket_100: AtomicU64,
+    latency_bucket_250: AtomicU64,
+    latency_bucket_500: AtomicU64,
+    latency_bucket_1000: AtomicU64,
+    latency_bucket_inf: AtomicU64,
+}
+
+impl Default for RpcMetrics {
+    fn default() -> Self {
+        Self {
+            requests_total: AtomicU64::new(0),
+            status_200: AtomicU64::new(0),
+            status_400: AtomicU64::new(0),
+            status_401: AtomicU64::new(0),
+            status_403: AtomicU64::new(0),
+            status_413: AtomicU64::new(0),
+            status_429: AtomicU64::new(0),
+            status_431: AtomicU64::new(0),
+            status_other: AtomicU64::new(0),
+            rl_drops_total: AtomicU64::new(0),
+            auth_fail_total: AtomicU64::new(0),
+            body_too_large_total: AtomicU64::new(0),
+            header_limit_total: AtomicU64::new(0),
+            latency_sum_ms: AtomicU64::new(0),
+            latency_count: AtomicU64::new(0),
+            latency_bucket_50: AtomicU64::new(0),
+            latency_bucket_100: AtomicU64::new(0),
+            latency_bucket_250: AtomicU64::new(0),
+            latency_bucket_500: AtomicU64::new(0),
+            latency_bucket_1000: AtomicU64::new(0),
+            latency_bucket_inf: AtomicU64::new(0),
+        }
+    }
+}
+
+impl RpcMetrics {
+    fn record(
+        &self,
+        status: StatusCode,
+        latency_ms: u64,
+        rate_limited: bool,
+        body_limit: bool,
+        auth_fail: bool,
+        header_limit: bool,
+    ) {
+        self.requests_total.fetch_add(1, Ordering::Relaxed);
+        match status {
+            StatusCode::OK => self.status_200.fetch_add(1, Ordering::Relaxed),
+            StatusCode::BAD_REQUEST => self.status_400.fetch_add(1, Ordering::Relaxed),
+            StatusCode::UNAUTHORIZED => self.status_401.fetch_add(1, Ordering::Relaxed),
+            StatusCode::FORBIDDEN => self.status_403.fetch_add(1, Ordering::Relaxed),
+            StatusCode::PAYLOAD_TOO_LARGE => self.status_413.fetch_add(1, Ordering::Relaxed),
+            StatusCode::TOO_MANY_REQUESTS => self.status_429.fetch_add(1, Ordering::Relaxed),
+            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE => {
+                self.status_431.fetch_add(1, Ordering::Relaxed)
+            }
+            _ => self.status_other.fetch_add(1, Ordering::Relaxed),
+        };
+
+        if rate_limited {
+            self.rl_drops_total.fetch_add(1, Ordering::Relaxed);
+        }
+        if body_limit {
+            self.body_too_large_total.fetch_add(1, Ordering::Relaxed);
+        }
+        if auth_fail {
+            self.auth_fail_total.fetch_add(1, Ordering::Relaxed);
+        }
+        if header_limit {
+            self.header_limit_total.fetch_add(1, Ordering::Relaxed);
+        }
+
+        self.latency_sum_ms
+            .fetch_add(latency_ms, Ordering::Relaxed);
+        self.latency_count.fetch_add(1, Ordering::Relaxed);
+
+        let bucket = if latency_ms <= 50 {
+            &self.latency_bucket_50
+        } else if latency_ms <= 100 {
+            &self.latency_bucket_100
+        } else if latency_ms <= 250 {
+            &self.latency_bucket_250
+        } else if latency_ms <= 500 {
+            &self.latency_bucket_500
+        } else if latency_ms <= 1000 {
+            &self.latency_bucket_1000
+        } else {
+            &self.latency_bucket_inf
+        };
+        bucket.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn render(&self) -> String {
+        let total = self.requests_total.load(Ordering::Relaxed);
+        let status_line = |code: &str, value| {
+            format!("rpc_requests_status_total{{code=\"{}\"}} {}\n", code, value)
+        };
+        let body = format!(
+            "rpc_requests_total {}\n{}{}{}{}{}{}{}{}rpc_rl_drops_total {}\nrpc_body_413_total {}\nrpc_header_limit_total {}\nrpc_auth_401_total {}\nrpc_latency_ms_sum {}\nrpc_latency_ms_count {}\nrpc_latency_ms_bucket{{le=\"50\"}} {}\nrpc_latency_ms_bucket{{le=\"100\"}} {}\nrpc_latency_ms_bucket{{le=\"250\"}} {}\nrpc_latency_ms_bucket{{le=\"500\"}} {}\nrpc_latency_ms_bucket{{le=\"1000\"}} {}\nrpc_latency_ms_bucket{{le=\"+Inf\"}} {}\n",
+            total,
+            status_line("200", self.status_200.load(Ordering::Relaxed)),
+            status_line("400", self.status_400.load(Ordering::Relaxed)),
+            status_line("401", self.status_401.load(Ordering::Relaxed)),
+            status_line("403", self.status_403.load(Ordering::Relaxed)),
+            status_line("413", self.status_413.load(Ordering::Relaxed)),
+            status_line("429", self.status_429.load(Ordering::Relaxed)),
+            status_line("431", self.status_431.load(Ordering::Relaxed)),
+            status_line("other", self.status_other.load(Ordering::Relaxed)),
+            self.rl_drops_total.load(Ordering::Relaxed),
+            self.body_too_large_total.load(Ordering::Relaxed),
+            self.header_limit_total.load(Ordering::Relaxed),
+            self.auth_fail_total.load(Ordering::Relaxed),
+            self.latency_sum_ms.load(Ordering::Relaxed),
+            self.latency_count.load(Ordering::Relaxed),
+            self.latency_bucket_50.load(Ordering::Relaxed),
+            self.latency_bucket_100.load(Ordering::Relaxed),
+            self.latency_bucket_250.load(Ordering::Relaxed),
+            self.latency_bucket_500.load(Ordering::Relaxed),
+            self.latency_bucket_1000.load(Ordering::Relaxed),
+            self.latency_bucket_inf.load(Ordering::Relaxed),
+        );
+        body
+    }
+}
+
+static METRICS: Lazy<RpcMetrics> = Lazy::new(RpcMetrics::default);
+
+fn render_metrics() -> String {
+    METRICS.render()
+}
+
+fn record_response(
+    method: &str,
+    path: &str,
+    status: StatusCode,
+    content_length: usize,
+    start: Instant,
+    client_ip: IpAddr,
+    rate_limited: bool,
+    body_limit: bool,
+    auth_fail: bool,
+    header_limit: bool,
+) {
+    let latency_ms = start.elapsed().as_millis() as u64;
+    METRICS.record(status, latency_ms, rate_limited, body_limit, auth_fail, header_limit);
+
+    if rate_limited || body_limit || auth_fail || header_limit {
+        let reason = if rate_limited {
+            "rate_limit"
+        } else if body_limit {
+            "body_limit"
+        } else if header_limit {
+            "header_limit"
+        } else {
+            "auth_failure"
+        };
+
+        let log = json!({
+            "event": "rpc_guard",
+            "reason": reason,
+            "status": status.as_u16(),
+            "method": method,
+            "route": path,
+            "ip": client_ip.to_string(),
+            "bytes": content_length,
+            "latency_ms": latency_ms,
+        });
+        println!("{}", log);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::methods::{BlockTemplate, BlockchainInfo, MiningInfo, RpcMethods, TxInfo};
     use crate::test_util::{basic_auth_header, init_test_tracing, spawn_test_server, wait_ready};
-    use crate::RpcError;
+    use crate::{RpcConfig, RpcError};
     use anyhow::Result;
     use futures::future::try_join_all;
     use reqwest::StatusCode;
-    use tokio::time::{timeout, Duration};
+    use tokio::time::{sleep, timeout, Duration};
 
     struct TestHandler;
 
@@ -363,6 +986,14 @@ mod tests {
         }
     }
 
+    fn base_config() -> RpcConfig {
+        let mut cfg = RpcConfig::default();
+        cfg.conn_cooldown_ms = 0;
+        cfg.trust_proxy = false;
+        cfg.trusted_proxies.clear();
+        cfg
+    }
+
     #[test]
     fn test_server_creation() {
         let handler = TestHandler;
@@ -370,9 +1001,48 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn health_not_rate_limited_under_load() -> Result<()> {
+        init_test_tracing();
+        let mut config = base_config();
+        config.rl_burst = 1;
+        config.rl_refill_per_sec = 0;
+        let server = RpcServer::with_auth(
+            TestHandler,
+            "127.0.0.1:0".to_string(),
+            None,
+            config,
+        );
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
+
+        wait_ready(&base_url).await?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+        let health_url = format!("{}/health", base_url);
+
+        let mut tasks = Vec::with_capacity(50);
+        for _ in 0..50 {
+            let client = client.clone();
+            let url = health_url.clone();
+            tasks.push(async move {
+                let resp = timeout(Duration::from_secs(5), client.get(url).send()).await??;
+                anyhow::Result::<StatusCode>::Ok(resp.status())
+            });
+        }
+
+        let statuses = try_join_all(tasks).await?;
+        assert!(statuses.into_iter().all(|code| code == StatusCode::OK));
+
+        let _ = shutdown_tx.send(());
+        let _ = timeout(Duration::from_secs(5), handle).await??;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn health_requires_no_auth_and_closes() -> Result<()> {
         init_test_tracing();
-        let server = RpcServer::new(TestHandler, "127.0.0.1:0".to_string());
+        let server =
+            RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), None, base_config());
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -394,21 +1064,65 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn rpc_max_body_returns_413() -> Result<()> {
+    async fn rpc_body_within_limit_allows_200() -> Result<()> {
         init_test_tracing();
-        let server = RpcServer::new(TestHandler, "127.0.0.1:0".to_string());
+        let mut config = base_config();
+        config.max_body_bytes = 131_072;
+        let auth = RpcAuth::new("user", "pass");
+        let server = RpcServer::with_auth(
+            TestHandler,
+            "127.0.0.1:0".to_string(),
+            Some(auth.clone()),
+            config,
+        );
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build()?;
+        let rpc_endpoint = format!("{}/rpc", base_url);
 
-        let oversized = vec![b'a'; MAX_REQUEST_SIZE + 1];
+        let body = vec![b'a'; 64 * 1024];
         let resp = timeout(
             Duration::from_secs(5),
             client
-                .post(&base_url)
+                .post(&rpc_endpoint)
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    basic_auth_header(auth.username(), auth.password()),
+                )
+                .body(body)
+                .send(),
+        )
+        .await??;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let _ = shutdown_tx.send(());
+        let _ = timeout(Duration::from_secs(5), handle).await??;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_max_body_returns_413() -> Result<()> {
+        init_test_tracing();
+        let mut config = base_config();
+        config.max_body_bytes = 131_072;
+        let server = RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), None, config);
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
+
+        wait_ready(&base_url).await?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+        let rpc_endpoint = format!("{}/rpc", base_url);
+
+        let oversized = vec![b'a'; 256 * 1024];
+        let resp = timeout(
+            Duration::from_secs(5),
+            client
+                .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
                 .body(oversized)
                 .send(),
@@ -424,21 +1138,27 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn rpc_without_auth_is_401() -> Result<()> {
         init_test_tracing();
+        let config = base_config();
         let auth = RpcAuth::new("user", "pass");
-        let server =
-            RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), Some(auth.clone()));
+        let server = RpcServer::with_auth(
+            TestHandler,
+            "127.0.0.1:0".to_string(),
+            Some(auth.clone()),
+            config,
+        );
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build()?;
+        let rpc_endpoint = format!("{}/rpc", base_url);
 
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
         let resp = timeout(
             Duration::from_secs(5),
             client
-                .post(&base_url)
+                .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
                 .body(body)
                 .send(),
@@ -454,26 +1174,33 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn rpc_concurrency_smoke() -> Result<()> {
         init_test_tracing();
+        let mut config = base_config();
+        config.rl_burst = 20;
         let auth = RpcAuth::new("alice", "secret");
-        let server =
-            RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), Some(auth.clone()));
+        let server = RpcServer::with_auth(
+            TestHandler,
+            "127.0.0.1:0".to_string(),
+            Some(auth.clone()),
+            config,
+        );
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build()?;
+        let rpc_endpoint = format!("{}/rpc", base_url);
 
         let auth_header = basic_auth_header(auth.username(), auth.password());
-        let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
+        let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#.to_string();
 
-        let mut requests = Vec::with_capacity(10);
+        let mut tasks = Vec::with_capacity(10);
         for _ in 0..10 {
             let client = client.clone();
-            let url = base_url.clone();
+            let url = rpc_endpoint.clone();
             let auth_header = auth_header.clone();
-            let body = body.to_string();
-            requests.push(async move {
+            let body = body.clone();
+            tasks.push(async move {
                 let resp = timeout(
                     Duration::from_secs(5),
                     client
@@ -488,10 +1215,132 @@ mod tests {
             });
         }
 
-        let responses = try_join_all(requests).await?;
+        let responses = try_join_all(tasks).await?;
         for text in responses {
             assert!(text.contains("100"));
         }
+
+        let _ = shutdown_tx.send(());
+        let _ = timeout(Duration::from_secs(5), handle).await??;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_rate_limit_429_when_exceeded() -> Result<()> {
+        init_test_tracing();
+        let mut config = base_config();
+        config.rl_burst = 5;
+        config.rl_refill_per_sec = 0;
+        let auth = RpcAuth::new("user", "pass");
+        let server = RpcServer::with_auth(
+            TestHandler,
+            "127.0.0.1:0".to_string(),
+            Some(auth.clone()),
+            config,
+        );
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
+
+        wait_ready(&base_url).await?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+        let rpc_endpoint = format!("{}/rpc", base_url);
+
+        let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
+        let mut statuses = Vec::new();
+        for _ in 0..10 {
+            let resp = timeout(
+                Duration::from_secs(5),
+                client
+                    .post(&rpc_endpoint)
+                    .header("Content-Type", "application/json")
+                    .header(
+                        "Authorization",
+                        basic_auth_header(auth.username(), auth.password()),
+                    )
+                    .body(body)
+                    .send(),
+            )
+            .await??;
+            statuses.push(resp.status());
+        }
+
+        let ok = statuses.iter().filter(|&&s| s == StatusCode::OK).count();
+        let limited = statuses
+            .iter()
+            .filter(|&&s| s == StatusCode::TOO_MANY_REQUESTS)
+            .count();
+        assert_eq!(ok, 5);
+        assert_eq!(limited, 5);
+
+        let _ = shutdown_tx.send(());
+        let _ = timeout(Duration::from_secs(5), handle).await??;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_rate_limit_recovers_after_time() -> Result<()> {
+        init_test_tracing();
+        let mut config = base_config();
+        config.rl_burst = 2;
+        config.rl_refill_per_sec = 4;
+        let auth = RpcAuth::new("user", "pass");
+        let server = RpcServer::with_auth(
+            TestHandler,
+            "127.0.0.1:0".to_string(),
+            Some(auth.clone()),
+            config,
+        );
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
+
+        wait_ready(&base_url).await?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+        let rpc_endpoint = format!("{}/rpc", base_url);
+
+        let auth_header = basic_auth_header(auth.username(), auth.password());
+        let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
+
+        for _ in 0..2 {
+            let resp = timeout(
+                Duration::from_secs(5),
+                client
+                    .post(&rpc_endpoint)
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", &auth_header)
+                    .body(body)
+                    .send(),
+            )
+            .await??;
+            assert_eq!(resp.status(), StatusCode::OK);
+        }
+
+        let third = timeout(
+            Duration::from_secs(5),
+            client
+                .post(&rpc_endpoint)
+                .header("Content-Type", "application/json")
+                .header("Authorization", &auth_header)
+                .body(body)
+                .send(),
+        )
+        .await??;
+        assert_eq!(third.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        sleep(Duration::from_millis(300)).await;
+
+        let fourth = timeout(
+            Duration::from_secs(5),
+            client
+                .post(&rpc_endpoint)
+                .header("Content-Type", "application/json")
+                .header("Authorization", &auth_header)
+                .body(body)
+                .send(),
+        )
+        .await??;
+        assert_eq!(fourth.status(), StatusCode::OK);
 
         let _ = shutdown_tx.send(());
         let _ = timeout(Duration::from_secs(5), handle).await??;

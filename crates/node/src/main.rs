@@ -16,9 +16,14 @@ use bitquan_consensus::{
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
-use bitquan_rpc::server::{RpcAuth, RpcServer};
+use bitquan_rpc::{
+    server::{RpcAuth, RpcServer},
+    IpNetwork,
+    RpcConfig,
+};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
+use std::str::FromStr;
 use bitquan_storage::{ChainStore, InMemoryChainStore};
 use bitquan_types::{Block, SigAlgorithm, Transaction, TxIn, TxOut};
 use bq_crypto::{
@@ -229,6 +234,38 @@ enum Commands {
         #[cfg(feature = "rocksdb-backend")]
         #[arg(long)]
         rpc_password: Option<String>,
+        /// Maximum RPC request body size (bytes)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, default_value_t = 1_048_576)]
+        rpc_max_body: usize,
+        /// RPC rate-limit burst (tokens per IP)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, default_value_t = 20)]
+        rpc_rl_burst: u32,
+        /// RPC rate-limit refill per second (tokens)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, default_value_t = 10)]
+        rpc_rl_refill_per_sec: u32,
+        /// RPC per-connection cooldown in milliseconds
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, default_value_t = 10)]
+        rpc_conn_cooldown_ms: u64,
+        /// RPC header size limit (bytes)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, default_value_t = 8_192)]
+        rpc_max_header: usize,
+        /// RPC header read timeout (milliseconds)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, default_value_t = 1_000)]
+        rpc_header_timeout_ms: u64,
+        /// Trust proxy X-Forwarded-For header for client IP
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, default_value_t = false)]
+        rpc_trust_proxy: bool,
+        /// Comma-separated CIDR list of trusted proxies
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, value_delimiter = ',')]
+        rpc_trusted_cidr: Vec<String>,
     },
     /// Connect to a peer as a client
     P2PConnect {
@@ -317,6 +354,22 @@ fn main() -> Result<()> {
             rpc_username,
             #[cfg(feature = "rocksdb-backend")]
             rpc_password,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_max_body,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_rl_burst,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_rl_refill_per_sec,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_conn_cooldown_ms,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_max_header,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_header_timeout_ms,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_trust_proxy,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_trusted_cidr,
         } => {
             #[cfg(feature = "rocksdb-backend")]
             {
@@ -327,6 +380,14 @@ fn main() -> Result<()> {
                     rpc_listen.as_deref(),
                     rpc_username.as_deref(),
                     rpc_password.as_deref(),
+                    rpc_max_body,
+                    rpc_rl_burst,
+                    rpc_rl_refill_per_sec,
+                    rpc_conn_cooldown_ms,
+                    rpc_max_header,
+                    rpc_header_timeout_ms,
+                    *rpc_trust_proxy,
+                    rpc_trusted_cidr,
                 )
             }
             #[cfg(not(feature = "rocksdb-backend"))]
@@ -1263,6 +1324,14 @@ fn p2p_server(
     rpc_listen: Option<&str>,
     rpc_username: Option<&str>,
     rpc_password: Option<&str>,
+    #[cfg(feature = "rocksdb-backend")] rpc_max_body: usize,
+    #[cfg(feature = "rocksdb-backend")] rpc_rl_burst: u32,
+    #[cfg(feature = "rocksdb-backend")] rpc_rl_refill_per_sec: u32,
+    #[cfg(feature = "rocksdb-backend")] rpc_conn_cooldown_ms: u64,
+    #[cfg(feature = "rocksdb-backend")] rpc_max_header: usize,
+    #[cfg(feature = "rocksdb-backend")] rpc_header_timeout_ms: u64,
+    #[cfg(feature = "rocksdb-backend")] rpc_trust_proxy: bool,
+    #[cfg(feature = "rocksdb-backend")] rpc_trusted_cidr: Vec<String>,
 ) -> Result<()> {
     use bitquan_network::{P2PListener, PeerManager};
     use std::sync::Arc;
@@ -1334,8 +1403,41 @@ fn p2p_server(
         let handler = NodeRpcHandler::new(store_arc, "mainnet");
         let auth = RpcAuth::new(username.to_string(), password_value.clone());
         let rpc_addr = addr.to_string();
+        let mut trusted_proxies = Vec::new();
+        for cidr in rpc_trusted_cidr {
+            let trimmed = cidr.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let network = IpNetwork::from_str(trimmed).map_err(|e| {
+                anyhow::anyhow!("invalid --rpc-trusted-cidr '{}': {}", trimmed, e)
+            })?;
+            trusted_proxies.push(network);
+        }
+
+        let rpc_config = RpcConfig {
+            max_body_bytes: rpc_max_body,
+            rl_burst: rpc_rl_burst,
+            rl_refill_per_sec: rpc_rl_refill_per_sec,
+            conn_cooldown_ms: rpc_conn_cooldown_ms,
+            trust_proxy: rpc_trust_proxy,
+            trusted_proxies,
+            max_header_bytes: rpc_max_header,
+            header_read_timeout_ms: rpc_header_timeout_ms,
+        };
+        println!(
+            "RPC starting with max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} max_header_bytes={} header_timeout_ms={} trust_proxy={} trusted_cidr={:?}",
+            rpc_config.max_body_bytes,
+            rpc_config.rl_burst,
+            rpc_config.rl_refill_per_sec,
+            rpc_config.conn_cooldown_ms,
+            rpc_config.max_header_bytes,
+            rpc_config.header_read_timeout_ms,
+            rpc_config.trust_proxy,
+            rpc_config.trusted_proxies
+        );
         thread::spawn(move || {
-            let server = RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth));
+            let server = RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth), rpc_config);
             if let Err(e) = server.serve() {
                 eprintln!("RPC server error ({}): {}", rpc_addr, e);
             }

@@ -76,6 +76,12 @@ curl -i \
   http://127.0.0.1:8332/
 ```
 
+Tune behaviour with CLI flags (defaults shown):
+
+- `--rpc-max-body=1048576` – maximum JSON-RPC request size (bytes)
+- `--rpc-rl-burst=20` / `--rpc-rl-refill-per-sec=10` – per-IP token bucket guard
+- `--rpc-conn-cooldown-ms=10` – per-connection cooldown between requests
+
 See [docs/command.md](docs/command.md) for the complete CLI reference.
 
 ## Documentation

@@ -28,6 +28,7 @@
 - ✅ Documented address→script workflow (`docs/address-and-script.md`, updated CLI reference)
 - ✅ Strengthened consensus regression test: deterministic tx/block hashing loop
 - ✅ Responded to community concern on quantum miners; captured follow-up actions below
+- ✅ RPC guardrails: configurable `--rpc-max-body`, per-IP token bucket, connection cooldown, and expanded test suite
 
 **Quantum Mining Risk Tracking:**
 - Research queue: evaluate Grover-based mining feasibility & hash function options (Phase 5→9)
@@ -52,8 +53,8 @@
 10. ~~Verification commands:** `cargo clean`, `cargo test -p bitquan-rpc -- --list`, `RUST_LOG=debug ...accepts_request_with_valid_auth`, full crate tests.~~ ✅
 
 **Next RPC TODOs:**
-- Evaluate lightweight rate limiting / connection budget before beta launch.
-- Document production override for `MAX_REQUEST_SIZE` (currently 1 MiB).
+- Monitor rate-limit metrics and adjust defaults before beta launch.
+- Document production overrides for request limits and publish ops guidance.
 - Keep `/health` unauthenticated only; plan transition notes if moving to bearer/JWT auth.
 
 **CI Snapshot:**

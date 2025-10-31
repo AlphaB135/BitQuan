@@ -4,8 +4,46 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub use ipnetwork::IpNetwork;
+
 pub mod methods;
 pub mod server;
+
+/// Runtime configuration options for the RPC server.
+#[derive(Clone, Debug)]
+pub struct RpcConfig {
+    /// Maximum request body size in bytes (default: 1 MiB).
+    pub max_body_bytes: usize,
+    /// Token bucket burst size per IP.
+    pub rl_burst: u32,
+    /// Token refill rate (tokens per second) per IP.
+    pub rl_refill_per_sec: u32,
+    /// Cooldown applied after each request (milliseconds).
+    pub conn_cooldown_ms: u64,
+    /// Whether to trust proxy headers for client IP detection.
+    pub trust_proxy: bool,
+    /// List of trusted proxy CIDR ranges.
+    pub trusted_proxies: Vec<IpNetwork>,
+    /// Maximum allowed size of HTTP headers in bytes.
+    pub max_header_bytes: usize,
+    /// Header read timeout in milliseconds.
+    pub header_read_timeout_ms: u64,
+}
+
+impl Default for RpcConfig {
+    fn default() -> Self {
+        Self {
+            max_body_bytes: 1_048_576,
+            rl_burst: 20,
+            rl_refill_per_sec: 10,
+            conn_cooldown_ms: 10,
+             trust_proxy: false,
+             trusted_proxies: Vec::new(),
+             max_header_bytes: 8 * 1024,
+             header_read_timeout_ms: 1_000,
+        }
+    }
+}
 
 #[cfg(test)]
 pub(crate) mod test_util;
