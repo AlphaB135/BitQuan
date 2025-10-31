@@ -104,7 +104,10 @@ mod tests {
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
             target_block_time: 600,
-            difficulty_half_life: 86_400,
+            difficulty_half_life: 14_400,
+            burst_guard_window: 11,
+            burst_guard_floor_ratio: 0.33,
+            burst_guard_multiplier: 1.5,
             reward_schedule: RewardSchedule::phase3_defaults(),
         }
     }

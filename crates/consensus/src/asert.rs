@@ -23,6 +23,17 @@ pub fn asert_next_target(
     let factor = 2_f64.powf(exponent);
 
     let mut next = anchor_target * factor;
+
+    if height_delta > 0
+        && (height_delta as u64) >= params.burst_guard_window
+        && time_delta > 0
+    {
+        let expected_time = block_time * height_delta as f64;
+        if (time_delta as f64) < expected_time * params.burst_guard_floor_ratio {
+            let multiplier = params.burst_guard_multiplier.max(1.0);
+            next /= multiplier;
+        }
+    }
     let max_target = 65_535.0 * 2f64.powi(208);
     if next < 1.0 {
         next = 1.0;
@@ -45,7 +56,10 @@ mod tests {
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
             target_block_time: 600,
-            difficulty_half_life: 86_400,
+            difficulty_half_life: 14_400,
+            burst_guard_window: 11,
+            burst_guard_floor_ratio: 0.33,
+            burst_guard_multiplier: 1.5,
             reward_schedule: RewardSchedule::phase3_defaults(),
         }
     }
@@ -106,6 +120,38 @@ mod tests {
         let t2 = asert_next_target(anchor, 5, 3_000, &params());
         assert_eq!(t1, t2);
     }
+
+    #[test]
+    fn burst_guard_triggers_for_fast_blocks() {
+        let anchor = 10_000.0;
+        let guarded = params();
+        let mut no_guard = params();
+        no_guard.burst_guard_window = u64::MAX;
+
+        let baseline = asert_next_target(anchor, 11, 6_600, &guarded);
+        let fast_without_guard = asert_next_target(anchor, 11, 2_000, &no_guard);
+        let fast_with_guard = asert_next_target(anchor, 11, 2_000, &guarded);
+
+        assert!(fast_without_guard < baseline);
+        assert!(fast_with_guard < fast_without_guard / 1.25); // guard should cut noticeably
+        assert!(
+            fast_with_guard
+                <= fast_without_guard / guarded.burst_guard_multiplier + 10.0
+        );
+    }
+
+    #[test]
+    fn burst_guard_ignores_small_window() {
+        let anchor = 10_000.0;
+        let guarded = params();
+        let mut no_guard = params();
+        no_guard.burst_guard_window = u64::MAX;
+
+        let short = asert_next_target(anchor, 5, 1_000, &guarded);
+        let short_expected = asert_next_target(anchor, 5, 1_000, &no_guard);
+        let diff = (short - short_expected).abs();
+        assert!(diff < 1e-6);
+    }
 }
 
 #[cfg(test)]
@@ -119,7 +165,10 @@ mod property_tests {
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
             target_block_time: 600,
-            difficulty_half_life: 86_400,
+            difficulty_half_life: 14_400,
+            burst_guard_window: 11,
+            burst_guard_floor_ratio: 0.33,
+            burst_guard_multiplier: 1.5,
             reward_schedule: crate::RewardSchedule::phase3_defaults(),
         }
     }

@@ -37,6 +37,12 @@ pub struct ConsensusParams {
     pub target_block_time: u64,
     /// ASERT/LWMA half-life in seconds for difficulty retargeting.
     pub difficulty_half_life: u64,
+    /// Burst guard window (blocks) for rapid difficulty increases.
+    pub burst_guard_window: u64,
+    /// Minimum ratio of observed/expected time before burst guard engages.
+    pub burst_guard_floor_ratio: f64,
+    /// Difficulty multiplier applied when burst guard triggers.
+    pub burst_guard_multiplier: f64,
     /// Block reward schedule parameters.
     pub reward_schedule: RewardSchedule,
 }
@@ -49,7 +55,10 @@ impl ConsensusParams {
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
             target_block_time: 600,
-            difficulty_half_life: 86_400,
+            difficulty_half_life: 14_400,
+            burst_guard_window: 11,
+            burst_guard_floor_ratio: 0.33,
+            burst_guard_multiplier: 1.5,
             reward_schedule: RewardSchedule::phase3_defaults(),
         }
     }
