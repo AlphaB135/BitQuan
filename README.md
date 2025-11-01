@@ -208,3 +208,17 @@ See [LICENSE](LICENSE) for details.
 5. Pass linting (`cargo clippy --all-targets --all-features`)
 
 Optional: Enable pre-commit hooks with `./scripts/install-hooks.sh`
+
+## Support the Project
+
+If you find BitQuan useful and want to support its development:
+
+**PayPal**: [paypal.me/AtsadawutKhunthong](https://www.paypal.me/AtsadawutKhunthong)
+
+Your donations help cover:
+- Development tools and subscriptions (ChatGPT, IDEs, etc.)
+- Security audits and penetration testing
+- Infrastructure and hosting costs
+- Documentation and educational materials
+
+Every contribution, no matter how small, helps make BitQuan better and more secure. Thank you! 🙏
