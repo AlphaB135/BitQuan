@@ -7,8 +7,6 @@
 
 use anyhow::{bail, Result};
 use bip39::Mnemonic;
-use hmac::{Hmac, Mac};
-use sha2::Sha512;
 
 /// Default mnemonic word count (12 words = 128 bits entropy).
 #[allow(dead_code)]
