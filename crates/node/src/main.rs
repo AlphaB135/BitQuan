@@ -785,7 +785,7 @@ fn mine_once(
         } else {
             (0x207fffff, now as u64)
         };
-        let mut state = DifficultyState::new(0, anchor_time, anchor_bits);
+        let mut state = DifficultyState::new(0, anchor_time, anchor_bits, 0);
         bits = state.update(1, time as u64, &params);
     }
 
@@ -1091,7 +1091,7 @@ fn mine_continuous(
                 }
 
                 let next_target =
-                    asert_next_target(anchor.target, height_delta, time_delta, &params);
+                    asert_next_target(anchor.target, height_delta, time_delta, &params, None);
                 let mut next_bits = target_to_compact(next_target);
                 if next_bits == 0 {
                     next_bits = block_bits;
@@ -1223,7 +1223,7 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     let json = serde_json::to_string_pretty(&serializable)?;
 
     // Encrypt and save
-    let keystore_file = keystore::encrypt_keypair(&json, &password)?;
+    let keystore_file = keystore::encrypt_keypair(&json, &password, &address_str)?;
 
     let path = output_path.unwrap_or("wallet.keystore");
     keystore::save_keystore(&keystore_file, Path::new(path))?;

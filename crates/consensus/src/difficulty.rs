@@ -3,7 +3,7 @@
 
 //! Difficulty conversion utilities and ASERT-backed retarget state.
 
-use crate::{asert_next_target, ConsensusParams};
+use crate::{asert_next_target, BurstGuardState, ConsensusParams, GuardContext};
 
 const POW_256: f64 = 256.0;
 
@@ -57,15 +57,24 @@ pub struct DifficultyState {
     anchor_height: u64,
     anchor_timestamp: u64,
     anchor_target: f64,
+    guard_state: BurstGuardState,
+    guard_activation_height: u64,
 }
 
 impl DifficultyState {
     /// Creates a new difficulty state from the given anchor block parameters.
-    pub fn new(anchor_height: u64, anchor_timestamp: u64, anchor_bits: u32) -> Self {
+    pub fn new(
+        anchor_height: u64,
+        anchor_timestamp: u64,
+        anchor_bits: u32,
+        guard_activation_height: u64,
+    ) -> Self {
         Self {
             anchor_height,
             anchor_timestamp,
             anchor_target: compact_to_target(anchor_bits),
+            guard_state: BurstGuardState::default(),
+            guard_activation_height,
         }
     }
 
@@ -83,13 +92,28 @@ impl DifficultyState {
     ) -> u32 {
         let height_delta = next_height as i64 - self.anchor_height as i64;
         let time_delta = next_timestamp as i64 - self.anchor_timestamp as i64;
-        let next_target = asert_next_target(self.anchor_target, height_delta, time_delta, params);
+        let next_target = asert_next_target(
+            self.anchor_target,
+            height_delta,
+            time_delta,
+            params,
+            Some(GuardContext {
+                state: &mut self.guard_state,
+                current_height: next_height,
+                activation_height: self.guard_activation_height,
+            }),
+        );
 
         self.anchor_height = next_height;
         self.anchor_timestamp = next_timestamp;
         self.anchor_target = next_target;
 
         target_to_compact(next_target)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn guard_state(&self) -> &BurstGuardState {
+        &self.guard_state
     }
 }
 
@@ -107,7 +131,9 @@ mod tests {
             difficulty_half_life: 14_400,
             burst_guard_window: 11,
             burst_guard_floor_ratio: 0.33,
+            burst_guard_release_ratio: 0.38,
             burst_guard_multiplier: 1.5,
+            burst_guard_cooldown_blocks: 5,
             reward_schedule: RewardSchedule::phase3_defaults(),
         }
     }
@@ -122,7 +148,7 @@ mod tests {
 
     #[test]
     fn state_updates_anchor() {
-        let mut state = DifficultyState::new(100, 1_000_000, 0x1d00ffff);
+        let mut state = DifficultyState::new(100, 1_000_000, 0x1d00ffff, 0);
         let next = state.update(101, 1_000_600, &params());
         assert!(next > 0);
         assert_eq!(state.anchor_height, 101);

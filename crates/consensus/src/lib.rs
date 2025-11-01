@@ -16,7 +16,7 @@ pub mod utxo;
 #[cfg(test)]
 mod tests;
 
-pub use asert::asert_next_target;
+pub use asert::{asert_next_target, BurstGuardState, GuardContext};
 pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
 pub use fork::{BlockNode, ForkChoice, ForkError, ReorgInfo};
 pub use pow::{
@@ -44,8 +44,12 @@ pub struct ConsensusParams {
     pub burst_guard_window: u64,
     /// Minimum ratio of observed/expected time before burst guard engages.
     pub burst_guard_floor_ratio: f64,
+    /// Ratio above which the burst guard releases (hysteresis).
+    pub burst_guard_release_ratio: f64,
     /// Difficulty multiplier applied when burst guard triggers.
     pub burst_guard_multiplier: f64,
+    /// Cooldown period (blocks) before the guard may trigger again.
+    pub burst_guard_cooldown_blocks: u64,
     /// Block reward schedule parameters.
     pub reward_schedule: RewardSchedule,
 }
@@ -61,7 +65,9 @@ impl ConsensusParams {
             difficulty_half_life: 14_400,
             burst_guard_window: 11,
             burst_guard_floor_ratio: 0.33,
+            burst_guard_release_ratio: 0.38,
             burst_guard_multiplier: 1.5,
+            burst_guard_cooldown_blocks: 5,
             reward_schedule: RewardSchedule::phase3_defaults(),
         }
     }
@@ -305,7 +311,7 @@ impl ConsensusEngine {
         height_delta: i64,
         time_delta: i64,
     ) -> f64 {
-        asert_next_target(anchor_target, height_delta, time_delta, &self.params)
+        asert_next_target(anchor_target, height_delta, time_delta, &self.params, None)
     }
 
     /// Validates a block using the stored registry and RNG state.

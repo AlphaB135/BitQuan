@@ -30,7 +30,7 @@ fn difficultystate_with_mtp_anchor_chain() {
     let prev_times: Vec<u64> = (0..11).map(|i| base + i * 600).collect();
     let anchor_height = 1000;
     let anchor_bits = 0x1d00ffff; // classic initial target
-    let mut state = DifficultyState::new(anchor_height, prev_times[10], anchor_bits);
+    let mut state = DifficultyState::new(anchor_height, prev_times[10], anchor_bits, 0);
 
     // Next block time uses MTP of the previous 11
     let next_time = mtp(&prev_times);
@@ -69,7 +69,7 @@ fn difficultystate_with_chainstore_mtp_anchor() {
 
     let tip = store.tip().expect("tip").expect("tip block").clone();
     let anchor_height = 10; // zero-based index of tip in this test chain
-    let mut state = DifficultyState::new(anchor_height, tip.time as u64, tip.bits);
+    let mut state = DifficultyState::new(anchor_height, tip.time as u64, tip.bits, 0);
 
     let times: Vec<u64> = headers.iter().map(|h| h.time as u64).collect();
     let next_time = mtp(&times);

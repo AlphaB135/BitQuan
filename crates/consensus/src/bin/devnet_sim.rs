@@ -162,7 +162,8 @@ fn main() -> Result<()> {
 
             let height_delta = height as i64 - anchor.height as i64;
             let time_delta = timestamp - anchor.timestamp;
-            let next_target = asert_next_target(anchor.target, height_delta, time_delta, &params);
+            let next_target =
+                asert_next_target(anchor.target, height_delta, time_delta, &params, None);
 
             let expected_time = params.target_block_time as f64 * height_delta as f64;
             let guard_triggered = height_delta as u64 >= params.burst_guard_window

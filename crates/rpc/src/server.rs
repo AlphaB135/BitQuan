@@ -1,8 +1,9 @@
 //! HTTP server for handling JSON-RPC requests
 
-use crate::{error_codes, methods, JsonRpcRequest, JsonRpcResponse, RpcConfig};
+use crate::{error_codes, methods, tls::TlsConfig, JsonRpcRequest, JsonRpcResponse, RpcConfig};
 use http::StatusCode;
 use once_cell::sync::Lazy;
+use rustls::{ServerConnection, StreamOwned};
 use serde_json::json;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -54,6 +55,8 @@ pub struct RpcServer<T> {
     config: RpcConfig,
     limiter: Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     auth_backoff: Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
+    tls: Option<Arc<TlsConfig>>,
+    force_tls: bool,
 }
 
 impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
@@ -71,11 +74,31 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             config,
             limiter: Arc::new(Mutex::new(HashMap::new())),
             auth_backoff: Arc::new(Mutex::new(HashMap::new())),
+            tls: None,
+            force_tls: config.require_tls,
         }
+    }
+
+    /// Attach a TLS configuration to the server (does not automatically enforce TLS).
+    pub fn with_tls_config(mut self, tls: TlsConfig) -> Self {
+        self.tls = Some(Arc::new(tls));
+        self
+    }
+
+    /// Require all connections to use TLS (typically for mainnet deployments).
+    pub fn require_tls(mut self, required: bool) -> Self {
+        self.force_tls = required;
+        self
     }
 
     /// Start serving requests (blocking)
     pub fn serve(&self) -> std::io::Result<()> {
+        if self.force_tls && self.tls.is_none() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "TLS is required but no TLS configuration was provided",
+            ));
+        }
         let listener = TcpListener::bind(&self.addr)?;
         self.accept_loop(listener, None)
     }
@@ -97,11 +120,12 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
         let bound_addr = listener.local_addr()?;
         println!("RPC server listening on {}", bound_addr);
         println!(
-            "RPC config: max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={}",
+            "RPC config: max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} require_tls={}",
             self.config.max_body_bytes,
             self.config.rl_burst,
             self.config.rl_refill_per_sec,
-            self.config.conn_cooldown_ms
+            self.config.conn_cooldown_ms,
+            self.force_tls
         );
         println!("RPC health endpoint: GET /health (no auth)");
 
@@ -149,6 +173,8 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
         let config = self.config.clone();
         let limiter = Arc::clone(&self.limiter);
         let auth_backoff = Arc::clone(&self.auth_backoff);
+        let tls = self.tls.clone();
+        let force_tls = self.force_tls;
         std::thread::spawn(move || {
             let peer_ip = peer
                 .or_else(|| stream.peer_addr().ok().map(|addr| addr.ip()))
@@ -161,6 +187,8 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
                 &config,
                 &limiter,
                 &auth_backoff,
+                tls.as_ref(),
+                force_tls,
             ) {
                 eprintln!("Error handling connection: {}", e);
             }
@@ -168,21 +196,106 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     }
 }
 
+/// Abstraction over plain TCP and TLS-encrypted RPC streams.
+enum RpcStream {
+    Plain(TcpStream),
+    Tls(StreamOwned<ServerConnection, TcpStream>),
+}
+
+impl RpcStream {
+    fn set_read_timeout(&self, duration: Option<Duration>) -> std::io::Result<()> {
+        match self {
+            RpcStream::Plain(stream) => stream.set_read_timeout(duration),
+            RpcStream::Tls(stream) => stream.sock.set_read_timeout(duration),
+        }
+    }
+
+    fn set_write_timeout(&self, duration: Option<Duration>) -> std::io::Result<()> {
+        match self {
+            RpcStream::Plain(stream) => stream.set_write_timeout(duration),
+            RpcStream::Tls(stream) => stream.sock.set_write_timeout(duration),
+        }
+    }
+
+    fn shutdown(&mut self) -> std::io::Result<()> {
+        match self {
+            RpcStream::Plain(stream) => stream.shutdown(Shutdown::Write),
+            RpcStream::Tls(stream) => {
+                stream.conn.send_close_notify();
+                stream.sock.shutdown(Shutdown::Write)
+            }
+        }
+    }
+}
+
+impl Read for RpcStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            RpcStream::Plain(stream) => stream.read(buf),
+            RpcStream::Tls(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for RpcStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            RpcStream::Plain(stream) => stream.write(buf),
+            RpcStream::Tls(stream) => stream.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            RpcStream::Plain(stream) => stream.flush(),
+            RpcStream::Tls(stream) => stream.flush(),
+        }
+    }
+}
+
+fn upgrade_to_tls(stream: TcpStream, tls_config: &TlsConfig) -> std::io::Result<RpcStream> {
+    let server_config = tls_config.server_config();
+    let connection = ServerConnection::new(server_config)
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+    let mut tls_stream = StreamOwned::new(connection, stream);
+    while tls_stream.conn.is_handshaking() {
+        tls_stream.conn.complete_io(&mut tls_stream.sock)?;
+    }
+    Ok(RpcStream::Tls(tls_stream))
+}
+
 fn handle_connection<T: methods::RpcMethods>(
-    mut stream: TcpStream,
+    stream: TcpStream,
     peer_ip: IpAddr,
     handler: &T,
     auth: Option<&RpcAuth>,
     config: &RpcConfig,
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     auth_backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
+    tls: Option<&Arc<TlsConfig>>,
+    force_tls: bool,
 ) -> std::io::Result<()> {
     let start = Instant::now();
     stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(Duration::from_millis(config.header_read_timeout_ms)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
 
-    let mut buf_reader = BufReader::new(&stream);
+    let mut channel = match (tls, force_tls) {
+        (Some(tls_config), _) => upgrade_to_tls(stream, tls_config.as_ref())?,
+        (None, true) => {
+            // TLS required but not configured; drop connection immediately.
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "TLS-required connection attempted without TLS configuration",
+            ));
+        }
+        (None, false) => RpcStream::Plain(stream),
+    };
+
+    channel.set_read_timeout(Some(Duration::from_millis(config.header_read_timeout_ms)))?;
+    channel.set_write_timeout(Some(Duration::from_secs(5)))?;
+
+    let mut buf_reader = BufReader::new(&mut channel);
     let mut total_header_bytes: usize = 0;
     let mut request_line = String::new();
     let mut headers: Vec<String> = Vec::new();
@@ -191,7 +304,8 @@ fn handle_connection<T: methods::RpcMethods>(
         let mut line = String::new();
         let bytes = buf_reader.read_line(&mut line)?;
         if bytes == 0 {
-            send_bad_request(&mut stream)?;
+            let stream = buf_reader.get_mut();
+            send_bad_request(*stream)?;
             record_response(
                 "INVALID",
                 "invalid",
@@ -210,7 +324,8 @@ fn handle_connection<T: methods::RpcMethods>(
 
         total_header_bytes += bytes;
         if total_header_bytes > config.max_header_bytes {
-            send_header_too_large(&mut stream)?;
+            let stream = buf_reader.get_mut();
+            send_header_too_large(*stream)?;
             record_response(
                 "INVALID",
                 "header",
@@ -230,7 +345,8 @@ fn handle_connection<T: methods::RpcMethods>(
         let trimmed = line.trim_end_matches(['\r', '\n']);
         if request_line.is_empty() {
             if trimmed.is_empty() {
-                send_bad_request(&mut stream)?;
+                let stream = buf_reader.get_mut();
+                send_bad_request(*stream)?;
                 record_response(
                     "INVALID",
                     "invalid",
@@ -257,10 +373,11 @@ fn handle_connection<T: methods::RpcMethods>(
         headers.push(trimmed.to_string());
     }
 
-    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    (**buf_reader.get_mut()).set_read_timeout(Some(Duration::from_secs(5)))?;
 
     if request_line.is_empty() {
-        send_bad_request(&mut stream)?;
+        let stream = buf_reader.get_mut();
+        send_bad_request(*stream)?;
         record_response(
             "INVALID",
             "invalid",
@@ -301,7 +418,8 @@ fn handle_connection<T: methods::RpcMethods>(
 
     if is_metrics {
         if !client_ip.is_loopback() {
-            send_forbidden(&mut stream)?;
+            let stream = buf_reader.get_mut();
+            send_forbidden(*stream)?;
             record_response(
                 method,
                 &path_owned,
@@ -324,9 +442,12 @@ fn handle_connection<T: methods::RpcMethods>(
             body.len(),
             body
         );
-        stream.write_all(response.as_bytes())?;
-        stream.flush()?;
-        let _ = stream.shutdown(Shutdown::Write);
+        {
+            let stream = buf_reader.get_mut();
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+        }
         record_response(
             method,
             &path_owned,
@@ -344,9 +465,12 @@ fn handle_connection<T: methods::RpcMethods>(
 
     if is_health {
         let response = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nok";
-        stream.write_all(response.as_bytes())?;
-        stream.flush()?;
-        let _ = stream.shutdown(Shutdown::Write);
+        {
+            let stream = buf_reader.get_mut();
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+        }
         record_response(
             method,
             &path_owned,
@@ -363,7 +487,8 @@ fn handle_connection<T: methods::RpcMethods>(
     }
 
     if content_length == 0 {
-        send_bad_request(&mut stream)?;
+        let stream = buf_reader.get_mut();
+        send_bad_request(*stream)?;
         record_response(
             method,
             &path_owned,
@@ -381,7 +506,8 @@ fn handle_connection<T: methods::RpcMethods>(
     }
 
     if content_length > config.max_body_bytes {
-        send_payload_too_large(&mut stream)?;
+        let stream = buf_reader.get_mut();
+        send_payload_too_large(*stream)?;
         record_response(
             method,
             &path_owned,
@@ -399,7 +525,8 @@ fn handle_connection<T: methods::RpcMethods>(
     }
 
     if !take_token(client_ip, limiter, config) {
-        send_too_many_requests(&mut stream)?;
+        let stream = buf_reader.get_mut();
+        send_too_many_requests(*stream)?;
         record_response(
             method,
             &path_owned,
@@ -418,7 +545,8 @@ fn handle_connection<T: methods::RpcMethods>(
 
     if let Some(auth_cfg) = auth {
         if !is_authorized(&headers, auth_cfg) {
-            send_unauthorized(&mut stream)?;
+            let stream = buf_reader.get_mut();
+            send_unauthorized(*stream)?;
             record_response(
                 method,
                 &path_owned,
@@ -439,9 +567,12 @@ fn handle_connection<T: methods::RpcMethods>(
         }
     }
 
-    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    (**buf_reader.get_mut()).set_read_timeout(Some(Duration::from_secs(5)))?;
     let mut body = vec![0u8; content_length];
     buf_reader.read_exact(&mut body)?;
+
+    // Release the buffered borrow so we can reuse the channel for writing.
+    let stream = buf_reader.into_inner();
 
     let json_request = match serde_json::from_slice::<JsonRpcRequest>(&body) {
         Ok(req) => req,
@@ -451,7 +582,7 @@ fn handle_connection<T: methods::RpcMethods>(
                 error_codes::PARSE_ERROR,
                 format!("Parse error: {e}"),
             );
-            respond_json(&mut stream, &error_response)?;
+            respond_json(stream, &error_response)?;
             record_response(
                 method,
                 &path_owned,
@@ -484,7 +615,7 @@ fn handle_connection<T: methods::RpcMethods>(
         )
     };
 
-    respond_json(&mut stream, &json_response)?;
+    respond_json(stream, &json_response)?;
     record_response(
         method,
         &path_owned,
@@ -534,7 +665,7 @@ fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
     auth.matches(&credential)
 }
 
-fn respond_json(stream: &mut TcpStream, response: &JsonRpcResponse) -> std::io::Result<()> {
+fn respond_json(stream: &mut RpcStream, response: &JsonRpcResponse) -> std::io::Result<()> {
     let response_body = serde_json::to_string(response).unwrap();
     let http_response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -543,11 +674,11 @@ fn respond_json(stream: &mut TcpStream, response: &JsonRpcResponse) -> std::io::
     );
     stream.write_all(http_response.as_bytes())?;
     stream.flush()?;
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.shutdown();
     Ok(())
 }
 
-fn send_bad_request(stream: &mut TcpStream) -> std::io::Result<()> {
+fn send_bad_request(stream: &mut RpcStream) -> std::io::Result<()> {
     let response = concat!(
         "HTTP/1.1 400 Bad Request\r\n",
         "Content-Length: 0\r\n",
@@ -556,11 +687,11 @@ fn send_bad_request(stream: &mut TcpStream) -> std::io::Result<()> {
     );
     stream.write_all(response.as_bytes())?;
     stream.flush()?;
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.shutdown();
     Ok(())
 }
 
-fn send_payload_too_large(stream: &mut TcpStream) -> std::io::Result<()> {
+fn send_payload_too_large(stream: &mut RpcStream) -> std::io::Result<()> {
     let response = concat!(
         "HTTP/1.1 413 Payload Too Large\r\n",
         "Content-Length: 0\r\n",
@@ -569,11 +700,11 @@ fn send_payload_too_large(stream: &mut TcpStream) -> std::io::Result<()> {
     );
     stream.write_all(response.as_bytes())?;
     stream.flush()?;
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.shutdown();
     Ok(())
 }
 
-fn send_header_too_large(stream: &mut TcpStream) -> std::io::Result<()> {
+fn send_header_too_large(stream: &mut RpcStream) -> std::io::Result<()> {
     let response = concat!(
         "HTTP/1.1 431 Request Header Fields Too Large\r\n",
         "Content-Length: 0\r\n",
@@ -582,11 +713,11 @@ fn send_header_too_large(stream: &mut TcpStream) -> std::io::Result<()> {
     );
     stream.write_all(response.as_bytes())?;
     stream.flush()?;
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.shutdown();
     Ok(())
 }
 
-fn send_forbidden(stream: &mut TcpStream) -> std::io::Result<()> {
+fn send_forbidden(stream: &mut RpcStream) -> std::io::Result<()> {
     let response = concat!(
         "HTTP/1.1 403 Forbidden\r\n",
         "Content-Length: 0\r\n",
@@ -595,11 +726,11 @@ fn send_forbidden(stream: &mut TcpStream) -> std::io::Result<()> {
     );
     stream.write_all(response.as_bytes())?;
     stream.flush()?;
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.shutdown();
     Ok(())
 }
 
-fn send_unauthorized(stream: &mut TcpStream) -> std::io::Result<()> {
+fn send_unauthorized(stream: &mut RpcStream) -> std::io::Result<()> {
     let response = concat!(
         "HTTP/1.1 401 Unauthorized\r\n",
         "WWW-Authenticate: Basic realm=\"BitQuan RPC\"\r\n",
@@ -610,11 +741,11 @@ fn send_unauthorized(stream: &mut TcpStream) -> std::io::Result<()> {
     );
     stream.write_all(response.as_bytes())?;
     stream.flush()?;
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.shutdown();
     Ok(())
 }
 
-fn send_too_many_requests(stream: &mut TcpStream) -> std::io::Result<()> {
+fn send_too_many_requests(stream: &mut RpcStream) -> std::io::Result<()> {
     let response = concat!(
         "HTTP/1.1 429 Too Many Requests\r\n",
         "Content-Length: 0\r\n",
@@ -623,7 +754,7 @@ fn send_too_many_requests(stream: &mut TcpStream) -> std::io::Result<()> {
     );
     stream.write_all(response.as_bytes())?;
     stream.flush()?;
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.shutdown();
     Ok(())
 }
 

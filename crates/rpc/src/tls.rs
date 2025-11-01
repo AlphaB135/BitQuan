@@ -3,6 +3,7 @@
 use std::fs::File;
 use std::io::{BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use rcgen::{generate_simple_self_signed, CertifiedKey};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer};
@@ -35,9 +36,9 @@ pub enum TlsError {
 }
 
 /// Wrapper for `rustls::ServerConfig` with helper constructors.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TlsConfig {
-    server_config: ServerConfig,
+    server_config: Arc<ServerConfig>,
 }
 
 impl TlsConfig {
@@ -54,18 +55,18 @@ impl TlsConfig {
         config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
         Ok(Self {
-            server_config: config,
+            server_config: Arc::new(config),
         })
     }
 
     /// Returns an immutable reference to the inner `ServerConfig`.
     pub fn as_ref(&self) -> &ServerConfig {
-        &self.server_config
+        self.server_config.as_ref()
     }
 
-    /// Consumes the wrapper and returns the owned `ServerConfig`.
-    pub fn into_inner(self) -> ServerConfig {
-        self.server_config
+    /// Returns an `Arc` to the inner `ServerConfig` for use when accepting connections.
+    pub fn server_config(&self) -> Arc<ServerConfig> {
+        Arc::clone(&self.server_config)
     }
 }
 
