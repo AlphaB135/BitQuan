@@ -9,6 +9,7 @@ pub use ipnetwork::IpNetwork;
 pub mod methods;
 pub mod server;
 pub mod tls;
+pub mod jwt;
 
 /// Runtime configuration options for the RPC server.
 #[derive(Clone, Debug)]
@@ -31,6 +32,14 @@ pub struct RpcConfig {
     pub header_read_timeout_ms: u64,
     /// Require inbound RPC connections to use TLS.
     pub require_tls: bool,
+    /// Allow self-signed certificates (devnet/testnet only).
+    pub allow_self_signed: bool,
+    /// Enable HSTS (HTTP Strict Transport Security).
+    pub enable_hsts: bool,
+    /// HSTS max-age in seconds (default: 1 year).
+    pub hsts_max_age: u64,
+    /// Include subdomains in HSTS directive.
+    pub hsts_include_subdomains: bool,
 }
 
 impl Default for RpcConfig {
@@ -45,6 +54,34 @@ impl Default for RpcConfig {
             max_header_bytes: 8 * 1024,
             header_read_timeout_ms: 1_000,
             require_tls: false,
+            allow_self_signed: true,  // Allow for dev/test
+            enable_hsts: true,
+            hsts_max_age: 31536000,  // 1 year
+            hsts_include_subdomains: true,
+        }
+    }
+}
+
+impl RpcConfig {
+    /// Creates a mainnet-safe configuration with strict security settings.
+    pub fn mainnet() -> Self {
+        Self {
+            require_tls: true,       // ✅ Mandatory TLS
+            allow_self_signed: false, // ❌ No self-signed certs
+            enable_hsts: true,
+            hsts_max_age: 31536000,
+            hsts_include_subdomains: true,
+            ..Default::default()
+        }
+    }
+    
+    /// Creates a devnet configuration with relaxed settings.
+    pub fn devnet() -> Self {
+        Self {
+            require_tls: false,      // Optional TLS
+            allow_self_signed: true, // Allow self-signed
+            enable_hsts: false,
+            ..Default::default()
         }
     }
 }

@@ -9,3 +9,11 @@ genesis.json
 *.keystore
 command.txt
 MY_WALLET_INFO.txt
+
+# Wallet keystore test fixtures
+tests/**/*.keystore
+tests/**/keystore*.json
+fixtures/**/*.keystore
+tmp/**/*.keystore
+.test/**/*.keystore
+todo.md

@@ -25,6 +25,13 @@ rustls-pemfile = "2.1"
 tokio-rustls = { version = "0.26", optional = true, default-features = false, features = ["logging"] }
 rcgen = "0.13"
 
+# JWT Authentication
+jsonwebtoken = "9.2"
+chrono = "0.4"
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+
 [dev-dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

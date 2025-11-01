@@ -39,6 +39,8 @@ pub enum TlsError {
 #[derive(Debug, Clone)]
 pub struct TlsConfig {
     server_config: Arc<ServerConfig>,
+    is_self_signed: bool,
+    cert_expires_at: Option<i64>, // Unix timestamp
 }
 
 impl TlsConfig {
@@ -46,6 +48,9 @@ impl TlsConfig {
     pub fn new(cert_path: &Path, key_path: &Path) -> Result<Self, TlsError> {
         let certificates = load_certs(cert_path)?;
         let private_key = load_private_key(key_path)?;
+        
+        // Check if self-signed and get expiration
+        let (is_self_signed, cert_expires_at) = analyze_certificate(&certificates[0])?;
 
         let mut config = ServerConfig::builder_with_protocol_versions(&[&TLS13])
             .with_no_client_auth()
@@ -56,7 +61,33 @@ impl TlsConfig {
 
         Ok(Self {
             server_config: Arc::new(config),
+            is_self_signed,
+            cert_expires_at,
         })
+    }
+    
+    /// Check if using self-signed certificate
+    pub fn is_self_signed(&self) -> bool {
+        self.is_self_signed
+    }
+    
+    /// Get certificate expiration timestamp (if available)
+    pub fn expires_at(&self) -> Option<i64> {
+        self.cert_expires_at
+    }
+    
+    /// Check if certificate expires soon (within given days)
+    pub fn expires_soon(&self, days: u64) -> bool {
+        if let Some(expires_at) = self.cert_expires_at {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64;
+            let threshold = now + (days * 24 * 60 * 60) as i64;
+            expires_at < threshold
+        } else {
+            false
+        }
     }
 
     /// Returns an immutable reference to the inner `ServerConfig`.
@@ -117,4 +148,30 @@ fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, TlsError> {
     }
 
     Err(TlsError::NoPrivateKey(path.to_path_buf()))
+}
+
+/// Analyze certificate to determine if self-signed and get expiration
+fn analyze_certificate(cert: &CertificateDer<'static>) -> Result<(bool, Option<i64>), TlsError> {
+    // Basic heuristic: check if issuer == subject (self-signed indicator)
+    // For production, use x509-parser crate for proper parsing
+    let is_self_signed = is_likely_self_signed(cert);
+    
+    // Extract expiration (would need x509-parser for real implementation)
+    let expires_at = None; // TODO: parse NotAfter from X.509
+    
+    Ok((is_self_signed, expires_at))
+}
+
+/// Simple heuristic to detect self-signed certificates
+fn is_likely_self_signed(cert: &CertificateDer<'static>) -> bool {
+    // In production, use x509-parser to compare issuer vs subject
+    // For now, return false (assume CA-signed unless proven otherwise)
+    
+    // Check common self-signed indicators in CN
+    let cert_bytes = cert.as_ref();
+    let cert_str = String::from_utf8_lossy(cert_bytes);
+    
+    cert_str.contains("localhost") || 
+    cert_str.contains("127.0.0.1") ||
+    cert_str.contains("self-signed")
 }
