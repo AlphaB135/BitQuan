@@ -25,6 +25,7 @@ chacha20poly1305 = "0.10"
 clap.workspace = true
 getrandom = "0.2"
 hex.workspace = true
+hmac = "0.12"
 num_cpus = "1.16"
 pqc_dilithium = "0.2"
 serde.workspace = true

@@ -321,6 +321,7 @@ dependencies = [
  "clap",
  "getrandom 0.2.16",
  "hex",
+ "hmac",
  "num_cpus",
  "pqc_dilithium",
  "serde",
