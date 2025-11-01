@@ -7,6 +7,8 @@ pub struct Claims {
     pub role: String,
     pub exp: i64,
     pub iat: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh: Option<bool>, // true if this is a refresh token
 }
 
 impl Claims {
@@ -17,7 +19,23 @@ impl Claims {
             role,
             exp: now + expires_in_secs,
             iat: now,
+            refresh: None,
         }
+    }
+    
+    pub fn new_refresh_token(username: String, role: String, expires_in_secs: i64) -> Self {
+        let now = chrono::Utc::now().timestamp();
+        Self {
+            sub: username,
+            role,
+            exp: now + expires_in_secs,
+            iat: now,
+            refresh: Some(true),
+        }
+    }
+    
+    pub fn is_refresh_token(&self) -> bool {
+        self.refresh.unwrap_or(false)
     }
     
     pub fn is_expired(&self) -> bool {

@@ -21,6 +21,25 @@ impl TokenGenerator {
         encode(&Header::default(), &claims, &self.encoding_key)
     }
     
+    pub fn generate_refresh_token(&self, username: &str, role: &str) -> Result<String, Error> {
+        // Refresh token expires in 7 days
+        let claims = Claims::new_refresh_token(username.to_string(), role.to_string(), 604800);
+        encode(&Header::default(), &claims, &self.encoding_key)
+    }
+    
+    pub fn refresh(&self, refresh_token: &str) -> Result<String, String> {
+        // Verify the refresh token
+        let claims = self.verify(refresh_token).map_err(|e| e.to_string())?;
+        
+        // Must be a refresh token
+        if !claims.is_refresh_token() {
+            return Err("Not a refresh token".to_string());
+        }
+        
+        // Generate new access token with same role
+        self.generate(&claims.sub, &claims.role).map_err(|e| e.to_string())
+    }
+    
     pub fn verify(&self, token: &str) -> Result<Claims, Error> {
         decode::<Claims>(token, &self.decoding_key, &Validation::default())
             .map(|data| data.claims)

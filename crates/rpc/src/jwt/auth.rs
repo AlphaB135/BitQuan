@@ -116,6 +116,27 @@ impl JwtAuth {
         }
     }
     
+    /// Login and get both access and refresh tokens
+    pub fn login_with_refresh(&self, username: &str, password: &str) -> Result<(String, String), String> {
+        match self.users.get(username) {
+            Some(creds) if creds.verify_password(password) => {
+                let access_token = self.token_gen.generate(username, &creds.role)
+                    .map_err(|e| e.to_string())?;
+                let refresh_token = self.token_gen.generate_refresh_token(username, &creds.role)
+                    .map_err(|e| e.to_string())?;
+                Ok((access_token, refresh_token))
+            }
+            Some(_) => Err("Invalid password".to_string()),
+            None => Err("User not found".to_string()),
+        }
+    }
+    
+    /// Refresh an access token using a refresh token
+    pub fn refresh_token(&self, refresh_token: &str) -> Result<String, String> {
+        self.token_gen.refresh(refresh_token)
+            .map_err(|e| e.to_string())
+    }
+    
     pub fn verify_token(&self, token: &str) -> Result<Claims, String> {
         self.token_gen.verify(token)
             .map_err(|e| e.to_string())

@@ -119,3 +119,61 @@ fn test_jwt_admin_role_check() {
     
     assert!(claims.is_admin(), "Admin user should have admin role");
 }
+
+#[test]
+fn test_jwt_refresh_token() {
+    let jwt_auth = JwtAuth::new("test-secret");
+    
+    // Login with refresh token
+    let (access_token, refresh_token) = jwt_auth.login_with_refresh("admin", "admin123").unwrap();
+    
+    assert!(!access_token.is_empty(), "Access token should not be empty");
+    assert!(!refresh_token.is_empty(), "Refresh token should not be empty");
+    
+    // Verify access token
+    let access_claims = jwt_auth.verify_token(&access_token).unwrap();
+    assert_eq!(access_claims.sub, "admin");
+    assert!(!access_claims.is_refresh_token());
+    
+    // Verify refresh token
+    let refresh_claims = jwt_auth.verify_token(&refresh_token).unwrap();
+    assert_eq!(refresh_claims.sub, "admin");
+    assert!(refresh_claims.is_refresh_token());
+    
+    // Use refresh token to get new access token
+    let new_access_token = jwt_auth.refresh_token(&refresh_token).unwrap();
+    assert!(!new_access_token.is_empty());
+    
+    let new_claims = jwt_auth.verify_token(&new_access_token).unwrap();
+    assert_eq!(new_claims.sub, "admin");
+    assert!(!new_claims.is_refresh_token());
+}
+
+#[test]
+fn test_jwt_refresh_with_access_token_fails() {
+    let jwt_auth = JwtAuth::new("test-secret");
+    
+    // Get regular access token
+    let access_token = jwt_auth.login("admin", "admin123").unwrap();
+    
+    // Try to refresh with access token (should fail)
+    let result = jwt_auth.refresh_token(&access_token);
+    assert!(result.is_err(), "Should not be able to refresh with access token");
+}
+
+#[test]
+fn test_jwt_refresh_token_expiration() {
+    let jwt_auth = JwtAuth::new("test-secret");
+    let (_, refresh_token) = jwt_auth.login_with_refresh("admin", "admin123").unwrap();
+    
+    let claims = jwt_auth.verify_token(&refresh_token).unwrap();
+    
+    // Refresh token should expire in 7 days (604800 seconds)
+    let expected_lifetime = 604800;
+    let actual_lifetime = claims.exp - claims.iat;
+    
+    assert!(
+        (actual_lifetime - expected_lifetime).abs() < 10,
+        "Refresh token lifetime should be approximately 7 days"
+    );
+}

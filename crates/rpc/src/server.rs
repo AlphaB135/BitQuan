@@ -445,6 +445,7 @@ fn handle_connection<T: methods::RpcMethods>(
     let is_health = method.eq_ignore_ascii_case("GET") && path == "/health";
     let is_metrics = method.eq_ignore_ascii_case("GET") && path == "/metrics";
     let is_login = method.eq_ignore_ascii_case("POST") && path == "/auth/login";
+    let is_refresh = method.eq_ignore_ascii_case("POST") && path == "/auth/refresh";
 
     let content_length = headers
         .iter()
@@ -532,6 +533,35 @@ fn handle_connection<T: methods::RpcMethods>(
     if is_login {
         if let Some(AuthMethod::Jwt(jwt_auth)) = auth {
             return handle_login_endpoint(
+                &mut buf_reader,
+                jwt_auth,
+                content_length,
+                config,
+                method,
+                &path_owned,
+                start,
+                client_ip,
+            );
+        } else {
+            // JWT not configured
+            let stream = buf_reader.get_mut();
+            let error_body = r#"{"error":"JWT not configured"}"#;
+            let response = format!(
+                "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                error_body.len(),
+                error_body
+            );
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+            return Ok(());
+        }
+    }
+    
+    // JWT Refresh endpoint - no auth required
+    if is_refresh {
+        if let Some(AuthMethod::Jwt(jwt_auth)) = auth {
+            return handle_refresh_endpoint(
                 &mut buf_reader,
                 jwt_auth,
                 content_length,
@@ -1037,6 +1067,148 @@ fn handle_login_endpoint(
             );
             apply_cooldown(config);
             Ok(())
+        }
+    }
+}
+
+/// Handle JWT refresh endpoint
+fn handle_refresh_endpoint(
+    buf_reader: &mut BufReader<&mut RpcStream>,
+    jwt_auth: &Arc<crate::jwt::JwtAuth>,
+    content_length: usize,
+    config: &RpcConfig,
+    method: &str,
+    path: &str,
+    start: Instant,
+    client_ip: IpAddr,
+) -> std::io::Result<()> {
+    use serde::{Deserialize, Serialize};
+    
+    #[derive(Deserialize)]
+    struct RefreshRequest {
+        refresh_token: String,
+    }
+    
+    #[derive(Serialize)]
+    struct RefreshResponse {
+        access_token: String,
+        token_type: String,
+        expires_in: u64,
+    }
+    
+    #[derive(Serialize)]
+    struct ErrorResponse {
+        error: String,
+        message: String,
+    }
+    
+    // Read body
+    let mut body = vec![0u8; content_length];
+    buf_reader.read_exact(&mut body)?;
+    
+    // Parse refresh request
+    let refresh_req: RefreshRequest = match serde_json::from_slice(&body) {
+        Ok(req) => req,
+        Err(e) => {
+            let stream = buf_reader.get_mut();
+            let error = ErrorResponse {
+                error: "invalid_request".to_string(),
+                message: format!("Invalid JSON: {}", e),
+            };
+            let error_json = serde_json::to_string(&error).unwrap();
+            let response = format!(
+                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                error_json.len(),
+                error_json
+            );
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+            
+            record_response(
+                method,
+                path,
+                StatusCode::BAD_REQUEST,
+                content_length,
+                start,
+                client_ip,
+                false,
+                false,
+                false,
+                false,
+            );
+            apply_cooldown(config);
+            return Ok(());
+        }
+    };
+    
+    // Attempt token refresh
+    match jwt_auth.refresh_token(&refresh_req.refresh_token) {
+        Ok(new_token) => {
+            let response_data = RefreshResponse {
+                access_token: new_token,
+                token_type: "Bearer".to_string(),
+                expires_in: 3600,
+            };
+            let response_json = serde_json::to_string(&response_data).unwrap();
+            let security_headers = build_security_headers(config);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
+                response_json.len(),
+                security_headers,
+                response_json
+            );
+            
+            let stream = buf_reader.get_mut();
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+            
+            record_response(
+                method,
+                path,
+                StatusCode::OK,
+                content_length,
+                start,
+                client_ip,
+                false,
+                false,
+                false,
+                false,
+            );
+            apply_cooldown(config);
+            Ok(())
+        }
+        Err(e) => {
+            let stream = buf_reader.get_mut();
+            let error = ErrorResponse {
+                error: "invalid_token".to_string(),
+                message: e,
+            };
+            let error_json = serde_json::to_string(&error).unwrap();
+            let response = format!(
+                "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                error_json.len(),
+                error_json
+            );
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+            
+            record_response(
+                method,
+                path,
+                StatusCode::UNAUTHORIZED,
+                content_length,
+                start,
+                client_ip,
+                false,
+                false,
+                true,
+                false,
+            );
+            apply_cooldown(config);
+            return Ok(());
         }
     }
 }
