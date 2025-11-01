@@ -3,7 +3,6 @@
 mod address;
 mod keystore;
 mod mnemonic;
-mod multisig;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
 mod tx_builder;
@@ -2493,7 +2492,7 @@ fn wallet_gen_multisig(
     labels: &[String],
     output: &str,
 ) -> Result<()> {
-    use crate::multisig::MultisigConfig;
+    use ::wallet::multisig::MultisigConfig;
     use std::path::Path;
 
     if keystores.is_empty() {
@@ -2516,13 +2515,21 @@ fn wallet_gen_multisig(
         let json = keystore::decrypt_keypair(&keystore_file, &password)?;
         let serializable: wallet::SerializableKeypair = serde_json::from_str(&json)?;
 
-        public_keys.push(hex::decode(&serializable.public_key)?);
+        public_keys.push(serializable.public_key.clone());
     }
+    
+    // Add labels if provided
+    let label = if !labels.is_empty() {
+        Some(labels.join(", "))
+    } else {
+        Some(format!("{}-of-{} Multisig", threshold, keystores.len()))
+    };
+
     // Create multisig config
-    let config = MultisigConfig::new(threshold, public_keys, labels.to_vec())?;
+    let config = MultisigConfig::new(threshold as u8, public_keys, label)?;
 
     // Generate address
-    let address = config.to_address();
+    let address = config.address();
 
     // Save config
     let config_json = serde_json::to_string_pretty(&config)?;
@@ -2531,13 +2538,10 @@ fn wallet_gen_multisig(
     println!("\n✅ Multi-signature wallet created successfully!");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("📋 Configuration:");
-    println!("   Threshold: {} of {}", config.threshold, config.total);
+    println!("   Type: {}", config.config_type());
     println!("   Address: {}", address);
     println!("   Config saved to: {}", output);
-    println!("\n👥 Signers:");
-    for (i, label) in config.labels.iter().enumerate() {
-        println!("   {}. {}", i + 1, label);
-    }
+    println!("\n👥 Signers: {}", config.total_signers);
     println!("\n💡 Next steps:");
     println!("   1. Share this address with all signers");
     println!("   2. Distribute the config file: {}", output);
@@ -2548,35 +2552,38 @@ fn wallet_gen_multisig(
 
 /// Show multi-signature wallet information
 fn multisig_info(config_path: &str) -> Result<()> {
-    use crate::multisig::MultisigConfig;
+    use ::wallet::multisig::MultisigConfig;
 
     // Load config
     let config_json = std::fs::read_to_string(config_path)?;
     let config: MultisigConfig = serde_json::from_str(&config_json)?;
 
     // Generate address
-    let address = config.to_address();
+    let address = config.address();
 
     println!("\n📋 Multi-signature Wallet Information");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("Address:   {}", address);
-    println!("Threshold: {} of {}", config.threshold, config.total);
+    println!("Type:      {}", config.config_type());
     println!("Created:   {}",
         chrono::DateTime::from_timestamp(config.created_at as i64, 0)
             .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
             .unwrap_or_else(|| "Unknown".to_string())
     );
-    println!("\n👥 Signers:");
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    for (i, label) in config.labels.iter().enumerate() {
-        let pk_hash = &config.public_keys[i];
-        let pk_preview = format!("{}...{}",
-            hex::encode(&pk_hash[..4]),
-            hex::encode(&pk_hash[pk_hash.len()-4..])
-        );
-        println!("   {}. {} ({})", i + 1, label, pk_preview);
+    if let Some(label) = &config.label {
+        println!("Label:     {}", label);
     }
+    println!("\n👥 Signers: {}", config.total_signers);
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    for (i, pk) in config.public_keys.iter().enumerate() {
+        let pk_preview = if pk.len() > 16 {
+            format!("{}...{}", &pk[..8], &pk[pk.len()-8..])
+        } else {
+            pk.clone()
+        };
+        println!("   {}. {}", i + 1, pk_preview);
+    }
+    println!("━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     Ok(())
 }
@@ -2593,7 +2600,7 @@ fn tx_sign_partial(
     println!("⚠️  Partial transaction signing will be implemented in the next phase");
     println!("📋 This requires transaction serialization format to be finalized");
     println!("\n💡 For now, use the multisig module directly in your code:");
-    println!("   use crate::multisig::{{PartialSignature, SignatureCollection}};");
+    println!("   use wallet::multisig::{{MultisigWallet, PendingMultisigTx}};");
 
     anyhow::bail!("Feature coming soon: partial transaction signing")
 }
@@ -2609,7 +2616,7 @@ fn tx_combine_signatures(
     println!("⚠️  Signature combination will be implemented in the next phase");
     println!("📋 This requires transaction serialization format to be finalized");
     println!("\n💡 For now, use the multisig module directly in your code:");
-    println!("   use crate::multisig::SignatureCollection;");
+    println!("   use wallet::multisig::{{MultisigWallet, FinalizedMultisigTx}};");
 
     anyhow::bail!("Feature coming soon: signature combination")
 }

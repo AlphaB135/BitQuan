@@ -328,6 +328,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "wallet",
  "zeroize",
 ]
 
@@ -2605,12 +2606,15 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "base64",
+ "hex",
  "rand 0.8.5",
  "rpassword",
  "secrecy",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
+ "thiserror 1.0.69",
  "zeroize",
 ]
 
