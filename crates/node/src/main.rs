@@ -206,6 +206,60 @@ enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+    /// Generate multi-signature wallet address
+    WalletGenMultisig {
+        /// Required number of signatures (M in M-of-N)
+        #[arg(long)]
+        threshold: usize,
+        /// Paths to keystore files for all signers
+        #[arg(long, value_delimiter = ',')]
+        keystores: Vec<String>,
+        /// Optional labels for signers (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        labels: Vec<String>,
+        /// Output file for multisig config
+        #[arg(long, default_value = "multisig.json")]
+        output: String,
+    },
+    /// Show multi-signature wallet information
+    MultisigInfo {
+        /// Path to multisig config file
+        #[arg(long)]
+        config: String,
+    },
+    /// Sign transaction with partial signature for multisig
+    TxSignPartial {
+        /// Path to transaction file
+        #[arg(long)]
+        tx: String,
+        /// Path to signer's keystore
+        #[arg(long)]
+        keystore: String,
+        /// Path to multisig config
+        #[arg(long)]
+        multisig_config: String,
+        /// Output file for partial signature
+        #[arg(long)]
+        output: String,
+        /// Password to decrypt keystore
+        #[arg(long)]
+        password: Option<String>,
+    },
+    /// Combine partial signatures into final transaction
+    TxCombineSignatures {
+        /// Path to transaction file
+        #[arg(long)]
+        tx: String,
+        /// Paths to partial signature files (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        signatures: Vec<String>,
+        /// Path to multisig config
+        #[arg(long)]
+        multisig_config: String,
+        /// Output file for signed transaction
+        #[arg(long)]
+        output: String,
+    },
     /// Import/show wallet address from keypair file
     WalletAddress {
         /// Path to keystore file
@@ -499,6 +553,26 @@ fn main() -> Result<()> {
             output.as_deref(),
             password.as_deref(),
         ),
+        Commands::WalletGenMultisig {
+            threshold,
+            keystores,
+            labels,
+            output,
+        } => wallet_gen_multisig(threshold, &keystores, &labels, &output),
+        Commands::MultisigInfo { config } => multisig_info(&config),
+        Commands::TxSignPartial {
+            tx,
+            keystore,
+            multisig_config,
+            output,
+            password,
+        } => tx_sign_partial(&tx, &keystore, &multisig_config, &output, password.as_deref()),
+        Commands::TxCombineSignatures {
+            tx,
+            signatures,
+            multisig_config,
+            output,
+        } => tx_combine_signatures(&tx, &signatures, &multisig_config, &output),
         Commands::WalletAddress { keystore, password } => {
             wallet_address(&keystore, password.as_deref())
         }
@@ -2411,3 +2485,131 @@ fn wallet_from_mnemonic(
     Ok(())
 }
 
+
+/// Generate multi-signature wallet address
+fn wallet_gen_multisig(
+    threshold: usize,
+    keystores: &[String],
+    labels: &[String],
+    output: &str,
+) -> Result<()> {
+    use crate::multisig::MultisigConfig;
+    use std::path::Path;
+    
+    if keystores.is_empty() {
+        anyhow::bail!("At least 2 keystore files required for multisig");
+    }
+    
+    println!("\n🔐 Creating {}-of-{} Multi-signature Wallet", threshold, keystores.len());
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    
+    // Load public keys from keystores
+    let mut public_keys = Vec::new();
+    for (i, keystore_path) in keystores.iter().enumerate() {
+        println!("📂 Loading keystore {} of {}: {}", i + 1, keystores.len(), keystore_path);
+        
+        let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
+        
+        // Prompt for password
+        println!("🔑 Enter password for {}:", keystore_path);
+        let password = read_password_from_stdin()?;
+        let json = keystore::decrypt_keypair(&keystore_file, &password)?;
+        let serializable: wallet::SerializableKeypair = serde_json::from_str(&json)?;
+        
+        public_keys.push(hex::decode(&serializable.public_key)?);
+ } 
+    // Create multisig config
+    let config = MultisigConfig::new(threshold, public_keys, labels.to_vec())?;
+
+    // Generate address
+    let address = config.to_address();
+
+    // Save config
+    let config_json = serde_json::to_string_pretty(&config)?;
+    std::fs::write(output, config_json)?;
+
+    println!("\n✅ Multi-signature wallet created successfully!");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("📋 Configuration:");
+    println!("   Threshold: {} of {}", config.threshold, config.total);
+    println!("   Address: {}", address);
+    println!("   Config saved to: {}", output);
+    println!("\n👥 Signers:");
+    for (i, label) in config.labels.iter().enumerate() {
+        println!("   {}. {}", i + 1, label);
+    }
+    println!("\n💡 Next steps:");
+    println!("   1. Share this address with all signers");
+    println!("   2. Distribute the config file: {}", output);
+    println!("   3. Use 'tx-sign-partial' to sign transactions");
+    
+    Ok(())
+}
+
+/// Show multi-signature wallet information
+fn multisig_info(config_path: &str) -> Result<()> {
+    use crate::multisig::MultisigConfig;
+    
+    // Load config
+    let config_json = std::fs::read_to_string(config_path)?;
+    let config: MultisigConfig = serde_json::from_str(&config_json)?;
+    
+    // Generate address
+    let address = config.to_address();
+    
+    println!("\n📋 Multi-signature Wallet Information");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Address:   {}", address);
+    println!("Threshold: {} of {}", config.threshold, config.total);
+    println!("Created:   {}", 
+        chrono::DateTime::from_timestamp(config.created_at as i64, 0)
+            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+            .unwrap_or_else(|| "Unknown".to_string())
+    );
+    println!("\n👥 Signers:");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    for (i, label) in config.labels.iter().enumerate() {
+        let pk_hash = &config.public_keys[i];
+        let pk_preview = format!("{}...{}", 
+            hex::encode(&pk_hash[..4]),
+            hex::encode(&pk_hash[pk_hash.len()-4..])
+        );
+        println!("   {}. {} ({})", i + 1, label, pk_preview);
+    }
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    
+    Ok(())
+}
+
+/// Sign transaction with partial signature
+fn tx_sign_partial(
+    _tx_path: &str,
+    _keystore_path: &str,
+    _multisig_config_path: &str,
+    _output: &str,
+    _password: Option<&str>,
+) -> Result<()> {
+    // TODO: Implement when transaction format is finalized
+    println!("⚠️  Partial transaction signing will be implemented in the next phase");
+    println!("📋 This requires transaction serialization format to be finalized");
+    println!("\n💡 For now, use the multisig module directly in your code:");
+    println!("   use crate::multisig::{{PartialSignature, SignatureCollection}};");
+    
+    anyhow::bail!("Feature coming soon: partial transaction signing")
+}
+
+/// Combine partial signatures
+fn tx_combine_signatures(
+    _tx_path: &str,
+    _signature_paths: &[String],
+    _multisig_config_path: &str,
+    _output: &str,
+) -> Result<()> {
+    // TODO: Implement when transaction format is finalized
+    println!("⚠️  Signature combination will be implemented in the next phase");
+    println!("📋 This requires transaction serialization format to be finalized");
+    println!("\n💡 For now, use the multisig module directly in your code:");
+    println!("   use crate::multisig::SignatureCollection;");
+    
+    anyhow::bail!("Feature coming soon: signature combination")
+}

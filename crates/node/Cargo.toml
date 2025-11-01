@@ -22,6 +22,7 @@ bitquan-storage = { path = "../storage", version = "0.1.0" }
 bitquan-types = { path = "../types", version = "0.1.0" }
 bq-crypto = { path = "../crypto", version = "0.0.1" }
 chacha20poly1305 = "0.10"
+chrono = "0.4"
 clap.workspace = true
 getrandom = "0.2"
 hex.workspace = true
