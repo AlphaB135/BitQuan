@@ -135,14 +135,14 @@ fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, TlsError> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
 
-    for key in pkcs8_private_keys(&mut reader) {
+    if let Some(key) = pkcs8_private_keys(&mut reader).next() {
         let key: PrivatePkcs8KeyDer<'static> = key.map_err(|err| TlsError::Pem(err.to_string()))?;
         return Ok(PrivateKeyDer::from(key));
     }
 
     reader.seek(SeekFrom::Start(0))?;
 
-    for key in rsa_private_keys(&mut reader) {
+    if let Some(key) = rsa_private_keys(&mut reader).next() {
         let key: PrivatePkcs1KeyDer<'static> = key.map_err(|err| TlsError::Pem(err.to_string()))?;
         return Ok(PrivateKeyDer::from(key));
     }

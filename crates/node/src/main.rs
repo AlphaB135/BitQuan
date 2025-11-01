@@ -2346,7 +2346,6 @@ fn wallet_gen_mnemonic(
     println!("🔐 Address: {}", serializable.address);
     println!("\n💡 To recover this wallet later, use:");
     println!("   bitquan-node wallet-from-mnemonic");
-    
     Ok(())
 }
 
