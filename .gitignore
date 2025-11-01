@@ -9,7 +9,7 @@ genesis.json
 *.keystore
 command.txt
 MY_WALLET_INFO.txt
-
+index.md
 # Wallet keystore test fixtures
 tests/**/*.keystore
 tests/**/keystore*.json

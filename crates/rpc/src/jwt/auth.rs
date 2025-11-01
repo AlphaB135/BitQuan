@@ -10,6 +10,7 @@ use argon2::{
     password_hash::{SaltString, rand_core::OsRng},
 };
 
+/// JWT authentication manager
 pub struct JwtAuth {
     token_gen: TokenGenerator,
     users: HashMap<String, UserCredentials>,
@@ -137,6 +138,7 @@ impl JwtAuth {
             .map_err(|e| e.to_string())
     }
     
+    /// Verify token and return claims
     pub fn verify_token(&self, token: &str) -> Result<Claims, String> {
         self.token_gen.verify(token)
             .map_err(|e| e.to_string())

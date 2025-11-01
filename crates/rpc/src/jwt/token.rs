@@ -2,12 +2,14 @@
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, errors::Error};
 use super::claims::Claims;
 
+/// JWT token generator and verifier
 pub struct TokenGenerator {
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
 }
 
 impl TokenGenerator {
+    /// Create new token generator with secret key
     pub fn new(secret: &str) -> Self {
         let bytes = secret.as_bytes();
         Self {
@@ -16,17 +18,20 @@ impl TokenGenerator {
         }
     }
     
+    /// Generate access token (expires in 1 hour)
     pub fn generate(&self, username: &str, role: &str) -> Result<String, Error> {
         let claims = Claims::new(username.to_string(), role.to_string(), 3600);
         encode(&Header::default(), &claims, &self.encoding_key)
     }
     
+    /// Generate refresh token (expires in 7 days)
     pub fn generate_refresh_token(&self, username: &str, role: &str) -> Result<String, Error> {
         // Refresh token expires in 7 days
         let claims = Claims::new_refresh_token(username.to_string(), role.to_string(), 604800);
         encode(&Header::default(), &claims, &self.encoding_key)
     }
     
+    /// Refresh access token using refresh token
     pub fn refresh(&self, refresh_token: &str) -> Result<String, String> {
         // Verify the refresh token
         let claims = self.verify(refresh_token).map_err(|e| e.to_string())?;
@@ -40,6 +45,7 @@ impl TokenGenerator {
         self.generate(&claims.sub, &claims.role).map_err(|e| e.to_string())
     }
     
+    /// Verify token and extract claims
     pub fn verify(&self, token: &str) -> Result<Claims, Error> {
         decode::<Claims>(token, &self.decoding_key, &Validation::default())
             .map(|data| data.claims)

@@ -7,15 +7,20 @@ use std::fs;
 /// JWT user configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JwtUserConfig {
+    /// Username for authentication
     pub username: String,
+    /// Argon2id hashed password
     pub password_hash: String,
+    /// User role (admin, miner, readonly)
     pub role: String,
 }
 
 /// JWT configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JwtConfig {
+    /// Secret key for JWT signing (HS256)
     pub secret: String,
+    /// List of authorized users
     pub users: Vec<JwtUserConfig>,
 }
 
