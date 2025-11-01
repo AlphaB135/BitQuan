@@ -8,6 +8,7 @@ use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction};
 use thiserror::Error;
 
 pub mod rng;
+pub mod wallet;
 
 /// Error type returned when cryptographic operations fail.
 #[derive(Debug, Error)]

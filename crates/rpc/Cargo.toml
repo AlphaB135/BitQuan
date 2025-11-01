@@ -20,6 +20,10 @@ base64 = "0.22"
 ipnetwork = "0.20"
 once_cell = "1"
 http = "1"
+rustls = { version = "0.23", features = ["ring"] }
+rustls-pemfile = "2.1"
+tokio-rustls = { version = "0.26", optional = true, default-features = false, features = ["logging"] }
+rcgen = "0.13"
 
 [dev-dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

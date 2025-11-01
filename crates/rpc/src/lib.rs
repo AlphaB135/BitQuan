@@ -8,6 +8,7 @@ pub use ipnetwork::IpNetwork;
 
 pub mod methods;
 pub mod server;
+pub mod tls;
 
 /// Runtime configuration options for the RPC server.
 #[derive(Clone, Debug)]

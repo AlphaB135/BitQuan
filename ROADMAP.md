@@ -21,6 +21,60 @@
 
 ---
 
+## Production-Readiness Initiative (2025-11 → 2026-10)
+
+### Goal
+- Ship BitQuan mainnet with hardened security, observability, and operations within 12 months (launch target: 2026-10-31).
+- Complete all P0/P1 security gaps, secure two external audits, and operate a 6-month public beta before mainnet activation.
+
+### Priority Matrix (P0–P3 Backlog)
+| ID | Scope | Est. Duration | Criticality | Ownership |
+|----|-------|---------------|-------------|-----------|
+| P0-1 | Wallet encryption (Argon2id + AES-256-GCM, zeroization, CLI UX) | 2 weeks | 🔴 Critical | Internal |
+| P0-2 | Enforce TLS 1.3 (rustls stack, cert tooling) | 1 week | 🔴 Critical | Internal |
+| P0-3 | JWT auth + RBAC on RPC endpoints | 2 weeks | 🔴 Critical | Internal |
+| P0-4 | Remove mock PoW from mainnet/testnet | 3 days | 🔴 Critical | Internal |
+| P1-1 | Multi-layer rate limiting upgrade | 1 week | 🟠 High | Internal |
+| P1-2 | Adaptive DDoS protection (connection guard + challenge) | 2 weeks | 🟠 High | Internal |
+| P1-3 | Security monitoring & alerting | 2 weeks | 🟠 High | Internal |
+| P1-4 | Audit logging pipeline | 1 week | 🟠 High | Internal |
+| P2-x | Mnemonic, hardware wallet, multisig, fuzzing suite | 1–3 weeks each | 🟡 Medium | Mixed |
+| P3 | External audits ×2, penetration testing | 4–8 weeks | 🔴 Critical | Vendors |
+
+### Sprint 1–2 (Weeks 1–4) – Critical Security Fixes
+- Week 1–2: Wallet encryption overhaul (secure types, Argon2id KDF, AES-256-GCM, keystore format, CLI prompts, integration tests).
+- Week 3: TLS mandatory stack (rustls config, self-signed dev tooling, RPC wiring, config flags).
+- Week 3–4: JWT issuance/verification, role-based permission checks, enforce auth on RPC handlers.
+- Week 4: Lock mock PoW out of mainnet/testnet, update CLI guardrails, add regression tests.
+
+### Months 3–12 Roadmap (High-Level)
+- Months 3–4: Finish P1 security (rate limiting, DDoS, monitoring, audit logging).
+- Months 5–6: Ship wallet enhancements (BIP39, multisig, hardware wallet), fuzz/property/stress testing, performance tuning.
+- Months 7–8: Run dual external audits, remediate issues, rerun verification suites.
+- Months 9–10: Penetration testing + public bug bounty; drive critical/high bugs to zero.
+- Months 11–12: 6-month public beta, finalize documentation/support/legal, prepare production launch collateral.
+- Month 13: Go/No-Go for production based on beta metrics and audit sign-off.
+
+### Success Metrics & Budget Targets
+- Code: ≥80 % coverage, zero clippy warnings, 100 % unsafe blocks reviewed.
+- Security: ≥2 external audits closed with 0 critical/high findings, ≤5 medium findings, ≥1,000 fuzz hours.
+- Operations: TLS enforced, monitoring + alerting active, backups/disaster recovery tested.
+- Beta: ≥180 days runtime, ≥100 users, 0 critical bugs during beta.
+- Budget guidance: $146k–$263k for full program; ~$65k for minimum viable security option (audit + pentest + small bounty).
+
+### Decision Gates
+1. **Milestone 1 (2026-01-31):** Wallet encryption/TLS/JWT/mock-PoW complete, tests green → unlock P1 work.
+2. **Milestone 2 (2026-03-31):** All P0/P1 shipped, monitoring live, coverage ≥70 % → greenlight audits.
+3. **Milestone 3 (2026-06-30):** Dual audits + fixes completed, medium findings ≤5 → move to beta.
+4. **Milestone 4 (2026-10-31):** Beta stable, bug bounty closed, docs/ops ready → production Go/No-Go.
+
+### Week 1 Quick Start Checklist
+- [ ] Create `feature/wallet-encryption` branch and scaffold wallet security modules.
+- [ ] Add Argon2/AES/zeroize dependencies and secure types to crypto crate.
+- [ ] Implement CLI password prompts + keystore save/load flow with tests.
+- [ ] Run `cargo audit`, `cargo clippy --all-targets -D warnings`, `cargo test --package bq-crypto`.
+- [ ] Log follow-up issues for TLS/JWT groundwork and monitoring prerequisites.
+
 ## Latest Progress (2025-10-31T10:10:00Z) - Quantum-aware Difficulty Hardening ✅
 
 **Completed Today (Session 7):**
