@@ -175,6 +175,36 @@ enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+    /// Generate wallet from BIP39 mnemonic phrase
+    WalletGenMnemonic {
+        /// Number of words (12 or 24)
+        #[arg(long, default_value_t = 12)]
+        words: usize,
+        /// Output file for keypair (optional)
+        #[arg(long)]
+        output: Option<String>,
+        /// Password to encrypt the keystore (interactive prompt if not provided)
+        #[arg(long)]
+        password: Option<String>,
+        /// Show mnemonic phrase (WARNING: insecure if logged)
+        #[arg(long, default_value_t = true)]
+        show_mnemonic: bool,
+    },
+    /// Recover wallet from BIP39 mnemonic phrase
+    WalletFromMnemonic {
+        /// Mnemonic phrase (will prompt if not provided)
+        #[arg(long)]
+        mnemonic: Option<String>,
+        /// Optional passphrase for additional security
+        #[arg(long)]
+        passphrase: Option<String>,
+        /// Output file for keypair (optional)
+        #[arg(long)]
+        output: Option<String>,
+        /// Password to encrypt the keystore (interactive prompt if not provided)
+        #[arg(long)]
+        password: Option<String>,
+    },
     /// Import/show wallet address from keypair file
     WalletAddress {
         /// Path to keystore file
@@ -451,6 +481,23 @@ fn main() -> Result<()> {
             output,
             password,
         } => wallet_gen(&algo, output.as_deref(), password.as_deref()),
+        Commands::WalletGenMnemonic {
+            words,
+            output,
+            password,
+            show_mnemonic,
+        } => wallet_gen_mnemonic(words, output.as_deref(), password.as_deref(), show_mnemonic),
+        Commands::WalletFromMnemonic {
+            mnemonic,
+            passphrase,
+            output,
+            password,
+        } => wallet_from_mnemonic(
+            mnemonic.as_deref(),
+            passphrase.as_deref(),
+            output.as_deref(),
+            password.as_deref(),
+        ),
         Commands::WalletAddress { keystore, password } => {
             wallet_address(&keystore, password.as_deref())
         }
@@ -2241,3 +2288,126 @@ fn jwt_user_list(config_path: &str) -> Result<()> {
     
     Ok(())
 }
+
+
+/// Generate wallet from BIP39 mnemonic
+fn wallet_gen_mnemonic(
+    word_count: usize,
+    output_path: Option<&str>,
+    password: Option<&str>,
+    show_mnemonic: bool,
+) -> Result<()> {
+    use crate::mnemonic::MnemonicHelper;
+    use std::path::Path;
+    
+    // Generate mnemonic
+    let helper = MnemonicHelper::generate_with_word_count(word_count)?;
+    let mnemonic_phrase = helper.phrase();
+    
+    // Show mnemonic to user
+    if show_mnemonic {
+        println!("\n🔑 Your BIP39 Mnemonic Phrase:");
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("{}", mnemonic_phrase);
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("\n⚠️  IMPORTANT:");
+        println!("   - Write down these words in order");
+        println!("   - Store them in a safe place");
+        println!("   - Never share them with anyone");
+        println!("   - You need these words to recover your wallet");
+        println!();
+    }
+    
+    // Derive keypair
+    let keypair = helper.to_keypair()?;
+    let serializable = keypair.to_serializable();
+    let json = serde_json::to_string_pretty(&serializable)?;
+    
+    // Get encryption password
+    let password_value = match password {
+        Some(p) => p.to_string(),
+        None => {
+            println!("🔒 Enter password to encrypt keystore:");
+            read_password_from_stdin()?
+        }
+    };
+    
+    if password_value.is_empty() {
+        anyhow::bail!("Password cannot be empty");
+    }
+    
+    // Encrypt and save keystore
+    let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)?;
+    let output_file = output_path.unwrap_or("wallet.keystore");
+    keystore::save_keystore(&keystore_file, Path::new(output_file))?;
+    
+    println!("\n✅ Wallet created successfully!");
+    println!("📄 Keystore saved to: {}", output_file);
+    println!("🔐 Address: {}", serializable.address);
+    println!("\n💡 To recover this wallet later, use:");
+    println!("   bitquan-node wallet-from-mnemonic");
+    
+    Ok(())
+}
+
+/// Recover wallet from BIP39 mnemonic
+fn wallet_from_mnemonic(
+    mnemonic: Option<&str>,
+    passphrase: Option<&str>,
+    output_path: Option<&str>,
+    password: Option<&str>,
+) -> Result<()> {
+    use crate::mnemonic::MnemonicHelper;
+    use std::path::Path;
+    
+    // Get mnemonic phrase
+    let mnemonic_phrase = match mnemonic {
+        Some(m) => m.to_string(),
+        None => {
+            println!("Enter your BIP39 mnemonic phrase:");
+            println!("(12 or 24 words separated by spaces)");
+            let mut phrase = String::new();
+            std::io::stdin().read_line(&mut phrase)?;
+            phrase.trim().to_string()
+        }
+    };
+    
+    if mnemonic_phrase.is_empty() {
+        anyhow::bail!("Mnemonic phrase cannot be empty");
+    }
+    
+    // Validate and parse mnemonic
+    let helper = MnemonicHelper::from_phrase(&mnemonic_phrase, passphrase)?;
+    
+    println!("✅ Mnemonic validated successfully!");
+    
+    // Derive keypair
+    let keypair = helper.to_keypair()?;
+    let serializable = keypair.to_serializable();
+    let json = serde_json::to_string_pretty(&serializable)?;
+    
+    // Get encryption password
+    let password_value = match password {
+        Some(p) => p.to_string(),
+        None => {
+            println!("🔒 Enter password to encrypt keystore:");
+            read_password_from_stdin()?
+        }
+    };
+    
+    if password_value.is_empty() {
+        anyhow::bail!("Password cannot be empty");
+    }
+    
+    // Encrypt and save keystore
+    let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)?;
+    let output_file = output_path.unwrap_or("wallet-recovered.keystore");
+    keystore::save_keystore(&keystore_file, Path::new(output_file))?;
+    
+    println!("\n✅ Wallet recovered successfully!");
+    println!("📄 Keystore saved to: {}", output_file);
+    println!("🔐 Address: {}", serializable.address);
+    
+    Ok(())
+}
+
