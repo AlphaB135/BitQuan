@@ -130,11 +130,11 @@ impl MultisigConfig {
         let mut hasher = Sha256::new();
         hasher.update(&[self.required_sigs]);
         hasher.update(&[self.total_signers]);
-        
+
         for pk in &self.public_keys {
             hasher.update(pk.as_bytes());
         }
-        
+
         let hash = hasher.finalize();
         format!("bqms1{}", hex::encode(&hash[..20]))
     }
@@ -281,7 +281,9 @@ impl PendingMultisigTx {
 
     /// Checks if a specific public key has already signed.
     pub fn has_signature_from(&self, public_key: &str) -> bool {
-        self.signatures.iter().any(|sig| sig.public_key == public_key)
+        self.signatures
+            .iter()
+            .any(|sig| sig.public_key == public_key)
     }
 
     /// Returns the number of signatures collected.
@@ -474,7 +476,7 @@ mod tests {
     fn test_multisig_address_generation() {
         let config1 = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let config2 = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
-        
+
         // Same config should generate same address
         assert_eq!(config1.address(), config2.address());
 
@@ -496,10 +498,10 @@ mod tests {
     fn test_create_pending_tx() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let tx_data = b"sample transaction data";
         let pending = wallet.create_pending_tx(tx_data);
-        
+
         assert_eq!(pending.tx_data, hex::encode(tx_data));
         assert_eq!(pending.signatures.len(), 0);
         assert!(!pending.is_complete());
@@ -509,15 +511,15 @@ mod tests {
     fn test_add_signature() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
-        
+
         // Add first signature
         let sig1 = b"signature1";
         wallet.add_signature(&mut pending, "pubkey1", sig1).unwrap();
         assert_eq!(pending.signature_count(), 1);
         assert!(!pending.is_complete());
-        
+
         // Add second signature
         let sig2 = b"signature2";
         wallet.add_signature(&mut pending, "pubkey2", sig2).unwrap();
@@ -529,12 +531,14 @@ mod tests {
     fn test_duplicate_signature_rejected() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
-        
-        wallet.add_signature(&mut pending, "pubkey1", b"sig1").unwrap();
+
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"sig1")
+            .unwrap();
         let result = wallet.add_signature(&mut pending, "pubkey1", b"sig2");
-        
+
         assert!(matches!(result, Err(MultisigError::DuplicateSignature(_))));
     }
 
@@ -542,10 +546,10 @@ mod tests {
     fn test_unknown_signer_rejected() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
         let result = wallet.add_signature(&mut pending, "unknown_key", b"sig");
-        
+
         assert!(matches!(result, Err(MultisigError::UnknownSigner(_))));
     }
 
@@ -553,13 +557,17 @@ mod tests {
     fn test_finalize_transaction() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
-        
+
         // Add required signatures
-        wallet.add_signature(&mut pending, "pubkey1", b"sig1").unwrap();
-        wallet.add_signature(&mut pending, "pubkey2", b"sig2").unwrap();
-        
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"sig1")
+            .unwrap();
+        wallet
+            .add_signature(&mut pending, "pubkey2", b"sig2")
+            .unwrap();
+
         // Finalize
         let finalized = wallet.finalize_transaction(&pending).unwrap();
         assert_eq!(finalized.signatures.len(), 2);
@@ -570,10 +578,12 @@ mod tests {
     fn test_finalize_insufficient_signatures() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
-        wallet.add_signature(&mut pending, "pubkey1", b"sig1").unwrap();
-        
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"sig1")
+            .unwrap();
+
         // Should fail with only 1 signature when 2 required
         let result = wallet.finalize_transaction(&pending);
         assert!(matches!(
@@ -586,15 +596,17 @@ mod tests {
     fn test_pending_signers() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
-        
+
         // Initially all are pending
         let pending_signers = pending.pending_signers();
         assert_eq!(pending_signers.len(), 3);
-        
+
         // Add one signature
-        wallet.add_signature(&mut pending, "pubkey1", b"sig1").unwrap();
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"sig1")
+            .unwrap();
         let pending_signers = pending.pending_signers();
         assert_eq!(pending_signers.len(), 2);
         assert!(!pending_signers.contains(&"pubkey1".to_string()));
@@ -604,17 +616,23 @@ mod tests {
     fn test_signatures_needed() {
         let config = MultisigConfig::new(3, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
         assert_eq!(pending.signatures_needed(), 3);
-        
-        wallet.add_signature(&mut pending, "pubkey1", b"sig1").unwrap();
+
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"sig1")
+            .unwrap();
         assert_eq!(pending.signatures_needed(), 2);
-        
-        wallet.add_signature(&mut pending, "pubkey2", b"sig2").unwrap();
+
+        wallet
+            .add_signature(&mut pending, "pubkey2", b"sig2")
+            .unwrap();
         assert_eq!(pending.signatures_needed(), 1);
-        
-        wallet.add_signature(&mut pending, "pubkey3", b"sig3").unwrap();
+
+        wallet
+            .add_signature(&mut pending, "pubkey3", b"sig3")
+            .unwrap();
         assert_eq!(pending.signatures_needed(), 0);
     }
 
@@ -622,27 +640,31 @@ mod tests {
     fn test_progress_percentage() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
         assert_eq!(pending.progress_percentage(), 0.0);
-        
-        wallet.add_signature(&mut pending, "pubkey1", b"sig1").unwrap();
+
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"sig1")
+            .unwrap();
         assert_eq!(pending.progress_percentage(), 50.0);
-        
-        wallet.add_signature(&mut pending, "pubkey2", b"sig2").unwrap();
+
+        wallet
+            .add_signature(&mut pending, "pubkey2", b"sig2")
+            .unwrap();
         assert_eq!(pending.progress_percentage(), 100.0);
     }
 
     #[test]
     fn test_wallet_manager() {
         let mut manager = MultisigWalletManager::new();
-        
+
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config.clone());
         let address = config.address();
-        
+
         manager.add_wallet(wallet);
-        
+
         assert!(manager.get_wallet(&address).is_some());
         assert_eq!(manager.list_addresses().len(), 1);
     }
@@ -650,15 +672,15 @@ mod tests {
     #[test]
     fn test_manager_pending_txs() {
         let mut manager = MultisigWalletManager::new();
-        
+
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let pending = wallet.create_pending_tx(b"tx data");
         let tx_id = pending.tx_id.clone();
-        
+
         manager.add_pending_tx(pending);
-        
+
         assert!(manager.get_pending_tx(&tx_id).is_some());
         assert_eq!(manager.list_pending_txs().len(), 1);
         assert_eq!(manager.list_incomplete_txs().len(), 1);
@@ -669,13 +691,17 @@ mod tests {
     fn test_already_complete_error() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).unwrap();
         let wallet = MultisigWallet::new(config);
-        
+
         let mut pending = wallet.create_pending_tx(b"tx data");
-        
+
         // Add required signatures
-        wallet.add_signature(&mut pending, "pubkey1", b"sig1").unwrap();
-        wallet.add_signature(&mut pending, "pubkey2", b"sig2").unwrap();
-        
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"sig1")
+            .unwrap();
+        wallet
+            .add_signature(&mut pending, "pubkey2", b"sig2")
+            .unwrap();
+
         // Try to add another signature
         let result = wallet.add_signature(&mut pending, "pubkey3", b"sig3");
         assert!(matches!(result, Err(MultisigError::AlreadyComplete)));

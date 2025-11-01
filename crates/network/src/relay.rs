@@ -197,6 +197,7 @@ pub fn create_block_getdata(block_hashes: Vec<[u8; 32]>) -> Message {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId};
 
     #[test]
     fn test_relay_manager() {
@@ -222,6 +223,8 @@ mod tests {
         // Create test transaction
         let tx = Transaction {
             version: 2,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![],
             outputs: vec![],

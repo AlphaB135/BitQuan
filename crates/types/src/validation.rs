@@ -233,12 +233,14 @@ fn is_coinbase(tx: &Transaction) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SigAlgorithm, TxIn, TxOut};
+    use crate::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, TxIn, TxOut};
 
     #[test]
     fn rejects_empty_inputs() {
         let tx = Transaction {
             version: 1,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![],
             outputs: vec![TxOut {
@@ -258,6 +260,8 @@ mod tests {
     fn rejects_empty_outputs() {
         let tx = Transaction {
             version: 1,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![TxIn {
                 prev_txid: [1u8; 32],
@@ -279,6 +283,8 @@ mod tests {
     fn rejects_duplicate_inputs() {
         let tx = Transaction {
             version: 1,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![
                 TxIn {

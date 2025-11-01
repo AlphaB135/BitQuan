@@ -266,7 +266,9 @@ impl ChainStore for RocksDBStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{SigAlgorithm, Transaction, TxIn, TxOut};
+    use bitquan_types::{
+        genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut,
+    };
 
     #[test]
     fn test_rocksdb_store_basic() {
@@ -276,6 +278,8 @@ mod tests {
         // Create genesis block
         let coinbase = Transaction {
             version: 1,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             inputs: vec![TxIn {
                 prev_txid: [0u8; 32],
                 prev_vout: 0xffffffff,

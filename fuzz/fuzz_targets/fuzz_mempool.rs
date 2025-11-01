@@ -2,7 +2,7 @@
 
 use libfuzzer_sys::fuzz_target;
 use bitquan_mempool::Mempool;
-use bitquan_types::{Transaction, TxIn, TxOut, SigAlgorithm};
+use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 10 {
@@ -29,6 +29,8 @@ fuzz_target!(|data: &[u8]| {
         
         let tx = Transaction {
             version: 1,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             inputs: vec![TxIn {
                 prev_txid: {
                     let mut txid = [0u8; 32];

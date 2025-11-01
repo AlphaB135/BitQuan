@@ -13,15 +13,22 @@ const SIGNATURE_WEIGHT: usize = 384;
 const WITNESS_SCALE_FACTOR: usize = 4;
 
 /// Calculates transaction weight according to BQIP-0002.
-fn calculate_tx_weight(tx: &Transaction) -> usize {
-    // Base size: transaction without witness data
-    let base_size = tx.serialized_size_hint() - tx.witness_size_hint();
+fn calculate_tx_weight(tx: &Transaction) -> Result<usize, MempoolError> {
+    let serialized = tx.serialized_size_hint();
+    let witness = tx.witness_size_hint();
+    let base_size = serialized
+        .checked_sub(witness)
+        .ok_or(MempoolError::WeightOverflow)?;
 
-    // Count signatures in witnesses
     let sig_count: usize = tx.witnesses.iter().map(|w| w.signatures.len()).sum();
 
-    // Weight formula: base_size * 4 + sig_count * 384
-    (base_size * WITNESS_SCALE_FACTOR) + (sig_count * SIGNATURE_WEIGHT)
+    calculate_weight_components(base_size, sig_count).ok_or(MempoolError::WeightOverflow)
+}
+
+fn calculate_weight_components(base_size: usize, sig_count: usize) -> Option<usize> {
+    let base = base_size.checked_mul(WITNESS_SCALE_FACTOR)?;
+    let sig = sig_count.checked_mul(SIGNATURE_WEIGHT)?;
+    base.checked_add(sig)
 }
 
 /// Represents the fundamental data for ordering transactions in the mempool.
@@ -39,16 +46,20 @@ pub struct MempoolEntry {
 
 impl MempoolEntry {
     /// Calculates fee density from transaction and fee.
-    pub fn from_transaction(tx: Transaction, fee: u64, tie_breaker: u64) -> Self {
-        let weight = calculate_tx_weight(&tx);
+    pub fn from_transaction(
+        tx: Transaction,
+        fee: u64,
+        tie_breaker: u64,
+    ) -> Result<Self, MempoolError> {
+        let weight = calculate_tx_weight(&tx)?;
         let fee_per_weight = if weight == 0 { 0 } else { fee / weight as u64 };
 
-        Self {
+        Ok(Self {
             tx,
             weight,
             fee_per_weight,
             tie_breaker,
-        }
+        })
     }
 }
 
@@ -64,6 +75,9 @@ pub enum MempoolError {
     /// RNG failure while generating tie-breaker values.
     #[error("rng failure: {0}")]
     Entropy(#[from] RngError),
+    /// Transaction weight overflowed capacity limits.
+    #[error("transaction weight overflow")]
+    WeightOverflow,
 }
 
 /// Mempool storage keyed by fee_per_weight for efficient ordering.
@@ -143,7 +157,7 @@ impl Mempool {
 
         let tx_size = tx.serialized_size_hint();
         let tie_breaker = self.rng.u64()?;
-        let entry = MempoolEntry::from_transaction(tx, fee, tie_breaker);
+        let entry = MempoolEntry::from_transaction(tx, fee, tie_breaker)?;
 
         // Check minimum fee rate
         if entry.fee_per_weight < self.min_fee_rate {
@@ -278,7 +292,10 @@ impl Default for Mempool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{SigAlgorithm, SignaturePayload, TxIn, TxOut, Witness};
+    use bitquan_types::{
+        genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, SignaturePayload, TxIn, TxOut,
+        Witness,
+    };
 
     fn create_test_tx(inputs: usize, outputs: usize, signatures: usize) -> Transaction {
         let inputs = (0..inputs)
@@ -310,6 +327,8 @@ mod tests {
 
         Transaction {
             version: 2,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs,
             outputs,
@@ -322,10 +341,18 @@ mod tests {
     fn test_calculate_tx_weight() {
         // Transaction with 1 input, 2 outputs, 1 signature
         let tx = create_test_tx(1, 2, 1);
-        let weight = calculate_tx_weight(&tx);
+        let weight = calculate_tx_weight(&tx).expect("weight");
 
         // Weight should be base_size*4 + 1*384
         assert!(weight >= 384);
+    }
+
+    #[test]
+    fn weight_overflow_detection() {
+        assert!(calculate_weight_components(usize::MAX, 2).is_none());
+        assert!(
+            calculate_weight_components(usize::MAX / WITNESS_SCALE_FACTOR, usize::MAX).is_none()
+        );
     }
 
     #[test]
@@ -347,7 +374,7 @@ mod tests {
         assert!(mempool.insert(tx.clone(), 100).is_err());
 
         // Sufficient fee
-        let weight = calculate_tx_weight(&tx);
+        let weight = calculate_tx_weight(&tx).expect("weight");
         assert!(mempool.insert(tx, weight as u64 * 10).is_ok());
     }
 
@@ -392,7 +419,7 @@ mod tests {
         let mut mempool = Mempool::with_limits(1000, 1).unwrap();
 
         let tx1 = create_test_tx(1, 2, 1);
-        let weight = calculate_tx_weight(&tx1);
+        let weight = calculate_tx_weight(&tx1).expect("weight");
 
         // Insert with protected fee rate (>= 10)
         mempool.insert(tx1, weight as u64 * 11).unwrap();
@@ -432,7 +459,7 @@ mod tests {
         let mut mempool = Mempool::new().unwrap();
 
         let tx = create_test_tx(1, 2, 1);
-        let weight = calculate_tx_weight(&tx);
+        let weight = calculate_tx_weight(&tx).expect("weight");
 
         mempool.insert(tx, 1000).unwrap();
 

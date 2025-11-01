@@ -205,7 +205,7 @@ impl Default for UtxoSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{SigAlgorithm, TxIn};
+    use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, TxIn};
 
     fn create_test_tx(
         prev_txid: [u8; 32],
@@ -229,6 +229,8 @@ mod tests {
 
         Transaction {
             version: 2,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs,
             outputs,

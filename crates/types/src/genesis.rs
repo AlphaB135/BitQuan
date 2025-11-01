@@ -1,6 +1,6 @@
 //! Genesis block constants and utilities for BitQuan blockchain.
 
-use crate::{Block, BlockHeader, SigAlgorithm, Transaction, TxIn, TxOut};
+use crate::{Block, BlockHeader, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
 use sha2::{Digest, Sha256};
 
 /// Genesis block timestamp (Unix epoch)
@@ -51,6 +51,8 @@ pub fn create_genesis_block() -> Block {
 
     let coinbase_tx = Transaction {
         version: 2,
+        network: NetworkId::Mainnet,
+        genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![coinbase_in],
         outputs: vec![coinbase_out],

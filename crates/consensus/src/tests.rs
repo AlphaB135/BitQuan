@@ -1,4 +1,6 @@
 use super::*;
+use bitquan_types::genesis::GENESIS_HASH_BYTES;
+use bitquan_types::NetworkId;
 
 #[test]
 fn subsidy_initial_and_halving() {
@@ -84,6 +86,8 @@ fn test_calculate_tx_weight_bqip0002() {
     // Create transaction with 1 input, 2 outputs, 1 signature
     let tx = Transaction {
         version: 2,
+        network: NetworkId::Mainnet,
+        genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![TxIn {
             prev_txid: [0u8; 32],
@@ -131,6 +135,8 @@ fn test_block_weight_calculation() {
     // Create a block with single coinbase transaction
     let coinbase = Transaction {
         version: 2,
+        network: NetworkId::Devnet,
+        genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![TxIn {
             prev_txid: [0u8; 32],
@@ -181,6 +187,8 @@ fn test_block_weight_exceeds_limit() {
     for i in 0..15000 {
         transactions.push(Transaction {
             version: 2,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![TxIn {
                 prev_txid: [i as u8; 32],
@@ -236,6 +244,8 @@ fn test_transaction_and_block_hash_determinism() {
     // Sample transaction with witness payload.
     let tx = Transaction {
         version: 2,
+        network: NetworkId::Mainnet,
+        genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 42,
         inputs: vec![TxIn {
             prev_txid: [0x10; 32],
@@ -298,6 +308,8 @@ fn test_signature_weight_scaling() {
     // Transaction with 1 signature
     let tx1 = Transaction {
         version: 2,
+        network: NetworkId::Devnet,
+        genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![TxIn {
             prev_txid: [0u8; 32],
@@ -323,6 +335,8 @@ fn test_signature_weight_scaling() {
     // Transaction with 3 signatures
     let tx3 = Transaction {
         version: 2,
+        network: NetworkId::Devnet,
+        genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![TxIn {
             prev_txid: [0u8; 32],
@@ -385,6 +399,8 @@ mod property_tests {
         ) {
             let tx = Transaction {
                 version: 2,
+                network: NetworkId::Devnet,
+                genesis_hash: GENESIS_HASH_BYTES,
                 lock_time: 0,
                 inputs: (0..num_inputs).map(|i| TxIn {
                     prev_txid: [i as u8; 32],
@@ -417,6 +433,8 @@ mod property_tests {
 
             let tx = Transaction {
                 version: 2,
+                network: NetworkId::Devnet,
+                genesis_hash: GENESIS_HASH_BYTES,
                 lock_time: 0,
                 inputs: vec![TxIn {
                     prev_txid: [0u8; 32],
@@ -454,6 +472,8 @@ mod property_tests {
 
             let txs: Vec<Transaction> = (0..tx_count).map(|i| Transaction {
                 version: 2,
+                network: NetworkId::Devnet,
+                genesis_hash: GENESIS_HASH_BYTES,
                 lock_time: 0,
                 inputs: vec![TxIn {
                     prev_txid: [i as u8; 32],

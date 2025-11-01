@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use subtle::ConstantTimeEq;
 
 /// Basic authentication configuration for RPC server (DEPRECATED).
 #[deprecated(note = "Use JWT authentication instead")]
@@ -32,7 +33,8 @@ impl RpcAuth {
     }
 
     fn matches(&self, provided: &str) -> bool {
-        provided == format!("{}:{}", self.username, self.password)
+        let expected = format!("{}:{}", self.username, self.password);
+        provided.as_bytes().ct_eq(expected.as_bytes()).into()
     }
 
     /// Username accessor (primarily for tests).
@@ -91,9 +93,14 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             force_tls: require_tls,
         }
     }
-    
+
     /// Create RPC server with JWT authentication (recommended).
-    pub fn with_jwt(handler: T, addr: String, jwt_auth: crate::jwt::JwtAuth, config: RpcConfig) -> Self {
+    pub fn with_jwt(
+        handler: T,
+        addr: String,
+        jwt_auth: crate::jwt::JwtAuth,
+        config: RpcConfig,
+    ) -> Self {
         let require_tls = config.require_tls;
         Self {
             handler: Arc::new(handler),
@@ -318,12 +325,12 @@ fn handle_connection<T: methods::RpcMethods>(
                     "Self-signed certificates not allowed in production",
                 ));
             }
-            
+
             // Warn if certificate expires soon
             if tls_config.expires_soon(30) {
                 eprintln!("⚠️  WARNING: TLS certificate expires in less than 30 days!");
             }
-            
+
             upgrade_to_tls(stream, tls_config.as_ref())?
         }
         (None, true) => {
@@ -557,7 +564,7 @@ fn handle_connection<T: methods::RpcMethods>(
             return Ok(());
         }
     }
-    
+
     // JWT Refresh endpoint - no auth required
     if is_refresh {
         if let Some(AuthMethod::Jwt(jwt_auth)) = auth {
@@ -824,7 +831,7 @@ fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
 }
 
 fn respond_json(
-    stream: &mut RpcStream, 
+    stream: &mut RpcStream,
     response: &JsonRpcResponse,
     config: &RpcConfig,
 ) -> std::io::Result<()> {
@@ -940,30 +947,30 @@ fn handle_login_endpoint(
     client_ip: IpAddr,
 ) -> std::io::Result<()> {
     use serde::{Deserialize, Serialize};
-    
+
     #[derive(Deserialize)]
     struct LoginRequest {
         username: String,
         password: String,
     }
-    
+
     #[derive(Serialize)]
     struct LoginResponse {
         access_token: String,
         token_type: String,
         expires_in: u64,
     }
-    
+
     #[derive(Serialize)]
     struct ErrorResponse {
         error: String,
         message: String,
     }
-    
+
     // Read body
     let mut body = vec![0u8; content_length];
     buf_reader.read_exact(&mut body)?;
-    
+
     // Parse login request
     let login_req: LoginRequest = match serde_json::from_slice(&body) {
         Ok(req) => req,
@@ -982,7 +989,7 @@ fn handle_login_endpoint(
             stream.write_all(response.as_bytes())?;
             stream.flush()?;
             let _ = stream.shutdown();
-            
+
             record_response(
                 method,
                 path,
@@ -999,7 +1006,7 @@ fn handle_login_endpoint(
             return Ok(());
         }
     };
-    
+
     // Attempt login
     match jwt_auth.login(&login_req.username, &login_req.password) {
         Ok(token) => {
@@ -1016,12 +1023,12 @@ fn handle_login_endpoint(
                 security_headers,
                 response_json
             );
-            
+
             let stream = buf_reader.get_mut();
             stream.write_all(response.as_bytes())?;
             stream.flush()?;
             let _ = stream.shutdown();
-            
+
             record_response(
                 method,
                 path,
@@ -1052,7 +1059,7 @@ fn handle_login_endpoint(
             stream.write_all(response.as_bytes())?;
             stream.flush()?;
             let _ = stream.shutdown();
-            
+
             record_response(
                 method,
                 path,
@@ -1083,29 +1090,29 @@ fn handle_refresh_endpoint(
     client_ip: IpAddr,
 ) -> std::io::Result<()> {
     use serde::{Deserialize, Serialize};
-    
+
     #[derive(Deserialize)]
     struct RefreshRequest {
         refresh_token: String,
     }
-    
+
     #[derive(Serialize)]
     struct RefreshResponse {
         access_token: String,
         token_type: String,
         expires_in: u64,
     }
-    
+
     #[derive(Serialize)]
     struct ErrorResponse {
         error: String,
         message: String,
     }
-    
+
     // Read body
     let mut body = vec![0u8; content_length];
     buf_reader.read_exact(&mut body)?;
-    
+
     // Parse refresh request
     let refresh_req: RefreshRequest = match serde_json::from_slice(&body) {
         Ok(req) => req,
@@ -1124,7 +1131,7 @@ fn handle_refresh_endpoint(
             stream.write_all(response.as_bytes())?;
             stream.flush()?;
             let _ = stream.shutdown();
-            
+
             record_response(
                 method,
                 path,
@@ -1141,7 +1148,7 @@ fn handle_refresh_endpoint(
             return Ok(());
         }
     };
-    
+
     // Attempt token refresh
     match jwt_auth.refresh_token(&refresh_req.refresh_token) {
         Ok(new_token) => {
@@ -1158,12 +1165,12 @@ fn handle_refresh_endpoint(
                 security_headers,
                 response_json
             );
-            
+
             let stream = buf_reader.get_mut();
             stream.write_all(response.as_bytes())?;
             stream.flush()?;
             let _ = stream.shutdown();
-            
+
             record_response(
                 method,
                 path,
@@ -1194,7 +1201,7 @@ fn handle_refresh_endpoint(
             stream.write_all(response.as_bytes())?;
             stream.flush()?;
             let _ = stream.shutdown();
-            
+
             record_response(
                 method,
                 path,
@@ -1214,7 +1221,11 @@ fn handle_refresh_endpoint(
 }
 
 /// Send HTTP 426 Upgrade Required response for non-TLS connections when TLS is mandatory
-fn send_upgrade_required(mut stream: TcpStream, peer_ip: IpAddr, start: Instant) -> std::io::Result<()> {
+fn send_upgrade_required(
+    mut stream: TcpStream,
+    peer_ip: IpAddr,
+    start: Instant,
+) -> std::io::Result<()> {
     let body = r#"{"error":"TLS Required","message":"This server requires HTTPS. Please upgrade your connection to HTTPS."}"#;
     let response = format!(
         concat!(
@@ -1232,7 +1243,7 @@ fn send_upgrade_required(mut stream: TcpStream, peer_ip: IpAddr, start: Instant)
     stream.write_all(response.as_bytes())?;
     stream.flush()?;
     stream.shutdown(Shutdown::Write)?;
-    
+
     record_response(
         "UPGRADE",
         "required",
@@ -1242,17 +1253,17 @@ fn send_upgrade_required(mut stream: TcpStream, peer_ip: IpAddr, start: Instant)
         peer_ip,
         false,
         false,
-        true,  // TLS required
+        true, // TLS required
         false,
     );
-    
+
     Ok(())
 }
 
 /// Add security headers to HTTP response
 fn build_security_headers(config: &RpcConfig) -> String {
     let mut headers = String::new();
-    
+
     // HSTS (HTTP Strict Transport Security)
     if config.enable_hsts {
         headers.push_str(&format!(
@@ -1265,14 +1276,14 @@ fn build_security_headers(config: &RpcConfig) -> String {
             }
         ));
     }
-    
+
     // Security headers (always enabled)
     headers.push_str("X-Content-Type-Options: nosniff\r\n");
     headers.push_str("X-Frame-Options: DENY\r\n");
     headers.push_str("X-XSS-Protection: 1; mode=block\r\n");
     headers.push_str("Referrer-Policy: no-referrer\r\n");
     headers.push_str("Content-Security-Policy: default-src 'none'\r\n");
-    
+
     headers
 }
 

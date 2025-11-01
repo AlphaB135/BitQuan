@@ -10,7 +10,9 @@ use sha2::{Digest, Sha256};
 /// Includes network_id for cross-chain replay protection (BQIP-0002).
 pub fn transaction_sighash(tx: &Transaction, network_id: NetworkId) -> [u8; 32] {
     let mut hasher = Sha256::new();
+    debug_assert_eq!(tx.network, network_id, "transaction network mismatch");
     hasher.update([network_id.as_u8()]);
+    hasher.update(tx.genesis_hash);
     hasher.update(tx.version.to_le_bytes());
     hasher.update(tx.lock_time.to_le_bytes());
 
@@ -74,14 +76,22 @@ fn hash_len(hasher: &mut Sha256, len: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bitquan_types::genesis::GENESIS_HASH_BYTES;
     use bitquan_types::{
         AuxiliarySignatureData, NetworkId, SigAlgorithm, SignaturePayload, Transaction, TxIn,
         TxOut, Witness,
     };
 
+    fn tx_for_network(network: NetworkId) -> Transaction {
+        let mut tx = sample_tx();
+        tx.network = network;
+        tx.genesis_hash = GENESIS_HASH_BYTES;
+        tx
+    }
+
     #[test]
     fn digest_changes_with_witness() {
-        let mut tx = sample_tx();
+        let mut tx = tx_for_network(NetworkId::Devnet);
         let original = transaction_sighash(&tx, NetworkId::Devnet);
         tx.witnesses[0].signatures[0].signature[0] ^= 0xFF;
         let mutated = transaction_sighash(&tx, NetworkId::Devnet);
@@ -90,7 +100,7 @@ mod tests {
 
     #[test]
     fn digest_changes_with_lock_time() {
-        let mut tx = sample_tx();
+        let mut tx = tx_for_network(NetworkId::Devnet);
         let original = transaction_sighash(&tx, NetworkId::Devnet);
         tx.lock_time = 42;
         let mutated = transaction_sighash(&tx, NetworkId::Devnet);
@@ -99,11 +109,10 @@ mod tests {
 
     #[test]
     fn digest_changes_with_network_id() {
-        let tx = sample_tx();
-        let mainnet = transaction_sighash(&tx, NetworkId::Mainnet);
-        let testnet = transaction_sighash(&tx, NetworkId::Testnet);
-        let devnet = transaction_sighash(&tx, NetworkId::Devnet);
-        let regtest = transaction_sighash(&tx, NetworkId::Regtest);
+        let mainnet = transaction_sighash(&tx_for_network(NetworkId::Mainnet), NetworkId::Mainnet);
+        let testnet = transaction_sighash(&tx_for_network(NetworkId::Testnet), NetworkId::Testnet);
+        let devnet = transaction_sighash(&tx_for_network(NetworkId::Devnet), NetworkId::Devnet);
+        let regtest = transaction_sighash(&tx_for_network(NetworkId::Regtest), NetworkId::Regtest);
 
         assert_ne!(mainnet, testnet);
         assert_ne!(mainnet, devnet);
@@ -115,7 +124,7 @@ mod tests {
 
     #[test]
     fn digest_deterministic_same_network() {
-        let tx = sample_tx();
+        let tx = tx_for_network(NetworkId::Mainnet);
         let hash1 = transaction_sighash(&tx, NetworkId::Mainnet);
         let hash2 = transaction_sighash(&tx, NetworkId::Mainnet);
         assert_eq!(hash1, hash2);
@@ -125,33 +134,33 @@ mod tests {
     /// These test vectors ensure cross-implementation compatibility.
     #[test]
     fn golden_vectors_network_isolation() {
-        let tx = sample_tx();
+        let tx = tx_for_network(NetworkId::Mainnet);
 
         // Expected hashes for sample_tx() on each network
         let mainnet_hash = transaction_sighash(&tx, NetworkId::Mainnet);
-        let testnet_hash = transaction_sighash(&tx, NetworkId::Testnet);
-        let devnet_hash = transaction_sighash(&tx, NetworkId::Devnet);
-        let regtest_hash = transaction_sighash(&tx, NetworkId::Regtest);
+        let testnet_hash =
+            transaction_sighash(&tx_for_network(NetworkId::Testnet), NetworkId::Testnet);
+        let devnet_hash =
+            transaction_sighash(&tx_for_network(NetworkId::Devnet), NetworkId::Devnet);
+        let regtest_hash =
+            transaction_sighash(&tx_for_network(NetworkId::Regtest), NetworkId::Regtest);
 
         // Golden vectors (generated from sample_tx on 2025-10-27)
         // These ensure determinism across implementations
         // DO NOT CHANGE these values - they are protocol constants
         assert_eq!(
             hex::encode(mainnet_hash),
-            "d3ed60e20f2163df5019216a374a85584c95420072f0d2dff3b2bb79e31d8935",
+            "ae2eda9499eb08240dae34bef6f6ff36946d2ecc9246d745a65611b1eacc05fa",
             "Mainnet sighash changed - breaking protocol change!"
         );
 
         // Testnet hash (network_id = 0x02)
-        let _testnet_expected = transaction_sighash(&tx, NetworkId::Testnet);
         assert_eq!(hex::encode(testnet_hash).len(), 64);
 
         // Devnet hash (network_id = 0x03)
-        let _devnet_expected = transaction_sighash(&tx, NetworkId::Devnet);
         assert_eq!(hex::encode(devnet_hash).len(), 64);
 
         // Regtest hash (network_id = 0x04)
-        let _regtest_expected = transaction_sighash(&tx, NetworkId::Regtest);
         assert_eq!(hex::encode(regtest_hash).len(), 64);
 
         // Verify network isolation: all hashes must be unique
@@ -185,7 +194,7 @@ mod tests {
     /// If this test fails, sighash algorithm has changed (breaking change!).
     #[test]
     fn regression_test_sighash_stability() {
-        let tx = sample_tx();
+        let tx = tx_for_network(NetworkId::Mainnet);
         let hash = transaction_sighash(&tx, NetworkId::Mainnet);
 
         // This hash was computed with the current implementation
@@ -204,6 +213,8 @@ mod tests {
     fn sample_tx() -> Transaction {
         Transaction {
             version: 1,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![TxIn {
                 prev_txid: [1u8; 32],

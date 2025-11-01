@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use bitquan_types::{Transaction, TxIn, TxOut, SigAlgorithm};
+use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
 
 fuzz_target!(|data: &[u8]| {
     // Try to parse as individual components
@@ -12,6 +12,8 @@ fuzz_target!(|data: &[u8]| {
         // Create minimal transaction
         let tx = Transaction {
             version,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             inputs: vec![],
             outputs: vec![],
             lock_time,
@@ -46,6 +48,8 @@ fuzz_target!(|data: &[u8]| {
             
         let tx = Transaction {
             version: 1,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             inputs,
             outputs,
             lock_time: 0,

@@ -25,6 +25,8 @@ fn sample_tx() -> Transaction {
 
     Transaction {
         version: 2,
+        network: NetworkId::Devnet,
+        genesis_hash: genesis::GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![tx_in],
         outputs: vec![tx_out],

@@ -3,7 +3,7 @@
 //! This module implements the canonical binary format for transactions and blocks
 //! that is used over the P2P network and for computing transaction/block hashes.
 
-use crate::{Block, BlockHeader, CompactUint, Transaction, TxIn, TxOut, Witness};
+use crate::{Block, BlockHeader, CompactUint, NetworkId, Transaction, TxIn, TxOut, Witness};
 use std::io::{self, Read, Write};
 
 /// Error types for wire protocol serialization/deserialization.
@@ -350,6 +350,12 @@ impl WireEncode for Transaction {
         // Version
         write_u32_le(writer, self.version as u32)?;
 
+        // Network identifier
+        write_u8(writer, self.network.as_u8())?;
+
+        // Genesis hash
+        writer.write_all(&self.genesis_hash)?;
+
         // Lock time
         write_u32_le(writer, self.lock_time)?;
 
@@ -382,6 +388,8 @@ impl WireEncode for Transaction {
 
     fn encoded_size(&self) -> usize {
         let mut size = 4; // version
+        size += 1; // network id
+        size += 32; // genesis hash
         size += 4; // lock_time
 
         size += CompactUint::from(self.inputs.len() as u64).encoded_length();
@@ -406,6 +414,13 @@ impl WireEncode for Transaction {
 impl WireDecode for Transaction {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
         let version = read_u32_le(reader)? as i32;
+        let network_code = read_u8(reader)?;
+        let network = NetworkId::from_u8(network_code).ok_or_else(|| {
+            WireError::InvalidFormat(format!("invalid network id: {network_code}"))
+        })?;
+
+        let mut genesis_hash = [0u8; 32];
+        reader.read_exact(&mut genesis_hash)?;
         let lock_time = read_u32_le(reader)?;
 
         // Inputs
@@ -453,6 +468,8 @@ impl WireDecode for Transaction {
 
         Ok(Transaction {
             version,
+            network,
+            genesis_hash,
             lock_time,
             inputs,
             outputs,
@@ -564,6 +581,7 @@ impl WireDecode for Block {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::genesis::GENESIS_HASH_BYTES;
     use crate::SigAlgorithm;
 
     #[test]
@@ -608,6 +626,8 @@ mod tests {
     fn test_transaction_roundtrip() {
         let tx = Transaction {
             version: 1,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![TxIn {
                 prev_txid: [1u8; 32],
@@ -676,6 +696,8 @@ mod tests {
             },
             transactions: vec![Transaction {
                 version: 1,
+                network: NetworkId::Devnet,
+                genesis_hash: GENESIS_HASH_BYTES,
                 lock_time: 0,
                 inputs: vec![],
                 outputs: vec![TxOut {

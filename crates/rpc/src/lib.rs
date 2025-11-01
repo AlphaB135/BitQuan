@@ -6,10 +6,10 @@ use thiserror::Error;
 
 pub use ipnetwork::IpNetwork;
 
+pub mod jwt;
 pub mod methods;
 pub mod server;
 pub mod tls;
-pub mod jwt;
 
 /// Runtime configuration options for the RPC server.
 #[derive(Clone, Debug)]
@@ -54,9 +54,9 @@ impl Default for RpcConfig {
             max_header_bytes: 8 * 1024,
             header_read_timeout_ms: 1_000,
             require_tls: false,
-            allow_self_signed: true,  // Allow for dev/test
+            allow_self_signed: true, // Allow for dev/test
             enable_hsts: true,
-            hsts_max_age: 31536000,  // 1 year
+            hsts_max_age: 31536000, // 1 year
             hsts_include_subdomains: true,
         }
     }
@@ -66,7 +66,7 @@ impl RpcConfig {
     /// Creates a mainnet-safe configuration with strict security settings.
     pub fn mainnet() -> Self {
         Self {
-            require_tls: true,       // ✅ Mandatory TLS
+            require_tls: true,        // ✅ Mandatory TLS
             allow_self_signed: false, // ❌ No self-signed certs
             enable_hsts: true,
             hsts_max_age: 31536000,
@@ -74,7 +74,7 @@ impl RpcConfig {
             ..Default::default()
         }
     }
-    
+
     /// Creates a devnet configuration with relaxed settings.
     pub fn devnet() -> Self {
         Self {

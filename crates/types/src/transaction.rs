@@ -1,6 +1,7 @@
 //! Transaction-related data structures.
 
 use crate::compact_uint::CompactUint;
+use crate::genesis::GENESIS_HASH_BYTES;
 use serde::{
     de::{Error as DeError, Unexpected},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -198,6 +199,12 @@ impl SignaturePayload {
 pub struct Transaction {
     /// Transaction format version.
     pub version: i32,
+    /// Target network identifier (prevents cross-network replay).
+    #[serde(default = "default_network_id")]
+    pub network: NetworkId,
+    /// Canonical genesis block hash for the target chain.
+    #[serde(default = "default_genesis_hash")]
+    pub genesis_hash: [u8; 32],
     /// Absolute or relative lock time.
     pub lock_time: u32,
     /// Transaction inputs.
@@ -225,7 +232,10 @@ impl Transaction {
     }
     /// Provides a heuristic serialized size used by consensus weight calculations.
     pub fn serialized_size_hint(&self) -> usize {
-        let mut len = 4 + 4; // version + lock_time
+        let mut len = 4 // version
+            + 1 // network id
+            + 32 // genesis hash
+            + 4; // lock_time
         len += CompactUint::from_usize(self.inputs.len()).encoded_length();
         len += self
             .inputs
@@ -264,6 +274,8 @@ impl Transaction {
     pub fn to_bytes_base(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(self.serialized_size_hint());
         out.extend_from_slice(&self.version.to_le_bytes());
+        out.push(self.network.as_u8());
+        out.extend_from_slice(&self.genesis_hash);
         out.extend_from_slice(&self.lock_time.to_le_bytes());
         write_compact(&mut out, self.inputs.len() as u64);
         for i in &self.inputs {
@@ -347,6 +359,14 @@ fn sha256d(data: &[u8]) -> [u8; 32] {
 pub struct Witness {
     /// Signatures included in this witness.
     pub signatures: Vec<SignaturePayload>,
+}
+
+fn default_network_id() -> NetworkId {
+    NetworkId::Devnet
+}
+
+fn default_genesis_hash() -> [u8; 32] {
+    GENESIS_HASH_BYTES
 }
 
 impl Witness {

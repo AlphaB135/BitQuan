@@ -5,9 +5,15 @@ use bitquan_rpc::RpcConfig;
 fn test_mainnet_config_requires_tls() {
     let config = RpcConfig::mainnet();
     assert!(config.require_tls, "Mainnet must require TLS");
-    assert!(!config.allow_self_signed, "Mainnet must not allow self-signed certs");
+    assert!(
+        !config.allow_self_signed,
+        "Mainnet must not allow self-signed certs"
+    );
     assert!(config.enable_hsts, "Mainnet must enable HSTS");
-    assert_eq!(config.hsts_max_age, 31536000, "HSTS max-age should be 1 year");
+    assert_eq!(
+        config.hsts_max_age, 31536000,
+        "HSTS max-age should be 1 year"
+    );
 }
 
 #[test]

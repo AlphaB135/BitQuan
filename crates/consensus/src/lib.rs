@@ -164,19 +164,25 @@ pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> usize {
     const SIGNATURE_WEIGHT: usize = 384;
 
     // Base size: transaction without witness data
-    let base_size = tx.serialized_size_hint() - tx.witness_size_hint();
+    let base_size = tx
+        .serialized_size_hint()
+        .saturating_sub(tx.witness_size_hint());
 
     // Count signatures in witnesses
     let sig_count: usize = tx.witnesses.iter().map(|w| w.signatures.len()).sum();
 
-    (base_size * WITNESS_SCALE_FACTOR) + (sig_count * SIGNATURE_WEIGHT)
+    base_size
+        .saturating_mul(WITNESS_SCALE_FACTOR)
+        .saturating_add(sig_count.saturating_mul(SIGNATURE_WEIGHT))
 }
 
 /// Calculates block weight according to BQIP-0002.
 ///
 /// Formula: sum of all transaction weights
 pub fn calculate_block_weight(block: &Block) -> usize {
-    block.transactions.iter().map(calculate_tx_weight).sum()
+    block.transactions.iter().fold(0usize, |acc, tx| {
+        acc.saturating_add(calculate_tx_weight(tx))
+    })
 }
 
 /// Legacy function - calculates the block weight given an `alpha` multiplier.

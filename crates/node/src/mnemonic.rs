@@ -77,30 +77,39 @@ pub fn seed_to_keypair(seed: &[u8; 64]) -> Result<crate::wallet::WalletKeypair> 
 ///
 /// This allows deriving multiple keys from the same mnemonic.
 /// Similar to BIP32 but simplified for Dilithium (no hierarchical derivation yet).
-pub fn seed_to_keypair_with_index(seed: &[u8; 64], index: u32) -> Result<crate::wallet::WalletKeypair> {
+///
+/// # Security
+/// Uses HMAC-SHA512 to derive a deterministic 32-byte seed from the BIP39 seed,
+/// then uses that to seed a ChaCha20 CSPRNG for Dilithium key generation.
+/// This ensures:
+/// - Same mnemonic + index = same keypair (deterministic)
+/// - Different indices = different keypairs (key separation)
+/// - Cryptographically secure (no weak randomness)
+pub fn seed_to_keypair_with_index(
+    seed: &[u8; 64],
+    index: u32,
+) -> Result<crate::wallet::WalletKeypair> {
     use hmac::{Hmac, Mac};
     use sha2::Sha512;
-    
+
     // Create HMAC-SHA512 with seed as key
     let mut mac = Hmac::<Sha512>::new_from_slice(seed)
         .map_err(|e| anyhow::anyhow!("HMAC initialization failed: {}", e))?;
-    
+
     // Add index to derive different keys
     mac.update(b"BitQuan Dilithium Key Derivation");
     mac.update(&index.to_be_bytes());
-    
+
     // Get 64 bytes of deterministic randomness
     let result = mac.finalize();
     let derived_seed = result.into_bytes();
-    
+
     // Use first 32 bytes as seed for Dilithium key generation
     let mut dilithium_seed = [0u8; 32];
     dilithium_seed.copy_from_slice(&derived_seed[..32]);
-    
-    // Generate Dilithium keypair deterministically
-    // For now, we use standard generation and accept it's not perfectly deterministic
-    // TODO: Implement proper deterministic key generation for Dilithium
-    crate::wallet::WalletKeypair::generate_dilithium3()
+
+    // Generate Dilithium keypair deterministically from seed
+    crate::wallet::WalletKeypair::from_seed_dilithium3(&dilithium_seed)
 }
 
 /// Mnemonic helper that wraps phrase generation and seed derivation.
@@ -213,9 +222,21 @@ mod tests {
     }
 
     #[test]
-    fn test_mnemonic_to_keypair_rejects() {
+    fn test_mnemonic_to_keypair_deterministic() {
+        // Generate mnemonic
         let helper = MnemonicHelper::generate().unwrap();
-        assert!(helper.to_keypair().is_err());
+        let phrase = helper.phrase();
+
+        // Derive keypair twice from same mnemonic
+        let kp1 = helper.to_keypair().unwrap();
+        
+        // Recover from same mnemonic
+        let helper2 = MnemonicHelper::from_phrase(&phrase, None).unwrap();
+        let kp2 = helper2.to_keypair().unwrap();
+
+        // Should produce identical keypairs
+        assert_eq!(kp1.public_key, kp2.public_key);
+        assert_eq!(kp1.secret_key, kp2.secret_key);
     }
 
     #[test]
@@ -240,5 +261,79 @@ mod tests {
         // Should be valid
         assert_eq!(helper.words().len(), 12);
         assert_eq!(helper.phrase(), phrase);
+    }
+
+    #[test]
+    fn test_different_indices_produce_different_keys() {
+        let helper = MnemonicHelper::generate().unwrap();
+        
+        // Derive keys at different indices
+        let kp0 = seed_to_keypair_with_index(&helper.seed, 0).unwrap();
+        let kp1 = seed_to_keypair_with_index(&helper.seed, 1).unwrap();
+        let kp2 = seed_to_keypair_with_index(&helper.seed, 2).unwrap();
+
+        // All keys should be different
+        assert_ne!(kp0.public_key, kp1.public_key);
+        assert_ne!(kp1.public_key, kp2.public_key);
+        assert_ne!(kp0.public_key, kp2.public_key);
+        
+        assert_ne!(kp0.secret_key, kp1.secret_key);
+        assert_ne!(kp1.secret_key, kp2.secret_key);
+        assert_ne!(kp0.secret_key, kp2.secret_key);
+    }
+
+    #[test]
+    fn test_same_index_produces_same_key_deterministically() {
+        let helper = MnemonicHelper::generate().unwrap();
+        
+        // Derive same key index multiple times
+        let kp1 = seed_to_keypair_with_index(&helper.seed, 5).unwrap();
+        let kp2 = seed_to_keypair_with_index(&helper.seed, 5).unwrap();
+        let kp3 = seed_to_keypair_with_index(&helper.seed, 5).unwrap();
+
+        // All should be identical
+        assert_eq!(kp1.public_key, kp2.public_key);
+        assert_eq!(kp2.public_key, kp3.public_key);
+        assert_eq!(kp1.secret_key, kp2.secret_key);
+        assert_eq!(kp2.secret_key, kp3.secret_key);
+    }
+
+    #[test]
+    fn test_passphrase_changes_derived_keys() {
+        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        
+        // Same phrase, no passphrase
+        let helper1 = MnemonicHelper::from_phrase(phrase, None).unwrap();
+        let kp1 = helper1.to_keypair().unwrap();
+        
+        // Same phrase, with passphrase
+        let helper2 = MnemonicHelper::from_phrase(phrase, Some("my_secret_passphrase")).unwrap();
+        let kp2 = helper2.to_keypair().unwrap();
+
+        // Keys should be completely different
+        assert_ne!(kp1.public_key, kp2.public_key);
+        assert_ne!(kp1.secret_key, kp2.secret_key);
+    }
+
+    #[test]
+    fn test_known_mnemonic_produces_consistent_key() {
+        // Use a fixed known mnemonic to verify deterministic behavior
+        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        
+        // Derive key multiple times
+        let helper1 = MnemonicHelper::from_phrase(phrase, None).unwrap();
+        let kp1 = helper1.to_keypair().unwrap();
+        
+        let helper2 = MnemonicHelper::from_phrase(phrase, None).unwrap();
+        let kp2 = helper2.to_keypair().unwrap();
+        
+        let helper3 = MnemonicHelper::from_phrase(phrase, None).unwrap();
+        let kp3 = helper3.to_keypair().unwrap();
+
+        // All derivations should produce identical keys
+        assert_eq!(kp1.public_key, kp2.public_key);
+        assert_eq!(kp2.public_key, kp3.public_key);
+        assert_eq!(kp1.secret_key, kp2.secret_key);
+        assert_eq!(kp2.secret_key, kp3.secret_key);
     }
 }

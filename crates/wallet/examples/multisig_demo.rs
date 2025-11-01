@@ -42,9 +42,16 @@ fn main() {
         .expect("Failed to add Alice's signature");
 
     println!("   ✓ Alice signed");
-    println!("   Signatures: {}/{}", pending.signature_count(), config.required_sigs);
+    println!(
+        "   Signatures: {}/{}",
+        pending.signature_count(),
+        config.required_sigs
+    );
     println!("   Progress: {:.0}%", pending.progress_percentage());
-    println!("   Still need signatures from: {:?}", pending.pending_signers());
+    println!(
+        "   Still need signatures from: {:?}",
+        pending.pending_signers()
+    );
     println!();
 
     // Example 4: Second signature (Bob)
@@ -55,7 +62,11 @@ fn main() {
         .expect("Failed to add Bob's signature");
 
     println!("   ✓ Bob signed");
-    println!("   Signatures: {}/{}", pending.signature_count(), config.required_sigs);
+    println!(
+        "   Signatures: {}/{}",
+        pending.signature_count(),
+        config.required_sigs
+    );
     println!("   Progress: {:.0}%", pending.progress_percentage());
     println!("   Transaction complete: {}", pending.is_complete());
     println!();
@@ -85,8 +96,14 @@ fn main() {
     manager.add_pending_tx(pending2);
 
     println!("   Wallets managed: {}", manager.list_addresses().len());
-    println!("   Pending transactions: {}", manager.list_pending_txs().len());
-    println!("   Incomplete transactions: {}", manager.list_incomplete_txs().len());
+    println!(
+        "   Pending transactions: {}",
+        manager.list_pending_txs().len()
+    );
+    println!(
+        "   Incomplete transactions: {}",
+        manager.list_incomplete_txs().len()
+    );
     println!();
 
     // Example 7: Different multisig configurations
@@ -101,13 +118,10 @@ fn main() {
     ];
 
     for (name, required, total) in configs {
-        let keys: Vec<String> = (0..total)
-            .map(|i| format!("pubkey_{}", i))
-            .collect();
-        
-        let cfg = MultisigConfig::new(required, keys, None)
-            .expect("Failed to create config");
-        
+        let keys: Vec<String> = (0..total).map(|i| format!("pubkey_{}", i)).collect();
+
+        let cfg = MultisigConfig::new(required, keys, None).expect("Failed to create config");
+
         println!("   {} -> Address: {}", name, cfg.address());
     }
     println!();
@@ -117,7 +131,9 @@ fn main() {
 
     // Try to add duplicate signature
     let mut pending3 = wallet.create_pending_tx(b"test");
-    wallet.add_signature(&mut pending3, &public_keys[0], b"sig1").ok();
+    wallet
+        .add_signature(&mut pending3, &public_keys[0], b"sig1")
+        .ok();
     match wallet.add_signature(&mut pending3, &public_keys[0], b"sig2") {
         Err(e) => println!("   ✓ Duplicate signature rejected: {}", e),
         _ => println!("   ✗ Should have rejected duplicate signature"),

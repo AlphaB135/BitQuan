@@ -29,7 +29,7 @@ impl Claims {
             refresh: None,
         }
     }
-    
+
     /// Create new refresh token claims
     pub fn new_refresh_token(username: String, role: String, expires_in_secs: i64) -> Self {
         let now = chrono::Utc::now().timestamp();
@@ -41,17 +41,17 @@ impl Claims {
             refresh: Some(true),
         }
     }
-    
+
     /// Check if this is a refresh token
     pub fn is_refresh_token(&self) -> bool {
         self.refresh.unwrap_or(false)
     }
-    
+
     /// Check if token has expired
     pub fn is_expired(&self) -> bool {
         chrono::Utc::now().timestamp() > self.exp
     }
-    
+
     /// Check if user has admin role
     pub fn is_admin(&self) -> bool {
         self.role == "admin"
@@ -61,7 +61,7 @@ impl Claims {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_claims_creation() {
         let claims = Claims::new("alice".to_string(), "admin".to_string(), 3600);

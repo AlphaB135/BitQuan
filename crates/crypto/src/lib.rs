@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction};
+use pqcrypto_traits::sign::{PublicKey as _, SecretKey as _, SignedMessage as _};
 use thiserror::Error;
 
 pub mod rng;
@@ -124,10 +125,25 @@ impl SignatureScheme for DilithiumProvider {
         sig_bytes.copy_from_slice(&payload.signature);
         pk_bytes.copy_from_slice(&payload.public_key);
 
-        // Verify signature
-        match pqc_dilithium::verify(&sig_bytes, message, &pk_bytes) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(CryptoError::Malformed("signature verification failed")),
-        }
+        // Verify signature using pqcrypto-dilithium
+        use pqcrypto_dilithium::dilithium3;
+        
+        // Reconstruct public key
+        let pk = dilithium3::PublicKey::from_bytes(&pk_bytes)
+            .map_err(|_| CryptoError::Malformed("invalid public key"))?;
+        
+        // Create signed message format (signature + message)
+        let mut signed_msg_bytes = Vec::with_capacity(sig_bytes.len() + message.len());
+        signed_msg_bytes.extend_from_slice(&sig_bytes);
+        signed_msg_bytes.extend_from_slice(message);
+        
+        // Reconstruct SignedMessage
+        let signed_msg = dilithium3::SignedMessage::from_bytes(&signed_msg_bytes)
+            .map_err(|_| CryptoError::Malformed("invalid signed message format"))?;
+        
+        // Verify
+        dilithium3::open(&signed_msg, &pk)
+            .map(|_| ())
+            .map_err(|_| CryptoError::Malformed("signature verification failed"))
     }
 }

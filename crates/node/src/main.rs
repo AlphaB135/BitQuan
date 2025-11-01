@@ -25,7 +25,9 @@ use bitquan_rpc::{
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
 use bitquan_storage::{ChainStore, InMemoryChainStore};
-use bitquan_types::{Block, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
+use bitquan_types::{
+    genesis::GENESIS_HASH_BYTES, Block, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut,
+};
 use bq_crypto::{
     rng::{RandomSource, RngService},
     CryptoRegistry,
@@ -565,7 +567,13 @@ fn main() -> Result<()> {
             multisig_config,
             output,
             password,
-        } => tx_sign_partial(&tx, &keystore, &multisig_config, &output, password.as_deref()),
+        } => tx_sign_partial(
+            &tx,
+            &keystore,
+            &multisig_config,
+            &output,
+            password.as_deref(),
+        ),
         Commands::TxCombineSignatures {
             tx,
             signatures,
@@ -927,7 +935,9 @@ fn mine_once(
     network: NetworkId,
     pow_mode: PowMode,
 ) -> Result<()> {
-    use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
+    use bitquan_types::{
+        genesis::GENESIS_HASH_BYTES, Block, BlockHeader, SigAlgorithm, Transaction, TxOut,
+    };
     let mut store = InMemoryChainStore::new();
 
     let allow_mock = matches!(pow_mode, PowMode::Mock);
@@ -967,6 +977,8 @@ fn mine_once(
         .subsidy_at_height(store.height());
     let coinbase = Transaction {
         version: 2,
+        network,
+        genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![coinbase_in],
         outputs: vec![TxOut {
@@ -1180,6 +1192,8 @@ fn mine_continuous(
         let subsidy = params.reward_schedule.subsidy_at_height(height);
         let coinbase = Transaction {
             version: 2,
+            network,
+            genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![coinbase_in],
             outputs: vec![TxOut {
@@ -1407,7 +1421,7 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     let pubkey_hash = keypair.public_key_hash();
     let address_str = address::encode(&pubkey_hash);
 
-    use pqc_dilithium::{PUBLICKEYBYTES, SECRETKEYBYTES};
+    use crate::wallet::{PUBLICKEYBYTES, SECRETKEYBYTES};
 
     println!("\n✅ Keypair generated successfully!");
     println!("\n📍 Address: {}", address_str);
@@ -1691,6 +1705,8 @@ fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str
     };
     let tx = Transaction {
         version: 2,
+        network: NetworkId::Devnet,
+        genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![input],
         outputs: vec![output],
@@ -1861,24 +1877,24 @@ fn p2p_server(
 
         let handler = NodeRpcHandler::new(store_arc, "mainnet");
         let rpc_addr = addr.to_string();
-        
+
         // Determine authentication method: JWT or Basic Auth
         use bitquan_rpc::jwt::{JwtAuth, JwtConfig};
         let use_jwt = jwt_config.is_some() || jwt_secret.is_some();
-        
+
         if use_jwt {
             println!("RPC authentication: JWT");
         } else {
             println!("RPC authentication: Basic Auth (deprecated, use JWT instead)");
         }
-        
+
         // For Basic Auth (deprecated path)
         let auth = if !use_jwt {
             Some(RpcAuth::new(username.to_string(), password_value.clone()))
         } else {
             None
         };
-        
+
         let mut trusted_proxies = Vec::new();
         for cidr in rpc_trusted_cidr {
             let trimmed = cidr.trim();
@@ -1954,7 +1970,7 @@ fn p2p_server(
         let jwt_secret_owned = jwt_secret.map(|s| s.to_string());
         let username_owned = username.to_string();
         let password_owned = password_value.clone();
-        
+
         thread::spawn(move || {
             let mut server = if use_jwt {
                 // JWT authentication
@@ -1980,14 +1996,14 @@ fn p2p_server(
                     eprintln!("JWT enabled but no config or secret provided");
                     return;
                 };
-                
+
                 RpcServer::with_jwt(handler, rpc_addr.clone(), jwt_auth, rpc_config)
             } else {
                 // Basic Auth (deprecated)
                 let auth = RpcAuth::new(username_owned, password_owned);
                 RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth), rpc_config)
             };
-            
+
             if let Some(tls_cfg) = tls_config_for_thread {
                 server = server.with_tls_config(tls_cfg);
             }
@@ -2192,7 +2208,9 @@ fn generate_self_signed_cert_cli(output_dir: &str) -> Result<()> {
     println!("   cert: {}/cert.pem", path.display());
     println!("   key:  {}/key.pem", path.display());
     println!();
-    println!("⚠️  Development only. For production, obtain a trusted certificate (e.g. Let's Encrypt).");
+    println!(
+        "⚠️  Development only. For production, obtain a trusted certificate (e.g. Let's Encrypt)."
+    );
     println!();
     println!("To start the node with TLS:");
     println!("  bitquan-node p2p-server \\\n    --rpc-listen 127.0.0.1:8332 \\\n    --rpc-username admin \\\n    --rpc-password secret \\\n    --rpc-tls-cert {}/cert.pem \\\n    --rpc-tls-key {}/key.pem", path.display(), path.display());
@@ -2203,10 +2221,10 @@ fn generate_self_signed_cert_cli(output_dir: &str) -> Result<()> {
 /// Hash a password using Argon2id
 fn hash_password_cli(password: Option<&str>) -> Result<()> {
     use argon2::{
+        password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
         Argon2,
-        password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
     };
-    
+
     let password = match password {
         Some(p) => p.to_string(),
         None => {
@@ -2214,40 +2232,48 @@ fn hash_password_cli(password: Option<&str>) -> Result<()> {
             read_password_from_stdin()?
         }
     };
-    
+
     if password.is_empty() {
         anyhow::bail!("Password cannot be empty");
     }
-    
+
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    
+
     let hash = argon2
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?
         .to_string();
-    
+
     println!("\nHashed password:");
     println!("{}", hash);
     println!("\nCopy this hash to your jwt.toml file");
-    
+
     Ok(())
 }
 
 /// Add a user to JWT configuration
-fn jwt_user_add(config_path: &str, username: &str, role: &str, password: Option<&str>) -> Result<()> {
-    use bitquan_rpc::jwt::{JwtConfig, JwtUserConfig};
+fn jwt_user_add(
+    config_path: &str,
+    username: &str,
+    role: &str,
+    password: Option<&str>,
+) -> Result<()> {
     use argon2::{
+        password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
         Argon2,
-        password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
     };
+    use bitquan_rpc::jwt::{JwtConfig, JwtUserConfig};
     use std::path::Path;
-    
+
     // Validate role
     if !["admin", "miner", "readonly"].contains(&role) {
-        anyhow::bail!("Invalid role '{}'. Must be: admin, miner, or readonly", role);
+        anyhow::bail!(
+            "Invalid role '{}'. Must be: admin, miner, or readonly",
+            role
+        );
     }
-    
+
     // Load existing config or create new
     let mut config = if Path::new(config_path).exists() {
         JwtConfig::from_file(config_path)
@@ -2255,12 +2281,12 @@ fn jwt_user_add(config_path: &str, username: &str, role: &str, password: Option<
     } else {
         JwtConfig::default()
     };
-    
+
     // Check if user already exists
     if config.users.iter().any(|u| u.username == username) {
         anyhow::bail!("User '{}' already exists in config", username);
     }
-    
+
     // Get password
     let password = match password {
         Some(p) => p.to_string(),
@@ -2269,11 +2295,11 @@ fn jwt_user_add(config_path: &str, username: &str, role: &str, password: Option<
             read_password_from_stdin()?
         }
     };
-    
+
     if password.is_empty() {
         anyhow::bail!("Password cannot be empty");
     }
-    
+
     // Hash password
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
@@ -2281,21 +2307,25 @@ fn jwt_user_add(config_path: &str, username: &str, role: &str, password: Option<
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?
         .to_string();
-    
+
     // Add user
     config.users.push(JwtUserConfig {
         username: username.to_string(),
         password_hash: hash,
         role: role.to_string(),
     });
-    
+
     // Save config
-    config.save_to_file(config_path)
+    config
+        .save_to_file(config_path)
         .map_err(|e| anyhow::anyhow!("Failed to save config: {}", e))?;
-    
-    println!("✅ User '{}' added successfully with role '{}'", username, role);
+
+    println!(
+        "✅ User '{}' added successfully with role '{}'",
+        username, role
+    );
     println!("📄 Config saved to: {}", config_path);
-    
+
     Ok(())
 }
 
@@ -2303,31 +2333,32 @@ fn jwt_user_add(config_path: &str, username: &str, role: &str, password: Option<
 fn jwt_user_remove(config_path: &str, username: &str) -> Result<()> {
     use bitquan_rpc::jwt::JwtConfig;
     use std::path::Path;
-    
+
     if !Path::new(config_path).exists() {
         anyhow::bail!("Config file not found: {}", config_path);
     }
-    
+
     let mut config = JwtConfig::from_file(config_path)
         .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?;
-    
+
     let initial_count = config.users.len();
     config.users.retain(|u| u.username != username);
-    
+
     if config.users.len() == initial_count {
         anyhow::bail!("User '{}' not found in config", username);
     }
-    
+
     if config.users.is_empty() {
         anyhow::bail!("Cannot remove last user. At least one user must remain.");
     }
-    
-    config.save_to_file(config_path)
+
+    config
+        .save_to_file(config_path)
         .map_err(|e| anyhow::anyhow!("Failed to save config: {}", e))?;
-    
+
     println!("✅ User '{}' removed successfully", username);
     println!("📄 Config saved to: {}", config_path);
-    
+
     Ok(())
 }
 
@@ -2335,34 +2366,33 @@ fn jwt_user_remove(config_path: &str, username: &str) -> Result<()> {
 fn jwt_user_list(config_path: &str) -> Result<()> {
     use bitquan_rpc::jwt::JwtConfig;
     use std::path::Path;
-    
+
     if !Path::new(config_path).exists() {
         anyhow::bail!("Config file not found: {}", config_path);
     }
-    
+
     let config = JwtConfig::from_file(config_path)
         .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?;
-    
+
     if config.users.is_empty() {
         println!("No users found in config");
         return Ok(());
     }
-    
+
     println!("\n📋 Users in {}:", config_path);
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{:<20} {:<15}", "Username", "Role");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    
+
     for user in &config.users {
         println!("{:<20} {:<15}", user.username, user.role);
     }
-    
+
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("Total: {} user(s)\n", config.users.len());
-    
+
     Ok(())
 }
-
 
 /// Generate wallet from BIP39 mnemonic
 fn wallet_gen_mnemonic(
@@ -2373,11 +2403,11 @@ fn wallet_gen_mnemonic(
 ) -> Result<()> {
     use crate::mnemonic::MnemonicHelper;
     use std::path::Path;
-    
+
     // Generate mnemonic
     let helper = MnemonicHelper::generate_with_word_count(word_count)?;
     let mnemonic_phrase = helper.phrase();
-    
+
     // Show mnemonic to user
     if show_mnemonic {
         println!("\n🔑 Your BIP39 Mnemonic Phrase:");
@@ -2391,12 +2421,12 @@ fn wallet_gen_mnemonic(
         println!("   - You need these words to recover your wallet");
         println!();
     }
-    
+
     // Derive keypair
     let keypair = helper.to_keypair()?;
     let serializable = keypair.to_serializable();
     let json = serde_json::to_string_pretty(&serializable)?;
-    
+
     // Get encryption password
     let password_value = match password {
         Some(p) => p.to_string(),
@@ -2405,16 +2435,16 @@ fn wallet_gen_mnemonic(
             read_password_from_stdin()?
         }
     };
-    
+
     if password_value.is_empty() {
         anyhow::bail!("Password cannot be empty");
     }
-    
+
     // Encrypt and save keystore
     let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)?;
     let output_file = output_path.unwrap_or("wallet.keystore");
     keystore::save_keystore(&keystore_file, Path::new(output_file))?;
-    
+
     println!("\n✅ Wallet created successfully!");
     println!("📄 Keystore saved to: {}", output_file);
     println!("🔐 Address: {}", serializable.address);
@@ -2432,7 +2462,7 @@ fn wallet_from_mnemonic(
 ) -> Result<()> {
     use crate::mnemonic::MnemonicHelper;
     use std::path::Path;
-    
+
     // Get mnemonic phrase
     let mnemonic_phrase = match mnemonic {
         Some(m) => m.to_string(),
@@ -2444,21 +2474,21 @@ fn wallet_from_mnemonic(
             phrase.trim().to_string()
         }
     };
-    
+
     if mnemonic_phrase.is_empty() {
         anyhow::bail!("Mnemonic phrase cannot be empty");
     }
-    
+
     // Validate and parse mnemonic
     let helper = MnemonicHelper::from_phrase(&mnemonic_phrase, passphrase)?;
-    
+
     println!("✅ Mnemonic validated successfully!");
-    
+
     // Derive keypair
     let keypair = helper.to_keypair()?;
     let serializable = keypair.to_serializable();
     let json = serde_json::to_string_pretty(&serializable)?;
-    
+
     // Get encryption password
     let password_value = match password {
         Some(p) => p.to_string(),
@@ -2467,23 +2497,22 @@ fn wallet_from_mnemonic(
             read_password_from_stdin()?
         }
     };
-    
+
     if password_value.is_empty() {
         anyhow::bail!("Password cannot be empty");
     }
-    
+
     // Encrypt and save keystore
     let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)?;
     let output_file = output_path.unwrap_or("wallet-recovered.keystore");
     keystore::save_keystore(&keystore_file, Path::new(output_file))?;
-    
+
     println!("\n✅ Wallet recovered successfully!");
     println!("📄 Keystore saved to: {}", output_file);
     println!("🔐 Address: {}", serializable.address);
-    
+
     Ok(())
 }
-
 
 /// Generate multi-signature wallet address
 fn wallet_gen_multisig(
@@ -2499,13 +2528,22 @@ fn wallet_gen_multisig(
         anyhow::bail!("At least 2 keystore files required for multisig");
     }
 
-    println!("\n🔐 Creating {}-of-{} Multi-signature Wallet", threshold, keystores.len());
+    println!(
+        "\n🔐 Creating {}-of-{} Multi-signature Wallet",
+        threshold,
+        keystores.len()
+    );
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // Load public keys from keystores
     let mut public_keys = Vec::new();
     for (i, keystore_path) in keystores.iter().enumerate() {
-        println!("📂 Loading keystore {} of {}: {}", i + 1, keystores.len(), keystore_path);
+        println!(
+            "📂 Loading keystore {} of {}: {}",
+            i + 1,
+            keystores.len(),
+            keystore_path
+        );
 
         let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
 
@@ -2517,7 +2555,7 @@ fn wallet_gen_multisig(
 
         public_keys.push(serializable.public_key.clone());
     }
-    
+
     // Add labels if provided
     let label = if !labels.is_empty() {
         Some(labels.join(", "))
@@ -2565,7 +2603,8 @@ fn multisig_info(config_path: &str) -> Result<()> {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("Address:   {}", address);
     println!("Type:      {}", config.config_type());
-    println!("Created:   {}",
+    println!(
+        "Created:   {}",
         chrono::DateTime::from_timestamp(config.created_at as i64, 0)
             .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
             .unwrap_or_else(|| "Unknown".to_string())
@@ -2577,7 +2616,7 @@ fn multisig_info(config_path: &str) -> Result<()> {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     for (i, pk) in config.public_keys.iter().enumerate() {
         let pk_preview = if pk.len() > 16 {
-            format!("{}...{}", &pk[..8], &pk[pk.len()-8..])
+            format!("{}...{}", &pk[..8], &pk[pk.len() - 8..])
         } else {
             pk.clone()
         };

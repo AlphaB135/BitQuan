@@ -3,7 +3,9 @@
 #![allow(dead_code)]
 
 use anyhow::{bail, Result};
-use bitquan_types::{SigAlgorithm, Transaction, TxIn, TxOut, Witness};
+use bitquan_types::{
+    genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut, Witness,
+};
 
 /// Builder for constructing transactions.
 #[allow(dead_code)]
@@ -12,6 +14,8 @@ pub struct TransactionBuilder {
     inputs: Vec<TxIn>,
     outputs: Vec<TxOut>,
     lock_time: u32,
+    network: NetworkId,
+    genesis_hash: [u8; 32],
 }
 
 impl TransactionBuilder {
@@ -22,6 +26,8 @@ impl TransactionBuilder {
             inputs: Vec::new(),
             outputs: Vec::new(),
             lock_time: 0,
+            network: NetworkId::Devnet,
+            genesis_hash: GENESIS_HASH_BYTES,
         }
     }
 
@@ -59,6 +65,18 @@ impl TransactionBuilder {
         self
     }
 
+    /// Sets the target network identifier.
+    pub fn network(mut self, network: NetworkId) -> Self {
+        self.network = network;
+        self
+    }
+
+    /// Sets the genesis hash used for replay protection.
+    pub fn genesis_hash(mut self, genesis_hash: [u8; 32]) -> Self {
+        self.genesis_hash = genesis_hash;
+        self
+    }
+
     /// Builds the unsigned transaction.
     pub fn build_unsigned(self) -> Result<Transaction> {
         if self.inputs.is_empty() {
@@ -70,6 +88,8 @@ impl TransactionBuilder {
 
         Ok(Transaction {
             version: self.version,
+            network: self.network,
+            genesis_hash: self.genesis_hash,
             lock_time: self.lock_time,
             inputs: self.inputs,
             outputs: self.outputs,
@@ -124,10 +144,14 @@ pub fn compute_sighash(tx: &Transaction, input_index: usize) -> Result<[u8; 32]>
         bail!("Input index out of bounds");
     }
 
-    // Simplified sighash (Bitcoin-style)
-    // Hash: version || inputs || outputs || locktime || input_index
+    // Simplified sighash (Bitcoin-style) with replay protection.
+    // Hash: network || genesis_hash || version || inputs || outputs || locktime || input_index
 
     let mut hasher = sha2::Sha256::new();
+
+    // Network replay protection fields
+    hasher.update([tx.network.as_u8()]);
+    hasher.update(tx.genesis_hash);
 
     // Version
     hasher.update(tx.version.to_le_bytes());

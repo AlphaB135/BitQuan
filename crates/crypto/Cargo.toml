@@ -20,7 +20,8 @@ sha2 = "0.10"
 zeroize = { version = "1.8", features = ["derive"] }
 thiserror = "1"
 hex = "0.4"
-pqc_dilithium = "0.2"
+pqcrypto-dilithium = "0.5"
+pqcrypto-traits = "0.3"
 subtle = "2.6"
 serde = { workspace = true }
 serde_json = { workspace = true }
