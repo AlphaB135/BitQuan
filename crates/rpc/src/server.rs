@@ -281,14 +281,27 @@ fn handle_connection<T: methods::RpcMethods>(
     stream.set_read_timeout(Some(Duration::from_millis(config.header_read_timeout_ms)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
 
+    // Check TLS enforcement with self-signed validation
     let mut channel = match (tls, force_tls) {
-        (Some(tls_config), _) => upgrade_to_tls(stream, tls_config.as_ref())?,
+        (Some(tls_config), _) => {
+            // Validate self-signed cert not allowed on mainnet
+            if tls_config.is_self_signed() && !config.allow_self_signed {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "Self-signed certificates not allowed in production",
+                ));
+            }
+            
+            // Warn if certificate expires soon
+            if tls_config.expires_soon(30) {
+                eprintln!("⚠️  WARNING: TLS certificate expires in less than 30 days!");
+            }
+            
+            upgrade_to_tls(stream, tls_config.as_ref())?
+        }
         (None, true) => {
-            // TLS required but not configured; drop connection immediately.
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::PermissionDenied,
-                "TLS-required connection attempted without TLS configuration",
-            ));
+            // TLS required but not provided - send upgrade required response
+            return send_upgrade_required(stream, peer_ip, start);
         }
         (None, false) => RpcStream::Plain(stream),
     };
@@ -583,7 +596,7 @@ fn handle_connection<T: methods::RpcMethods>(
                 error_codes::PARSE_ERROR,
                 format!("Parse error: {e}"),
             );
-            respond_json(stream, &error_response)?;
+            respond_json(stream, &error_response, config)?;
             record_response(
                 method,
                 &path_owned,
@@ -616,7 +629,7 @@ fn handle_connection<T: methods::RpcMethods>(
         )
     };
 
-    respond_json(stream, &json_response)?;
+    respond_json(stream, &json_response, config)?;
     record_response(
         method,
         &path_owned,
@@ -666,11 +679,17 @@ fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
     auth.matches(&credential)
 }
 
-fn respond_json(stream: &mut RpcStream, response: &JsonRpcResponse) -> std::io::Result<()> {
+fn respond_json(
+    stream: &mut RpcStream, 
+    response: &JsonRpcResponse,
+    config: &RpcConfig,
+) -> std::io::Result<()> {
     let response_body = serde_json::to_string(response).unwrap();
+    let security_headers = build_security_headers(config);
     let http_response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
         response_body.len(),
+        security_headers,
         response_body
     );
     stream.write_all(http_response.as_bytes())?;
@@ -763,6 +782,69 @@ fn apply_cooldown(config: &RpcConfig) {
     if config.conn_cooldown_ms > 0 {
         std::thread::sleep(Duration::from_millis(config.conn_cooldown_ms));
     }
+}
+
+/// Send HTTP 426 Upgrade Required response for non-TLS connections when TLS is mandatory
+fn send_upgrade_required(mut stream: TcpStream, peer_ip: IpAddr, start: Instant) -> std::io::Result<()> {
+    let body = r#"{"error":"TLS Required","message":"This server requires HTTPS. Please upgrade your connection to HTTPS."}"#;
+    let response = format!(
+        concat!(
+            "HTTP/1.1 426 Upgrade Required\r\n",
+            "Upgrade: TLS/1.3, HTTP/1.1\r\n",
+            "Connection: Upgrade\r\n",
+            "Content-Type: application/json\r\n",
+            "Content-Length: {}\r\n",
+            "\r\n",
+            "{}"
+        ),
+        body.len(),
+        body
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    stream.shutdown(Shutdown::Write)?;
+    
+    record_response(
+        "UPGRADE",
+        "required",
+        StatusCode::UPGRADE_REQUIRED,
+        body.len(),
+        start,
+        peer_ip,
+        false,
+        false,
+        true,  // TLS required
+        false,
+    );
+    
+    Ok(())
+}
+
+/// Add security headers to HTTP response
+fn build_security_headers(config: &RpcConfig) -> String {
+    let mut headers = String::new();
+    
+    // HSTS (HTTP Strict Transport Security)
+    if config.enable_hsts {
+        headers.push_str(&format!(
+            "Strict-Transport-Security: max-age={}{}preload\r\n",
+            config.hsts_max_age,
+            if config.hsts_include_subdomains {
+                "; includeSubDomains; "
+            } else {
+                "; "
+            }
+        ));
+    }
+    
+    // Security headers (always enabled)
+    headers.push_str("X-Content-Type-Options: nosniff\r\n");
+    headers.push_str("X-Frame-Options: DENY\r\n");
+    headers.push_str("X-XSS-Protection: 1; mode=block\r\n");
+    headers.push_str("Referrer-Policy: no-referrer\r\n");
+    headers.push_str("Content-Security-Policy: default-src 'none'\r\n");
+    
+    headers
 }
 
 fn take_token(
