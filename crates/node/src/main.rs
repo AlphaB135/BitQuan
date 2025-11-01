@@ -3,6 +3,7 @@
 mod address;
 mod keystore;
 mod mnemonic;
+mod multisig;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
 mod tx_builder;

@@ -198,3 +198,12 @@ mod tests {
         assert_eq!(script[34], 0x87);
     }
 }
+
+/// Encode with custom prefix (for multisig addresses)
+pub fn encode_bech32m_with_prefix(pubkey_hash: &[u8], prefix: &str) -> String {
+    let hrp = Hrp::parse(prefix).expect("valid HRP");
+    let mut data = Vec::with_capacity(pubkey_hash.len() + 1);
+    data.push(1u8); // witness version
+    data.extend_from_slice(pubkey_hash);
+    bech32::encode::<Bech32m>(hrp, &data).expect("valid bech32m encoding")
+}
