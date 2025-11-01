@@ -328,6 +328,14 @@ enum Commands {
         #[cfg(feature = "rocksdb-backend")]
         #[arg(long, default_value_t = false)]
         rpc_allow_insecure: bool,
+        /// Path to JWT configuration file (enables JWT authentication)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long)]
+        jwt_config: Option<String>,
+        /// JWT secret key (alternative to jwt_config file)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long)]
+        jwt_secret: Option<String>,
     },
     /// Generate a self-signed TLS certificate for RPC (development use)
     #[cfg(feature = "rocksdb-backend")]
@@ -469,6 +477,10 @@ fn main() -> Result<()> {
             rpc_tls_key,
             #[cfg(feature = "rocksdb-backend")]
             rpc_allow_insecure,
+            #[cfg(feature = "rocksdb-backend")]
+            jwt_config,
+            #[cfg(feature = "rocksdb-backend")]
+            jwt_secret,
         } => {
             #[cfg(feature = "rocksdb-backend")]
             {
@@ -490,6 +502,8 @@ fn main() -> Result<()> {
                     rpc_tls_cert.as_deref(),
                     rpc_tls_key.as_deref(),
                     rpc_allow_insecure,
+                    jwt_config.as_deref(),
+                    jwt_secret.as_deref(),
                 )
             }
             #[cfg(not(feature = "rocksdb-backend"))]
@@ -1608,6 +1622,8 @@ fn p2p_server(
     #[cfg(feature = "rocksdb-backend")] rpc_tls_cert: Option<&str>,
     #[cfg(feature = "rocksdb-backend")] rpc_tls_key: Option<&str>,
     #[cfg(feature = "rocksdb-backend")] rpc_allow_insecure: bool,
+    #[cfg(feature = "rocksdb-backend")] jwt_config: Option<&str>,
+    #[cfg(feature = "rocksdb-backend")] jwt_secret: Option<&str>,
 ) -> Result<()> {
     use bitquan_network::{P2PListener, PeerManager};
     #[cfg(feature = "rocksdb-backend")]
@@ -1679,8 +1695,25 @@ fn p2p_server(
         };
 
         let handler = NodeRpcHandler::new(store_arc, "mainnet");
-        let auth = RpcAuth::new(username.to_string(), password_value.clone());
         let rpc_addr = addr.to_string();
+        
+        // Determine authentication method: JWT or Basic Auth
+        use bitquan_rpc::jwt::{JwtAuth, JwtConfig};
+        let use_jwt = jwt_config.is_some() || jwt_secret.is_some();
+        
+        if use_jwt {
+            println!("RPC authentication: JWT");
+        } else {
+            println!("RPC authentication: Basic Auth (deprecated, use JWT instead)");
+        }
+        
+        // For Basic Auth (deprecated path)
+        let auth = if !use_jwt {
+            Some(RpcAuth::new(username.to_string(), password_value.clone()))
+        } else {
+            None
+        };
+        
         let mut trusted_proxies = Vec::new();
         for cidr in rpc_trusted_cidr {
             let trimmed = cidr.trim();
@@ -1724,6 +1757,10 @@ fn p2p_server(
             max_header_bytes: rpc_max_header,
             header_read_timeout_ms: rpc_header_timeout_ms,
             require_tls,
+            allow_self_signed: false, // TODO: make configurable for devnet
+            enable_hsts: true,
+            hsts_max_age: 31536000, // 1 year
+            hsts_include_subdomains: false,
         };
         println!(
             "RPC starting with max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} max_header_bytes={} header_timeout_ms={} trust_proxy={} trusted_cidr={:?} require_tls={} tls_configured={}",
@@ -1748,9 +1785,44 @@ fn p2p_server(
         }
 
         let tls_config_for_thread = tls_config.clone();
+        let jwt_config_owned = jwt_config.map(|s| s.to_string());
+        let jwt_secret_owned = jwt_secret.map(|s| s.to_string());
+        let username_owned = username.to_string();
+        let password_owned = password_value.clone();
+        
         thread::spawn(move || {
-            let mut server =
-                RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth), rpc_config);
+            let mut server = if use_jwt {
+                // JWT authentication
+                let jwt_auth = if let Some(config_path) = jwt_config_owned {
+                    println!("Loading JWT config from: {}", config_path);
+                    match JwtConfig::from_file(&config_path) {
+                        Ok(config) => match JwtAuth::from_config(&config) {
+                            Ok(auth) => auth,
+                            Err(e) => {
+                                eprintln!("Failed to create JWT auth from config: {}", e);
+                                return;
+                            }
+                        },
+                        Err(e) => {
+                            eprintln!("Failed to load JWT config: {}", e);
+                            return;
+                        }
+                    }
+                } else if let Some(secret) = jwt_secret_owned {
+                    println!("Using JWT with provided secret");
+                    JwtAuth::new(&secret)
+                } else {
+                    eprintln!("JWT enabled but no config or secret provided");
+                    return;
+                };
+                
+                RpcServer::with_jwt(handler, rpc_addr.clone(), jwt_auth, rpc_config)
+            } else {
+                // Basic Auth (deprecated)
+                let auth = RpcAuth::new(username_owned, password_owned);
+                RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth), rpc_config)
+            };
+            
             if let Some(tls_cfg) = tls_config_for_thread {
                 server = server.with_tls_config(tls_cfg);
             }

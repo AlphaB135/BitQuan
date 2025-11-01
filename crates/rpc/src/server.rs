@@ -14,7 +14,8 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// Basic authentication configuration for RPC server.
+/// Basic authentication configuration for RPC server (DEPRECATED).
+#[deprecated(note = "Use JWT authentication instead")]
 #[derive(Clone, Debug)]
 pub struct RpcAuth {
     username: String,
@@ -47,11 +48,20 @@ impl RpcAuth {
     }
 }
 
+/// Authentication method for RPC server
+#[derive(Clone)]
+pub enum AuthMethod {
+    /// Basic Auth (deprecated, for backward compatibility)
+    Basic(RpcAuth),
+    /// JWT Authentication (recommended)
+    Jwt(Arc<crate::jwt::JwtAuth>),
+}
+
 /// Simple HTTP JSON-RPC server
 pub struct RpcServer<T> {
     handler: Arc<T>,
     addr: String,
-    auth: Option<RpcAuth>,
+    auth: Option<AuthMethod>,
     config: RpcConfig,
     limiter: Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     auth_backoff: Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
@@ -66,12 +76,29 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     }
 
     /// Create RPC server with optional authentication.
+    #[allow(deprecated)]
     pub fn with_auth(handler: T, addr: String, auth: Option<RpcAuth>, config: RpcConfig) -> Self {
+        let require_tls = config.require_tls;
+        let auth_method = auth.map(AuthMethod::Basic);
+        Self {
+            handler: Arc::new(handler),
+            addr,
+            auth: auth_method,
+            config,
+            limiter: Arc::new(Mutex::new(HashMap::new())),
+            auth_backoff: Arc::new(Mutex::new(HashMap::new())),
+            tls: None,
+            force_tls: require_tls,
+        }
+    }
+    
+    /// Create RPC server with JWT authentication (recommended).
+    pub fn with_jwt(handler: T, addr: String, jwt_auth: crate::jwt::JwtAuth, config: RpcConfig) -> Self {
         let require_tls = config.require_tls;
         Self {
             handler: Arc::new(handler),
             addr,
-            auth,
+            auth: Some(AuthMethod::Jwt(Arc::new(jwt_auth))),
             config,
             limiter: Arc::new(Mutex::new(HashMap::new())),
             auth_backoff: Arc::new(Mutex::new(HashMap::new())),
@@ -184,7 +211,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
                 stream,
                 peer_ip,
                 handler.as_ref(),
-                auth.as_ref(),
+                auth.as_ref(), // Now AuthMethod instead of RpcAuth
                 &config,
                 &limiter,
                 &auth_backoff,
@@ -269,7 +296,7 @@ fn handle_connection<T: methods::RpcMethods>(
     stream: TcpStream,
     peer_ip: IpAddr,
     handler: &T,
-    auth: Option<&RpcAuth>,
+    auth: Option<&AuthMethod>,
     config: &RpcConfig,
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     auth_backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
@@ -417,6 +444,7 @@ fn handle_connection<T: methods::RpcMethods>(
 
     let is_health = method.eq_ignore_ascii_case("GET") && path == "/health";
     let is_metrics = method.eq_ignore_ascii_case("GET") && path == "/metrics";
+    let is_login = method.eq_ignore_ascii_case("POST") && path == "/auth/login";
 
     let content_length = headers
         .iter()
@@ -500,6 +528,35 @@ fn handle_connection<T: methods::RpcMethods>(
         return Ok(());
     }
 
+    // JWT Login endpoint - no auth required
+    if is_login {
+        if let Some(AuthMethod::Jwt(jwt_auth)) = auth {
+            return handle_login_endpoint(
+                &mut buf_reader,
+                jwt_auth,
+                content_length,
+                config,
+                method,
+                &path_owned,
+                start,
+                client_ip,
+            );
+        } else {
+            // JWT not configured
+            let stream = buf_reader.get_mut();
+            let error_body = r#"{"error":"JWT not configured"}"#;
+            let response = format!(
+                "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                error_body.len(),
+                error_body
+            );
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+            return Ok(());
+        }
+    }
+
     if content_length == 0 {
         let stream = buf_reader.get_mut();
         send_bad_request(*stream)?;
@@ -558,7 +615,7 @@ fn handle_connection<T: methods::RpcMethods>(
     }
 
     if let Some(auth_cfg) = auth {
-        if !is_authorized(&headers, auth_cfg) {
+        if !is_authorized_new(&headers, auth_cfg) {
             let stream = buf_reader.get_mut();
             send_unauthorized(*stream)?;
             record_response(
@@ -646,6 +703,63 @@ fn handle_connection<T: methods::RpcMethods>(
     Ok(())
 }
 
+/// Check authorization with new AuthMethod (supports JWT and Basic)
+fn is_authorized_new(request_headers: &[String], auth: &AuthMethod) -> bool {
+    let header = request_headers
+        .iter()
+        .find(|line| line.to_ascii_lowercase().starts_with("authorization:"));
+
+    let Some(header) = header else {
+        return false;
+    };
+
+    let mut parts = header.splitn(2, ':');
+    parts.next(); // skip "Authorization"
+    let value = parts.next().map(str::trim).unwrap_or_default();
+
+    match auth {
+        AuthMethod::Basic(basic_auth) => {
+            // Old Basic Auth
+            if !value.to_ascii_lowercase().starts_with("basic ") {
+                eprintln!("⚠️  Basic Auth is deprecated. Please use JWT.");
+                return false;
+            }
+
+            let encoded = value[6..].trim();
+            use base64::{engine::general_purpose::STANDARD, Engine};
+
+            let decoded = match STANDARD.decode(encoded) {
+                Ok(bytes) => bytes,
+                Err(_) => return false,
+            };
+
+            let credential = match String::from_utf8(decoded) {
+                Ok(s) => s,
+                Err(_) => return false,
+            };
+
+            basic_auth.matches(&credential)
+        }
+        AuthMethod::Jwt(jwt_auth) => {
+            // New JWT Auth
+            if !value.to_ascii_lowercase().starts_with("bearer ") {
+                return false;
+            }
+
+            let token = value[7..].trim();
+            match jwt_auth.verify_token(token) {
+                Ok(_claims) => true,
+                Err(e) => {
+                    eprintln!("JWT verification failed: {}", e);
+                    false
+                }
+            }
+        }
+    }
+}
+
+/// Old Basic Auth function (deprecated, kept for compatibility)
+#[allow(dead_code)]
 fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
     let header = request_headers
         .iter()
@@ -781,6 +895,149 @@ fn send_too_many_requests(stream: &mut RpcStream) -> std::io::Result<()> {
 fn apply_cooldown(config: &RpcConfig) {
     if config.conn_cooldown_ms > 0 {
         std::thread::sleep(Duration::from_millis(config.conn_cooldown_ms));
+    }
+}
+
+/// Handle JWT login endpoint
+fn handle_login_endpoint(
+    buf_reader: &mut BufReader<&mut RpcStream>,
+    jwt_auth: &Arc<crate::jwt::JwtAuth>,
+    content_length: usize,
+    config: &RpcConfig,
+    method: &str,
+    path: &str,
+    start: Instant,
+    client_ip: IpAddr,
+) -> std::io::Result<()> {
+    use serde::{Deserialize, Serialize};
+    
+    #[derive(Deserialize)]
+    struct LoginRequest {
+        username: String,
+        password: String,
+    }
+    
+    #[derive(Serialize)]
+    struct LoginResponse {
+        access_token: String,
+        token_type: String,
+        expires_in: u64,
+    }
+    
+    #[derive(Serialize)]
+    struct ErrorResponse {
+        error: String,
+        message: String,
+    }
+    
+    // Read body
+    let mut body = vec![0u8; content_length];
+    buf_reader.read_exact(&mut body)?;
+    
+    // Parse login request
+    let login_req: LoginRequest = match serde_json::from_slice(&body) {
+        Ok(req) => req,
+        Err(e) => {
+            let stream = buf_reader.get_mut();
+            let error = ErrorResponse {
+                error: "invalid_request".to_string(),
+                message: format!("Invalid JSON: {}", e),
+            };
+            let error_json = serde_json::to_string(&error).unwrap();
+            let response = format!(
+                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                error_json.len(),
+                error_json
+            );
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+            
+            record_response(
+                method,
+                path,
+                StatusCode::BAD_REQUEST,
+                content_length,
+                start,
+                client_ip,
+                false,
+                false,
+                false,
+                false,
+            );
+            apply_cooldown(config);
+            return Ok(());
+        }
+    };
+    
+    // Attempt login
+    match jwt_auth.login(&login_req.username, &login_req.password) {
+        Ok(token) => {
+            let response_data = LoginResponse {
+                access_token: token,
+                token_type: "Bearer".to_string(),
+                expires_in: 3600,
+            };
+            let response_json = serde_json::to_string(&response_data).unwrap();
+            let security_headers = build_security_headers(config);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
+                response_json.len(),
+                security_headers,
+                response_json
+            );
+            
+            let stream = buf_reader.get_mut();
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+            
+            record_response(
+                method,
+                path,
+                StatusCode::OK,
+                content_length,
+                start,
+                client_ip,
+                false,
+                false,
+                false,
+                false,
+            );
+            apply_cooldown(config);
+            Ok(())
+        }
+        Err(e) => {
+            let stream = buf_reader.get_mut();
+            let error = ErrorResponse {
+                error: "invalid_credentials".to_string(),
+                message: e,
+            };
+            let error_json = serde_json::to_string(&error).unwrap();
+            let response = format!(
+                "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                error_json.len(),
+                error_json
+            );
+            stream.write_all(response.as_bytes())?;
+            stream.flush()?;
+            let _ = stream.shutdown();
+            
+            record_response(
+                method,
+                path,
+                StatusCode::UNAUTHORIZED,
+                content_length,
+                start,
+                client_ip,
+                false,
+                false,
+                true,
+                false,
+            );
+            apply_cooldown(config);
+            Ok(())
+        }
     }
 }
 

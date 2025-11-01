@@ -1,0 +1,39 @@
+# JWT Authentication Configuration
+# Copy this to jwt.toml and customize
+
+# JWT secret key for signing tokens
+# IMPORTANT: Generate a strong random secret for production!
+# Example: openssl rand -hex 32
+secret = "CHANGE_THIS_SECRET_IN_PRODUCTION_USE_LONG_RANDOM_STRING"
+
+# Users with hashed passwords
+# To generate a hash, use: bitquan-cli hash-password <password>
+[[users]]
+username = "admin"
+# Password: admin123
+password_hash = "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$qrvAoAhjhZvPXXZBz+JqMRRdC4mXvMr5dN3wQTu6g5E"
+role = "admin"
+
+[[users]]
+username = "miner"
+# Password: miner123
+password_hash = "$argon2id$v=19$m=19456,t=2,p=1$YW5vdGhlcnNhbHQxMjM0NQ$9pMKZCMjIYc0kO0O3KaZLCFN4w0EjVjB6tMqDnQBmGo"
+role = "miner"
+
+[[users]]
+username = "readonly"
+# Password: readonly123
+password_hash = "$argon2id$v=19$m=19456,t=2,p=1$dGhpcmRzYWx0MTIzNDU2Nw$LH6WV3O1N7q0pFWJHPNn/kP8O9xQz8GqXhYiVBZvVGA"
+role = "readonly"
+
+# Role Permissions:
+# - admin: Full access to all RPC methods + admin APIs
+# - miner: Mining operations + block submission
+# - readonly: Query operations only (getblockcount, getblockchaininfo, etc.)
+
+# Security Notes:
+# 1. Never commit jwt.toml with real credentials to version control
+# 2. Set file permissions: chmod 600 jwt.toml
+# 3. Use strong, unique passwords for each user
+# 4. Rotate JWT secret and user passwords regularly
+# 5. Store jwt.toml in secure location with backup

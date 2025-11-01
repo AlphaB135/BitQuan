@@ -1,0 +1,121 @@
+//! Simple JWT Authentication Tests
+
+use bitquan_rpc::jwt::{JwtAuth, JwtConfig, JwtUserConfig};
+
+#[test]
+fn test_jwt_auth_creation() {
+    let jwt_auth = JwtAuth::new("test-secret-key");
+    
+    // Should be able to login with default admin user
+    let token = jwt_auth.login("admin", "admin123");
+    assert!(token.is_ok(), "Login should succeed with default admin user");
+    
+    let token_str = token.unwrap();
+    assert!(!token_str.is_empty(), "Token should not be empty");
+    
+    // Verify the token
+    let claims = jwt_auth.verify_token(&token_str);
+    assert!(claims.is_ok(), "Token verification should succeed");
+    
+    let claims = claims.unwrap();
+    assert_eq!(claims.sub, "admin");
+    assert_eq!(claims.role, "admin");
+    assert!(!claims.is_expired(), "Token should not be expired");
+}
+
+#[test]
+fn test_jwt_auth_invalid_password() {
+    let jwt_auth = JwtAuth::new("test-secret");
+    
+    let result = jwt_auth.login("admin", "wrongpassword");
+    assert!(result.is_err(), "Login should fail with wrong password");
+    assert_eq!(result.unwrap_err(), "Invalid password");
+}
+
+#[test]
+fn test_jwt_auth_invalid_user() {
+    let jwt_auth = JwtAuth::new("test-secret");
+    
+    let result = jwt_auth.login("nonexistent", "anypassword");
+    assert!(result.is_err(), "Login should fail with non-existent user");
+    assert_eq!(result.unwrap_err(), "User not found");
+}
+
+#[test]
+fn test_jwt_auth_add_user() {
+    let mut jwt_auth = JwtAuth::new_empty("test-secret");
+    
+    // Add a custom user
+    let result = jwt_auth.add_user_plaintext("alice", "alicepass", "miner");
+    assert!(result.is_ok(), "Adding user should succeed");
+    
+    // Login with the new user
+    let token = jwt_auth.login("alice", "alicepass");
+    assert!(token.is_ok(), "Login with new user should succeed");
+    
+    let claims = jwt_auth.verify_token(&token.unwrap()).unwrap();
+    assert_eq!(claims.sub, "alice");
+    assert_eq!(claims.role, "miner");
+}
+
+#[test]
+fn test_jwt_config_default() {
+    let config = JwtConfig::default();
+    
+    assert_eq!(config.secret, "CHANGE_THIS_SECRET_IN_PRODUCTION");
+    assert_eq!(config.users.len(), 1);
+    assert_eq!(config.users[0].username, "admin");
+    assert_eq!(config.users[0].role, "admin");
+}
+
+#[test]
+fn test_jwt_from_config() {
+    let config = JwtConfig {
+        secret: "my-secret".to_string(),
+        users: vec![
+            JwtUserConfig {
+                username: "testuser".to_string(),
+                password_hash: "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$qrvAoAhjhZvPXXZBz+JqMRRdC4mXvMr5dN3wQTu6g5E".to_string(),
+                role: "admin".to_string(),
+            },
+        ],
+    };
+    
+    let jwt_auth = JwtAuth::from_config(&config);
+    assert!(jwt_auth.is_ok(), "JWT auth creation from config should succeed");
+}
+
+#[test]
+fn test_jwt_token_verification_fails_with_wrong_secret() {
+    let jwt_auth1 = JwtAuth::new("secret1");
+    let jwt_auth2 = JwtAuth::new("secret2");
+    
+    let token = jwt_auth1.login("admin", "admin123").unwrap();
+    
+    // Token from jwt_auth1 should not verify with jwt_auth2
+    let result = jwt_auth2.verify_token(&token);
+    assert!(result.is_err(), "Token should not verify with different secret");
+}
+
+#[test]
+fn test_jwt_token_claims_structure() {
+    let jwt_auth = JwtAuth::new("test-secret");
+    let token = jwt_auth.login("admin", "admin123").unwrap();
+    let claims = jwt_auth.verify_token(&token).unwrap();
+    
+    // Check all required fields
+    assert!(!claims.sub.is_empty(), "Subject (username) should not be empty");
+    assert!(!claims.role.is_empty(), "Role should not be empty");
+    assert!(claims.exp > 0, "Expiration time should be set");
+    assert!(claims.iat > 0, "Issued at time should be set");
+    assert!(claims.exp > claims.iat, "Expiration should be after issued time");
+}
+
+#[test]
+fn test_jwt_admin_role_check() {
+    let jwt_auth = JwtAuth::new("test-secret");
+    let token = jwt_auth.login("admin", "admin123").unwrap();
+    let claims = jwt_auth.verify_token(&token).unwrap();
+    
+    assert!(claims.is_admin(), "Admin user should have admin role");
+}
