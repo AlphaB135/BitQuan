@@ -67,6 +67,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
 
     /// Create RPC server with optional authentication.
     pub fn with_auth(handler: T, addr: String, auth: Option<RpcAuth>, config: RpcConfig) -> Self {
+        let require_tls = config.require_tls;
         Self {
             handler: Arc::new(handler),
             addr,
@@ -75,7 +76,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             limiter: Arc::new(Mutex::new(HashMap::new())),
             auth_backoff: Arc::new(Mutex::new(HashMap::new())),
             tls: None,
-            force_tls: config.require_tls,
+            force_tls: require_tls,
         }
     }
 

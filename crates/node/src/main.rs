@@ -19,6 +19,7 @@ use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_rpc::{
     server::{RpcAuth, RpcServer},
+    tls::TlsConfig,
     IpNetwork, RpcConfig,
 };
 #[cfg(feature = "rocksdb-backend")]
@@ -315,6 +316,25 @@ enum Commands {
         #[cfg(feature = "rocksdb-backend")]
         #[arg(long, value_delimiter = ',')]
         rpc_trusted_cidr: Vec<String>,
+        /// Path to PEM-encoded TLS certificate for RPC server
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long)]
+        rpc_tls_cert: Option<String>,
+        /// Path to PEM-encoded TLS private key for RPC server
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long)]
+        rpc_tls_key: Option<String>,
+        /// Allow running RPC without TLS (development only)
+        #[cfg(feature = "rocksdb-backend")]
+        #[arg(long, default_value_t = false)]
+        rpc_allow_insecure: bool,
+    },
+    /// Generate a self-signed TLS certificate for RPC (development use)
+    #[cfg(feature = "rocksdb-backend")]
+    GenerateCert {
+        /// Output directory to place cert.pem/key.pem
+        #[arg(long, default_value = ".")]
+        output: String,
     },
     /// Connect to a peer as a client
     P2PConnect {
@@ -443,6 +463,12 @@ fn main() -> Result<()> {
             rpc_trust_proxy,
             #[cfg(feature = "rocksdb-backend")]
             rpc_trusted_cidr,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_tls_cert,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_tls_key,
+            #[cfg(feature = "rocksdb-backend")]
+            rpc_allow_insecure,
         } => {
             #[cfg(feature = "rocksdb-backend")]
             {
@@ -461,6 +487,9 @@ fn main() -> Result<()> {
                     rpc_header_timeout_ms,
                     rpc_trust_proxy,
                     rpc_trusted_cidr,
+                    rpc_tls_cert.as_deref(),
+                    rpc_tls_key.as_deref(),
+                    rpc_allow_insecure,
                 )
             }
             #[cfg(not(feature = "rocksdb-backend"))]
@@ -475,6 +504,8 @@ fn main() -> Result<()> {
             script_hex,
             address,
         } => check_balance(&datadir, script_hex.as_deref(), address.as_deref()),
+        #[cfg(feature = "rocksdb-backend")]
+        Commands::GenerateCert { output } => generate_self_signed_cert_cli(&output),
     }
 }
 
@@ -1574,8 +1605,13 @@ fn p2p_server(
     #[cfg(feature = "rocksdb-backend")] rpc_header_timeout_ms: u64,
     #[cfg(feature = "rocksdb-backend")] rpc_trust_proxy: bool,
     #[cfg(feature = "rocksdb-backend")] rpc_trusted_cidr: Vec<String>,
+    #[cfg(feature = "rocksdb-backend")] rpc_tls_cert: Option<&str>,
+    #[cfg(feature = "rocksdb-backend")] rpc_tls_key: Option<&str>,
+    #[cfg(feature = "rocksdb-backend")] rpc_allow_insecure: bool,
 ) -> Result<()> {
     use bitquan_network::{P2PListener, PeerManager};
+    #[cfg(feature = "rocksdb-backend")]
+    use std::path::Path;
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -1656,6 +1692,28 @@ fn p2p_server(
             trusted_proxies.push(network);
         }
 
+        if rpc_tls_key.is_some() && rpc_tls_cert.is_none() {
+            anyhow::bail!("--rpc-tls-key provided without --rpc-tls-cert");
+        }
+
+        let require_tls = !rpc_allow_insecure;
+        let tls_config = if let Some(cert_path) = rpc_tls_cert {
+            let key_path = rpc_tls_key.ok_or_else(|| {
+                anyhow::anyhow!("--rpc-tls-key is required when --rpc-tls-cert is provided")
+            })?;
+            let tls = TlsConfig::new(Path::new(cert_path), Path::new(key_path))
+                .map_err(|err| anyhow::anyhow!("failed to initialise RPC TLS: {err}"))?;
+            Some(tls)
+        } else {
+            None
+        };
+
+        if require_tls && tls_config.is_none() {
+            anyhow::bail!(
+                "RPC TLS is required. Provide --rpc-tls-cert/--rpc-tls-key or pass --rpc-allow-insecure for development."
+            );
+        }
+
         let rpc_config = RpcConfig {
             max_body_bytes: rpc_max_body,
             rl_burst: rpc_rl_burst,
@@ -1665,9 +1723,10 @@ fn p2p_server(
             trusted_proxies,
             max_header_bytes: rpc_max_header,
             header_read_timeout_ms: rpc_header_timeout_ms,
+            require_tls,
         };
         println!(
-            "RPC starting with max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} max_header_bytes={} header_timeout_ms={} trust_proxy={} trusted_cidr={:?}",
+            "RPC starting with max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} max_header_bytes={} header_timeout_ms={} trust_proxy={} trusted_cidr={:?} require_tls={} tls_configured={}",
             rpc_config.max_body_bytes,
             rpc_config.rl_burst,
             rpc_config.rl_refill_per_sec,
@@ -1675,10 +1734,27 @@ fn p2p_server(
             rpc_config.max_header_bytes,
             rpc_config.header_read_timeout_ms,
             rpc_config.trust_proxy,
-            rpc_config.trusted_proxies
+            rpc_config.trusted_proxies,
+            rpc_config.require_tls,
+            tls_config.is_some()
         );
+
+        if let Some(cert_path) = rpc_tls_cert {
+            println!("RPC TLS certificate: {}", cert_path);
+        } else if rpc_config.require_tls {
+            println!("RPC TLS certificate: <required>");
+        } else {
+            println!("RPC TLS certificate: <not configured>");
+        }
+
+        let tls_config_for_thread = tls_config.clone();
         thread::spawn(move || {
-            let server = RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth), rpc_config);
+            let mut server =
+                RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth), rpc_config);
+            if let Some(tls_cfg) = tls_config_for_thread {
+                server = server.with_tls_config(tls_cfg);
+            }
+            server = server.require_tls(require_tls);
             if let Err(e) = server.serve() {
                 eprintln!("RPC server error ({}): {}", rpc_addr, e);
             }
@@ -1861,5 +1937,28 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
 fn check_balance(_datadir: &str, _script_hex: Option<&str>, _address: Option<&str>) -> Result<()> {
     eprintln!("ERROR: Balance checking requires 'rocksdb-backend' feature");
     eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");
+    Ok(())
+}
+
+#[cfg(feature = "rocksdb-backend")]
+fn generate_self_signed_cert_cli(output_dir: &str) -> Result<()> {
+    use std::path::Path;
+
+    let path = Path::new(output_dir);
+    std::fs::create_dir_all(path)
+        .with_context(|| format!("failed to create output directory {}", path.display()))?;
+
+    bitquan_rpc::tls::generate_self_signed_cert(path)
+        .map_err(|err| anyhow::anyhow!("failed to generate self-signed certificate: {err}"))?;
+
+    println!("✅ Generated self-signed certificate:");
+    println!("   cert: {}/cert.pem", path.display());
+    println!("   key:  {}/key.pem", path.display());
+    println!();
+    println!("⚠️  Development only. For production, obtain a trusted certificate (e.g. Let's Encrypt).");
+    println!();
+    println!("To start the node with TLS:");
+    println!("  bitquan-node p2p-server \\\n    --rpc-listen 127.0.0.1:8332 \\\n    --rpc-username admin \\\n    --rpc-password secret \\\n    --rpc-tls-cert {}/cert.pem \\\n    --rpc-tls-key {}/key.pem", path.display(), path.display());
+
     Ok(())
 }
