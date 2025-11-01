@@ -344,6 +344,41 @@ enum Commands {
         #[arg(long, default_value = ".")]
         output: String,
     },
+    /// Hash a password using Argon2id for JWT configuration
+    HashPassword {
+        /// Password to hash (will prompt if not provided)
+        password: Option<String>,
+    },
+    /// Add a user to JWT configuration file
+    JwtUserAdd {
+        /// Path to JWT configuration file
+        #[arg(long, default_value = "jwt.toml")]
+        config: String,
+        /// Username
+        #[arg(long)]
+        username: String,
+        /// Role (admin, miner, readonly)
+        #[arg(long, default_value = "readonly")]
+        role: String,
+        /// Password (will prompt if not provided)
+        #[arg(long)]
+        password: Option<String>,
+    },
+    /// Remove a user from JWT configuration file
+    JwtUserRemove {
+        /// Path to JWT configuration file
+        #[arg(long, default_value = "jwt.toml")]
+        config: String,
+        /// Username to remove
+        #[arg(long)]
+        username: String,
+    },
+    /// List users in JWT configuration file
+    JwtUserList {
+        /// Path to JWT configuration file
+        #[arg(long, default_value = "jwt.toml")]
+        config: String,
+    },
     /// Connect to a peer as a client
     P2PConnect {
         /// Peer address to connect to (e.g., 127.0.0.1:8333)
@@ -520,6 +555,15 @@ fn main() -> Result<()> {
         } => check_balance(&datadir, script_hex.as_deref(), address.as_deref()),
         #[cfg(feature = "rocksdb-backend")]
         Commands::GenerateCert { output } => generate_self_signed_cert_cli(&output),
+        Commands::HashPassword { password } => hash_password_cli(password.as_deref()),
+        Commands::JwtUserAdd {
+            config,
+            username,
+            role,
+            password,
+        } => jwt_user_add(&config, &username, &role, password.as_deref()),
+        Commands::JwtUserRemove { config, username } => jwt_user_remove(&config, &username),
+        Commands::JwtUserList { config } => jwt_user_list(&config),
     }
 }
 
@@ -2032,5 +2076,168 @@ fn generate_self_signed_cert_cli(output_dir: &str) -> Result<()> {
     println!("To start the node with TLS:");
     println!("  bitquan-node p2p-server \\\n    --rpc-listen 127.0.0.1:8332 \\\n    --rpc-username admin \\\n    --rpc-password secret \\\n    --rpc-tls-cert {}/cert.pem \\\n    --rpc-tls-key {}/key.pem", path.display(), path.display());
 
+    Ok(())
+}
+
+/// Hash a password using Argon2id
+fn hash_password_cli(password: Option<&str>) -> Result<()> {
+    use argon2::{
+        Argon2,
+        password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    };
+    
+    let password = match password {
+        Some(p) => p.to_string(),
+        None => {
+            println!("Enter password to hash:");
+            read_password_from_stdin()?
+        }
+    };
+    
+    if password.is_empty() {
+        anyhow::bail!("Password cannot be empty");
+    }
+    
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    
+    let hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?
+        .to_string();
+    
+    println!("\nHashed password:");
+    println!("{}", hash);
+    println!("\nCopy this hash to your jwt.toml file");
+    
+    Ok(())
+}
+
+/// Add a user to JWT configuration
+fn jwt_user_add(config_path: &str, username: &str, role: &str, password: Option<&str>) -> Result<()> {
+    use bitquan_rpc::jwt::{JwtConfig, JwtUserConfig};
+    use argon2::{
+        Argon2,
+        password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    };
+    use std::path::Path;
+    
+    // Validate role
+    if !["admin", "miner", "readonly"].contains(&role) {
+        anyhow::bail!("Invalid role '{}'. Must be: admin, miner, or readonly", role);
+    }
+    
+    // Load existing config or create new
+    let mut config = if Path::new(config_path).exists() {
+        JwtConfig::from_file(config_path)
+            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
+    } else {
+        JwtConfig::default()
+    };
+    
+    // Check if user already exists
+    if config.users.iter().any(|u| u.username == username) {
+        anyhow::bail!("User '{}' already exists in config", username);
+    }
+    
+    // Get password
+    let password = match password {
+        Some(p) => p.to_string(),
+        None => {
+            println!("Enter password for user '{}':", username);
+            read_password_from_stdin()?
+        }
+    };
+    
+    if password.is_empty() {
+        anyhow::bail!("Password cannot be empty");
+    }
+    
+    // Hash password
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?
+        .to_string();
+    
+    // Add user
+    config.users.push(JwtUserConfig {
+        username: username.to_string(),
+        password_hash: hash,
+        role: role.to_string(),
+    });
+    
+    // Save config
+    config.save_to_file(config_path)
+        .map_err(|e| anyhow::anyhow!("Failed to save config: {}", e))?;
+    
+    println!("✅ User '{}' added successfully with role '{}'", username, role);
+    println!("📄 Config saved to: {}", config_path);
+    
+    Ok(())
+}
+
+/// Remove a user from JWT configuration
+fn jwt_user_remove(config_path: &str, username: &str) -> Result<()> {
+    use bitquan_rpc::jwt::JwtConfig;
+    use std::path::Path;
+    
+    if !Path::new(config_path).exists() {
+        anyhow::bail!("Config file not found: {}", config_path);
+    }
+    
+    let mut config = JwtConfig::from_file(config_path)
+        .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?;
+    
+    let initial_count = config.users.len();
+    config.users.retain(|u| u.username != username);
+    
+    if config.users.len() == initial_count {
+        anyhow::bail!("User '{}' not found in config", username);
+    }
+    
+    if config.users.is_empty() {
+        anyhow::bail!("Cannot remove last user. At least one user must remain.");
+    }
+    
+    config.save_to_file(config_path)
+        .map_err(|e| anyhow::anyhow!("Failed to save config: {}", e))?;
+    
+    println!("✅ User '{}' removed successfully", username);
+    println!("📄 Config saved to: {}", config_path);
+    
+    Ok(())
+}
+
+/// List users in JWT configuration
+fn jwt_user_list(config_path: &str) -> Result<()> {
+    use bitquan_rpc::jwt::JwtConfig;
+    use std::path::Path;
+    
+    if !Path::new(config_path).exists() {
+        anyhow::bail!("Config file not found: {}", config_path);
+    }
+    
+    let config = JwtConfig::from_file(config_path)
+        .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?;
+    
+    if config.users.is_empty() {
+        println!("No users found in config");
+        return Ok(());
+    }
+    
+    println!("\n📋 Users in {}:", config_path);
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("{:<20} {:<15}", "Username", "Role");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    
+    for user in &config.users {
+        println!("{:<20} {:<15}", user.username, user.role);
+    }
+    
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Total: {} user(s)\n", config.users.len());
+    
     Ok(())
 }
