@@ -252,15 +252,19 @@ pub fn select_coins(
     // Estimate fee (simplified)
     // Each input ~100 bytes + Dilithium sig ~3000 bytes
     // Each output ~50 bytes
-    let base_fee = fee_rate * 100; // Base tx size
+    let base_fee = fee_rate.saturating_mul(100); // Base tx size
 
     for utxo in available {
         selected.push(utxo.clone());
-        total += utxo.value;
+        total = total.saturating_add(utxo.value);
 
-        // Calculate current fee estimate
-        let input_fee = fee_rate * (selected.len() as u64 * 3100); // 100 + 3000 per input
-        let total_needed = target_amount + base_fee + input_fee;
+        // Calculate current fee estimate using saturating arithmetic
+        let input_fee = fee_rate.saturating_mul(
+            (selected.len() as u64).saturating_mul(3100)
+        );
+        let total_needed = target_amount
+            .saturating_add(base_fee)
+            .saturating_add(input_fee);
 
         if total >= total_needed {
             return Ok(selected);
@@ -328,5 +332,57 @@ mod tests {
 
         let result = select_coins(&utxos, 50_000_000, 1, CoinSelection::LargestFirst);
         assert!(result.is_err());
+    }
+}
+
+#[cfg(test)]
+mod overflow_tests {
+    use super::*;
+
+    #[test]
+    fn test_extreme_value_utxos() {
+        // Coins with very large values should not cause overflow
+        let utxos = vec![
+            Utxo::new([0xFF; 32], 0, u64::MAX - 1000, vec![]),
+            Utxo::new([0xFE; 32], 0, u64::MAX - 2000, vec![]),
+        ];
+        
+        let result = select_coins(&utxos, 1_000_000, 1, CoinSelection::LargestFirst);
+        assert!(result.is_ok());
+        
+        // Should select one coin (sufficient)
+        let selected = result.unwrap();
+        assert!(!selected.is_empty());
+    }
+
+    #[test]
+    fn test_extreme_fee_rate() {
+        let utxos = vec![Utxo::new([0x01; 32], 0, 100_000_000_000, vec![])];
+        
+        // Very high fee rate should saturate, not overflow
+        let result = select_coins(&utxos, 10_000, u64::MAX / 1000, CoinSelection::SmallestSufficient);
+        
+        // Key: should not panic; may succeed or fail gracefully
+        match result {
+            Ok(_) => {},  // Succeeded
+            Err(_) => {}, // Failed gracefully (insufficient funds after fee)
+        }
+    }
+
+    #[test]
+    fn test_many_small_utxos() {
+        // Many UTXOs to test loop saturation
+        let utxos: Vec<_> = (0..5000)
+            .map(|i| {
+                let mut txid = [0u8; 32];
+                txid[0] = (i % 256) as u8;
+                txid[1] = (i / 256) as u8;
+                Utxo::new(txid, 0, 100_000, vec![])
+            })
+            .collect();
+
+        // Should handle gracefully
+        let result = select_coins(&utxos, 50_000_000, 100, CoinSelection::LargestFirst);
+        assert!(result.is_ok());
     }
 }
