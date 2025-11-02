@@ -36,15 +36,16 @@
 
 ---
 
-## ⏳ Task K – Entropy Audit (รอทำ)
+## ⏳ Task K – Entropy Audit (กำลังดำเนินการ)
 
-1. `crates/pqc-dilithium-seeded/src/randombytes.rs`
-   - เปลี่ยนไปใช้ `OsRng`
-   - ถ้าต้องการ deterministic สำหรับเทสเพิ่ม helper ภายใต้ `#[cfg(test)]`
-2. ทบทวนจุดเรียกที่เกี่ยวข้อง (ensure deterministic build ฟีเจอร์ยังใช้ได้)
-3. เพิ่ม unit test เช็ค entropy พื้นฐาน (ต่าง seed ต่างค่า)
-4. อัปเดต `docs/ENTROPY_AUDIT.md`
-5. รัน `cargo test --all`
+เสร็จแล้ว:
+- [x] `crates/pqc-dilithium-seeded/src/randombytes.rs` เปลี่ยนเป็น `OsRng` และเพิ่มเทสทั้งหมด 8 รายการ
+
+ค้างอยู่:
+- [ ] ทบทวนจุดเรียกที่เกี่ยวข้อง (ensure deterministic build ฟีเจอร์ยังใช้ได้)
+- [ ] เพิ่ม unit test เช็ค entropy พื้นฐาน (ต่าง seed ต่างค่า) ถ้ายังไม่ครอบคลุม
+- [ ] อัปเดต `docs/ENTROPY_AUDIT.md`
+- [ ] รัน `cargo test --all`
 
 ---
 
