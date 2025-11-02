@@ -14,6 +14,7 @@ allow = [
     "ISC",
     "CC0-1.0",        # Public domain equivalent (used by bitcoin crates)
     "Unicode-3.0",   # Unicode license (used by unicode-ident)
+    "OpenSSL",       # Required by aws-lc-sys (rustls backend)
 ]
 
 [bans]
