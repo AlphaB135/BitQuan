@@ -7,10 +7,11 @@ members = [
     "crates/consensus",
     "crates/mempool",
     "crates/network",
+    "crates/pqc-dilithium-seeded",
     "crates/storage",
     "crates/rpc", "crates/wallet",
 ]
-exclude = ["fuzz"]
+exclude = ["fuzz", "forks"]
 
 [workspace.package]
 edition = "2021"

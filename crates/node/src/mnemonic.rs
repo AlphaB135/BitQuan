@@ -229,7 +229,7 @@ mod tests {
 
         // Derive keypair twice from same mnemonic
         let kp1 = helper.to_keypair().unwrap();
-        
+
         // Recover from same mnemonic
         let helper2 = MnemonicHelper::from_phrase(&phrase, None).unwrap();
         let kp2 = helper2.to_keypair().unwrap();
@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn test_different_indices_produce_different_keys() {
         let helper = MnemonicHelper::generate().unwrap();
-        
+
         // Derive keys at different indices
         let kp0 = seed_to_keypair_with_index(&helper.seed, 0).unwrap();
         let kp1 = seed_to_keypair_with_index(&helper.seed, 1).unwrap();
@@ -276,7 +276,7 @@ mod tests {
         assert_ne!(kp0.public_key, kp1.public_key);
         assert_ne!(kp1.public_key, kp2.public_key);
         assert_ne!(kp0.public_key, kp2.public_key);
-        
+
         assert_ne!(kp0.secret_key, kp1.secret_key);
         assert_ne!(kp1.secret_key, kp2.secret_key);
         assert_ne!(kp0.secret_key, kp2.secret_key);
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn test_same_index_produces_same_key_deterministically() {
         let helper = MnemonicHelper::generate().unwrap();
-        
+
         // Derive same key index multiple times
         let kp1 = seed_to_keypair_with_index(&helper.seed, 5).unwrap();
         let kp2 = seed_to_keypair_with_index(&helper.seed, 5).unwrap();
@@ -301,11 +301,11 @@ mod tests {
     #[test]
     fn test_passphrase_changes_derived_keys() {
         let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-        
+
         // Same phrase, no passphrase
         let helper1 = MnemonicHelper::from_phrase(phrase, None).unwrap();
         let kp1 = helper1.to_keypair().unwrap();
-        
+
         // Same phrase, with passphrase
         let helper2 = MnemonicHelper::from_phrase(phrase, Some("my_secret_passphrase")).unwrap();
         let kp2 = helper2.to_keypair().unwrap();
@@ -319,14 +319,14 @@ mod tests {
     fn test_known_mnemonic_produces_consistent_key() {
         // Use a fixed known mnemonic to verify deterministic behavior
         let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-        
+
         // Derive key multiple times
         let helper1 = MnemonicHelper::from_phrase(phrase, None).unwrap();
         let kp1 = helper1.to_keypair().unwrap();
-        
+
         let helper2 = MnemonicHelper::from_phrase(phrase, None).unwrap();
         let kp2 = helper2.to_keypair().unwrap();
-        
+
         let helper3 = MnemonicHelper::from_phrase(phrase, None).unwrap();
         let kp3 = helper3.to_keypair().unwrap();
 

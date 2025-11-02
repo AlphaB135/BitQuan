@@ -324,8 +324,7 @@ dependencies = [
  "hex",
  "hmac",
  "num_cpus",
- "pqcrypto-dilithium",
- "pqcrypto-traits",
+ "pqc-dilithium-seeded",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "serde",
@@ -423,8 +422,7 @@ dependencies = [
  "getrandom 0.2.16",
  "hex",
  "hkdf",
- "pqcrypto-dilithium",
- "pqcrypto-traits",
+ "pqc-dilithium-seeded",
  "proptest",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -1562,35 +1560,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "pqcrypto-dilithium"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "685de0fa68c6786559d5fcdaa414f0cd68ef3f5d162f61823bd7424cd276726f"
+name = "pqc-dilithium-seeded"
+version = "0.2.1"
 dependencies = [
- "cc",
- "glob",
- "libc",
- "pqcrypto-internals",
- "pqcrypto-traits",
+ "getrandom 0.2.16",
+ "pqc_core",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
+ "wasm-bindgen",
 ]
 
 [[package]]
-name = "pqcrypto-internals"
-version = "0.2.11"
+name = "pqc_core"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4a326caf27cbf2ac291ca7fd56300497ba9e76a8cc6a7d95b7a18b57f22b61d"
-dependencies = [
- "cc",
- "dunce",
- "getrandom 0.3.4",
- "libc",
-]
-
-[[package]]
-name = "pqcrypto-traits"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94e851c7654eed9e68d7d27164c454961a616cf8c203d500607ef22c737b51bb"
+checksum = "2f480b84be33bffb34e615ae7a350602d9caa77a9450d6b9488d6fb3d5fd4cc1"
 
 [[package]]
 name = "prettyplease"

@@ -1421,7 +1421,7 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     let pubkey_hash = keypair.public_key_hash();
     let address_str = address::encode(&pubkey_hash);
 
-    use crate::wallet::{PUBLICKEYBYTES, SECRETKEYBYTES};
+    use pqc_dilithium_seeded::{PUBLICKEYBYTES, SECRETKEYBYTES};
 
     println!("\n✅ Keypair generated successfully!");
     println!("\n📍 Address: {}", address_str);

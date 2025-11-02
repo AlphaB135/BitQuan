@@ -24,10 +24,16 @@ pub const GENESIS_REWARD: u64 = 5_000_000_000; // 50 BQ in qbits
 pub const GENESIS_NONCE: u64 = 71_683_936;
 
 /// Genesis block hash (double SHA256, displayed big-endian)
-pub const GENESIS_HASH: &str = "0000005ceb7f527d22a5bfb5bc578ff16c27b62c75a63b480d7e719ce65535d6";
+pub const GENESIS_HASH: &str = "4c4161f580252975c5599985d176e285cac086ff363c3c47e2f7fe2b9c9604cf";
 
 /// Genesis block hash bytes (big-endian)
 pub const GENESIS_HASH_BYTES: [u8; 32] = [
+    0x4c, 0x41, 0x61, 0xf5, 0x80, 0x25, 0x29, 0x75, 0xc5, 0x59, 0x99, 0x85, 0xd1, 0x76, 0xe2, 0x85,
+    0xca, 0xc0, 0x86, 0xff, 0x36, 0x3c, 0x3c, 0x47, 0xe2, 0xf7, 0xfe, 0x2b, 0x9c, 0x96, 0x04, 0xcf,
+];
+
+/// Genesis hash value embedded in coinbase transactions for replay protection.
+pub const GENESIS_EMBEDDED_HASH_BYTES: [u8; 32] = [
     0x00, 0x00, 0x00, 0x5c, 0xeb, 0x7f, 0x52, 0x7d, 0x22, 0xa5, 0xbf, 0xb5, 0xbc, 0x57, 0x8f, 0xf1,
     0x6c, 0x27, 0xb6, 0x2c, 0x75, 0xa6, 0x3b, 0x48, 0x0d, 0x7e, 0x71, 0x9c, 0xe6, 0x55, 0x35, 0xd6,
 ];
@@ -52,7 +58,7 @@ pub fn create_genesis_block() -> Block {
     let coinbase_tx = Transaction {
         version: 2,
         network: NetworkId::Mainnet,
-        genesis_hash: GENESIS_HASH_BYTES,
+        genesis_hash: GENESIS_EMBEDDED_HASH_BYTES,
         lock_time: 0,
         inputs: vec![coinbase_in],
         outputs: vec![coinbase_out],

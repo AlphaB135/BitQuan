@@ -4,17 +4,11 @@
 //! using post-quantum cryptography (Dilithium).
 
 use anyhow::{bail, Result};
-use pqcrypto_dilithium::dilithium3;
-use pqcrypto_traits::sign::{PublicKey, SecretKey, SignedMessage};
+use pqc_dilithium_seeded::{self as dilithium, Keypair, PUBLICKEYBYTES, SECRETKEYBYTES, SIGNBYTES};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
-
-// Re-export size constants for compatibility
-pub const PUBLICKEYBYTES: usize = dilithium3::public_key_bytes();
-pub const SECRETKEYBYTES: usize = dilithium3::secret_key_bytes();
-pub const SIGNBYTES: usize = dilithium3::signature_bytes();
 
 /// Serializable representation of a wallet keypair.
 #[derive(Clone, Serialize, Deserialize)]
@@ -52,12 +46,12 @@ pub struct WalletKeypair {
 impl WalletKeypair {
     /// Generates a new Dilithium3 keypair using OS randomness.
     pub fn generate_dilithium3() -> Result<Self> {
-        let (pk, sk) = dilithium3::keypair();
-        
+        let keypair = Keypair::generate();
+
         Ok(WalletKeypair {
             algorithm: WalletAlgorithm::Dilithium3,
-            public_key: pk.as_bytes().to_vec(),
-            secret_key: sk.as_bytes().to_vec(),
+            public_key: keypair.public.to_vec(),
+            secret_key: keypair.expose_secret().to_vec(),
         })
     }
 
@@ -85,71 +79,33 @@ impl WalletKeypair {
     /// let derived_seed = hmac_sha512(&mnemonic_seed, b"key_index_0");
     /// let keypair = WalletKeypair::from_seed_dilithium3(&derived_seed[..32])?;
     /// ```
-    pub fn from_seed_dilithium3(_seed: &[u8; 32]) -> Result<Self> {
-        // WORKAROUND: pqcrypto-dilithium doesn't expose a way to generate keypairs
-        // with custom RNG directly. We use a deterministic approach by:
-        // 1. Expanding the seed using SHAKE256 (proper way) or multiple SHA256
-        // 2. Using the expanded seed bytes directly as "randomness"  
-        // 3. Leveraging pqcrypto's internal structure
-        //
-        // NOTE: This is a temporary solution. Ideally we should:
-        // - Use pqcrypto fork with custom RNG support, OR
-        // - Implement Dilithium key generation manually, OR
-        // - Wait for pqcrypto to add custom RNG API
-        
-        // For now, we'll hash the seed to create deterministic "randomness"
-        // and generate a keypair normally - this won't be deterministic yet
-        // but at least compiles and the structure is ready
-        
-        // TODO: Implement proper deterministic generation
-        // Temporary: Just generate normally (NOT deterministic!)
-        eprintln!("⚠️  WARNING: Deterministic key generation not fully working yet!");
-        eprintln!("⚠️  Using temporary fallback - keys will be DIFFERENT each time");
-        eprintln!("⚠️  This is a known limitation of pqcrypto-dilithium API");
-        
-        Self::generate_dilithium3()
+    pub fn from_seed_dilithium3(seed: &[u8; 32]) -> Result<Self> {
+        // Use patched pqc_dilithium with exposed crypto_sign_keypair
+        let mut public = [0u8; PUBLICKEYBYTES];
+        let mut secret = [0u8; SECRETKEYBYTES];
+
+        // Call the exposed function with our seed
+        dilithium::crypto_sign_keypair(&mut public, &mut secret, Some(seed));
+
+        Ok(WalletKeypair {
+            algorithm: WalletAlgorithm::Dilithium3,
+            public_key: public.to_vec(),
+            secret_key: secret.to_vec(),
+        })
     }
 
     /// Signs a message using the secret key.
     #[allow(dead_code)]
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
-        // Reconstruct secret key from bytes
-        let sk = dilithium3::SecretKey::from_bytes(&self.secret_key)
-            .map_err(|_| anyhow::anyhow!("Invalid secret key"))?;
-        
-        // Sign the message
-        let signed_msg = dilithium3::sign(message, &sk);
-        
-        // Extract signature (signed message contains msg + sig)
-        // For Dilithium, the signature is prepended to the message
-        let sig_bytes = signed_msg.as_bytes();
-        
-        // Return just the signature part (first SIGNBYTES bytes)
-        Ok(sig_bytes[..SIGNBYTES].to_vec())
+        let mut sig = vec![0u8; SIGNBYTES];
+        dilithium::crypto_sign_signature(&mut sig, message, &self.secret_key);
+        Ok(sig)
     }
 
     /// Verifies a signature using the public key.
     #[allow(dead_code)]
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
-        // Reconstruct public key from bytes
-        let pk = match dilithium3::PublicKey::from_bytes(&self.public_key) {
-            Ok(key) => key,
-            Err(_) => return false,
-        };
-        
-        // Create signed message format (signature + message)
-        let mut signed_msg_bytes = Vec::with_capacity(signature.len() + message.len());
-        signed_msg_bytes.extend_from_slice(signature);
-        signed_msg_bytes.extend_from_slice(message);
-        
-        // Reconstruct SignedMessage
-        let signed_msg = match dilithium3::SignedMessage::from_bytes(&signed_msg_bytes) {
-            Ok(sm) => sm,
-            Err(_) => return false,
-        };
-        
-        // Verify
-        dilithium3::open(&signed_msg, &pk).is_ok()
+        dilithium::crypto_sign_verify(signature, message, &self.public_key).is_ok()
     }
 
     /// Converts to serializable format.
@@ -245,25 +201,7 @@ pub struct WalletPublicKey {
 impl WalletPublicKey {
     /// Verifies a signature using this public key.
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
-        // Reconstruct public key from bytes
-        let pk = match dilithium3::PublicKey::from_bytes(&self.public_key) {
-            Ok(key) => key,
-            Err(_) => return false,
-        };
-        
-        // Create signed message format (signature + message)
-        let mut signed_msg_bytes = Vec::with_capacity(signature.len() + message.len());
-        signed_msg_bytes.extend_from_slice(signature);
-        signed_msg_bytes.extend_from_slice(message);
-        
-        // Reconstruct SignedMessage
-        let signed_msg = match dilithium3::SignedMessage::from_bytes(&signed_msg_bytes) {
-            Ok(sm) => sm,
-            Err(_) => return false,
-        };
-        
-        // Verify
-        dilithium3::open(&signed_msg, &pk).is_ok()
+        dilithium::crypto_sign_verify(signature, message, &self.public_key).is_ok()
     }
 
     /// Returns the public key hash.

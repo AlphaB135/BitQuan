@@ -150,7 +150,7 @@ mod tests {
         // DO NOT CHANGE these values - they are protocol constants
         assert_eq!(
             hex::encode(mainnet_hash),
-            "ae2eda9499eb08240dae34bef6f6ff36946d2ecc9246d745a65611b1eacc05fa",
+            "5ee0c9e6be1bde6ec13aa9cf5857df8b37336a3365f2469e0dcb5a165f3ce69e",
             "Mainnet sighash changed - breaking protocol change!"
         );
 

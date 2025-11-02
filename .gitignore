@@ -17,3 +17,5 @@ fixtures/**/*.keystore
 tmp/**/*.keystore
 .test/**/*.keystore
 todo.md
+crates/types/examples/genesis_hash_iter.rs
+forks/
