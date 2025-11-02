@@ -237,37 +237,23 @@ See [LICENSE](LICENSE) for details.
 
 Optional: Enable pre-commit hooks with `./scripts/install-hooks.sh`
 
-## Support the Project
-Support Development
-If you find BitQuan useful and want to support its development:
-PayPal: paypal.me/AtsadawutKhunthong
-What your support covers
+## Support
 
-AI development assistants (Claude API, Cursor Pro, GitHub Copilot): approximately $200/month
-Security audits and professional code reviews
-Infrastructure costs (testnet nodes, domain hosting, CI/CD)
-Documentation and technical writing
-Testing tools and development environment
+BitQuan is a spare-time solo project. If it helps your work or research, you can keep it going in the following ways.
 
-Alternative ways to contribute
+### Direct contributions
+- Donate via [PayPal](https://paypal.me/AtsadawutKhunthong). Funds cover AI assistants (~$200/mo), CI infrastructure, and external security reviews.
+- Sponsor hardware or credits for long-running fuzzing, testnet nodes, or build runners—open an issue to coordinate.
+- Commission specific hardening work (e.g., external audit prep) by discussing scope at `security@bitquan.org`.
 
-Star this repository and share it with others
-Report bugs and security issues responsibly
-Submit pull requests for features or fixes
-Improve documentation and examples
-Participate in discussions and help other users
+### Non-monetary support
+- Star, fork, or share the repository to help it reach other developers.
+- File reproducible bug reports and security issues (see [SECURITY.md](SECURITY.md)).
+- Submit pull requests for documentation, tests, or hardening tasks flagged in `docs/planning/todo.md`.
+- Participate in GitHub Discussions and help new users get started.
 
-Important clarification
-This is a voluntary donation to support open-source development. It is not:
-
-An investment or token pre-sale
-A purchase of any cryptocurrency or asset
-A guarantee of future returns or project success
-A legally binding commitment to any outcome
-
-BitQuan is released under the Apache 2.0 license and will remain free and open-source regardless of funding. All contributions are used solely for development-related expenses. I work on this project independently in my spare time, and there is currently no team or company behind it.
-Budget transparency
-Current monthly development costs: approximately $300
-Current donations: Updated quarterly in FUNDING.md
-If you have questions about how funds are used or want to discuss larger contributions, please open an issue or contact me directly.
-Thank you for your consideration.
+### Transparency
+- Donations are voluntary; they do **not** constitute a token sale, investment contract, or promise of returns.
+- BitQuan stays Apache 2.0 open-source with or without funding; contributions pay for development only.
+- Monthly operating target: **~$300 USD**. Donation summaries are published quarterly in `FUNDING.md`.
+- Questions about support or larger sponsorships: contact `security@bitquan.org`.
