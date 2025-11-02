@@ -10,28 +10,21 @@
 
 ---
 
-## ✅ Task I – Checked Arithmetic Audit
+## ✅ Task I – Checked Arithmetic Audit (เสร็จแล้ว)
 
-ทำตามลำดับนี้
-1. `crates/mempool/src/lib.rs`
-   - เพิ่ม error type ที่จำเป็น
-   - เปลี่ยน `fee / weight`, `.sum()`, `+=` ให้ใช้ `checked_*` / `try_fold`
-2. `crates/consensus/src/lib.rs`
-   - คำนวณ block weight ด้วย `try_fold` + `checked_mul`
-3. `crates/consensus/src/utxo.rs`
-   - ใช้ `checked_add/sub` กับตัวนับ UTXO และค่าธรรมเนียม
-4. `crates/types/src/transaction.rs`
-   - แก้ heuristic size ให้ใช้ `checked_add` + `try_fold`
-5. `crates/types/src/block.rs`
-   - เหมือนข้อ 4 สำหรับ block
-6. `crates/node/src/main.rs`
-   - นับ balance/UTXO ด้วย `checked_add`
-7. เพิ่ม unit tests/prop tests สำหรับ overflow conditions
-8. รัน `cargo test --all` (เฉพาะส่วน Task I เพื่อยืนยันก่อนข้ามขั้น)
+ทำเสร็จ:
+- [x] `crates/mempool/src/lib.rs` – error types + checked arithmetic ครบ
+- [x] `crates/consensus/src/lib.rs` – block/tx weight `try_fold` + `checked_*`
+- [x] `crates/consensus/src/utxo.rs` – นับ UTXO/fee ใช้ `checked_add/sub`
+- [x] `crates/types/src/transaction.rs` – heuristic size ใช้ `checked_add` + `try_fold`
+- [x] `crates/types/src/block.rs` – serialized size ปลอดภัย
+- [x] `crates/node/src/main.rs` – สะสม balance/UTXO ด้วย `checked_add`
+- [x] เพิ่ม unit/property tests สำหรับ overflow/underflow
+- [x] `cargo test` สำหรับโมดูลที่เกี่ยวข้องผ่านทั้งหมด
 
 ---
 
-## ✅ Task J – Replay Attack Prevention
+## ⏳ Task J – Replay Attack Prevention (กำลังดำเนินการ)
 
 ลำดับแนะนำ
 1. เพิ่มไฟล์ `crates/types/src/context.rs` (นิยาม `NetworkId`, `TxContext`)
@@ -50,7 +43,7 @@
 
 ---
 
-## ✅ Task K – Entropy Audit
+## ⏳ Task K – Entropy Audit (รอทำ)
 
 1. `crates/pqc-dilithium-seeded/src/randombytes.rs`
    - เปลี่ยนไปใช้ `OsRng`
