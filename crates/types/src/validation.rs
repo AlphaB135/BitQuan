@@ -88,6 +88,10 @@ pub enum ValidationError {
     /// Invalid timestamp (before minimum)
     #[error("timestamp {0} before minimum {1}")]
     TimestampTooOld(u32, u32),
+
+    /// Arithmetic overflow in size calculation
+    #[error("overflow in {0}")]
+    SizeOverflow(&'static str),
 }
 
 /// Validates a transaction for structural correctness

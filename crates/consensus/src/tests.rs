@@ -634,7 +634,7 @@ fn test_signature_count_overflow() {
     // Create transaction with very large signature count
     // Using a more reasonable number to avoid OOM
     let mut witnesses = Vec::new();
-    
+
     // Create many witnesses with many signatures each
     for _ in 0..1000 {
         witnesses.push(Witness {
@@ -674,7 +674,10 @@ fn test_signature_count_overflow() {
     match result {
         Ok(weight) => {
             // 1_000_000 signatures * 384 WU/sig = 384_000_000 WU
-            assert!(weight >= 384_000_000, "Weight too small for signature count");
+            assert!(
+                weight >= 384_000_000,
+                "Weight too small for signature count"
+            );
         }
         Err(ConsensusError::WeightOverflow(msg)) => {
             assert!(

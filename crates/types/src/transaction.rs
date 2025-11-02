@@ -134,11 +134,20 @@ pub struct TxIn {
 
 impl TxIn {
     /// Returns a heuristic byte length for serialization planning.
-    pub fn serialized_size_hint(&self) -> usize {
-        32 + 4
-            + 4
-            + CompactUint::from_usize(self.script_sig.len()).encoded_length()
-            + self.script_sig.len()
+    pub fn serialized_size_hint(&self) -> Result<usize, crate::ValidationError> {
+        let base = 32usize
+            .checked_add(4)
+            .and_then(|v| v.checked_add(4))
+            .ok_or(crate::ValidationError::SizeOverflow("TxIn base size"))?;
+
+        let compact_len = CompactUint::from_usize(self.script_sig.len()).encoded_length();
+        let with_compact = base
+            .checked_add(compact_len)
+            .ok_or(crate::ValidationError::SizeOverflow("TxIn compact length"))?;
+
+        with_compact
+            .checked_add(self.script_sig.len())
+            .ok_or(crate::ValidationError::SizeOverflow("TxIn total size"))
     }
 }
 
@@ -153,9 +162,15 @@ pub struct TxOut {
 
 impl TxOut {
     /// Returns a heuristic byte length for serialization planning.
-    pub fn serialized_size_hint(&self) -> usize {
-        8 + CompactUint::from_usize(self.script_pubkey.len()).encoded_length()
-            + self.script_pubkey.len()
+    pub fn serialized_size_hint(&self) -> Result<usize, crate::ValidationError> {
+        let compact_len = CompactUint::from_usize(self.script_pubkey.len()).encoded_length();
+        let with_compact = 8usize
+            .checked_add(compact_len)
+            .ok_or(crate::ValidationError::SizeOverflow("TxOut compact length"))?;
+
+        with_compact
+            .checked_add(self.script_pubkey.len())
+            .ok_or(crate::ValidationError::SizeOverflow("TxOut total size"))
     }
 }
 
@@ -174,23 +189,49 @@ pub struct SignaturePayload {
 
 impl SignaturePayload {
     /// Returns the total byte length contributed by this payload (best-effort estimate).
-    pub fn serialized_size_hint(&self) -> usize {
-        let mut len = 2;
-        len +=
-            CompactUint::from_usize(self.signature.len()).encoded_length() + self.signature.len();
-        len +=
-            CompactUint::from_usize(self.public_key.len()).encoded_length() + self.public_key.len();
+    pub fn serialized_size_hint(&self) -> Result<usize, crate::ValidationError> {
+        let mut len = 2usize;
 
+        // Signature
+        let sig_compact = CompactUint::from_usize(self.signature.len()).encoded_length();
+        len = len
+            .checked_add(sig_compact)
+            .and_then(|v| v.checked_add(self.signature.len()))
+            .ok_or(crate::ValidationError::SizeOverflow(
+                "SignaturePayload signature",
+            ))?;
+
+        // Public key
+        let pk_compact = CompactUint::from_usize(self.public_key.len()).encoded_length();
+        len = len
+            .checked_add(pk_compact)
+            .and_then(|v| v.checked_add(self.public_key.len()))
+            .ok_or(crate::ValidationError::SizeOverflow(
+                "SignaturePayload public_key",
+            ))?;
+
+        // Auxiliary data
         match &self.aux {
             Some(aux) => {
-                len += 1;
-                len +=
-                    CompactUint::from_usize(aux.payload.len()).encoded_length() + aux.payload.len();
+                len = len
+                    .checked_add(1)
+                    .ok_or(crate::ValidationError::SizeOverflow("SignaturePayload aux flag"))?;
+                let aux_compact = CompactUint::from_usize(aux.payload.len()).encoded_length();
+                len = len
+                    .checked_add(aux_compact)
+                    .and_then(|v| v.checked_add(aux.payload.len()))
+                    .ok_or(crate::ValidationError::SizeOverflow(
+                        "SignaturePayload aux payload",
+                    ))?;
             }
-            None => len += 1,
+            None => {
+                len = len
+                    .checked_add(1)
+                    .ok_or(crate::ValidationError::SizeOverflow("SignaturePayload no aux"))?;
+            }
         }
 
-        len
+        Ok(len)
     }
 }
 
@@ -227,50 +268,86 @@ impl Transaction {
         self.outputs.len()
     }
     /// Returns the number of explicit signatures across all witnesses.
-    /// Uses saturating arithmetic to prevent overflow.
-    pub fn signature_count(&self) -> usize {
-        self.witnesses
-            .iter()
-            .fold(0usize, |acc, w| acc.saturating_add(w.signatures.len()))
+    pub fn signature_count(&self) -> Result<usize, crate::ValidationError> {
+        self.witnesses.iter().try_fold(0usize, |acc, w| {
+            acc.checked_add(w.signatures.len())
+                .ok_or(crate::ValidationError::SizeOverflow("signature count"))
+        })
     }
     /// Provides a heuristic serialized size used by consensus weight calculations.
-    pub fn serialized_size_hint(&self) -> usize {
-        let mut len = 4 // version
-            + 1 // network id
-            + 32 // genesis hash
-            + 4; // lock_time
-        len += CompactUint::from_usize(self.inputs.len()).encoded_length();
-        len += self
-            .inputs
-            .iter()
-            .map(TxIn::serialized_size_hint)
-            .sum::<usize>();
-        len += CompactUint::from_usize(self.outputs.len()).encoded_length();
-        len += self
-            .outputs
-            .iter()
-            .map(TxOut::serialized_size_hint)
-            .sum::<usize>();
-        len += 1; // sig_algo code
-        len += CompactUint::from_usize(self.witnesses.len()).encoded_length();
-        len += self
-            .witnesses
-            .iter()
-            .map(Witness::serialized_size_hint)
-            .sum::<usize>();
-        len
+    pub fn serialized_size_hint(&self) -> Result<usize, crate::ValidationError> {
+        // Base fields: version(4) + network(1) + genesis_hash(32) + lock_time(4)
+        let mut len = 4usize
+            .checked_add(1)
+            .and_then(|v| v.checked_add(32))
+            .and_then(|v| v.checked_add(4))
+            .ok_or(crate::ValidationError::SizeOverflow("tx base fields"))?;
+
+        // Inputs
+        len = len
+            .checked_add(CompactUint::from_usize(self.inputs.len()).encoded_length())
+            .ok_or(crate::ValidationError::SizeOverflow("tx inputs count"))?;
+
+        let inputs_size = self.inputs.iter().try_fold(0usize, |acc, input| {
+            let input_size = input.serialized_size_hint()?;
+            acc.checked_add(input_size)
+                .ok_or(crate::ValidationError::SizeOverflow("tx inputs"))
+        })?;
+
+        len = len
+            .checked_add(inputs_size)
+            .ok_or(crate::ValidationError::SizeOverflow("tx with inputs"))?;
+
+        // Outputs
+        len = len
+            .checked_add(CompactUint::from_usize(self.outputs.len()).encoded_length())
+            .ok_or(crate::ValidationError::SizeOverflow("tx outputs count"))?;
+
+        let outputs_size = self.outputs.iter().try_fold(0usize, |acc, output| {
+            let output_size = output.serialized_size_hint()?;
+            acc.checked_add(output_size)
+                .ok_or(crate::ValidationError::SizeOverflow("tx outputs"))
+        })?;
+
+        len = len
+            .checked_add(outputs_size)
+            .ok_or(crate::ValidationError::SizeOverflow("tx with outputs"))?;
+
+        // Signature algorithm
+        len = len
+            .checked_add(1)
+            .ok_or(crate::ValidationError::SizeOverflow("tx sig_algo"))?;
+
+        // Witnesses
+        len = len
+            .checked_add(CompactUint::from_usize(self.witnesses.len()).encoded_length())
+            .ok_or(crate::ValidationError::SizeOverflow("tx witnesses count"))?;
+
+        let witnesses_size = self.witnesses.iter().try_fold(0usize, |acc, witness| {
+            let witness_size = witness.serialized_size_hint()?;
+            acc.checked_add(witness_size)
+                .ok_or(crate::ValidationError::SizeOverflow("tx witnesses"))
+        })?;
+
+        len.checked_add(witnesses_size)
+            .ok_or(crate::ValidationError::SizeOverflow("tx total size"))
     }
 }
 
 impl Transaction {
     /// Returns the estimated size of witness-only data for this transaction.
-    pub fn witness_size_hint(&self) -> usize {
-        CompactUint::from_usize(self.witnesses.len()).encoded_length()
-            + self
-                .witnesses
-                .iter()
-                .map(Witness::serialized_size_hint)
-                .sum::<usize>()
+    pub fn witness_size_hint(&self) -> Result<usize, crate::ValidationError> {
+        let compact_len = CompactUint::from_usize(self.witnesses.len()).encoded_length();
+
+        let witnesses_size = self.witnesses.iter().try_fold(0usize, |acc, witness| {
+            let witness_size = witness.serialized_size_hint()?;
+            acc.checked_add(witness_size)
+                .ok_or(crate::ValidationError::SizeOverflow("witness size hint"))
+        })?;
+
+        compact_len
+            .checked_add(witnesses_size)
+            .ok_or(crate::ValidationError::SizeOverflow("total witness size"))
     }
 
     /// Serializes the transaction body without witness.
@@ -374,12 +451,17 @@ fn default_genesis_hash() -> [u8; 32] {
 
 impl Witness {
     /// Returns a heuristic serialized size for the witness.
-    pub fn serialized_size_hint(&self) -> usize {
-        CompactUint::from_usize(self.signatures.len()).encoded_length()
-            + self
-                .signatures
-                .iter()
-                .map(SignaturePayload::serialized_size_hint)
-                .sum::<usize>()
+    pub fn serialized_size_hint(&self) -> Result<usize, crate::ValidationError> {
+        let compact_len = CompactUint::from_usize(self.signatures.len()).encoded_length();
+
+        let sigs_size = self.signatures.iter().try_fold(0usize, |acc, sig| {
+            let sig_size = sig.serialized_size_hint()?;
+            acc.checked_add(sig_size)
+                .ok_or(crate::ValidationError::SizeOverflow("Witness signatures"))
+        })?;
+
+        compact_len
+            .checked_add(sigs_size)
+            .ok_or(crate::ValidationError::SizeOverflow("Witness total size"))
     }
 }

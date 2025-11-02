@@ -25,14 +25,16 @@ pub use wire::{WireDecode, WireEncode, WireError};
 pub type SignatureCount = u64;
 
 /// Returns the total number of signatures across all transactions in a block.
+/// Returns 0 if overflow is detected (defensive programming).
 pub fn count_signatures(block: &Block) -> SignatureCount {
-    // Use saturating_add to prevent overflow when counting block signatures
     block
         .transactions
         .iter()
-        .fold(0 as SignatureCount, |acc, tx| {
-            acc.saturating_add(tx.signature_count() as SignatureCount)
+        .try_fold(0 as SignatureCount, |acc, tx| {
+            let count = tx.signature_count().ok()? as SignatureCount;
+            acc.checked_add(count)
         })
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

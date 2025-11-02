@@ -34,6 +34,14 @@ pub enum UtxoError {
     /// Output value overflow.
     #[error("output value overflow")]
     Overflow,
+
+    /// Arithmetic overflow in UTXO operations.
+    #[error("overflow in {0}")]
+    ArithmeticOverflow(&'static str),
+
+    /// Arithmetic underflow in UTXO operations.
+    #[error("underflow in {0}")]
+    ArithmeticUnderflow(&'static str),
 }
 
 /// Unique identifier for a transaction output (outpoint).
@@ -136,21 +144,39 @@ impl UtxoSet {
     }
 
     /// Adds a UTXO to the set.
-    pub fn add_utxo(&mut self, entry: UtxoEntry) {
+    pub fn add_utxo(&mut self, entry: UtxoEntry) -> Result<(), UtxoError> {
         let value = entry.output.value;
         self.utxos.insert(entry.outpoint, entry);
-        self.count += 1;
-        self.total_value = self.total_value.saturating_add(value);
+
+        self.count = self
+            .count
+            .checked_add(1)
+            .ok_or(UtxoError::ArithmeticOverflow("UTXO count"))?;
+
+        self.total_value = self
+            .total_value
+            .checked_add(value)
+            .ok_or(UtxoError::ArithmeticOverflow("UTXO total value"))?;
+
+        Ok(())
     }
 
     /// Removes a UTXO from the set (when spent).
-    pub fn remove_utxo(&mut self, outpoint: &OutPoint) -> Option<UtxoEntry> {
+    pub fn remove_utxo(&mut self, outpoint: &OutPoint) -> Result<Option<UtxoEntry>, UtxoError> {
         if let Some(entry) = self.utxos.remove(outpoint) {
-            self.count -= 1;
-            self.total_value = self.total_value.saturating_sub(entry.output.value);
-            Some(entry)
+            self.count = self
+                .count
+                .checked_sub(1)
+                .ok_or(UtxoError::ArithmeticUnderflow("UTXO count"))?;
+
+            self.total_value = self
+                .total_value
+                .checked_sub(entry.output.value)
+                .ok_or(UtxoError::ArithmeticUnderflow("UTXO total value"))?;
+
+            Ok(Some(entry))
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -218,17 +244,14 @@ impl UtxoSet {
                 .ok_or(UtxoError::Overflow)?;
         }
 
-        // Check outputs don't exceed inputs
-        if outputs_value > inputs_value {
-            return Err(UtxoError::OutputsExceedInputs(inputs_value, outputs_value));
-        }
-
-        // Calculate fee
-        let fee = inputs_value - outputs_value;
+        // Calculate fee using checked_sub to prevent underflow
+        let fee = inputs_value
+            .checked_sub(outputs_value)
+            .ok_or(UtxoError::OutputsExceedInputs(inputs_value, outputs_value))?;
 
         // Remove spent UTXOs
         for outpoint in spent_outpoints {
-            self.remove_utxo(&outpoint);
+            self.remove_utxo(&outpoint)?;
         }
 
         // Add new UTXOs
@@ -236,7 +259,7 @@ impl UtxoSet {
         for (vout, output) in tx.outputs.iter().enumerate() {
             let outpoint = OutPoint::new(txid, vout as u32);
             let entry = UtxoEntry::new(outpoint, output.clone(), height, false);
-            self.add_utxo(entry);
+            self.add_utxo(entry)?;
         }
 
         Ok((inputs_value, outputs_value, fee))
@@ -264,7 +287,7 @@ impl UtxoSet {
         for (vout, output) in tx.outputs.iter().enumerate() {
             let outpoint = OutPoint::new(txid, vout as u32);
             let entry = UtxoEntry::new(outpoint, output.clone(), height, true);
-            self.add_utxo(entry);
+            self.add_utxo(entry)?;
         }
 
         // Coinbase has no fee (subsidy is validated separately)
@@ -319,11 +342,11 @@ impl UtxoSet {
                 .ok_or(UtxoError::Overflow)?;
         }
 
-        if outputs_value > inputs_value {
-            return Err(UtxoError::OutputsExceedInputs(inputs_value, outputs_value));
-        }
+        // Calculate fee using checked_sub to prevent underflow
+        let fee = inputs_value
+            .checked_sub(outputs_value)
+            .ok_or(UtxoError::OutputsExceedInputs(inputs_value, outputs_value))?;
 
-        let fee = inputs_value - outputs_value;
         Ok((inputs_value, outputs_value, fee))
     }
 }
@@ -379,7 +402,7 @@ mod tests {
         };
         let entry = UtxoEntry::new(outpoint, output, 100, false);
 
-        utxo_set.add_utxo(entry);
+        utxo_set.add_utxo(entry).unwrap();
         assert_eq!(utxo_set.len(), 1);
         assert_eq!(utxo_set.total_value(), 1000);
         assert!(utxo_set.contains(&outpoint));
@@ -396,7 +419,9 @@ mod tests {
             value: 1000,
             script_pubkey: vec![0x51],
         };
-        utxo_set.add_utxo(UtxoEntry::new(outpoint, output, 100, false));
+        utxo_set
+            .add_utxo(UtxoEntry::new(outpoint, output, 100, false))
+            .unwrap();
 
         // First spend - should succeed
         let tx1 = create_test_tx(vec![(txid1, 0)], vec![900]);
@@ -420,7 +445,9 @@ mod tests {
             value: 1000,
             script_pubkey: vec![0x51],
         };
-        utxo_set.add_utxo(UtxoEntry::new(outpoint, output, 100, false));
+        utxo_set
+            .add_utxo(UtxoEntry::new(outpoint, output, 100, false))
+            .unwrap();
 
         // Try to spend more than available
         let tx = create_test_tx(vec![(txid, 0)], vec![1500]);
@@ -441,7 +468,9 @@ mod tests {
             value: 5000,
             script_pubkey: vec![0x51],
         };
-        utxo_set.add_utxo(UtxoEntry::new(outpoint, output, 100, true));
+        utxo_set
+            .add_utxo(UtxoEntry::new(outpoint, output, 100, true))
+            .unwrap();
 
         // Try to spend before maturity (100 blocks)
         let tx = create_test_tx(vec![(txid, 0)], vec![4900]);
@@ -464,7 +493,9 @@ mod tests {
             value: 1000,
             script_pubkey: vec![0x51],
         };
-        utxo_set.add_utxo(UtxoEntry::new(outpoint, output, 100, false));
+        utxo_set
+            .add_utxo(UtxoEntry::new(outpoint, output, 100, false))
+            .unwrap();
 
         let tx = create_test_tx(vec![(txid, 0)], vec![900]);
         let result = utxo_set.apply_transaction(&tx, 101, false).unwrap();
@@ -472,5 +503,258 @@ mod tests {
         assert_eq!(result.0, 1000); // inputs
         assert_eq!(result.1, 900); // outputs
         assert_eq!(result.2, 100); // fee
+    }
+
+    #[test]
+    fn test_utxo_count_overflow_protection() {
+        let mut utxo_set = UtxoSet::new();
+
+        // Force count to near max
+        utxo_set.count = usize::MAX - 1;
+
+        // Add one UTXO - should succeed
+        let outpoint1 = OutPoint::new([1u8; 32], 0);
+        let output1 = TxOut {
+            value: 1000,
+            script_pubkey: vec![0x51],
+        };
+        assert!(utxo_set
+            .add_utxo(UtxoEntry::new(outpoint1, output1, 100, false))
+            .is_ok());
+
+        // Try to add another - should fail with overflow
+        let outpoint2 = OutPoint::new([2u8; 32], 0);
+        let output2 = TxOut {
+            value: 2000,
+            script_pubkey: vec![0x51],
+        };
+        let result = utxo_set.add_utxo(UtxoEntry::new(outpoint2, output2, 100, false));
+
+        assert!(matches!(
+            result,
+            Err(UtxoError::ArithmeticOverflow("UTXO count"))
+        ));
+    }
+
+    #[test]
+    fn test_total_value_overflow_protection() {
+        let mut utxo_set = UtxoSet::new();
+
+        // Force total_value to near max
+        utxo_set.total_value = u64::MAX - 500;
+
+        // Try to add UTXO that would overflow
+        let outpoint = OutPoint::new([1u8; 32], 0);
+        let output = TxOut {
+            value: 1000,
+            script_pubkey: vec![0x51],
+        };
+        let result = utxo_set.add_utxo(UtxoEntry::new(outpoint, output, 100, false));
+
+        assert!(matches!(
+            result,
+            Err(UtxoError::ArithmeticOverflow("UTXO total value"))
+        ));
+    }
+
+    #[test]
+    fn test_utxo_count_underflow_protection() {
+        let mut utxo_set = UtxoSet::new();
+
+        // Force count to 0
+        utxo_set.count = 0;
+
+        // Try to remove when count is already 0
+        let outpoint = OutPoint::new([1u8; 32], 0);
+
+        // Manually insert into hashmap to create inconsistent state
+        utxo_set.utxos.insert(
+            outpoint,
+            UtxoEntry::new(
+                outpoint,
+                TxOut {
+                    value: 1000,
+                    script_pubkey: vec![0x51],
+                },
+                100,
+                false,
+            ),
+        );
+
+        let result = utxo_set.remove_utxo(&outpoint);
+
+        assert!(matches!(
+            result,
+            Err(UtxoError::ArithmeticUnderflow("UTXO count"))
+        ));
+    }
+
+    #[test]
+    fn test_total_value_underflow_protection() {
+        let mut utxo_set = UtxoSet::new();
+
+        // Set up inconsistent state: total_value less than UTXO value
+        utxo_set.total_value = 500;
+        utxo_set.count = 1;
+
+        let outpoint = OutPoint::new([1u8; 32], 0);
+        utxo_set.utxos.insert(
+            outpoint,
+            UtxoEntry::new(
+                outpoint,
+                TxOut {
+                    value: 1000, // Greater than total_value
+                    script_pubkey: vec![0x51],
+                },
+                100,
+                false,
+            ),
+        );
+
+        let result = utxo_set.remove_utxo(&outpoint);
+
+        assert!(matches!(
+            result,
+            Err(UtxoError::ArithmeticUnderflow("UTXO total value"))
+        ));
+    }
+
+    #[test]
+    fn test_input_value_overflow_detection() {
+        let mut utxo_set = UtxoSet::new();
+
+        // Create two UTXOs with very large values
+        let txid1 = [1u8; 32];
+        let outpoint1 = OutPoint::new(txid1, 0);
+        let entry1 = UtxoEntry::new(
+            outpoint1,
+            TxOut {
+                value: u64::MAX / 2 + 100,
+                script_pubkey: vec![0x51],
+            },
+            100,
+            false,
+        );
+
+        let txid2 = [2u8; 32];
+        let outpoint2 = OutPoint::new(txid2, 0);
+        let entry2 = UtxoEntry::new(
+            outpoint2,
+            TxOut {
+                value: u64::MAX / 2 + 100,
+                script_pubkey: vec![0x51],
+            },
+            100,
+            false,
+        );
+
+        // Manually insert to bypass total_value overflow check
+        utxo_set.utxos.insert(outpoint1, entry1);
+        utxo_set.utxos.insert(outpoint2, entry2);
+        utxo_set.count = 2;
+
+        // Try to spend both - should overflow when adding input values
+        let tx = create_test_tx(vec![(txid1, 0), (txid2, 0)], vec![1000]);
+        let result = utxo_set.apply_transaction(&tx, 101, false);
+
+        assert!(matches!(result, Err(UtxoError::Overflow)));
+    }
+
+    #[test]
+    fn test_output_value_overflow_detection() {
+        let mut utxo_set = UtxoSet::new();
+
+        // Create UTXO with max value
+        let txid = [1u8; 32];
+        let outpoint = OutPoint::new(txid, 0);
+        utxo_set
+            .add_utxo(UtxoEntry::new(
+                outpoint,
+                TxOut {
+                    value: u64::MAX,
+                    script_pubkey: vec![0x51],
+                },
+                100,
+                false,
+            ))
+            .unwrap();
+
+        // Create transaction with outputs that overflow
+        let tx = create_test_tx(vec![(txid, 0)], vec![u64::MAX / 2 + 1, u64::MAX / 2 + 1]);
+
+        let result = utxo_set.apply_transaction(&tx, 101, false);
+
+        assert!(matches!(result, Err(UtxoError::Overflow)));
+    }
+
+    #[test]
+    fn test_fee_calculation_with_checked_sub() {
+        let mut utxo_set = UtxoSet::new();
+
+        // Create UTXO
+        let txid = [1u8; 32];
+        let outpoint = OutPoint::new(txid, 0);
+        utxo_set
+            .add_utxo(UtxoEntry::new(
+                outpoint,
+                TxOut {
+                    value: 1000,
+                    script_pubkey: vec![0x51],
+                },
+                100,
+                false,
+            ))
+            .unwrap();
+
+        // Try to create transaction where outputs > inputs
+        // This should now be caught by checked_sub
+        let tx = create_test_tx(vec![(txid, 0)], vec![1500]);
+        let result = utxo_set.apply_transaction(&tx, 101, false);
+
+        assert!(matches!(
+            result,
+            Err(UtxoError::OutputsExceedInputs(1000, 1500))
+        ));
+    }
+
+    #[test]
+    fn test_validate_transaction_overflow() {
+        let mut utxo_set = UtxoSet::new();
+
+        // Create UTXOs with large values
+        let txid1 = [1u8; 32];
+        let outpoint1 = OutPoint::new(txid1, 0);
+        let entry1 = UtxoEntry::new(
+            outpoint1,
+            TxOut {
+                value: u64::MAX / 2 + 100,
+                script_pubkey: vec![0x51],
+            },
+            100,
+            false,
+        );
+
+        let txid2 = [2u8; 32];
+        let outpoint2 = OutPoint::new(txid2, 0);
+        let entry2 = UtxoEntry::new(
+            outpoint2,
+            TxOut {
+                value: u64::MAX / 2 + 100,
+                script_pubkey: vec![0x51],
+            },
+            100,
+            false,
+        );
+
+        // Manually insert to bypass total_value overflow check
+        utxo_set.utxos.insert(outpoint1, entry1);
+        utxo_set.utxos.insert(outpoint2, entry2);
+        utxo_set.count = 2;
+
+        // Validate (without applying) transaction that would overflow
+        let tx = create_test_tx(vec![(txid1, 0), (txid2, 0)], vec![1000]);
+        let result = utxo_set.validate_transaction(&tx, 101, false);
+
+        assert!(matches!(result, Err(UtxoError::Overflow)));
     }
 }
