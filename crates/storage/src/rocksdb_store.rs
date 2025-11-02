@@ -26,7 +26,7 @@ const KEY_CHECKSUM: &[u8] = b"checksum";
 const DB_VERSION: u32 = 1;
 
 /// Database recovery options
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RecoveryOptions {
     /// Verify checksums on open
     pub verify_checksums: bool,
@@ -36,17 +36,6 @@ pub struct RecoveryOptions {
     pub backup_path: Option<String>,
     /// Rebuild indices if corrupted
     pub rebuild_indices: bool,
-}
-
-impl Default for RecoveryOptions {
-    fn default() -> Self {
-        Self {
-            verify_checksums: false,
-            auto_backup: false,
-            backup_path: None,
-            rebuild_indices: false,
-        }
-    }
 }
 
 /// RocksDB-backed chain store with persistent storage

@@ -66,17 +66,9 @@ pub enum EncryptionError {
 }
 
 /// Encryptor that uses Argon2id for key derivation and AES-256-GCM for encryption.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Encryptor {
     kdf: KeyDerivation,
-}
-
-impl Default for Encryptor {
-    fn default() -> Self {
-        Self {
-            kdf: KeyDerivation::default(),
-        }
-    }
 }
 
 impl Encryptor {
@@ -109,9 +101,8 @@ impl Encryptor {
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt
-        let ciphertext = cipher
-            .encrypt(&nonce, plaintext)
-            .map_err(EncryptionError::AesGcm)?;
+        let ciphertext =
+            cipher.encrypt(nonce, plaintext).map_err(EncryptionError::AesGcm)?;
 
         // Zeroize derived key asap
         key_bytes.zeroize();

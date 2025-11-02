@@ -24,17 +24,8 @@ pub struct JwtConfig {
     pub users: Vec<JwtUserConfig>,
 }
 
-impl JwtConfig {
-    /// Load configuration from TOML file
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, String> {
-        let content =
-            fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
-
-        toml::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))
-    }
-
-    /// Create default configuration
-    pub fn default() -> Self {
+impl Default for JwtConfig {
+    fn default() -> Self {
         Self {
             secret: "CHANGE_THIS_SECRET_IN_PRODUCTION".to_string(),
             users: vec![JwtUserConfig {
@@ -43,6 +34,16 @@ impl JwtConfig {
                 role: "admin".to_string(),
             }],
         }
+    }
+}
+
+impl JwtConfig {
+    /// Load configuration from TOML file
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, String> {
+        let content =
+            fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
+
+        toml::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))
     }
 
     /// Save configuration to file

@@ -1,5 +1,7 @@
 use crate::fips202::*;
-use crate::params::{CRHBYTES, SEEDBYTES};
+use crate::params::CRHBYTES;
+#[cfg(not(feature = "aes"))]
+use crate::params::SEEDBYTES;
 
 #[cfg(feature = "aes")]
 use crate::aes256ctr::*;

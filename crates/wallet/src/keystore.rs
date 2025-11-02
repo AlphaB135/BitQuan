@@ -226,9 +226,7 @@ pub fn write_keystore_file_atomic<P: AsRef<Path>>(
         .write(true)
         .truncate(true)
         .open(&tmp_path)?;
-    let json = ks
-        .to_json()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let json = ks.to_json().map_err(std::io::Error::other)?;
     f.write_all(json.as_bytes())?;
     f.flush()?;
     #[cfg(unix)]

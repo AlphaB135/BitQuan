@@ -33,10 +33,6 @@ crate-type = [
     "rlib",
 ]
 
-[[bench]]
-name = "api"
-harness = false
-
 [dependencies.getrandom]
 version = "0.2.10"
 features = ["js"]

@@ -601,21 +601,21 @@ mod tests {
     #[test]
     fn rejects_non_canonical_compact_uint() {
         // 253 encoding must not be used for values below 0xfd.
-        let invalid_fd = vec![0xfd, 0xfc, 0x00];
+        let invalid_fd = [0xfd, 0xfc, 0x00];
         assert!(matches!(
             CompactUint::decode(&mut &invalid_fd[..]),
             Err(WireError::InvalidFormat(_))
         ));
 
         // 254 encoding must not be used for <= 0xffff.
-        let invalid_fe = vec![0xfe, 0xff, 0xff, 0x00, 0x00];
+        let invalid_fe = [0xfe, 0xff, 0xff, 0x00, 0x00];
         assert!(matches!(
             CompactUint::decode(&mut &invalid_fe[..]),
             Err(WireError::InvalidFormat(_))
         ));
 
         // 255 encoding must not be used for <= 0xffff_ffff.
-        let invalid_ff = vec![0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00];
+        let invalid_ff = [0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00];
         assert!(matches!(
             CompactUint::decode(&mut &invalid_ff[..]),
             Err(WireError::InvalidFormat(_))

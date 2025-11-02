@@ -542,13 +542,10 @@ mod tests {
         // Empty tx has non-zero weight due to base structure
         // The zero-weight check is defensive programming for impossible cases
         // But we can verify the calculation works correctly
-        match result {
-            Ok(entry) => {
-                // Empty transaction should have minimal weight (base structure * 4)
-                assert!(entry.weight > 0);
-                assert!(entry.fee_per_weight > 0);
-            }
-            Err(_) => {} // Also acceptable if validation rejects it
+        if let Ok(entry) = result {
+            // Empty transaction should have minimal weight (base structure * 4)
+            assert!(entry.weight > 0);
+            assert!(entry.fee_per_weight > 0);
         }
     }
 

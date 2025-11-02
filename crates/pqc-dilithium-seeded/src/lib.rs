@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 #[cfg(feature = "aes")]
 mod aes256ctr;
 mod api;

@@ -1,16 +1,19 @@
-#[cfg(feature = "mode2")]
+#[cfg(all(feature = "mode2", not(feature = "mode5")))]
 mod mode_2;
 #[cfg(not(any(feature = "mode2", feature = "mode5")))]
 mod mode_3;
 #[cfg(feature = "mode5")]
 mod mode_5;
 
-#[cfg(feature = "mode2")]
-pub use mode_2::*;
-#[cfg(not(any(feature = "mode2", feature = "mode5")))]
-pub use mode_3::*;
 #[cfg(feature = "mode5")]
-pub use mode_5::*;
+use mode_5 as active_mode;
+#[cfg(all(not(feature = "mode5"), feature = "mode2"))]
+use mode_2 as active_mode;
+#[cfg(all(not(feature = "mode5"), not(feature = "mode2")))]
+use mode_3 as active_mode;
+
+pub use active_mode::*;
+use active_mode as mode_params;
 
 pub const SEEDBYTES: usize = 32;
 pub const CRHBYTES: usize = 64;
@@ -21,7 +24,8 @@ pub const ROOT_OF_UNITY: usize = 1753;
 
 pub const POLYT1_PACKEDBYTES: usize = 320;
 pub const POLYT0_PACKEDBYTES: usize = 416;
-pub const POLYVECH_PACKEDBYTES: usize = OMEGA + K;
+pub const POLYVECH_PACKEDBYTES: usize =
+  mode_params::OMEGA + mode_params::K;
 
 pub const POLYZ_PACKEDBYTES: usize =
   if cfg!(feature = "mode2") { 576 } else { 640 };
@@ -38,20 +42,22 @@ pub const POLYETA_PACKEDBYTES: usize =
 // Concise types to avoid cast cluttering
 pub const Q_I32: i32 = Q as i32;
 pub const N_U32: u32 = N as u32;
-pub const L_U16: u16 = L as u16;
-pub const BETA_I32: i32 = BETA as i32;
-pub const GAMMA1_I32: i32 = GAMMA1 as i32;
-pub const GAMMA2_I32: i32 = GAMMA2 as i32;
-pub const OMEGA_U8: u8 = OMEGA as u8;
-pub const ETA_I32: i32 = ETA as i32;
-pub const GAMMA1_SUB_BETA: i32 = (GAMMA1 - BETA) as i32;
+pub const L_U16: u16 = mode_params::L as u16;
+pub const BETA_I32: i32 = mode_params::BETA as i32;
+pub const GAMMA1_I32: i32 = mode_params::GAMMA1 as i32;
+pub const GAMMA2_I32: i32 = mode_params::GAMMA2 as i32;
+pub const OMEGA_U8: u8 = mode_params::OMEGA as u8;
+pub const ETA_I32: i32 = mode_params::ETA as i32;
+pub const GAMMA1_SUB_BETA: i32 =
+  (mode_params::GAMMA1 - mode_params::BETA) as i32;
 
-pub const PUBLICKEYBYTES: usize = SEEDBYTES + K * POLYT1_PACKEDBYTES;
+pub const PUBLICKEYBYTES: usize =
+  SEEDBYTES + mode_params::K * POLYT1_PACKEDBYTES;
 pub const SECRETKEYBYTES: usize = 3 * SEEDBYTES
-  + L * POLYETA_PACKEDBYTES
-  + K * POLYETA_PACKEDBYTES
-  + K * POLYT0_PACKEDBYTES;
+  + mode_params::L * POLYETA_PACKEDBYTES
+  + mode_params::K * POLYETA_PACKEDBYTES
+  + mode_params::K * POLYT0_PACKEDBYTES;
 pub const SIGNBYTES: usize =
-  SEEDBYTES + L * POLYZ_PACKEDBYTES + POLYVECH_PACKEDBYTES;
+  SEEDBYTES + mode_params::L * POLYZ_PACKEDBYTES + POLYVECH_PACKEDBYTES;
 
 pub const RANDOMIZED_SIGNING: bool = cfg!(feature = "random_signing");

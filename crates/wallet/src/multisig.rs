@@ -128,8 +128,8 @@ impl MultisigConfig {
     /// Returns the multisig address (hash of the configuration).
     pub fn address(&self) -> String {
         let mut hasher = Sha256::new();
-        hasher.update(&[self.required_sigs]);
-        hasher.update(&[self.total_signers]);
+        hasher.update([self.required_sigs]);
+        hasher.update([self.total_signers]);
 
         for pk in &self.public_keys {
             hasher.update(pk.as_bytes());

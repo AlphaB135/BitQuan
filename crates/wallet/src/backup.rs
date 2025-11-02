@@ -18,7 +18,6 @@ use zeroize::Zeroize;
 
 const SALT_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
-const MAC_LEN: usize = 32;
 
 /// Network type for backup
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

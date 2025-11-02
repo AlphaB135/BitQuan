@@ -76,8 +76,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     /// Start serving requests (blocking)
     pub fn serve(&self) -> std::io::Result<()> {
         if self.force_tls && self.tls.is_none() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "TLS is required but no TLS configuration was provided",
             ));
         }
@@ -161,16 +160,19 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             let peer_ip = peer
                 .or_else(|| stream.peer_addr().ok().map(|addr| addr.ip()))
                 .unwrap_or(IpAddr::from([127, 0, 0, 1]));
+            let options = ConnectionOptions {
+                config: &config,
+                limiter: &limiter,
+                auth_backoff: &auth_backoff,
+                tls: tls.as_ref(),
+                force_tls,
+            };
             if let Err(e) = handle_connection(
                 stream,
                 peer_ip,
                 handler.as_ref(),
-                auth.as_ref(), // Now AuthMethod instead of RpcAuth
-                &config,
-                &limiter,
-                &auth_backoff,
-                tls.as_ref(),
-                force_tls,
+                auth.as_ref(),
+                options,
             ) {
                 eprintln!("Error handling connection: {}", e);
             }
@@ -178,10 +180,18 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     }
 }
 
+struct ConnectionOptions<'a> {
+    config: &'a RpcConfig,
+    limiter: &'a Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    auth_backoff: &'a Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
+    tls: Option<&'a Arc<TlsConfig>>,
+    force_tls: bool,
+}
+
 /// Abstraction over plain TCP and TLS-encrypted RPC streams.
 enum RpcStream {
     Plain(TcpStream),
-    Tls(StreamOwned<ServerConnection, TcpStream>),
+    Tls(Box<StreamOwned<ServerConnection, TcpStream>>),
 }
 
 impl RpcStream {
@@ -238,12 +248,12 @@ impl Write for RpcStream {
 fn upgrade_to_tls(stream: TcpStream, tls_config: &TlsConfig) -> std::io::Result<RpcStream> {
     let server_config = tls_config.server_config();
     let connection = ServerConnection::new(server_config)
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        .map_err(std::io::Error::other)?;
     let mut tls_stream = StreamOwned::new(connection, stream);
     while tls_stream.conn.is_handshaking() {
         tls_stream.conn.complete_io(&mut tls_stream.sock)?;
     }
-    Ok(RpcStream::Tls(tls_stream))
+    Ok(RpcStream::Tls(Box::new(tls_stream)))
 }
 
 fn handle_connection<T: methods::RpcMethods>(
@@ -251,15 +261,18 @@ fn handle_connection<T: methods::RpcMethods>(
     peer_ip: IpAddr,
     handler: &T,
     auth: Option<&AuthMethod>,
-    config: &RpcConfig,
-    limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
-    auth_backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
-    tls: Option<&Arc<TlsConfig>>,
-    force_tls: bool,
+    options: ConnectionOptions<'_>,
 ) -> std::io::Result<()> {
     let start = Instant::now();
+    let config = options.config;
+    let limiter = options.limiter;
+    let auth_backoff = options.auth_backoff;
+    let tls = options.tls;
+    let force_tls = options.force_tls;
     stream.set_nonblocking(false)?;
-    stream.set_read_timeout(Some(Duration::from_millis(config.header_read_timeout_ms)))?;
+    stream.set_read_timeout(Some(Duration::from_millis(
+        config.header_read_timeout_ms,
+    )))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
 
     // Check TLS enforcement with self-signed validation
@@ -267,8 +280,7 @@ fn handle_connection<T: methods::RpcMethods>(
         (Some(tls_config), _) => {
             // Validate self-signed cert not allowed on mainnet
             if tls_config.is_self_signed() && !config.allow_self_signed {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::PermissionDenied,
+                return Err(std::io::Error::other(
                     "Self-signed certificates not allowed in production",
                 ));
             }
@@ -287,7 +299,9 @@ fn handle_connection<T: methods::RpcMethods>(
         (None, false) => RpcStream::Plain(stream),
     };
 
-    channel.set_read_timeout(Some(Duration::from_millis(config.header_read_timeout_ms)))?;
+    channel.set_read_timeout(Some(Duration::from_millis(
+        config.header_read_timeout_ms,
+    )))?;
     channel.set_write_timeout(Some(Duration::from_secs(5)))?;
 
     let mut buf_reader = BufReader::new(&mut channel);

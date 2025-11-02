@@ -173,9 +173,7 @@ fn saturating_div(value: f64, divisor: f64, min_target: f64) -> f64 {
         return clamp_target(value, min_target, f64::MAX);
     }
     let result = value / divisor;
-    if !result.is_finite() || result.is_nan() {
-        min_target
-    } else if result < min_target {
+    if !result.is_finite() || result < min_target {
         min_target
     } else {
         result
