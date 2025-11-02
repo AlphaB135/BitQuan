@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction, TxContext};
+use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction};
 use pqc_dilithium_seeded as dilithium;
 use thiserror::Error;
 
@@ -20,9 +20,6 @@ pub enum CryptoError {
     /// The signature payload is malformed or inconsistent.
     #[error("malformed signature payload: {0}")]
     Malformed(&'static str),
-    /// Signature hash computation failed.
-    #[error("sighash error: {0}")]
-    Sighash(String),
 }
 
 /// Trait implemented by concrete signature scheme providers.
@@ -69,34 +66,11 @@ impl CryptoRegistry {
             .map(|provider| provider.as_ref())
     }
 
-    /// Verifies all signatures in a transaction using the configured provider.
+    /// Verifies all signatures in a transaction using a pre-computed message digest.
     ///
-    /// This method computes the transaction sighash using the provided context
-    /// and verifies all witness signatures against that hash.
-    pub fn verify_transaction(&self, tx: &Transaction, ctx: &TxContext) -> Result<(), CryptoError> {
-        // Compute sighash using consensus algorithm
-        let message_digest = bitquan_consensus::transaction_sighash(tx, ctx)
-            .map_err(|e| CryptoError::Sighash(e.to_string()))?;
-
-        let provider = self
-            .provider_for(tx.sig_algo)
-            .ok_or(CryptoError::NotImplemented(tx.sig_algo))?;
-
-        for witness in &tx.witnesses {
-            for payload in &witness.signatures {
-                provider.verify(payload, &message_digest)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Verifies all signatures in a transaction using a pre-computed digest (legacy).
-    ///
-    /// DEPRECATED: Use verify_transaction with TxContext instead.
-    /// This method is kept for backward compatibility.
-    #[deprecated(note = "Use verify_transaction with TxContext")]
-    pub fn verify_transaction_with_digest(
+    /// Note: The caller is responsible for computing the correct sighash.
+    /// For block validation, use the helpers in the consensus crate.
+    pub fn verify_transaction(
         &self,
         tx: &Transaction,
         message_digest: &[u8],
@@ -163,13 +137,13 @@ impl SignatureScheme for DilithiumProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, TxIn, TxOut};
+    use bitquan_types::{SigAlgorithm, TxIn, TxOut};
 
-    fn create_test_transaction(network: NetworkId, genesis_hash: [u8; 32]) -> Transaction {
+    fn create_test_transaction() -> Transaction {
         Transaction {
             version: 1,
-            network,
-            genesis_hash,
+            network: bitquan_types::NetworkId::Devnet,
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![TxIn {
                 prev_txid: [0x42; 32],
@@ -193,95 +167,23 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_transaction_with_context() {
+    fn test_verify_transaction_with_digest() {
         let registry = CryptoRegistry::with_default_providers();
-        let ctx = TxContext::new(NetworkId::Devnet, GENESIS_HASH_BYTES);
-        let tx = create_test_transaction(NetworkId::Devnet, GENESIS_HASH_BYTES);
+        let tx = create_test_transaction();
+        let dummy_digest = [0u8; 32];
 
         // Transaction with no witnesses should verify successfully (no signatures to check)
-        let result = registry.verify_transaction(&tx, &ctx);
+        let result = registry.verify_transaction(&tx, &dummy_digest);
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_context_network_mismatch() {
-        let registry = CryptoRegistry::with_default_providers();
-
-        // Create transaction for devnet
-        let tx = create_test_transaction(NetworkId::Devnet, GENESIS_HASH_BYTES);
-
-        // Try to verify with mainnet context
-        let ctx = TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
-
-        let result = registry.verify_transaction(&tx, &ctx);
-
-        // Should fail due to network mismatch
-        assert!(result.is_err());
-        if let Err(CryptoError::Sighash(msg)) = result {
-            assert!(msg.contains("network mismatch") || msg.contains("Network"));
-        } else {
-            panic!("Expected Sighash error with network mismatch");
-        }
-    }
-
-    #[test]
-    fn test_context_genesis_mismatch() {
-        let registry = CryptoRegistry::with_default_providers();
-
-        // Create transaction with genesis A
-        let genesis_a = [0xAA; 32];
-        let tx = create_test_transaction(NetworkId::Devnet, genesis_a);
-
-        // Try to verify with genesis B
-        let genesis_b = [0xBB; 32];
-        let ctx = TxContext::new(NetworkId::Devnet, genesis_b);
-
-        let result = registry.verify_transaction(&tx, &ctx);
-
-        // Should fail due to genesis mismatch
-        assert!(result.is_err());
-        if let Err(CryptoError::Sighash(msg)) = result {
-            assert!(msg.contains("genesis mismatch") || msg.contains("genesis"));
-        } else {
-            panic!("Expected Sighash error with genesis mismatch");
-        }
-    }
-
-    #[test]
-    fn test_different_networks_different_verification() {
-        let registry = CryptoRegistry::with_default_providers();
-
-        let tx_mainnet = create_test_transaction(NetworkId::Mainnet, GENESIS_HASH_BYTES);
-        let tx_testnet = create_test_transaction(NetworkId::Testnet, GENESIS_HASH_BYTES);
-
-        let ctx_mainnet = TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
-        let ctx_testnet = TxContext::new(NetworkId::Testnet, GENESIS_HASH_BYTES);
-
-        // Each transaction should verify with its own context
-        assert!(registry
-            .verify_transaction(&tx_mainnet, &ctx_mainnet)
-            .is_ok());
-        assert!(registry
-            .verify_transaction(&tx_testnet, &ctx_testnet)
-            .is_ok());
-
-        // Cross-network verification should fail
-        assert!(registry
-            .verify_transaction(&tx_mainnet, &ctx_testnet)
-            .is_err());
-        assert!(registry
-            .verify_transaction(&tx_testnet, &ctx_mainnet)
-            .is_err());
     }
 
     #[test]
     fn test_not_implemented_algorithm() {
         let registry = CryptoRegistry::new(); // No providers registered
+        let tx = create_test_transaction();
+        let dummy_digest = [0u8; 32];
 
-        let ctx = TxContext::new(NetworkId::Devnet, GENESIS_HASH_BYTES);
-        let tx = create_test_transaction(NetworkId::Devnet, GENESIS_HASH_BYTES);
-
-        let result = registry.verify_transaction(&tx, &ctx);
+        let result = registry.verify_transaction(&tx, &dummy_digest);
 
         // Should fail with NotImplemented
         assert!(result.is_err());
@@ -289,5 +191,21 @@ mod tests {
             result.unwrap_err(),
             CryptoError::NotImplemented(_)
         ));
+    }
+
+    #[test]
+    fn test_provider_lookup() {
+        let registry = CryptoRegistry::with_default_providers();
+
+        // Dilithium3 should be available
+        assert!(registry.provider_for(SigAlgorithm::Dilithium3).is_some());
+    }
+
+    #[test]
+    fn test_empty_registry() {
+        let registry = CryptoRegistry::new();
+
+        // No providers registered
+        assert!(registry.provider_for(SigAlgorithm::Dilithium3).is_none());
     }
 }

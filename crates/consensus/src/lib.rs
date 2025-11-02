@@ -271,7 +271,9 @@ pub fn validate_block(
 
     // Verify all transaction signatures
     for tx in &block.transactions {
-        registry.verify_transaction(tx, &ctx)?;
+        let digest = transaction_sighash(tx, &ctx)
+            .map_err(|e| ConsensusError::InvalidSignature(e.to_string()))?;
+        registry.verify_transaction(tx, &digest)?;
     }
 
     Ok(BlockValidationReport {
@@ -279,6 +281,20 @@ pub fn validate_block(
         signature_count,
         block_subsidy,
     })
+}
+
+/// Validates a transaction's signatures using TxContext.
+///
+/// This is a convenience function that combines sighash computation and signature verification.
+pub fn validate_transaction_signatures(
+    tx: &bitquan_types::Transaction,
+    ctx: &bitquan_types::TxContext,
+    registry: &CryptoRegistry,
+) -> Result<(), ConsensusError> {
+    let digest = transaction_sighash(tx, ctx)
+        .map_err(|e| ConsensusError::InvalidSignature(e.to_string()))?;
+    registry.verify_transaction(tx, &digest)?;
+    Ok(())
 }
 
 /// Consensus engine bundling parameters, crypto registry, and RNG state.

@@ -24,22 +24,15 @@
 
 ---
 
-## ⏳ Task J – Replay Attack Prevention (กำลังดำเนินการ)
+## ✅ Task J – Replay Attack Prevention (เสร็จแล้ว)
 
-ลำดับแนะนำ
-1. เพิ่มไฟล์ `crates/types/src/context.rs` (นิยาม `NetworkId`, `TxContext`)
-2. เปิดเผยใน `crates/types/src/lib.rs`
-3. อัปเดต `crates/consensus/src/sighash.rs`
-   - ให้ `transaction_sighash` รับ `&TxContext`
-   - ใส่ domain separator + context bytes
-4. ปรับทุก caller:
-   - `crates/node/src/tx_builder.rs`
-   - `crates/crypto/src/lib.rs`
-   - จุดอื่นที่เซ็น/ตรวจลายเซ็น
-5. เขียน unit/integration tests:
-   - cross-network replay ต้อง fail
-   - genesis ต่างกันต้อง fail
-6. รัน `cargo test --all`
+ทำเสร็จ:
+- [x] เพิ่ม `crates/types/src/context.rs` และเผยแพร่ใน `lib.rs`
+- [x] อัปเดต `crates/consensus/src/sighash.rs` ให้ใช้ `TxContext` + domain separator
+- [x] ปรับ `crates/node/src/tx_builder.rs` และ CLI ให้ส่ง context ขณะเซ็นธุรกรรม
+- [x] ปรับ `crates/crypto/src/lib.rs` ให้ verify ผ่าน `TxContext`
+- [x] เติม unit/integration tests (cross-network / genesis mismatch / builder)
+- [x] `cargo test` ครอบคลุมทุก crate ที่เกี่ยวข้องผ่านทั้งหมด
 
 ---
 

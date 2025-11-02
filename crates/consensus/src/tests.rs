@@ -1,6 +1,6 @@
 use super::*;
-use bitquan_types::genesis::GENESIS_HASH_BYTES;
-use bitquan_types::NetworkId;
+use bitquan_types::genesis::{self, GENESIS_HASH_BYTES};
+use bitquan_types::{NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
 
 #[test]
 fn subsidy_initial_and_halving() {
@@ -278,10 +278,7 @@ fn test_transaction_and_block_hash_determinism() {
     let ctx = bitquan_types::TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
     let expected_tx_hash = transaction_sighash(&tx, &ctx).unwrap();
     for _ in 0..32 {
-        assert_eq!(
-            transaction_sighash(&tx, &ctx).unwrap(),
-            expected_tx_hash
-        );
+        assert_eq!(transaction_sighash(&tx, &ctx).unwrap(), expected_tx_hash);
     }
 
     // Build a block and ensure header hashing is deterministic as well.
@@ -757,4 +754,110 @@ fn test_validate_block_weight_overflow() {
         Ok(_) => panic!("Expected error for massive block"),
         Err(e) => panic!("Unexpected error: {:?}", e),
     }
+}
+
+#[test]
+fn test_validate_transaction_signatures_with_valid_context() {
+    use crate::validate_transaction_signatures;
+    use bq_crypto::CryptoRegistry;
+
+    let registry = CryptoRegistry::with_default_providers();
+    let ctx = bitquan_types::TxContext::new(NetworkId::Devnet, genesis::GENESIS_HASH_BYTES);
+
+    // Create a transaction with no witnesses (no signatures to verify)
+    let tx = Transaction {
+        version: 1,
+        network: NetworkId::Devnet,
+        genesis_hash: genesis::GENESIS_HASH_BYTES,
+        lock_time: 0,
+        inputs: vec![TxIn {
+            prev_txid: [0x42; 32],
+            prev_vout: 0,
+            sequence: 0xffffffff,
+            script_sig: vec![],
+        }],
+        outputs: vec![TxOut {
+            value: 1000,
+            script_pubkey: vec![0x51],
+        }],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses: vec![],
+    };
+
+    // Should succeed (no signatures to verify)
+    let result = validate_transaction_signatures(&tx, &ctx, &registry);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_validate_transaction_signatures_network_mismatch() {
+    use crate::validate_transaction_signatures;
+    use bq_crypto::CryptoRegistry;
+
+    let registry = CryptoRegistry::with_default_providers();
+
+    // Transaction for devnet
+    let tx = Transaction {
+        version: 1,
+        network: NetworkId::Devnet,
+        genesis_hash: genesis::GENESIS_HASH_BYTES,
+        lock_time: 0,
+        inputs: vec![TxIn {
+            prev_txid: [0x42; 32],
+            prev_vout: 0,
+            sequence: 0xffffffff,
+            script_sig: vec![],
+        }],
+        outputs: vec![TxOut {
+            value: 1000,
+            script_pubkey: vec![0x51],
+        }],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses: vec![],
+    };
+
+    // Context for mainnet (mismatch)
+    let ctx = bitquan_types::TxContext::new(NetworkId::Mainnet, genesis::GENESIS_HASH_BYTES);
+
+    // Should fail due to network mismatch
+    let result = validate_transaction_signatures(&tx, &ctx, &registry);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_validate_transaction_signatures_genesis_mismatch() {
+    use crate::validate_transaction_signatures;
+    use bq_crypto::CryptoRegistry;
+
+    let registry = CryptoRegistry::with_default_providers();
+
+    let genesis_a = [0xAA; 32];
+    let genesis_b = [0xBB; 32];
+
+    // Transaction with genesis A
+    let tx = Transaction {
+        version: 1,
+        network: NetworkId::Devnet,
+        genesis_hash: genesis_a,
+        lock_time: 0,
+        inputs: vec![TxIn {
+            prev_txid: [0x42; 32],
+            prev_vout: 0,
+            sequence: 0xffffffff,
+            script_sig: vec![],
+        }],
+        outputs: vec![TxOut {
+            value: 1000,
+            script_pubkey: vec![0x51],
+        }],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses: vec![],
+    };
+
+    // Context with genesis B (mismatch)
+    let ctx = bitquan_types::TxContext::new(NetworkId::Devnet, genesis_b);
+
+    // Should fail due to genesis mismatch
+    let result = validate_transaction_signatures(&tx, &ctx, &registry);
+    assert!(result.is_err());
 }
