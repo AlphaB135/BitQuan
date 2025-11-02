@@ -97,6 +97,7 @@ jobs:
           certutil -hashfile ${{ matrix.asset_name }}.zip SHA512 > ${{ matrix.asset_name }}.zip.sha512
       
       - name: Upload assets to release
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
