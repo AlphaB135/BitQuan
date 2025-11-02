@@ -1,0 +1,28 @@
+name: Known Answer Tests
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches: [ master ] 
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        toolchain: [stable, 1.50.0] # MSRV
+      
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      - name: KAT Matrix
+        shell: bash
+        working-directory: tests
+        run: chmod +x test_matrix.sh && ./test_matrix.sh
