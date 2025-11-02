@@ -1,0 +1,45 @@
+
+### Added - Wallet Backup & Restore (2025-11-02)
+
+**Q) Secure Wallet Backup System - COMPLETE**
+
+- **Backup Module** (`crates/wallet/src/backup.rs`)
+  - AES-256-GCM encryption with separate backup password
+  - HMAC-SHA256 tamper detection
+  - Argon2id KDF (64 MiB memory cost)
+  - Metadata preservation (version, network, timestamp, label)
+  - Atomic file writes for safety
+
+- **CLI Commands**
+  - `wallet-backup` - Create encrypted backup
+  - `wallet-restore` - Restore from backup
+  - Interactive password prompts
+  - Overwrite protection
+
+- **Tests** (6/6 passing)
+  - Round-trip backup/restore
+  - Wrong password detection
+  - Tamper detection
+  - File save/load
+  - Version checking
+  - Metadata preservation
+
+- **Documentation**
+  - `docs/wallet/backup.md` - Complete usage guide
+  - Best practices and security considerations
+  - FAQ and troubleshooting
+
+**Security Features:**
+- Two-layer encryption (wallet + backup passwords)
+- Stronger KDF than keystore (64 MiB vs 32 MiB)
+- Cryptographic verification of integrity
+- Version control for forward compatibility
+
+**Files Modified:**
+- `crates/wallet/src/backup.rs` (NEW - 427 lines)
+- `crates/wallet/src/lib.rs` (+ backup export)
+- `crates/wallet/Cargo.toml` (+ sha2 dependency)
+- `crates/node/src/main.rs` (+ CLI commands)
+- `crates/node/Cargo.toml` (+ rpassword dependency)
+- `docs/wallet/backup.md` (NEW)
+

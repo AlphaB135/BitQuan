@@ -2,6 +2,7 @@
 
 mod address;
 mod keystore;
+mod logging;
 mod mnemonic;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
@@ -9,7 +10,7 @@ mod tx_builder;
 mod utxo;
 mod wallet;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
     target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
@@ -36,6 +37,7 @@ use bq_crypto::{
 use clap::{Parser, Subcommand};
 use hex::encode as hex_encode;
 use std::collections::VecDeque;
+use std::io::Write;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::str::FromStr;
 use std::thread;
@@ -207,6 +209,36 @@ enum Commands {
         /// Password to encrypt the keystore (interactive prompt if not provided)
         #[arg(long)]
         password: Option<String>,
+    },
+    /// Create encrypted backup of wallet keystore
+    WalletBackup {
+        /// Path to wallet keystore file
+        #[arg(long)]
+        keystore: String,
+        /// Output backup file path
+        #[arg(long)]
+        output: String,
+        /// Backup password (separate from wallet password, will prompt if not provided)
+        #[arg(long)]
+        backup_password: Option<String>,
+        /// Network: mainnet, testnet, or devnet
+        #[arg(long, default_value = "mainnet")]
+        network: String,
+        /// Optional backup label
+        #[arg(long)]
+        label: Option<String>,
+    },
+    /// Restore wallet from encrypted backup
+    WalletRestore {
+        /// Path to backup file
+        #[arg(long)]
+        backup: String,
+        /// Output keystore path
+        #[arg(long)]
+        output: String,
+        /// Backup password (will prompt if not provided)
+        #[arg(long)]
+        backup_password: Option<String>,
     },
     /// Generate multi-signature wallet address
     WalletGenMultisig {
@@ -506,6 +538,9 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
+    // Install panic hook for better crash reporting
+    install_panic_hook();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -571,6 +606,24 @@ fn main() -> Result<()> {
             output.as_deref(),
             password.as_deref(),
         ),
+        Commands::WalletBackup {
+            keystore,
+            output,
+            backup_password,
+            network,
+            label,
+        } => wallet_backup(
+            &keystore,
+            &output,
+            backup_password.as_deref(),
+            &network,
+            label.clone(),
+        ),
+        Commands::WalletRestore {
+            backup,
+            output,
+            backup_password,
+        } => wallet_restore(&backup, &output, backup_password.as_deref()),
         Commands::WalletGenMultisig {
             threshold,
             keystores,
@@ -2238,7 +2291,7 @@ fn generate_self_signed_cert_cli(output_dir: &str) -> Result<()> {
     );
     println!();
     println!("To start the node with TLS:");
-    println!("  bitquan-node p2p-server \\\n    --rpc-listen 127.0.0.1:8332 \\\n    --rpc-username admin \\\n    --rpc-password secret \\\n    --rpc-tls-cert {}/cert.pem \\\n    --rpc-tls-key {}/key.pem", path.display(), path.display());
+    println!("  bitquan-node p2p-server \\\n    --rpc-listen 127.0.0.1:8332 \\\n    --rpc-username admin \\\n    --rpc-password <YOUR_PASSWORD> \\\n    --rpc-tls-cert {}/cert.pem \\\n    --rpc-tls-key {}/key.pem", path.display(), path.display()); // Safe: example placeholder
 
     Ok(())
 }
@@ -2473,16 +2526,25 @@ fn wallet_gen_mnemonic(
 
     // Show mnemonic to user
     if show_mnemonic {
+        eprintln!("\n⚠️  SECURITY WARNING: Mnemonic phrase will be displayed!");
+        eprintln!("   - Do NOT log terminal output");
+        eprintln!("   - Do NOT screenshot this");
+        eprintln!("   - Ensure nobody is watching your screen\n");
+
         println!("\n🔑 Your BIP39 Mnemonic Phrase:");
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         println!("{}", mnemonic_phrase);
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("\n⚠️  IMPORTANT:");
-        println!("   - Write down these words in order");
-        println!("   - Store them in a safe place");
+        println!("\n⚠️  CRITICAL SECURITY:");
+        println!("   - Write down these words in order on paper");
+        println!("   - Store them in a safe place (NOT digitally)");
         println!("   - Never share them with anyone");
+        println!("   - Never enter them on websites or apps");
         println!("   - You need these words to recover your wallet");
         println!();
+    } else {
+        println!("✅ Mnemonic generated (hidden for security)");
+        println!("   Use --show-mnemonic flag to display (NOT recommended in production)");
     }
 
     // Derive keypair
@@ -2721,4 +2783,153 @@ fn tx_combine_signatures(
     println!("   use wallet::multisig::{{MultisigWallet, FinalizedMultisigTx}};");
 
     anyhow::bail!("Feature coming soon: signature combination")
+}
+
+/// Create encrypted backup of wallet keystore
+fn wallet_backup(
+    keystore_path: &str,
+    output_path: &str,
+    backup_password: Option<&str>,
+    network: &str,
+    label: Option<String>,
+) -> Result<()> {
+    use ::wallet::backup::{Network, WalletBackup};
+    use std::fs;
+
+    // Read keystore file
+    let keystore_data = fs::read(keystore_path)
+        .with_context(|| format!("Failed to read keystore: {}", keystore_path))?;
+
+    // Get backup password
+    let backup_pw = match backup_password {
+        Some(pw) => pw.to_string(),
+        None => {
+            print!("Enter backup password: ");
+            std::io::stdout().flush()?;
+            rpassword::read_password()?
+        }
+    };
+
+    // Parse network
+    let net = match network.to_lowercase().as_str() {
+        "mainnet" => Network::Mainnet,
+        "testnet" => Network::Testnet,
+        "devnet" => Network::Devnet,
+        _ => bail!(
+            "Invalid network: {} (use mainnet, testnet, or devnet)",
+            network
+        ),
+    };
+
+    // Create backup
+    println!("Creating encrypted backup...");
+    let backup = WalletBackup::create(&keystore_data, &backup_pw, net, label)
+        .map_err(|e| anyhow!("Backup creation failed: {}", e))?;
+
+    // Save to file
+    backup
+        .save(output_path)
+        .with_context(|| format!("Failed to save backup: {}", output_path))?;
+
+    println!("✅ Backup created successfully: {}", output_path);
+    println!("   Version: {}", backup.version);
+    println!("   Network: {:?}", backup.network);
+    println!("   Timestamp: {}", backup.timestamp);
+    if let Some(lbl) = backup.label {
+        println!("   Label: {}", lbl);
+    }
+    println!("\n⚠️  IMPORTANT: Store backup password separately and securely!");
+
+    Ok(())
+}
+
+/// Restore wallet from encrypted backup
+fn wallet_restore(
+    backup_path: &str,
+    output_path: &str,
+    backup_password: Option<&str>,
+) -> Result<()> {
+    use ::wallet::backup::WalletBackup;
+    use std::fs;
+
+    // Load backup
+    println!("Loading backup file...");
+    let backup = WalletBackup::load(backup_path)
+        .with_context(|| format!("Failed to load backup: {}", backup_path))?;
+
+    println!("Backup information:");
+    println!("   Version: {}", backup.version);
+    println!("   Network: {:?}", backup.network);
+    println!("   Timestamp: {}", backup.timestamp);
+    if let Some(ref label) = backup.label {
+        println!("   Label: {}", label);
+    }
+
+    // Get backup password
+    let backup_pw = match backup_password {
+        Some(pw) => pw.to_string(),
+        None => {
+            print!("\nEnter backup password: ");
+            std::io::stdout().flush()?;
+            rpassword::read_password()?
+        }
+    };
+
+    // Restore
+    println!("Decrypting and restoring wallet...");
+    let keystore_data = backup
+        .restore(&backup_pw)
+        .map_err(|e| anyhow!("Restore failed: {}", e))?;
+
+    // Check if output exists
+    if std::path::Path::new(output_path).exists() {
+        print!("⚠️  Output file exists. Overwrite? (y/N): ");
+        std::io::stdout().flush()?;
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        if !input.trim().eq_ignore_ascii_case("y") {
+            bail!("Restore cancelled");
+        }
+    }
+
+    // Write keystore
+    fs::write(output_path, keystore_data)
+        .with_context(|| format!("Failed to write keystore: {}", output_path))?;
+
+    println!("✅ Wallet restored successfully: {}", output_path);
+    println!("\n⚠️  Remember to use your original wallet password to access this keystore.");
+
+    Ok(())
+}
+
+/// Install panic hook for better crash reporting
+fn install_panic_hook() {
+    std::panic::set_hook(Box::new(|panic_info| {
+        eprintln!("\n════════════════════════════════════════════════════════════");
+        eprintln!("💥 PANIC: BitQuan node has crashed!");
+        eprintln!("════════════════════════════════════════════════════════════");
+
+        if let Some(location) = panic_info.location() {
+            eprintln!(
+                "Location: {}:{}:{}",
+                location.file(),
+                location.line(),
+                location.column()
+            );
+        }
+
+        if let Some(msg) = panic_info.payload().downcast_ref::<&str>() {
+            eprintln!("Message: {}", msg);
+        } else if let Some(msg) = panic_info.payload().downcast_ref::<String>() {
+            eprintln!("Message: {}", msg);
+        }
+
+        eprintln!("\n🔧 Please report this issue:");
+        eprintln!("   https://github.com/your-org/bitquan/issues");
+        eprintln!("\n💡 Include:");
+        eprintln!("   - This error message");
+        eprintln!("   - Steps to reproduce");
+        eprintln!("   - Your configuration (without secrets)");
+        eprintln!("════════════════════════════════════════════════════════════\n");
+    }));
 }

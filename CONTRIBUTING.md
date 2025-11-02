@@ -21,3 +21,37 @@ We welcome contributions that help deliver a post-quantum secure blockchain. Bef
 - Expect at least two maintainer approvals before merging.
 
 Thanks for helping secure BitQuan for the next 50+ years.
+
+## Logging Security
+
+**CRITICAL**: Never log sensitive data!
+
+### ❌ Forbidden
+- Private keys, passwords, mnemonics
+- JWT tokens, API keys
+- Any secret material
+
+### ✅ Safe Logging Patterns
+
+```rust
+// Use fingerprints for debugging
+use crate::logging::fingerprint;
+println!("Key loaded: {}", fingerprint(&key));
+
+// Sanitize user input
+use crate::logging::sanitize_for_log;
+println!("User: {}", sanitize_for_log(&username));
+
+// Mask secrets if needed
+use crate::logging::mask_secret;
+println!("Token: {}", mask_secret(&token, 4));
+```
+
+### Audit Before Commit
+
+```bash
+./scripts/audit-logs.sh
+```
+
+See [LOGGING_POLICY.md](docs/LOGGING_POLICY.md) for details.
+
