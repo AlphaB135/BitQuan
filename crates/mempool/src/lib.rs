@@ -268,14 +268,16 @@ impl Mempool {
     /// Selects transactions for block template (up to max_weight).
     pub fn select_for_block(&mut self, max_weight: usize) -> Vec<Transaction> {
         let mut selected = Vec::new();
-        let mut total_weight = 0;
+        let mut total_weight: usize = 0;
 
         // Iterate from highest fee rate to lowest
         for (_fee_rate, entries) in self.entries.iter().rev() {
             for entry in entries {
-                if total_weight + entry.weight <= max_weight {
+                // Use saturating_add to prevent overflow
+                let new_weight = total_weight.saturating_add(entry.weight);
+                if new_weight <= max_weight {
                     selected.push(entry.tx.clone());
-                    total_weight += entry.weight;
+                    total_weight = new_weight;
                 }
 
                 if total_weight >= max_weight {

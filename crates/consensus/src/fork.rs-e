@@ -196,19 +196,33 @@ impl ForkChoice {
             Some(tip_hash) => {
                 let tip = self.nodes.get(&tip_hash).ok_or(ForkError::InvalidWork)?;
 
+                #[cfg(test)]
+                eprintln!("is_better_tip: new_work={:.6}, tip_work={:.6}, new_height={}, tip_height={}, new_time={}, tip_time={}",
+                          node.chain_work, tip.chain_work, node.height, tip.height, node.header.time, tip.header.time);
+
                 // Compare chain work (more work = better)
                 if node.chain_work > tip.chain_work {
+                    #[cfg(test)]
+                    eprintln!("  -> YES (more work)");
                     Ok(true)
                 } else if (node.chain_work - tip.chain_work).abs() < 1e-10 {
                     // Equal work: tie-breaking rules
                     if node.header.time != tip.header.time {
                         // Rule 1: prefer earlier timestamp
-                        Ok(node.header.time < tip.header.time)
+                        let result = node.header.time < tip.header.time;
+                        #[cfg(test)]
+                        eprintln!("  -> {} (tie-break by timestamp)", if result { "YES" } else { "NO" });
+                        Ok(result)
                     } else {
                         // Rule 2: prefer lower hash (deterministic)
-                        Ok(node.hash < tip.hash)
+                        let result = node.hash < tip.hash;
+                        #[cfg(test)]
+                        eprintln!("  -> {} (tie-break by hash)", if result { "YES" } else { "NO" });
+                        Ok(result)
                     }
                 } else {
+                    #[cfg(test)]
+                    eprintln!("  -> NO (less work)");
                     Ok(false)
                 }
             }
@@ -297,11 +311,19 @@ impl ForkChoice {
         old_path.reverse();
         new_path.reverse();
 
+        #[cfg(test)]
+        eprintln!("find_fork_point: old_path len={}, new_path len={}", old_path.len(), new_path.len());
+
         // Find the fork point (last common ancestor)
+        // We iterate and keep the last index where blocks match
         let mut fork_idx = 0;
         let min_len = old_path.len().min(new_path.len());
         
         for i in 0..min_len {
+            #[cfg(test)]
+            eprintln!("  i={}: old={:?}, new={:?}, match={}", 
+                      i, &old_path[i][..4], &new_path[i][..4], old_path[i] == new_path[i]);
+            
             if old_path[i] == new_path[i] {
                 fork_idx = i;  // This is still common
             } else {
@@ -310,6 +332,10 @@ impl ForkChoice {
         }
 
         let fork_point = old_path[fork_idx];
+
+        #[cfg(test)]
+        eprintln!("  fork_idx={}, old_blocks={}, new_blocks={}", 
+                  fork_idx, old_path.len() - fork_idx - 1, new_path.len() - fork_idx - 1);
 
         // Blocks to disconnect (from old tip down to fork point, excluding fork point)
         // We need to reverse because old_path is [genesis...tip] after reverse
@@ -612,7 +638,7 @@ mod tests {
         // Chain C: 4 blocks (reorg #2)
         let mut prev_c = genesis_hash;
         for i in 20..=23 {
-            let block = make_header(prev_c, 0x207fffff, i as u32, i);
+            let block = make_header(prev_c, 0x207fffff, i);
             fc.add_block(block.clone()).unwrap();
             prev_c = header_hash(&block);
         }
