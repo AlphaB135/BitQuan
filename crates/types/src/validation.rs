@@ -97,7 +97,7 @@ pub enum ValidationError {
 /// Validates a transaction for structural correctness
 pub fn validate_transaction(tx: &Transaction) -> Result<(), ValidationError> {
     // Check size
-    let size = tx.serialized_size_hint();
+    let size = tx.serialized_size_hint()?;
     if size > MAX_TX_SIZE {
         return Err(ValidationError::TransactionTooLarge(size, MAX_TX_SIZE));
     }
@@ -166,7 +166,7 @@ pub fn validate_transaction(tx: &Transaction) -> Result<(), ValidationError> {
     }
 
     // Check signature operations count
-    let sig_ops = tx.signature_count();
+    let sig_ops = tx.signature_count()?;
     if sig_ops > MAX_SIG_OPS_PER_TX {
         return Err(ValidationError::TooManySigOps(sig_ops, MAX_SIG_OPS_PER_TX));
     }
@@ -177,7 +177,7 @@ pub fn validate_transaction(tx: &Transaction) -> Result<(), ValidationError> {
 /// Validates a block for structural correctness
 pub fn validate_block_structure(block: &Block, current_time: u32) -> Result<(), ValidationError> {
     // Check block size
-    let size = block.serialized_size_hint();
+    let size = block.serialized_size_hint()?;
     if size > MAX_BLOCK_SIZE {
         return Err(ValidationError::BlockTooLarge(size, MAX_BLOCK_SIZE));
     }

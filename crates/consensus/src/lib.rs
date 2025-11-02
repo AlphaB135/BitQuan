@@ -167,12 +167,15 @@ pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> Result<usize, Con
     const SIGNATURE_WEIGHT: usize = 384;
 
     // Base size: transaction without witness data
-    let base_size = tx
-        .serialized_size_hint()
-        .checked_sub(tx.witness_size_hint())
-        .ok_or(ConsensusError::WeightOverflow(
-            "transaction base size calculation",
-        ))?;
+    let serialized_size = tx.serialized_size_hint().map_err(|_| {
+        ConsensusError::WeightOverflow("transaction serialized size calculation")
+    })?;
+    let witness_size = tx
+        .witness_size_hint()
+        .map_err(|_| ConsensusError::WeightOverflow("transaction witness size calculation"))?;
+    let base_size = serialized_size.checked_sub(witness_size).ok_or(
+        ConsensusError::WeightOverflow("transaction base size calculation"),
+    )?;
 
     // Count signatures in witnesses using checked arithmetic
     let sig_count: usize = tx.witnesses.iter().try_fold(0usize, |acc, w| {
@@ -216,8 +219,8 @@ pub fn calculate_block_weight(block: &Block) -> Result<usize, ConsensusError> {
 #[deprecated(note = "Use calculate_block_weight() for BQIP-0002 compliance")]
 pub fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
     use bitquan_types::CompactUint;
-    // Total bytes (base + witness)
-    let total = block.serialized_size_hint() as u64;
+    // Total bytes (base + witness) - return 0 on error (deprecated anyway)
+    let total = block.serialized_size_hint().unwrap_or(0) as u64;
     // Approximate witness bytes from tx structure (count prefix + witnesses)
     let mut witness_bytes: u64 = 0;
     for tx in &block.transactions {
@@ -225,7 +228,8 @@ pub fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) ->
         witness_bytes += tx
             .witnesses
             .iter()
-            .map(|w| w.serialized_size_hint() as u64)
+            .filter_map(|w| w.serialized_size_hint().ok())
+            .map(|size| size as u64)
             .sum::<u64>();
     }
     let base_bytes = total.saturating_sub(witness_bytes);

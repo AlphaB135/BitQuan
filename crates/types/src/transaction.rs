@@ -215,7 +215,9 @@ impl SignaturePayload {
             Some(aux) => {
                 len = len
                     .checked_add(1)
-                    .ok_or(crate::ValidationError::SizeOverflow("SignaturePayload aux flag"))?;
+                    .ok_or(crate::ValidationError::SizeOverflow(
+                        "SignaturePayload aux flag",
+                    ))?;
                 let aux_compact = CompactUint::from_usize(aux.payload.len()).encoded_length();
                 len = len
                     .checked_add(aux_compact)
@@ -227,7 +229,9 @@ impl SignaturePayload {
             None => {
                 len = len
                     .checked_add(1)
-                    .ok_or(crate::ValidationError::SizeOverflow("SignaturePayload no aux"))?;
+                    .ok_or(crate::ValidationError::SizeOverflow(
+                        "SignaturePayload no aux",
+                    ))?;
             }
         }
 
@@ -352,7 +356,8 @@ impl Transaction {
 
     /// Serializes the transaction body without witness.
     pub fn to_bytes_base(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(self.serialized_size_hint());
+        let capacity = self.serialized_size_hint().unwrap_or(1024);
+        let mut out = Vec::with_capacity(capacity);
         out.extend_from_slice(&self.version.to_le_bytes());
         out.push(self.network.as_u8());
         out.extend_from_slice(&self.genesis_hash);

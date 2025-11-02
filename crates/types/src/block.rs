@@ -82,17 +82,21 @@ impl Block {
     }
 
     /// Returns a best-effort serialized size hint including all transactions.
-    pub fn serialized_size_hint(&self) -> usize {
+    pub fn serialized_size_hint(&self) -> Result<usize, crate::ValidationError> {
         let tx_count = self.tx_count();
         let tx_count_len = CompactUint::from_usize(tx_count).encoded_length();
 
-        let txs_len = self
-            .transactions
-            .iter()
-            .map(Transaction::serialized_size_hint)
-            .sum::<usize>();
+        let txs_len = self.transactions.iter().try_fold(0usize, |acc, tx| {
+            let tx_size = tx.serialized_size_hint()?;
+            acc.checked_add(tx_size)
+                .ok_or(crate::ValidationError::SizeOverflow("block transactions"))
+        })?;
 
-        self.header.serialized_size() + tx_count_len + txs_len
+        self.header
+            .serialized_size()
+            .checked_add(tx_count_len)
+            .and_then(|v| v.checked_add(txs_len))
+            .ok_or(crate::ValidationError::SizeOverflow("block total size"))
     }
 }
 

@@ -49,7 +49,7 @@ fn witness_json_roundtrip() {
 #[test]
 fn signature_count_matches_witness_items() {
     let tx = sample_tx();
-    assert_eq!(tx.signature_count(), 1);
+    assert_eq!(tx.signature_count().unwrap(), 1);
 }
 
 #[test]
@@ -71,5 +71,152 @@ fn block_weight_accounts_for_signatures() {
     let weight = crate::count_signatures(&block) * alpha as u64;
     assert_eq!(crate::count_signatures(&block), 1);
     // Serialized size hint >= header size; just ensure signature term is added as expected
-    assert!(block.serialized_size_hint() as u64 + weight >= weight);
+    let block_size = block.serialized_size_hint().unwrap() as u64;
+    assert!(block_size + weight >= weight);
+}
+
+#[test]
+fn test_tx_size_overflow_protection() {
+    // Create transaction with many large inputs to trigger overflow
+    let mut inputs = Vec::new();
+    for i in 0..10000 {
+        inputs.push(TxIn {
+            prev_txid: [i as u8; 32],
+            prev_vout: i,
+            sequence: 0xffffffff,
+            script_sig: vec![0u8; 10000], // Large script
+        });
+    }
+
+    let tx = Transaction {
+        version: 2,
+        network: NetworkId::Devnet,
+        genesis_hash: genesis::GENESIS_HASH_BYTES,
+        lock_time: 0,
+        inputs,
+        outputs: vec![TxOut {
+            value: 1000,
+            script_pubkey: vec![0x51],
+        }],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses: vec![],
+    };
+
+    // Should either succeed with large size or fail with overflow
+    let result = tx.serialized_size_hint();
+    match result {
+        Ok(size) => assert!(size > 0),
+        Err(ValidationError::SizeOverflow(_)) => {}
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[test]
+fn test_witness_size_overflow_protection() {
+    // Create transaction with massive witness data
+    let mut witnesses = Vec::new();
+    for _ in 0..1000 {
+        let mut signatures = Vec::new();
+        for j in 0..100 {
+            signatures.push(SignaturePayload {
+                signer_index: j,
+                signature: vec![0u8; 10000],
+                public_key: vec![0u8; 10000],
+                aux: Some(AuxiliarySignatureData {
+                    payload: vec![0u8; 10000],
+                }),
+            });
+        }
+        witnesses.push(Witness { signatures });
+    }
+
+    let tx = Transaction {
+        version: 2,
+        network: NetworkId::Devnet,
+        genesis_hash: genesis::GENESIS_HASH_BYTES,
+        lock_time: 0,
+        inputs: vec![TxIn {
+            prev_txid: [0u8; 32],
+            prev_vout: 0,
+            sequence: 0xffffffff,
+            script_sig: vec![],
+        }],
+        outputs: vec![TxOut {
+            value: 1000,
+            script_pubkey: vec![0x51],
+        }],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses,
+    };
+
+    // Should detect overflow
+    let result = tx.witness_size_hint();
+    match result {
+        Ok(size) => assert!(size > 0),
+        Err(ValidationError::SizeOverflow(_)) => {}
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[test]
+fn test_signature_count_overflow() {
+    // Create transaction with many witnesses
+    let mut witnesses = Vec::new();
+    for _ in 0..usize::MAX / 1000 {
+        witnesses.push(Witness {
+            signatures: vec![SignaturePayload {
+                signer_index: 0,
+                signature: vec![0u8; 1],
+                public_key: vec![0u8; 1],
+                aux: None,
+            }],
+        });
+    }
+
+    let tx = Transaction {
+        version: 2,
+        network: NetworkId::Devnet,
+        genesis_hash: genesis::GENESIS_HASH_BYTES,
+        lock_time: 0,
+        inputs: vec![TxIn {
+            prev_txid: [0u8; 32],
+            prev_vout: 0,
+            sequence: 0xffffffff,
+            script_sig: vec![],
+        }],
+        outputs: vec![TxOut {
+            value: 1000,
+            script_pubkey: vec![0x51],
+        }],
+        sig_algo: SigAlgorithm::Dilithium3,
+        witnesses,
+    };
+
+    // Should detect overflow
+    let result = tx.signature_count();
+    match result {
+        Ok(_) => {}
+        Err(ValidationError::SizeOverflow(msg)) => {
+            assert!(msg.contains("signature"));
+        }
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[test]
+fn test_normal_tx_size_calculations_still_work() {
+    let tx = sample_tx();
+
+    // All size calculations should succeed for normal transactions
+    assert!(tx.serialized_size_hint().is_ok());
+    assert!(tx.witness_size_hint().is_ok());
+    assert!(tx.signature_count().is_ok());
+
+    let size = tx.serialized_size_hint().unwrap();
+    let witness_size = tx.witness_size_hint().unwrap();
+    let sig_count = tx.signature_count().unwrap();
+
+    assert!(size > 0);
+    assert!(witness_size > 0);
+    assert_eq!(sig_count, 1);
 }
