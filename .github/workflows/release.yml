@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag to release (defaults to ref that triggered the workflow)'
+        required: false
 
 permissions:
   contents: write
@@ -14,6 +18,8 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   SOURCE_DATE_EPOCH: 1700000000
+  RELEASE_TAG: ${{ github.event.inputs.release_tag != '' && github.event.inputs.release_tag || github.ref_name }}
+  RELEASE_REF: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.ref }}
 
 jobs:
   prepare-release:
@@ -24,11 +30,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
-            echo "Release ${{ github.ref_name }} already exists"
+          if gh release view "${{ env.RELEASE_TAG }}" >/dev/null 2>&1; then
+            echo "Release ${{ env.RELEASE_TAG }} already exists"
           else
-            gh release create "${{ github.ref_name }}" \
-              --title "${{ github.ref_name }}" \
+            gh release create "${{ env.RELEASE_TAG }}" \
+              --title "${{ env.RELEASE_TAG }}" \
               --generate-notes
           fi
 
@@ -59,6 +65,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_REF }}
       
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -92,13 +100,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ matrix.os }}" != "windows-latest" ]; then
-            gh release upload ${{ github.ref_name }} \
+            gh release upload ${{ env.RELEASE_TAG }} \
               target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz \
               target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha256 \
               target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha512 \
               --clobber
           else
-            gh release upload ${{ github.ref_name }} \
+            gh release upload ${{ env.RELEASE_TAG }} \
               target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip \
               target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip.sha256 \
               target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip.sha512 \
@@ -111,6 +119,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_REF }}
       
       - uses: dtolnay/rust-toolchain@stable
       
@@ -123,7 +133,7 @@ jobs:
       - name: Upload SBOM
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload ${{ github.ref_name }} sbom.json --clobber
+        run: gh release upload ${{ env.RELEASE_TAG }} sbom.json --clobber
 
   # SLSA provenance generation (Level 2+)
   # Note: This uses a reusable workflow from SLSA framework
@@ -134,6 +144,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_REF }}
       
       - uses: dtolnay/rust-toolchain@stable
       
