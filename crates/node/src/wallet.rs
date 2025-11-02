@@ -343,6 +343,10 @@ mod tests {
 
     #[test]
     fn test_sign_verify() {
+        if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+            return;
+        }
+
         let keypair = WalletKeypair::generate_dilithium3().unwrap();
         let message = b"Hello, BitQuan!";
 
@@ -356,6 +360,10 @@ mod tests {
 
     #[test]
     fn test_public_key_verify() {
+        if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+            return;
+        }
+
         let keypair = WalletKeypair::generate_dilithium3().unwrap();
         let message = b"Test message";
 
