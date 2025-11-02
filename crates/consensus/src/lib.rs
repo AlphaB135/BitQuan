@@ -271,9 +271,7 @@ pub fn validate_block(
 
     // Verify all transaction signatures
     for tx in &block.transactions {
-        let digest = transaction_sighash(tx, &ctx)
-            .map_err(|e| ConsensusError::InvalidSignature(e.to_string()))?;
-        registry.verify_transaction(tx, &digest)?;
+        registry.verify_transaction(tx, &ctx)?;
     }
 
     Ok(BlockValidationReport {
