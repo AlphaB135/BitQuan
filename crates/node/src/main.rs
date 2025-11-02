@@ -18,12 +18,7 @@ use bitquan_consensus::{
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
-#[allow(deprecated)]
-use bitquan_rpc::{
-    server::{RpcAuth, RpcServer},
-    tls::TlsConfig,
-    IpNetwork, RpcConfig,
-};
+use bitquan_rpc::{server::RpcServer, tls::TlsConfig, IpNetwork, RpcConfig};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
 use bitquan_storage::{ChainStore, InMemoryChainStore};
@@ -1955,23 +1950,16 @@ fn p2p_server(
         let handler = NodeRpcHandler::new(store_arc, "mainnet");
         let rpc_addr = addr.to_string();
 
-        // Determine authentication method: JWT or Basic Auth
+        // JWT authentication is required
         use bitquan_rpc::jwt::{JwtAuth, JwtConfig};
-        let use_jwt = jwt_config.is_some() || jwt_secret.is_some();
 
-        if use_jwt {
-            println!("RPC authentication: JWT");
-        } else {
-            println!("RPC authentication: Basic Auth (deprecated, use JWT instead)");
+        if jwt_config.is_none() && jwt_secret.is_none() {
+            anyhow::bail!(
+                "RPC server requires JWT authentication. Provide --jwt-config or --jwt-secret"
+            );
         }
 
-        // For Basic Auth (deprecated path)
-        #[allow(deprecated)]
-        let auth = if !use_jwt {
-            Some(RpcAuth::new(username.to_string(), password_value.clone()))
-        } else {
-            None
-        };
+        println!("RPC authentication: JWT");
 
         let mut trusted_proxies = Vec::new();
         for cidr in rpc_trusted_cidr {
@@ -2045,42 +2033,33 @@ fn p2p_server(
         let tls_config_for_thread = tls_config.clone();
         let jwt_config_owned = jwt_config.map(|s| s.to_string());
         let jwt_secret_owned = jwt_secret.map(|s| s.to_string());
-        let username_owned = username.to_string();
-        let password_owned = password_value.clone();
 
         thread::spawn(move || {
-            let mut server = if use_jwt {
-                // JWT authentication
-                let jwt_auth = if let Some(config_path) = jwt_config_owned {
-                    println!("Loading JWT config from: {}", config_path);
-                    match JwtConfig::from_file(&config_path) {
-                        Ok(config) => match JwtAuth::from_config(&config) {
-                            Ok(auth) => auth,
-                            Err(e) => {
-                                eprintln!("Failed to create JWT auth from config: {}", e);
-                                return;
-                            }
-                        },
+            // JWT authentication (required)
+            let jwt_auth = if let Some(config_path) = jwt_config_owned {
+                println!("Loading JWT config from: {}", config_path);
+                match JwtConfig::from_file(&config_path) {
+                    Ok(config) => match JwtAuth::from_config(&config) {
+                        Ok(auth) => auth,
                         Err(e) => {
-                            eprintln!("Failed to load JWT config: {}", e);
+                            eprintln!("Failed to create JWT auth from config: {}", e);
                             return;
                         }
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to load JWT config: {}", e);
+                        return;
                     }
-                } else if let Some(secret) = jwt_secret_owned {
-                    println!("Using JWT with provided secret");
-                    JwtAuth::new(&secret)
-                } else {
-                    eprintln!("JWT enabled but no config or secret provided");
-                    return;
-                };
-
-                RpcServer::with_jwt(handler, rpc_addr.clone(), jwt_auth, rpc_config)
+                }
+            } else if let Some(secret) = jwt_secret_owned {
+                println!("Using JWT with provided secret");
+                JwtAuth::new(&secret)
             } else {
-                // Basic Auth (deprecated)
-                #[allow(deprecated)]
-                let auth = RpcAuth::new(username_owned, password_owned);
-                RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth), rpc_config)
+                eprintln!("JWT authentication required but no config or secret provided");
+                return;
             };
+
+            let mut server = RpcServer::new(handler, rpc_addr.clone(), jwt_auth, rpc_config);
 
             if let Some(tls_cfg) = tls_config_for_thread {
                 server = server.with_tls_config(tls_cfg);

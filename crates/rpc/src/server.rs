@@ -13,57 +13,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use subtle::ConstantTimeEq;
 
-/// Basic authentication configuration for RPC server (DEPRECATED).
-#[deprecated(note = "Use JWT authentication instead")]
-#[derive(Clone, Debug)]
-#[allow(deprecated)]
-pub struct RpcAuth {
-    #[allow(deprecated)]
-    username: String,
-    #[allow(deprecated)]
-    password: String,
-}
-
-#[allow(deprecated)]
-impl RpcAuth {
-    /// Creates a new auth configuration from username/password strings.
-    pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
-        Self {
-            username: username.into(),
-            password: password.into(),
-        }
-    }
-
-    fn matches(&self, provided: &str) -> bool {
-        let expected = format!("{}:{}", self.username, self.password);
-        provided.as_bytes().ct_eq(expected.as_bytes()).into()
-    }
-
-    /// Username accessor (primarily for tests).
-    #[cfg(test)]
-    pub(crate) fn username(&self) -> &str {
-        &self.username
-    }
-
-    /// Password accessor (primarily for tests).
-    #[cfg(test)]
-    pub(crate) fn password(&self) -> &str {
-        &self.password
-    }
-}
-
-/// Authentication method for RPC server
-#[derive(Clone)]
-#[allow(deprecated)]
-pub enum AuthMethod {
-    /// Basic Auth (deprecated, for backward compatibility)
-    #[allow(deprecated)]
-    Basic(RpcAuth),
-    /// JWT Authentication (recommended)
-    Jwt(Arc<crate::jwt::JwtAuth>),
-}
+/// Authentication for RPC server (JWT only)
+pub type AuthMethod = Arc<crate::jwt::JwtAuth>;
 
 /// Simple HTTP JSON-RPC server
 pub struct RpcServer<T> {
@@ -78,25 +30,13 @@ pub struct RpcServer<T> {
 }
 
 impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
-    /// Create new RPC server
-    pub fn new(handler: T, addr: String) -> Self {
-        Self::with_auth(handler, addr, None, RpcConfig::default())
-    }
-
-    /// Create RPC server with optional authentication.
-    #[allow(deprecated)]
-    pub fn with_auth(
-        handler: T,
-        addr: String,
-        #[allow(deprecated)] auth: Option<RpcAuth>,
-        config: RpcConfig,
-    ) -> Self {
+    /// Create new RPC server with JWT authentication
+    pub fn new(handler: T, addr: String, jwt_auth: crate::jwt::JwtAuth, config: RpcConfig) -> Self {
         let require_tls = config.require_tls;
-        let auth_method = auth.map(AuthMethod::Basic);
         Self {
             handler: Arc::new(handler),
             addr,
-            auth: auth_method,
+            auth: Some(Arc::new(jwt_auth)),
             config,
             limiter: Arc::new(Mutex::new(HashMap::new())),
             auth_backoff: Arc::new(Mutex::new(HashMap::new())),
@@ -105,18 +45,14 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
         }
     }
 
-    /// Create RPC server with JWT authentication (recommended).
-    pub fn with_jwt(
-        handler: T,
-        addr: String,
-        jwt_auth: crate::jwt::JwtAuth,
-        config: RpcConfig,
-    ) -> Self {
+    /// Create RPC server without authentication (for testing only)
+    #[cfg(test)]
+    pub fn without_auth(handler: T, addr: String, config: RpcConfig) -> Self {
         let require_tls = config.require_tls;
         Self {
             handler: Arc::new(handler),
             addr,
-            auth: Some(AuthMethod::Jwt(Arc::new(jwt_auth))),
+            auth: None,
             config,
             limiter: Arc::new(Mutex::new(HashMap::new())),
             auth_backoff: Arc::new(Mutex::new(HashMap::new())),
@@ -605,7 +541,7 @@ fn handle_connection<T: methods::RpcMethods>(
 
     // JWT Login endpoint - no auth required
     if is_login {
-        if let Some(AuthMethod::Jwt(jwt_auth)) = auth {
+        if let Some(jwt_auth) = auth {
             return handle_login_endpoint(
                 &mut buf_reader,
                 jwt_auth,
@@ -634,7 +570,7 @@ fn handle_connection<T: methods::RpcMethods>(
 
     // JWT Refresh endpoint - no auth required
     if is_refresh {
-        if let Some(AuthMethod::Jwt(jwt_auth)) = auth {
+        if let Some(jwt_auth) = auth {
             return handle_refresh_endpoint(
                 &mut buf_reader,
                 jwt_auth,
@@ -719,7 +655,7 @@ fn handle_connection<T: methods::RpcMethods>(
     }
 
     if let Some(auth_cfg) = auth {
-        if !is_authorized_new(&headers, auth_cfg) {
+        if !is_authorized_new(&headers, auth_cfg.as_ref()) {
             let stream = buf_reader.get_mut();
             send_unauthorized(*stream)?;
             record_response(
@@ -807,8 +743,8 @@ fn handle_connection<T: methods::RpcMethods>(
     Ok(())
 }
 
-/// Check authorization with new AuthMethod (supports JWT and Basic)
-fn is_authorized_new(request_headers: &[String], auth: &AuthMethod) -> bool {
+/// Check JWT authorization (Bearer token)
+fn is_authorized_new(request_headers: &[String], jwt_auth: &crate::jwt::JwtAuth) -> bool {
     let header = request_headers
         .iter()
         .find(|line| line.to_ascii_lowercase().starts_with("authorization:"));
@@ -821,80 +757,18 @@ fn is_authorized_new(request_headers: &[String], auth: &AuthMethod) -> bool {
     parts.next(); // skip "Authorization"
     let value = parts.next().map(str::trim).unwrap_or_default();
 
-    match auth {
-        AuthMethod::Basic(basic_auth) => {
-            // Old Basic Auth
-            if !value.to_ascii_lowercase().starts_with("basic ") {
-                eprintln!("⚠️  Basic Auth is deprecated. Please use JWT.");
-                return false;
-            }
-
-            let encoded = value[6..].trim();
-            use base64::{engine::general_purpose::STANDARD, Engine};
-
-            let decoded = match STANDARD.decode(encoded) {
-                Ok(bytes) => bytes,
-                Err(_) => return false,
-            };
-
-            let credential = match String::from_utf8(decoded) {
-                Ok(s) => s,
-                Err(_) => return false,
-            };
-
-            basic_auth.matches(&credential)
-        }
-        AuthMethod::Jwt(jwt_auth) => {
-            // New JWT Auth
-            if !value.to_ascii_lowercase().starts_with("bearer ") {
-                return false;
-            }
-
-            let token = value[7..].trim();
-            match jwt_auth.verify_token(token) {
-                Ok(_claims) => true,
-                Err(e) => {
-                    eprintln!("JWT verification failed: {}", e);
-                    false
-                }
-            }
-        }
-    }
-}
-
-/// Old Basic Auth function (deprecated, kept for compatibility)
-#[allow(dead_code, deprecated)]
-fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
-    let header = request_headers
-        .iter()
-        .find(|line| line.to_ascii_lowercase().starts_with("authorization:"));
-
-    let Some(header) = header else {
-        return false;
-    };
-
-    let mut parts = header.splitn(2, ':');
-    parts.next(); // skip "Authorization"
-    let value = parts.next().map(str::trim).unwrap_or_default();
-
-    if !value.to_ascii_lowercase().starts_with("basic ") {
+    if !value.to_ascii_lowercase().starts_with("bearer ") {
         return false;
     }
 
-    let encoded = value[5..].trim();
-    use base64::{engine::general_purpose::STANDARD, Engine};
-
-    let decoded = match STANDARD.decode(encoded) {
-        Ok(bytes) => bytes,
-        Err(_) => return false,
-    };
-
-    let credential = match String::from_utf8(decoded) {
-        Ok(s) => s,
-        Err(_) => return false,
-    };
-
-    auth.matches(&credential)
+    let token = value[7..].trim();
+    match jwt_auth.verify_token(token) {
+        Ok(_claims) => true,
+        Err(e) => {
+            eprintln!("JWT verification failed: {}", e);
+            false
+        }
+    }
 }
 
 fn respond_json(
@@ -1713,7 +1587,26 @@ mod tests {
     #[test]
     fn test_server_creation() {
         let handler = TestHandler;
-        let _server = RpcServer::new(handler, "127.0.0.1:0".to_string());
+        let jwt_auth = crate::jwt::JwtAuth::new("test-secret-key");
+        let _server = RpcServer::new(
+            handler,
+            "127.0.0.1:0".to_string(),
+            jwt_auth,
+            RpcConfig::default(),
+        );
+    }
+
+    /// Helper to create JWT auth for tests
+    fn test_jwt_auth() -> crate::jwt::JwtAuth {
+        crate::jwt::JwtAuth::new("test-secret-key-for-testing")
+    }
+
+    /// Helper to create Bearer token for tests
+    fn bearer_token_header(jwt_auth: &crate::jwt::JwtAuth, username: &str) -> String {
+        let token = jwt_auth
+            .generate_token(username, "admin")
+            .expect("Failed to generate test token");
+        format!("Bearer {}", token)
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
