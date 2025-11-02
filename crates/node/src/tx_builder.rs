@@ -259,9 +259,7 @@ pub fn select_coins(
         total = total.saturating_add(utxo.value);
 
         // Calculate current fee estimate using saturating arithmetic
-        let input_fee = fee_rate.saturating_mul(
-            (selected.len() as u64).saturating_mul(3100)
-        );
+        let input_fee = fee_rate.saturating_mul((selected.len() as u64).saturating_mul(3100));
         let total_needed = target_amount
             .saturating_add(base_fee)
             .saturating_add(input_fee);
@@ -346,10 +344,10 @@ mod overflow_tests {
             Utxo::new([0xFF; 32], 0, u64::MAX - 1000, vec![]),
             Utxo::new([0xFE; 32], 0, u64::MAX - 2000, vec![]),
         ];
-        
+
         let result = select_coins(&utxos, 1_000_000, 1, CoinSelection::LargestFirst);
         assert!(result.is_ok());
-        
+
         // Should select one coin (sufficient)
         let selected = result.unwrap();
         assert!(!selected.is_empty());
@@ -358,14 +356,19 @@ mod overflow_tests {
     #[test]
     fn test_extreme_fee_rate() {
         let utxos = vec![Utxo::new([0x01; 32], 0, 100_000_000_000, vec![])];
-        
+
         // Very high fee rate should saturate, not overflow
-        let result = select_coins(&utxos, 10_000, u64::MAX / 1000, CoinSelection::SmallestSufficient);
-        
+        let result = select_coins(
+            &utxos,
+            10_000,
+            u64::MAX / 1000,
+            CoinSelection::SmallestSufficient,
+        );
+
         // Key: should not panic; may succeed or fail gracefully
         match result {
-            Ok(_) => {},  // Succeeded
-            Err(_) => {}, // Failed gracefully (insufficient funds after fee)
+            Ok(_) => {}  // Succeeded
+            Err(_) => {} // Failed gracefully (insufficient funds after fee)
         }
     }
 
@@ -385,8 +388,8 @@ mod overflow_tests {
         let result = select_coins(&utxos, 50_000_000, 100, CoinSelection::LargestFirst);
         // Accept both Ok and Err as valid outcomes (overflow protection may kick in)
         match result {
-            Ok(_) => {}, // Success
-            Err(_) => {}, // Failed gracefully (overflow or insufficient funds)
+            Ok(_) => {}  // Success
+            Err(_) => {} // Failed gracefully (overflow or insufficient funds)
         }
     }
 }
