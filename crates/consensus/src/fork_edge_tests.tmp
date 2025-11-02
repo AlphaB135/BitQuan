@@ -1,0 +1,109 @@
+
+    #[test]
+    fn test_tie_breaking_by_timestamp() {
+        let mut fc = ForkChoice::new();
+
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+
+        // Chain A: same difficulty, timestamp 100
+        let mut a1 = make_header(genesis_hash, 0x207fffff, 1);
+        a1.time = 100;
+        fc.add_block(a1.clone()).unwrap();
+
+        // Chain B: same difficulty, earlier timestamp 50 - should win
+        let mut b1 = make_header(genesis_hash, 0x207fffff, 2);
+        b1.time = 50;
+        let (is_new_tip, reorg) = fc.add_block(b1).unwrap();
+
+        assert!(is_new_tip, "Earlier timestamp should win");
+        assert!(reorg.is_some());
+    }
+
+    #[test]
+    fn test_deep_reorg_rejected() {
+        let mut fc = ForkChoice::with_max_reorg(5);
+
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let mut prev = header_hash(&genesis);
+
+        // Build chain A with 10 blocks
+        for i in 1..=10 {
+            let header = make_header(prev, 0x207fffff, i);
+            fc.add_block(header.clone()).unwrap();
+            prev = header_hash(&header);
+        }
+
+        // Try to build competing chain B from genesis (11 blocks)
+        // This would require 10-block reorg, exceeding max of 5
+        prev = header_hash(&genesis);
+        for i in 100..=109 {
+            let header = make_header(prev, 0x207fffff, i);
+            prev = header_hash(&header);
+            
+            if i == 109 {
+                // Last block should trigger reorg error
+                let result = fc.add_block(header);
+                assert!(matches!(result, Err(ForkError::ReorgTooDeep(10, 5))));
+                return;
+            } else {
+                fc.add_block(header).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn test_reorg_depth_tracking() {
+        let mut fc = ForkChoice::new();
+
+        let genesis = make_header([0u8; 32], 0x207fffff, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+
+        // Chain A: 3 blocks
+        let a1 = make_header(genesis_hash, 0x207fffff, 1);
+        fc.add_block(a1.clone()).unwrap();
+        let a1_hash = header_hash(&a1);
+
+        let a2 = make_header(a1_hash, 0x207fffff, 2);
+        fc.add_block(a2.clone()).unwrap();
+        let a2_hash = header_hash(&a2);
+
+        let a3 = make_header(a2_hash, 0x207fffff, 3);
+        fc.add_block(a3).unwrap();
+
+        assert_eq!(fc.last_reorg_depth, 0); // No reorg yet
+
+        // Chain B: 4 blocks from genesis (triggers reorg)
+        let b1 = make_header(genesis_hash, 0x207fffff, 10);
+        fc.add_block(b1.clone()).unwrap();
+        let b1_hash = header_hash(&b1);
+
+        let b2 = make_header(b1_hash, 0x207fffff, 11);
+        fc.add_block(b2.clone()).unwrap();
+        let b2_hash = header_hash(&b2);
+
+        let b3 = make_header(b2_hash, 0x207fffff, 12);
+        fc.add_block(b3.clone()).unwrap();
+        let b3_hash = header_hash(&b3);
+
+        let b4 = make_header(b3_hash, 0x207fffff, 13);
+        let (is_new_tip, reorg) = fc.add_block(b4).unwrap();
+
+        assert!(is_new_tip);
+        assert!(reorg.is_some());
+        assert_eq!(fc.last_reorg_depth, 3); // Disconnected 3 blocks (A1, A2, A3)
+    }
+
+    #[test]
+    fn test_invalid_block_marking() {
+        let mut fc = ForkChoice::new();
+
+        let hash = [42u8; 32];
+        assert!(fc.is_invalid(&hash).is_none());
+
+        fc.mark_invalid(hash, "Invalid PoW".to_string());
+        assert_eq!(fc.is_invalid(&hash), Some(&"Invalid PoW".to_string()));
+    }

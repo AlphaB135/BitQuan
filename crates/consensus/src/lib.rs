@@ -8,7 +8,7 @@ use thiserror::Error;
 mod asert;
 mod difficulty;
 pub mod fork;
-mod pow;
+pub mod pow;
 pub mod script;
 mod sighash;
 pub mod utxo;

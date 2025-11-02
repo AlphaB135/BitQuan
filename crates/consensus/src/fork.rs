@@ -86,6 +86,10 @@ pub struct ForkChoice {
     best_tip: Option<[u8; 32]>,
     /// Maximum reorg depth allowed (safety limit).
     max_reorg_depth: usize,
+    /// Last reorg depth (for monitoring).
+    pub last_reorg_depth: usize,
+    /// Invalid blocks (for peer banning).
+    invalid_blocks: HashMap<[u8; 32], String>,
 }
 
 impl ForkChoice {
@@ -98,6 +102,8 @@ impl ForkChoice {
             nodes: HashMap::new(),
             best_tip: None,
             max_reorg_depth: Self::DEFAULT_MAX_REORG,
+            last_reorg_depth: 0,
+            invalid_blocks: HashMap::new(),
         }
     }
 
@@ -107,7 +113,19 @@ impl ForkChoice {
             nodes: HashMap::new(),
             best_tip: None,
             max_reorg_depth,
+            last_reorg_depth: 0,
+            invalid_blocks: HashMap::new(),
         }
+    }
+
+    /// Mark a block as invalid (for peer banning).
+    pub fn mark_invalid(&mut self, hash: [u8; 32], reason: String) {
+        self.invalid_blocks.insert(hash, reason);
+    }
+
+    /// Check if a block is marked invalid.
+    pub fn is_invalid(&self, hash: &[u8; 32]) -> Option<&String> {
+        self.invalid_blocks.get(hash)
     }
 
     /// Adds the genesis block.
@@ -172,6 +190,10 @@ impl ForkChoice {
     }
 
     /// Checks if a node is better than current tip (more work).
+    ///
+    /// Tie-breaking rules when work is equal:
+    /// 1. Prefer block with earlier timestamp
+    /// 2. If timestamps equal, prefer block with lower hash (lexicographically)
     fn is_better_tip(&self, node: &BlockNode) -> Result<bool, ForkError> {
         match self.best_tip {
             None => Ok(true), // First block after genesis
@@ -182,8 +204,14 @@ impl ForkChoice {
                 if node.chain_work > tip.chain_work {
                     Ok(true)
                 } else if (node.chain_work - tip.chain_work).abs() < 1e-10 {
-                    // Equal work: prefer earlier timestamp
-                    Ok(node.header.time < tip.header.time)
+                    // Equal work: tie-breaking rules
+                    if node.header.time != tip.header.time {
+                        // Rule 1: prefer earlier timestamp
+                        Ok(node.header.time < tip.header.time)
+                    } else {
+                        // Rule 2: prefer lower hash (deterministic)
+                        Ok(node.hash < tip.hash)
+                    }
                 } else {
                     Ok(false)
                 }
@@ -193,7 +221,7 @@ impl ForkChoice {
 
     /// Computes reorganization info when switching tips.
     fn compute_reorg(
-        &self,
+        &mut self,
         old_tip: Option<[u8; 32]>,
         new_tip: Option<[u8; 32]>,
     ) -> Result<Option<ReorgInfo>, ForkError> {
@@ -227,6 +255,9 @@ impl ForkChoice {
                 self.max_reorg_depth,
             ));
         }
+
+        // Record reorg depth
+        self.last_reorg_depth = old_blocks.len();
 
         Ok(Some(ReorgInfo {
             old_tip: old_hash,
