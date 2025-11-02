@@ -109,11 +109,11 @@ impl Keystore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempdir::TempDir;
+    use tempfile::tempdir;
 
     #[test]
     fn keystore_roundtrip() {
-        let temp = TempDir::new("keystore-test").unwrap();
+        let temp = tempdir().unwrap();
         let path = temp.path().join("wallet.keystore");
 
         let private = SecurePrivateKey::new(vec![1, 2, 3, 4]);
