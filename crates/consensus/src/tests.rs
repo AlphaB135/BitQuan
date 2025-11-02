@@ -275,10 +275,11 @@ fn test_transaction_and_block_hash_determinism() {
     };
 
     // Transaction sighash must be deterministic across repeated invocations.
-    let expected_tx_hash = transaction_sighash(&tx, NetworkId::Mainnet);
+    let ctx = bitquan_types::TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
+    let expected_tx_hash = transaction_sighash(&tx, &ctx).unwrap();
     for _ in 0..32 {
         assert_eq!(
-            transaction_sighash(&tx, NetworkId::Mainnet),
+            transaction_sighash(&tx, &ctx).unwrap(),
             expected_tx_hash
         );
     }
@@ -303,7 +304,7 @@ fn test_transaction_and_block_hash_determinism() {
     }
 
     // Recomputing via freshly constructed block components must stay stable.
-    let expected_again = transaction_sighash(&block.transactions[0], NetworkId::Mainnet);
+    let expected_again = transaction_sighash(&block.transactions[0], &ctx).unwrap();
     assert_eq!(expected_again, expected_tx_hash);
 }
 
@@ -733,7 +734,14 @@ fn test_validate_block_weight_overflow() {
         transactions,
     };
 
-    let result = validate_block(&block, 0, &params, &registry, NetworkId::Devnet);
+    let result = validate_block(
+        &block,
+        0,
+        &params,
+        &registry,
+        NetworkId::Devnet,
+        GENESIS_HASH_BYTES,
+    );
 
     // Should either detect overflow or weight exceeds limit
     match result {

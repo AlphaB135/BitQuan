@@ -4,7 +4,8 @@
 
 use anyhow::{bail, Result};
 use bitquan_types::{
-    genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut, Witness,
+    genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxContext, TxIn, TxOut,
+    Witness,
 };
 
 /// Builder for constructing transactions.
@@ -16,18 +17,22 @@ pub struct TransactionBuilder {
     lock_time: u32,
     network: NetworkId,
     genesis_hash: [u8; 32],
+    ctx: TxContext,
 }
 
 impl TransactionBuilder {
     /// Creates a new transaction builder.
     pub fn new() -> Self {
+        let network = NetworkId::Devnet;
+        let genesis_hash = GENESIS_HASH_BYTES;
         Self {
             version: 2,
             inputs: Vec::new(),
             outputs: Vec::new(),
             lock_time: 0,
-            network: NetworkId::Devnet,
-            genesis_hash: GENESIS_HASH_BYTES,
+            network,
+            genesis_hash,
+            ctx: TxContext::new(network, genesis_hash),
         }
     }
 
@@ -68,12 +73,22 @@ impl TransactionBuilder {
     /// Sets the target network identifier.
     pub fn network(mut self, network: NetworkId) -> Self {
         self.network = network;
+        self.ctx = TxContext::new(network, self.genesis_hash);
         self
     }
 
     /// Sets the genesis hash used for replay protection.
     pub fn genesis_hash(mut self, genesis_hash: [u8; 32]) -> Self {
         self.genesis_hash = genesis_hash;
+        self.ctx = TxContext::new(self.network, genesis_hash);
+        self
+    }
+
+    /// Sets the transaction context directly.
+    pub fn with_context(mut self, ctx: TxContext) -> Self {
+        self.network = ctx.network_id;
+        self.genesis_hash = ctx.genesis_hash;
+        self.ctx = ctx;
         self
     }
 
@@ -100,12 +115,13 @@ impl TransactionBuilder {
 
     /// Builds and signs the transaction.
     pub fn build_and_sign(self, sign_fn: impl Fn(&[u8]) -> Result<Vec<u8>>) -> Result<Transaction> {
+        let ctx = self.ctx.clone();
         let mut tx = self.build_unsigned()?;
 
         // Create witness for each input
         for i in 0..tx.inputs.len() {
-            // Compute sighash for this input
-            let sighash = compute_sighash(&tx, i)?;
+            // Compute sighash using transaction_sighash from consensus
+            let sighash = compute_sighash_with_context(&tx, &ctx, i)?;
 
             // Sign the sighash
             let signature = sign_fn(&sighash)?;
@@ -135,47 +151,30 @@ impl Default for TransactionBuilder {
     }
 }
 
-/// Computes the signature hash for a transaction input.
+/// Computes the signature hash for a transaction input using TxContext.
+///
+/// This function wraps the consensus transaction_sighash and adds per-input
+/// differentiation by hashing the input index into the result.
 #[allow(dead_code)]
-pub fn compute_sighash(tx: &Transaction, input_index: usize) -> Result<[u8; 32]> {
+pub fn compute_sighash_with_context(
+    tx: &Transaction,
+    ctx: &TxContext,
+    input_index: usize,
+) -> Result<[u8; 32]> {
     use sha2::Digest;
 
     if input_index >= tx.inputs.len() {
         bail!("Input index out of bounds");
     }
 
-    // Simplified sighash (Bitcoin-style) with replay protection.
-    // Hash: network || genesis_hash || version || inputs || outputs || locktime || input_index
+    // Use consensus transaction_sighash
+    let base_hash = bitquan_consensus::transaction_sighash(tx, ctx)
+        .map_err(|e| anyhow::anyhow!("Sighash error: {}", e))?;
 
+    // For per-input signing, hash the base sighash with the input index
+    // This allows each input to have a unique signature
     let mut hasher = sha2::Sha256::new();
-
-    // Network replay protection fields
-    hasher.update([tx.network.as_u8()]);
-    hasher.update(tx.genesis_hash);
-
-    // Version
-    hasher.update(tx.version.to_le_bytes());
-
-    // Inputs (without script_sig)
-    hasher.update((tx.inputs.len() as u32).to_le_bytes());
-    for input in &tx.inputs {
-        hasher.update(input.prev_txid);
-        hasher.update(input.prev_vout.to_le_bytes());
-        hasher.update(input.sequence.to_le_bytes());
-    }
-
-    // Outputs
-    hasher.update((tx.outputs.len() as u32).to_le_bytes());
-    for output in &tx.outputs {
-        hasher.update(output.value.to_le_bytes());
-        hasher.update((output.script_pubkey.len() as u32).to_le_bytes());
-        hasher.update(&output.script_pubkey);
-    }
-
-    // Lock time
-    hasher.update(tx.lock_time.to_le_bytes());
-
-    // Input index being signed
+    hasher.update(base_hash);
     hasher.update((input_index as u32).to_le_bytes());
 
     let result = hasher.finalize();
@@ -183,6 +182,17 @@ pub fn compute_sighash(tx: &Transaction, input_index: usize) -> Result<[u8; 32]>
     hash.copy_from_slice(&result);
 
     Ok(hash)
+}
+
+/// Computes the signature hash for a transaction input (legacy version).
+///
+/// DEPRECATED: Use compute_sighash_with_context instead.
+/// This function is kept for backward compatibility.
+#[allow(dead_code)]
+#[deprecated(note = "Use compute_sighash_with_context with TxContext")]
+pub fn compute_sighash(tx: &Transaction, input_index: usize) -> Result<[u8; 32]> {
+    let ctx = TxContext::new(tx.network, tx.genesis_hash);
+    compute_sighash_with_context(tx, &ctx, input_index)
 }
 
 /// UTXO information for transaction building.
@@ -301,8 +311,105 @@ mod tests {
             .build_unsigned()
             .unwrap();
 
-        let hash = compute_sighash(&tx, 0).unwrap();
+        let ctx = TxContext::new(tx.network, tx.genesis_hash);
+        let hash = compute_sighash_with_context(&tx, &ctx, 0).unwrap();
         assert_ne!(hash, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_builder_with_context() {
+        let ctx = TxContext::mainnet(GENESIS_HASH_BYTES);
+        let tx = TransactionBuilder::new()
+            .with_context(ctx.clone())
+            .add_input([0x42; 32], 0, 100)
+            .add_output(vec![0x00], 50)
+            .build_unsigned()
+            .unwrap();
+
+        assert_eq!(tx.network, NetworkId::Mainnet);
+        assert_eq!(tx.genesis_hash, GENESIS_HASH_BYTES);
+    }
+
+    #[test]
+    fn test_context_mismatch_detection() {
+        // Create transaction with devnet context
+        let tx = TransactionBuilder::new()
+            .network(NetworkId::Devnet)
+            .add_input([0x42; 32], 0, 100)
+            .add_output(vec![0x00], 50)
+            .build_unsigned()
+            .unwrap();
+
+        // Try to compute sighash with mainnet context
+        let wrong_ctx = TxContext::mainnet(GENESIS_HASH_BYTES);
+        let result = compute_sighash_with_context(&tx, &wrong_ctx, 0);
+
+        // Should fail due to network mismatch
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_different_networks_different_sighash() {
+        let input = [0x42; 32];
+        let output = vec![0x00];
+
+        // Build transaction for devnet
+        let tx_devnet = TransactionBuilder::new()
+            .network(NetworkId::Devnet)
+            .add_input(input, 0, 100)
+            .add_output(output.clone(), 50)
+            .build_unsigned()
+            .unwrap();
+
+        // Build transaction for mainnet (same data, different network)
+        let tx_mainnet = TransactionBuilder::new()
+            .network(NetworkId::Mainnet)
+            .add_input(input, 0, 100)
+            .add_output(output, 50)
+            .build_unsigned()
+            .unwrap();
+
+        let ctx_devnet = TxContext::new(NetworkId::Devnet, GENESIS_HASH_BYTES);
+        let ctx_mainnet = TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
+
+        let hash_devnet = compute_sighash_with_context(&tx_devnet, &ctx_devnet, 0).unwrap();
+        let hash_mainnet = compute_sighash_with_context(&tx_mainnet, &ctx_mainnet, 0).unwrap();
+
+        // Same transaction data but different networks should produce different hashes
+        assert_ne!(hash_devnet, hash_mainnet);
+    }
+
+    #[test]
+    fn test_different_genesis_different_sighash() {
+        let input = [0x42; 32];
+        let output = vec![0x00];
+        let genesis1 = [0xAA; 32];
+        let genesis2 = [0xBB; 32];
+
+        // Build transaction with genesis1
+        let tx1 = TransactionBuilder::new()
+            .genesis_hash(genesis1)
+            .add_input(input, 0, 100)
+            .add_output(output.clone(), 50)
+            .build_unsigned()
+            .unwrap();
+
+        // Build transaction with genesis2
+        let tx2 = TransactionBuilder::new()
+            .genesis_hash(genesis2)
+            .add_input(input, 0, 100)
+            .add_output(output, 50)
+            .build_unsigned()
+            .unwrap();
+
+        let ctx1 = TxContext::new(NetworkId::Devnet, genesis1);
+        let ctx2 = TxContext::new(NetworkId::Devnet, genesis2);
+
+        let hash1 = compute_sighash_with_context(&tx1, &ctx1, 0).unwrap();
+        let hash2 = compute_sighash_with_context(&tx2, &ctx2, 0).unwrap();
+
+        // Same transaction data but different genesis should produce different hashes
+        assert_ne!(hash1, hash2);
     }
 
     #[test]

@@ -157,6 +157,9 @@ pub enum ConsensusError {
     /// Arithmetic overflow in weight calculation.
     #[error("overflow in {0}")]
     WeightOverflow(&'static str),
+    /// Invalid signature hash computation.
+    #[error("invalid signature: {0}")]
+    InvalidSignature(String),
 }
 
 /// Calculates transaction weight according to BQIP-0002.
@@ -167,15 +170,18 @@ pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> Result<usize, Con
     const SIGNATURE_WEIGHT: usize = 384;
 
     // Base size: transaction without witness data
-    let serialized_size = tx.serialized_size_hint().map_err(|_| {
-        ConsensusError::WeightOverflow("transaction serialized size calculation")
-    })?;
+    let serialized_size = tx
+        .serialized_size_hint()
+        .map_err(|_| ConsensusError::WeightOverflow("transaction serialized size calculation"))?;
     let witness_size = tx
         .witness_size_hint()
         .map_err(|_| ConsensusError::WeightOverflow("transaction witness size calculation"))?;
-    let base_size = serialized_size.checked_sub(witness_size).ok_or(
-        ConsensusError::WeightOverflow("transaction base size calculation"),
-    )?;
+    let base_size =
+        serialized_size
+            .checked_sub(witness_size)
+            .ok_or(ConsensusError::WeightOverflow(
+                "transaction base size calculation",
+            ))?;
 
     // Count signatures in witnesses using checked arithmetic
     let sig_count: usize = tx.witnesses.iter().try_fold(0usize, |acc, w| {
@@ -245,6 +251,7 @@ pub fn validate_block(
     params: &ConsensusParams,
     registry: &CryptoRegistry,
     network_id: bitquan_types::NetworkId,
+    genesis_hash: [u8; 32],
 ) -> Result<BlockValidationReport, ConsensusError> {
     // Calculate block weight using BQIP-0002 formula (with overflow protection)
     let block_weight = calculate_block_weight(block)?;
@@ -259,9 +266,13 @@ pub fn validate_block(
         });
     }
 
+    // Create transaction context for signature verification
+    let ctx = bitquan_types::TxContext::new(network_id, genesis_hash);
+
     // Verify all transaction signatures
     for tx in &block.transactions {
-        let digest = transaction_sighash(tx, network_id);
+        let digest = transaction_sighash(tx, &ctx)
+            .map_err(|e| ConsensusError::InvalidSignature(e.to_string()))?;
         registry.verify_transaction(tx, &digest)?;
     }
 
@@ -292,6 +303,8 @@ pub struct ConsensusEngine {
     difficulty: Option<DifficultyState>,
     /// Network identifier for sighash
     network_id: bitquan_types::NetworkId,
+    /// Genesis block hash for transaction context
+    genesis_hash: [u8; 32],
 }
 
 impl ConsensusEngine {
@@ -302,20 +315,23 @@ impl ConsensusEngine {
             registry,
             difficulty: None,
             network_id: bitquan_types::NetworkId::default(),
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
         }
     }
 
-    /// Constructs a new engine with explicit network ID.
+    /// Constructs a new engine with explicit network ID and genesis hash.
     pub fn with_network(
         params: ConsensusParams,
         registry: CryptoRegistry,
         network_id: bitquan_types::NetworkId,
+        genesis_hash: [u8; 32],
     ) -> Self {
         Self {
             params,
             registry,
             difficulty: None,
             network_id,
+            genesis_hash,
         }
     }
 
@@ -355,6 +371,13 @@ impl ConsensusEngine {
         block: &Block,
         height: u64,
     ) -> Result<BlockValidationReport, ConsensusError> {
-        validate_block(block, height, &self.params, &self.registry, self.network_id)
+        validate_block(
+            block,
+            height,
+            &self.params,
+            &self.registry,
+            self.network_id,
+            self.genesis_hash,
+        )
     }
 }
