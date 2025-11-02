@@ -16,10 +16,25 @@ env:
   SOURCE_DATE_EPOCH: 1700000000
 
 jobs:
-  # No create-release job needed - release already exists when tag is pushed
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure tag-backed release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "Release ${{ github.ref_name }} already exists"
+          else
+            gh release create "${{ github.ref_name }}" \
+              --title "${{ github.ref_name }}" \
+              --generate-notes
+          fi
 
   build-artifacts:
     name: Build ${{ matrix.os }}
+    needs: prepare-release
     strategy:
       matrix:
         include:
@@ -92,6 +107,7 @@ jobs:
 
   generate-sbom:
     name: Generate SBOM
+    needs: prepare-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +130,7 @@ jobs:
   # Automatically generates build provenance attestations
   provenance:
     name: Generate SLSA Provenance
+    needs: prepare-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,5 +145,3 @@ jobs:
         with:
           subject-path: |
             target/release/bitquan-node
-
-
