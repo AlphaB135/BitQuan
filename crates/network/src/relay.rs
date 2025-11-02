@@ -126,7 +126,10 @@ impl RelayPolicy {
         }
 
         // Check signature count
-        let sig_count = tx.signature_count();
+        let sig_count = match tx.signature_count() {
+            Ok(count) => count,
+            Err(_) => return false, // Overflow in signature count
+        };
         if sig_count > self.max_signatures {
             return false;
         }

@@ -14,8 +14,12 @@ const WITNESS_SCALE_FACTOR: usize = 4;
 
 /// Calculates transaction weight according to BQIP-0002.
 fn calculate_tx_weight(tx: &Transaction) -> Result<usize, MempoolError> {
-    let serialized = tx.serialized_size_hint();
-    let witness = tx.witness_size_hint();
+    let serialized = tx
+        .serialized_size_hint()
+        .map_err(|_| MempoolError::WeightOverflow)?;
+    let witness = tx
+        .witness_size_hint()
+        .map_err(|_| MempoolError::WeightOverflow)?;
     let base_size = serialized
         .checked_sub(witness)
         .ok_or(MempoolError::WeightOverflow)?;
@@ -178,7 +182,9 @@ impl Mempool {
         // Validate transaction structure first
         validate_transaction(&tx).map_err(|e| MempoolError::Rejected(e.to_string()))?;
 
-        let tx_size = tx.serialized_size_hint();
+        let tx_size = tx
+            .serialized_size_hint()
+            .map_err(|_| MempoolError::WeightOverflow)?;
         let tie_breaker = self.rng.u64()?;
         let entry = MempoolEntry::from_transaction(tx, fee, tie_breaker)?;
 
@@ -239,8 +245,12 @@ impl Mempool {
 
             to_remove.push(*fee_rate);
             for entry in entries {
+                let entry_size = entry
+                    .tx
+                    .serialized_size_hint()
+                    .map_err(|_| MempoolError::WeightOverflow)?;
                 freed = freed
-                    .checked_add(entry.tx.serialized_size_hint())
+                    .checked_add(entry_size)
                     .ok_or(MempoolError::Overflow("freed bytes calculation"))?;
             }
         }
@@ -249,9 +259,8 @@ impl Mempool {
         for fee_rate in to_remove {
             if let Some(entries) = self.entries.remove(&fee_rate) {
                 for entry in entries {
-                    self.size_bytes = self
-                        .size_bytes
-                        .saturating_sub(entry.tx.serialized_size_hint());
+                    let entry_size = entry.tx.serialized_size_hint().unwrap_or(0);
+                    self.size_bytes = self.size_bytes.saturating_sub(entry_size);
                 }
             }
         }
@@ -282,9 +291,8 @@ impl Mempool {
                         self.entries.insert(next_key, group);
                         return collected;
                     }
-                    self.size_bytes = self
-                        .size_bytes
-                        .saturating_sub(entry.tx.serialized_size_hint());
+                    let entry_size = entry.tx.serialized_size_hint().unwrap_or(0);
+                    self.size_bytes = self.size_bytes.saturating_sub(entry_size);
                     collected.push(entry);
                 }
             }
