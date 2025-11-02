@@ -1,8 +1,8 @@
 # BitQuan Roadmap
 
-## Current Status: v0.0.1-alpha (Devnet Ready) - 2025-10-31
+## Current Status: v0.0.2-alpha (Security Hardening) – 2025-11-02
 
-**Completion: 96%** | **Tests: 128 passing** | **Build: Clean (warnings-as-errors)**
+**Completion toward mainnet:** ~60 % | **Regression suite:** 320 + tests | **Build:** Clean (`cargo fmt`, `cargo clippy -D warnings`, `cargo test --all --locked`)
 
 ### Phase Summary
 
@@ -15,7 +15,7 @@
 | Phase 4: Validation | ✅ Complete | 100% |
 | Phase 5: Economics | ✅ Complete | 100% |
 | Phase 6: Implementation | ✅ Complete | 100% |
-| Phase 7: Security | ✅ Complete | 100% |
+| Phase 7: Security | ✅ Ongoing audits | 100% |
 | Phase 8: Governance Setup | ✅ Complete | 100% |
 | Phase 9: Network Launch | 🟢 Ready | 85% |
 
@@ -28,24 +28,25 @@
 - Complete all P0/P1 security gaps, secure two external audits, and operate a 6-month public beta before mainnet activation.
 
 ### Priority Matrix (P0–P3 Backlog)
-| ID | Scope | Est. Duration | Criticality | Ownership |
-|----|-------|---------------|-------------|-----------|
-| P0-1 | Wallet encryption (Argon2id + AES-256-GCM, zeroization, CLI UX) | 2 weeks | 🔴 Critical | Internal |
-| P0-2 | Enforce TLS 1.3 (rustls stack, cert tooling) | 1 week | 🔴 Critical | Internal |
-| P0-3 | JWT auth + RBAC on RPC endpoints | 2 weeks | 🔴 Critical | Internal |
-| P0-4 | Remove mock PoW from mainnet/testnet | 3 days | 🔴 Critical | Internal |
-| P1-1 | Multi-layer rate limiting upgrade | 1 week | 🟠 High | Internal |
-| P1-2 | Adaptive DDoS protection (connection guard + challenge) | 2 weeks | 🟠 High | Internal |
-| P1-3 | Security monitoring & alerting | 2 weeks | 🟠 High | Internal |
-| P1-4 | Audit logging pipeline | 1 week | 🟠 High | Internal |
-| P2-x | ~~Mnemonic~~ ✅ **Done**, hardware wallet, multisig, fuzzing suite | 1–3 weeks each | 🟡 Medium | Mixed |
-| P3 | External audits ×2, penetration testing | 4–8 weeks | 🔴 Critical | Vendors |
+| ID | Scope | Est. Duration | Status | Criticality | Ownership |
+|----|-------|---------------|--------|-------------|-----------|
+| P0-1 | Wallet encryption (Argon2id + AES-256-GCM, zeroization, CLI UX) | 2 weeks | 🚧 Sprint Week 2 | 🔴 Critical | Internal |
+| P0-2 | Enforce TLS 1.3 (rustls stack, cert tooling) | 1 week | 🗓 Sprint Week 3 | 🔴 Critical | Internal |
+| P0-3 | JWT auth + RBAC on RPC endpoints | 2 weeks | 🗓 Sprint Week 3–4 | 🔴 Critical | Internal |
+| P0-4 | Remove mock PoW from mainnet/testnet | 3 days | 🗓 Sprint Week 4 | 🔴 Critical | Internal |
+| P1-1 | Multi-layer rate limiting upgrade | 1 week | 🔜 Q1 2026 | 🟠 High | Internal |
+| P1-2 | Adaptive DDoS protection (connection guard + challenge) | 2 weeks | 🔜 Q1 2026 | 🟠 High | Internal |
+| P1-3 | Security monitoring & alerting | 2 weeks | 🔜 Q2 2026 | 🟠 High | Internal |
+| P1-4 | Audit logging pipeline | 1 week | 🔜 Q2 2026 | 🟠 High | Internal |
+| P2-x | ~~Mnemonic support~~ ✅ / hardware wallet / multisig / fuzzing suite | 1–3 weeks each | 🚧 Roadmapped | 🟡 Medium | Mixed |
+| P3 | External audits ×2, penetration testing | 4–8 weeks | 🔜 Q3 2026 | 🔴 Critical | Vendors |
 
-### Sprint 1–2 (Weeks 1–4) – Critical Security Fixes
-- Week 1–2: Wallet encryption overhaul (secure types, Argon2id KDF, AES-256-GCM, keystore format, CLI prompts, integration tests).
-- Week 3: TLS mandatory stack (rustls config, self-signed dev tooling, RPC wiring, config flags).
-- Week 3–4: JWT issuance/verification, role-based permission checks, enforce auth on RPC handlers.
-- Week 4: Lock mock PoW out of mainnet/testnet, update CLI guardrails, add regression tests.
+### Sprint 1–4 (Security Foundations)
+- ✅ Week 1 (2025-11-02): Tasks H–K – timing audit, checked arithmetic, replay protection, entropy audit, doc reorg
+- 🚧 Week 2: Wallet encryption overhaul (secure types, Argon2id KDF, AES-256-GCM, keystore UX, integration tests)
+- 🗓 Week 3: Enforce TLS 1.3 (rustls config, cert tooling, CLI flags)
+- 🗓 Week 3–4: JWT issuance/verification, RBAC on RPC endpoints
+- 🗓 Week 4: Remove mock PoW from mainnet/testnet, add regression guards
 
 ### Months 3–12 Roadmap (High-Level)
 - Months 3–4: Finish P1 security (rate limiting, DDoS, monitoring, audit logging).
@@ -68,13 +69,36 @@
 3. **Milestone 3 (2026-06-30):** Dual audits + fixes completed, medium findings ≤5 → move to beta.
 4. **Milestone 4 (2026-10-31):** Beta stable, bug bounty closed, docs/ops ready → production Go/No-Go.
 
-### Week 1 Quick Start Checklist
-- [ ] Create `feature/wallet-encryption` branch and scaffold wallet security modules.
-- [ ] Add Argon2/AES/zeroize dependencies and secure types to crypto crate.
-- [ ] Implement CLI password prompts + keystore save/load flow with tests.
-- [ ] Run `cargo audit`, `cargo clippy --all-targets -D warnings`, `cargo test --package bq-crypto`.
-- [ ] Log follow-up issues for TLS/JWT groundwork and monitoring prerequisites.
+### Week 1 Quick Start Checklist (Security Sprint)
+- [x] Launch hardening sprint / capture progress (`docs/status/TASK_IJK_PLAN.md`)
+- [x] Complete Tasks H–K (timing, overflow, replay, entropy)
+- [ ] Create `feature/wallet-encryption` branch and scaffold wallet security modules
+- [ ] Add Argon2/AES/zeroize dependencies and secure types to crypto crate
+- [ ] Implement CLI password prompts + keystore save/load flow with tests
+- [ ] Run `cargo audit`, `cargo clippy --all-targets -D warnings`, `cargo test --package bq-crypto`
+- [ ] Log follow-up issues for TLS/JWT groundwork and monitoring prerequisites
 
+---
+
+## Latest Progress (2025-11-02T18:00:00Z) – Security Hardening Milestone ✅
+
+**Highlights**
+- ✅ Completed anti-overflow audit (Task I), replay protection overhaul (Task J), entropy audit (Task K) with regression tests
+- ✅ Timing/side-channel audit (Task H) confirmed Argon2/Dilithium/script paths rely on constant-time primitives
+- ✅ Docs/notes reorganised under `docs/{status,planning,releases,...}` and README security badge added
+- ✅ `CHANGELOG.md`, `docs/releases/RELEASE_NOTES_v0.0.2-alpha.md`, `docs/status/*` updated with v0.0.2-alpha summary
+
+**Regression Suite**
+- `cargo fmt --all`
+- `cargo clippy --all-targets --all-features -- -D warnings`
+- `cargo test --all --locked`
+
+**Next Up**
+- Start Wallet Encryption sprint (Week 2)
+- Prepare TLS/JWT enforcement workstreams
+- Shortlist external audit vendors & budget
+
+---
 ## Latest Progress (2025-10-31T10:10:00Z) - Quantum-aware Difficulty Hardening ✅
 
 **Completed Today (Session 7):**
