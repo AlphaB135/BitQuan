@@ -1,5 +1,0 @@
-error: unexpected argument '--bind' found
-
-Usage: bitquan-node p2p-server [OPTIONS]
-
-For more information, try '--help'.
