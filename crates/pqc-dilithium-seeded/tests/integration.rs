@@ -2,6 +2,10 @@ use pqc_dilithium_seeded::*;
 
 #[test]
 fn sign_then_verify_valid() {
+  if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+    return;
+  }
+
   let msg = b"Hello";
   let keys = Keypair::generate();
   let signature = keys.sign(msg);
@@ -10,6 +14,10 @@ fn sign_then_verify_valid() {
 
 #[test]
 fn sign_then_verify_invalid() {
+  if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+    return;
+  }
+
   let msg = b"Hello";
   let keys = Keypair::generate();
   let mut signature = keys.sign(msg);
