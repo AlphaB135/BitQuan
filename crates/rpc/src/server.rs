@@ -167,13 +167,9 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
                 tls: tls.as_ref(),
                 force_tls,
             };
-            if let Err(e) = handle_connection(
-                stream,
-                peer_ip,
-                handler.as_ref(),
-                auth.as_ref(),
-                options,
-            ) {
+            if let Err(e) =
+                handle_connection(stream, peer_ip, handler.as_ref(), auth.as_ref(), options)
+            {
                 eprintln!("Error handling connection: {}", e);
             }
         });
@@ -247,8 +243,7 @@ impl Write for RpcStream {
 
 fn upgrade_to_tls(stream: TcpStream, tls_config: &TlsConfig) -> std::io::Result<RpcStream> {
     let server_config = tls_config.server_config();
-    let connection = ServerConnection::new(server_config)
-        .map_err(std::io::Error::other)?;
+    let connection = ServerConnection::new(server_config).map_err(std::io::Error::other)?;
     let mut tls_stream = StreamOwned::new(connection, stream);
     while tls_stream.conn.is_handshaking() {
         tls_stream.conn.complete_io(&mut tls_stream.sock)?;
@@ -270,9 +265,7 @@ fn handle_connection<T: methods::RpcMethods>(
     let tls = options.tls;
     let force_tls = options.force_tls;
     stream.set_nonblocking(false)?;
-    stream.set_read_timeout(Some(Duration::from_millis(
-        config.header_read_timeout_ms,
-    )))?;
+    stream.set_read_timeout(Some(Duration::from_millis(config.header_read_timeout_ms)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
 
     // Check TLS enforcement with self-signed validation
@@ -299,9 +292,7 @@ fn handle_connection<T: methods::RpcMethods>(
         (None, false) => RpcStream::Plain(stream),
     };
 
-    channel.set_read_timeout(Some(Duration::from_millis(
-        config.header_read_timeout_ms,
-    )))?;
+    channel.set_read_timeout(Some(Duration::from_millis(config.header_read_timeout_ms)))?;
     channel.set_write_timeout(Some(Duration::from_secs(5)))?;
 
     let mut buf_reader = BufReader::new(&mut channel);
@@ -314,19 +305,19 @@ fn handle_connection<T: methods::RpcMethods>(
         let bytes = buf_reader.read_line(&mut line)?;
         if bytes == 0 {
             let stream = buf_reader.get_mut();
-            send_bad_request(*stream)?;
-            record_response(
-                "INVALID",
-                "invalid",
-                StatusCode::BAD_REQUEST,
-                0,
+            send_bad_request(stream)?;
+            record_response(ResponseContext {
+                method: "INVALID",
+                path: "invalid",
+                status: StatusCode::BAD_REQUEST,
+                content_length: 0,
                 start,
-                peer_ip,
-                false,
-                false,
-                false,
-                false,
-            );
+                client_ip: peer_ip,
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: false,
+                header_limit: false,
+            });
             apply_cooldown(config);
             return Ok(());
         }
@@ -334,19 +325,19 @@ fn handle_connection<T: methods::RpcMethods>(
         total_header_bytes += bytes;
         if total_header_bytes > config.max_header_bytes {
             let stream = buf_reader.get_mut();
-            send_header_too_large(*stream)?;
-            record_response(
-                "INVALID",
-                "header",
-                StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
-                0,
+            send_header_too_large(stream)?;
+            record_response(ResponseContext {
+                method: "INVALID",
+                path: "header",
+                status: StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+                content_length: 0,
                 start,
-                peer_ip,
-                false,
-                false,
-                false,
-                true,
-            );
+                client_ip: peer_ip,
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: false,
+                header_limit: true,
+            });
             apply_cooldown(config);
             return Ok(());
         }
@@ -355,19 +346,19 @@ fn handle_connection<T: methods::RpcMethods>(
         if request_line.is_empty() {
             if trimmed.is_empty() {
                 let stream = buf_reader.get_mut();
-                send_bad_request(*stream)?;
-                record_response(
-                    "INVALID",
-                    "invalid",
-                    StatusCode::BAD_REQUEST,
-                    0,
+                send_bad_request(stream)?;
+                record_response(ResponseContext {
+                    method: "INVALID",
+                    path: "invalid",
+                    status: StatusCode::BAD_REQUEST,
+                    content_length: 0,
                     start,
-                    peer_ip,
-                    false,
-                    false,
-                    false,
-                    false,
-                );
+                    client_ip: peer_ip,
+                    rate_limited: false,
+                    body_limit: false,
+                    auth_fail: false,
+                    header_limit: false,
+                });
                 apply_cooldown(config);
                 return Ok(());
             }
@@ -386,19 +377,19 @@ fn handle_connection<T: methods::RpcMethods>(
 
     if request_line.is_empty() {
         let stream = buf_reader.get_mut();
-        send_bad_request(*stream)?;
-        record_response(
-            "INVALID",
-            "invalid",
-            StatusCode::BAD_REQUEST,
-            0,
+        send_bad_request(stream)?;
+        record_response(ResponseContext {
+            method: "INVALID",
+            path: "invalid",
+            status: StatusCode::BAD_REQUEST,
+            content_length: 0,
             start,
-            peer_ip,
-            false,
-            false,
-            false,
-            false,
-        );
+            client_ip: peer_ip,
+            rate_limited: false,
+            body_limit: false,
+            auth_fail: false,
+            header_limit: false,
+        });
         apply_cooldown(config);
         return Ok(());
     }
@@ -433,19 +424,19 @@ fn handle_connection<T: methods::RpcMethods>(
 
     if !validate_host_header(host_header.as_deref(), config) {
         let stream = buf_reader.get_mut();
-        send_forbidden(*stream)?;
-        record_response(
+        send_forbidden(stream)?;
+        record_response(ResponseContext {
             method,
-            &path_owned,
-            StatusCode::FORBIDDEN,
+            path: &path_owned,
+            status: StatusCode::FORBIDDEN,
             content_length,
             start,
             client_ip,
-            false,
-            false,
-            false,
-            false,
-        );
+            rate_limited: false,
+            body_limit: false,
+            auth_fail: false,
+            header_limit: false,
+        });
         apply_cooldown(config);
         return Ok(());
     }
@@ -461,19 +452,19 @@ fn handle_connection<T: methods::RpcMethods>(
 
     if !validate_origin_header(origin_header.as_deref(), config) {
         let stream = buf_reader.get_mut();
-        send_forbidden(*stream)?;
-        record_response(
+        send_forbidden(stream)?;
+        record_response(ResponseContext {
             method,
-            &path_owned,
-            StatusCode::FORBIDDEN,
+            path: &path_owned,
+            status: StatusCode::FORBIDDEN,
             content_length,
             start,
             client_ip,
-            false,
-            false,
-            false,
-            false,
-        );
+            rate_limited: false,
+            body_limit: false,
+            auth_fail: false,
+            header_limit: false,
+        });
         apply_cooldown(config);
         return Ok(());
     }
@@ -486,19 +477,19 @@ fn handle_connection<T: methods::RpcMethods>(
     if is_metrics {
         if !client_ip.is_loopback() {
             let stream = buf_reader.get_mut();
-            send_forbidden(*stream)?;
-            record_response(
+            send_forbidden(stream)?;
+            record_response(ResponseContext {
                 method,
-                &path_owned,
-                StatusCode::FORBIDDEN,
-                0,
+                path: &path_owned,
+                status: StatusCode::FORBIDDEN,
+                content_length: 0,
                 start,
                 client_ip,
-                false,
-                false,
-                false,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: false,
+                header_limit: false,
+            });
             apply_cooldown(config);
             return Ok(());
         }
@@ -515,18 +506,18 @@ fn handle_connection<T: methods::RpcMethods>(
             stream.flush()?;
             let _ = stream.shutdown();
         }
-        record_response(
+        record_response(ResponseContext {
             method,
-            &path_owned,
-            StatusCode::OK,
-            0,
+            path: &path_owned,
+            status: StatusCode::OK,
+            content_length: 0,
             start,
             client_ip,
-            false,
-            false,
-            false,
-            false,
-        );
+            rate_limited: false,
+            body_limit: false,
+            auth_fail: false,
+            header_limit: false,
+        });
         return Ok(());
     }
 
@@ -538,18 +529,18 @@ fn handle_connection<T: methods::RpcMethods>(
             stream.flush()?;
             let _ = stream.shutdown();
         }
-        record_response(
+        record_response(ResponseContext {
             method,
-            &path_owned,
-            StatusCode::OK,
-            0,
+            path: &path_owned,
+            status: StatusCode::OK,
+            content_length: 0,
             start,
             client_ip,
-            false,
-            false,
-            false,
-            false,
-        );
+            rate_limited: false,
+            body_limit: false,
+            auth_fail: false,
+            header_limit: false,
+        });
         return Ok(());
     }
 
@@ -559,12 +550,14 @@ fn handle_connection<T: methods::RpcMethods>(
             return handle_login_endpoint(
                 &mut buf_reader,
                 jwt_auth,
-                content_length,
-                config,
-                method,
-                &path_owned,
-                start,
-                client_ip,
+                RequestContext {
+                    method,
+                    path: &path_owned,
+                    content_length,
+                    config,
+                    start,
+                    client_ip,
+                },
             );
         } else {
             // JWT not configured
@@ -588,12 +581,14 @@ fn handle_connection<T: methods::RpcMethods>(
             return handle_refresh_endpoint(
                 &mut buf_reader,
                 jwt_auth,
-                content_length,
-                config,
-                method,
-                &path_owned,
-                start,
-                client_ip,
+                RequestContext {
+                    method,
+                    path: &path_owned,
+                    content_length,
+                    config,
+                    start,
+                    client_ip,
+                },
             );
         } else {
             // JWT not configured
@@ -613,57 +608,57 @@ fn handle_connection<T: methods::RpcMethods>(
 
     if content_length == 0 {
         let stream = buf_reader.get_mut();
-        send_bad_request(*stream)?;
-        record_response(
+        send_bad_request(stream)?;
+        record_response(ResponseContext {
             method,
-            &path_owned,
-            StatusCode::BAD_REQUEST,
+            path: &path_owned,
+            status: StatusCode::BAD_REQUEST,
             content_length,
             start,
             client_ip,
-            false,
-            false,
-            false,
-            false,
-        );
+            rate_limited: false,
+            body_limit: false,
+            auth_fail: false,
+            header_limit: false,
+        });
         apply_cooldown(config);
         return Ok(());
     }
 
     if content_length > config.max_body_bytes {
         let stream = buf_reader.get_mut();
-        send_payload_too_large(*stream)?;
-        record_response(
+        send_payload_too_large(stream)?;
+        record_response(ResponseContext {
             method,
-            &path_owned,
-            StatusCode::PAYLOAD_TOO_LARGE,
+            path: &path_owned,
+            status: StatusCode::PAYLOAD_TOO_LARGE,
             content_length,
             start,
             client_ip,
-            false,
-            true,
-            false,
-            false,
-        );
+            rate_limited: false,
+            body_limit: true,
+            auth_fail: false,
+            header_limit: false,
+        });
         apply_cooldown(config);
         return Ok(());
     }
 
     if !take_token(client_ip, limiter, config) {
         let stream = buf_reader.get_mut();
-        send_too_many_requests(*stream)?;
-        record_response(
+        send_too_many_requests(stream)?;
+        record_response(ResponseContext {
             method,
-            &path_owned,
-            StatusCode::TOO_MANY_REQUESTS,
+            path: &path_owned,
+            status: StatusCode::TOO_MANY_REQUESTS,
             content_length,
             start,
             client_ip,
-            true,
-            false,
-            false,
-            false,
-        );
+            rate_limited: true,
+            body_limit: false,
+            auth_fail: false,
+            header_limit: false,
+        });
         apply_cooldown(config);
         return Ok(());
     }
@@ -671,19 +666,19 @@ fn handle_connection<T: methods::RpcMethods>(
     if let Some(auth_cfg) = auth {
         if !is_authorized_new(&headers, auth_cfg.as_ref()) {
             let stream = buf_reader.get_mut();
-            send_unauthorized(*stream)?;
-            record_response(
+            send_unauthorized(stream)?;
+            record_response(ResponseContext {
                 method,
-                &path_owned,
-                StatusCode::UNAUTHORIZED,
+                path: &path_owned,
+                status: StatusCode::UNAUTHORIZED,
                 content_length,
                 start,
                 client_ip,
-                false,
-                false,
-                true,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: true,
+                header_limit: false,
+            });
             apply_auth_backoff(client_ip, auth_backoff);
             apply_cooldown(config);
             return Ok(());
@@ -708,18 +703,18 @@ fn handle_connection<T: methods::RpcMethods>(
                 format!("Parse error: {e}"),
             );
             respond_json(stream, &error_response, config)?;
-            record_response(
+            record_response(ResponseContext {
                 method,
-                &path_owned,
-                StatusCode::OK,
+                path: &path_owned,
+                status: StatusCode::OK,
                 content_length,
                 start,
                 client_ip,
-                false,
-                false,
-                false,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: false,
+                header_limit: false,
+            });
             apply_cooldown(config);
             return Ok(());
         }
@@ -741,18 +736,18 @@ fn handle_connection<T: methods::RpcMethods>(
     };
 
     respond_json(stream, &json_response, config)?;
-    record_response(
+    record_response(ResponseContext {
         method,
-        &path_owned,
-        StatusCode::OK,
+        path: &path_owned,
+        status: StatusCode::OK,
         content_length,
         start,
         client_ip,
-        false,
-        false,
-        false,
-        false,
-    );
+        rate_limited: false,
+        body_limit: false,
+        auth_fail: false,
+        header_limit: false,
+    });
     apply_cooldown(config);
     Ok(())
 }
@@ -891,16 +886,28 @@ fn apply_cooldown(config: &RpcConfig) {
 }
 
 /// Handle JWT login endpoint
+struct RequestContext<'a> {
+    method: &'a str,
+    path: &'a str,
+    content_length: usize,
+    config: &'a RpcConfig,
+    start: Instant,
+    client_ip: IpAddr,
+}
+
 fn handle_login_endpoint(
     buf_reader: &mut BufReader<&mut RpcStream>,
     jwt_auth: &Arc<crate::jwt::JwtAuth>,
-    content_length: usize,
-    config: &RpcConfig,
-    method: &str,
-    path: &str,
-    start: Instant,
-    client_ip: IpAddr,
+    ctx: RequestContext<'_>,
 ) -> std::io::Result<()> {
+    let RequestContext {
+        method,
+        path,
+        content_length,
+        config,
+        start,
+        client_ip,
+    } = ctx;
     use serde::{Deserialize, Serialize};
 
     #[derive(Deserialize)]
@@ -945,18 +952,18 @@ fn handle_login_endpoint(
             stream.flush()?;
             let _ = stream.shutdown();
 
-            record_response(
+            record_response(ResponseContext {
                 method,
                 path,
-                StatusCode::BAD_REQUEST,
+                status: StatusCode::BAD_REQUEST,
                 content_length,
                 start,
                 client_ip,
-                false,
-                false,
-                false,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: false,
+                header_limit: false,
+            });
             apply_cooldown(config);
             return Ok(());
         }
@@ -984,18 +991,18 @@ fn handle_login_endpoint(
             stream.flush()?;
             let _ = stream.shutdown();
 
-            record_response(
+            record_response(ResponseContext {
                 method,
                 path,
-                StatusCode::OK,
+                status: StatusCode::OK,
                 content_length,
                 start,
                 client_ip,
-                false,
-                false,
-                false,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: false,
+                header_limit: false,
+            });
             apply_cooldown(config);
             Ok(())
         }
@@ -1015,18 +1022,18 @@ fn handle_login_endpoint(
             stream.flush()?;
             let _ = stream.shutdown();
 
-            record_response(
+            record_response(ResponseContext {
                 method,
                 path,
-                StatusCode::UNAUTHORIZED,
+                status: StatusCode::UNAUTHORIZED,
                 content_length,
                 start,
                 client_ip,
-                false,
-                false,
-                true,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: true,
+                header_limit: false,
+            });
             apply_cooldown(config);
             Ok(())
         }
@@ -1037,13 +1044,16 @@ fn handle_login_endpoint(
 fn handle_refresh_endpoint(
     buf_reader: &mut BufReader<&mut RpcStream>,
     jwt_auth: &Arc<crate::jwt::JwtAuth>,
-    content_length: usize,
-    config: &RpcConfig,
-    method: &str,
-    path: &str,
-    start: Instant,
-    client_ip: IpAddr,
+    ctx: RequestContext<'_>,
 ) -> std::io::Result<()> {
+    let RequestContext {
+        method,
+        path,
+        content_length,
+        config,
+        start,
+        client_ip,
+    } = ctx;
     use serde::{Deserialize, Serialize};
 
     #[derive(Deserialize)]
@@ -1087,18 +1097,18 @@ fn handle_refresh_endpoint(
             stream.flush()?;
             let _ = stream.shutdown();
 
-            record_response(
+            record_response(ResponseContext {
                 method,
                 path,
-                StatusCode::BAD_REQUEST,
+                status: StatusCode::BAD_REQUEST,
                 content_length,
                 start,
                 client_ip,
-                false,
-                false,
-                false,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: false,
+                header_limit: false,
+            });
             apply_cooldown(config);
             return Ok(());
         }
@@ -1126,18 +1136,18 @@ fn handle_refresh_endpoint(
             stream.flush()?;
             let _ = stream.shutdown();
 
-            record_response(
+            record_response(ResponseContext {
                 method,
                 path,
-                StatusCode::OK,
+                status: StatusCode::OK,
                 content_length,
                 start,
                 client_ip,
-                false,
-                false,
-                false,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: false,
+                header_limit: false,
+            });
             apply_cooldown(config);
             Ok(())
         }
@@ -1157,20 +1167,20 @@ fn handle_refresh_endpoint(
             stream.flush()?;
             let _ = stream.shutdown();
 
-            record_response(
+            record_response(ResponseContext {
                 method,
                 path,
-                StatusCode::UNAUTHORIZED,
+                status: StatusCode::UNAUTHORIZED,
                 content_length,
                 start,
                 client_ip,
-                false,
-                false,
-                true,
-                false,
-            );
+                rate_limited: false,
+                body_limit: false,
+                auth_fail: true,
+                header_limit: false,
+            });
             apply_cooldown(config);
-            return Ok(());
+            Ok(())
         }
     }
 }
@@ -1199,18 +1209,18 @@ fn send_upgrade_required(
     stream.flush()?;
     stream.shutdown(Shutdown::Write)?;
 
-    record_response(
-        "UPGRADE",
-        "required",
-        StatusCode::UPGRADE_REQUIRED,
-        body.len(),
+    record_response(ResponseContext {
+        method: "UPGRADE",
+        path: "required",
+        status: StatusCode::UPGRADE_REQUIRED,
+        content_length: body.len(),
         start,
-        peer_ip,
-        false,
-        false,
-        true, // TLS required
-        false,
-    );
+        client_ip: peer_ip,
+        rate_limited: false,
+        body_limit: false,
+        auth_fail: true, // TLS required acts like auth failure
+        header_limit: false,
+    });
 
     Ok(())
 }
@@ -1474,9 +1484,9 @@ fn render_metrics() -> String {
     METRICS.render()
 }
 
-fn record_response(
-    method: &str,
-    path: &str,
+struct ResponseContext<'a> {
+    method: &'a str,
+    path: &'a str,
     status: StatusCode,
     content_length: usize,
     start: Instant,
@@ -1485,23 +1495,25 @@ fn record_response(
     body_limit: bool,
     auth_fail: bool,
     header_limit: bool,
-) {
-    let latency_ms = start.elapsed().as_millis() as u64;
+}
+
+fn record_response(ctx: ResponseContext<'_>) {
+    let latency_ms = ctx.start.elapsed().as_millis() as u64;
     METRICS.record(
-        status,
+        ctx.status,
         latency_ms,
-        rate_limited,
-        body_limit,
-        auth_fail,
-        header_limit,
+        ctx.rate_limited,
+        ctx.body_limit,
+        ctx.auth_fail,
+        ctx.header_limit,
     );
 
-    if rate_limited || body_limit || auth_fail || header_limit {
-        let reason = if rate_limited {
+    if ctx.rate_limited || ctx.body_limit || ctx.auth_fail || ctx.header_limit {
+        let reason = if ctx.rate_limited {
             "rate_limit"
-        } else if body_limit {
+        } else if ctx.body_limit {
             "body_limit"
-        } else if header_limit {
+        } else if ctx.header_limit {
             "header_limit"
         } else {
             "auth_failure"
@@ -1510,11 +1522,11 @@ fn record_response(
         let log = json!({
             "event": "rpc_guard",
             "reason": reason,
-            "status": status.as_u16(),
-            "method": method,
-            "route": path,
-            "ip": client_ip.to_string(),
-            "bytes": content_length,
+            "status": ctx.status.as_u16(),
+            "method": ctx.method,
+            "route": ctx.path,
+            "ip": ctx.client_ip.to_string(),
+            "bytes": ctx.content_length,
             "latency_ms": latency_ms,
         });
         println!("{}", log);
@@ -1591,11 +1603,11 @@ mod tests {
     }
 
     fn base_config() -> RpcConfig {
-        let mut cfg = RpcConfig::default();
-        cfg.conn_cooldown_ms = 0;
-        cfg.trust_proxy = false;
-        cfg.trusted_proxies.clear();
-        cfg
+        RpcConfig {
+            conn_cooldown_ms: 0,
+            trusted_proxies: Vec::new(),
+            ..RpcConfig::default()
+        }
     }
 
     #[test]
@@ -1608,23 +1620,6 @@ mod tests {
             jwt_auth,
             RpcConfig::default(),
         );
-    }
-
-    /// Helper to create JWT auth for tests
-    fn test_jwt_auth() -> crate::jwt::JwtAuth {
-        crate::jwt::JwtAuth::new("test-secret-key-for-testing")
-    }
-
-    /// Helper to create Bearer token for tests  
-    fn bearer_token_header(
-        jwt_auth: &crate::jwt::JwtAuth,
-        username: &str,
-        password: &str,
-    ) -> String {
-        let token = jwt_auth
-            .login(username, password)
-            .expect("Failed to generate test token");
-        format!("Bearer {}", token)
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

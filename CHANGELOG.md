@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.0.2-alpha] - 2025-11-02
+
+### Security - CRITICAL UPDATES
+
+#### Integer Overflow Protection (Task I)
+- Replaced unchecked arithmetic with `checked_*`/`try_fold` across mempool, consensus, types, and node modules
+- Added explicit overflow/underflow error variants (`Overflow`, `InvalidWeight`, `WeightOverflow`, etc.)
+- Updated function signatures to return `Result` where overflow is possible
+- Added 20+ overflow/underflow tests covering weight, fee, balance, and UTXO counters
+- **Breaking Changes:**
+  - `calculate_block_weight` and related helpers now return `Result<usize, MempoolError>`
+  - `ConsensusError` includes `WeightOverflow`
+
+#### Replay Attack Prevention (Task J)
+- Introduced `TxContext { network_id, genesis_hash }` and network magic bytes for all signatures
+- `transaction_sighash` requires `&TxContext` and adds domain separator `"BitQuanSigHashV1"`
+- `TransactionBuilder`, RPC signing, and crypto verification amended to require context binding
+- Added 18 replay-protection tests (cross-network, genesis mismatch, builder flow)
+- **Breaking Changes:**
+  - `transaction_sighash(tx)` → `transaction_sighash(tx, &ctx)?`
+  - `validate_block()` requires `genesis_hash`
+  - Existing signatures must be regenerated (hash domain changed)
+
+#### Entropy Audit (Task K)
+- Replaced all remaining `thread_rng()` usage with `rand::rngs::OsRng`
+- Added deterministic RNG helpers gated to tests only
+- Verified RNG usage across the workspace (no weak PRNGs outside tests)
+- Added `docs/ENTROPY_AUDIT.md` documenting CSPRNG sources and coverage
+- Added 6+ randomness tests (entropy difference, deterministic helper, RNG service)
+
+### Testing
+- 320+ tests passing across the workspace
+- 44 new security-focused tests (overflow, replay, entropy)
+- `cargo fmt`, `cargo clippy -D warnings`, and `cargo test --all --locked` clean
+
+### Migration Guide
+- Update calls to `transaction_sighash` and `validate_block` to include `TxContext`
+- Re-sign any persisted transactions or test vectors (domain separator changed)
+- Regenerate RPC/JWT configs using the new `Default` implementations
+
+### Known Issues
+- Existing signatures produced before v0.0.2-alpha are invalid
+- External security audit pending prior to mainnet launch
+
 ### Fixed
 - **AES-GCM Deprecation Warnings** (2025-11-02)
   - Added `#[allow(deprecated)]` annotations for `from_slice()` calls in keystore
@@ -220,4 +264,3 @@ All notable changes to this project will be documented in this file.
 - Dilithium3 wallet support
 
 For earlier planning history, see ROADMAP.md.
-

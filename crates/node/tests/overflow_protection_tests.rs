@@ -12,5 +12,4 @@
 fn overflow_protection_documented() {
     // All critical arithmetic operations use saturating/checked arithmetic
     // See implementation files for details
-    assert!(true);
 }

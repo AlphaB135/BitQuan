@@ -70,13 +70,3 @@ pub(crate) fn init_test_tracing() {
             .try_init();
     });
 }
-
-/// Convenience for building a basic-auth header in tests.
-pub(crate) fn basic_auth_header(username: &str, password: &str) -> String {
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
-    format!(
-        "Basic {}",
-        STANDARD.encode(format!("{}:{}", username, password))
-    )
-}

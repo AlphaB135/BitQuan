@@ -90,14 +90,15 @@ impl TlsConfig {
         }
     }
 
-    /// Returns an immutable reference to the inner `ServerConfig`.
-    pub fn as_ref(&self) -> &ServerConfig {
-        self.server_config.as_ref()
-    }
-
     /// Returns an `Arc` to the inner `ServerConfig` for use when accepting connections.
     pub fn server_config(&self) -> Arc<ServerConfig> {
         Arc::clone(&self.server_config)
+    }
+}
+
+impl AsRef<ServerConfig> for TlsConfig {
+    fn as_ref(&self) -> &ServerConfig {
+        self.server_config.as_ref()
     }
 }
 

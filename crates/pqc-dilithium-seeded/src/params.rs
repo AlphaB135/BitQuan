@@ -5,15 +5,15 @@ mod mode_3;
 #[cfg(feature = "mode5")]
 mod mode_5;
 
-#[cfg(feature = "mode5")]
-use mode_5 as active_mode;
 #[cfg(all(not(feature = "mode5"), feature = "mode2"))]
 use mode_2 as active_mode;
 #[cfg(all(not(feature = "mode5"), not(feature = "mode2")))]
 use mode_3 as active_mode;
+#[cfg(feature = "mode5")]
+use mode_5 as active_mode;
 
-pub use active_mode::*;
 use active_mode as mode_params;
+pub use active_mode::*;
 
 pub const SEEDBYTES: usize = 32;
 pub const CRHBYTES: usize = 64;
@@ -24,8 +24,7 @@ pub const ROOT_OF_UNITY: usize = 1753;
 
 pub const POLYT1_PACKEDBYTES: usize = 320;
 pub const POLYT0_PACKEDBYTES: usize = 416;
-pub const POLYVECH_PACKEDBYTES: usize =
-  mode_params::OMEGA + mode_params::K;
+pub const POLYVECH_PACKEDBYTES: usize = mode_params::OMEGA + mode_params::K;
 
 pub const POLYZ_PACKEDBYTES: usize =
   if cfg!(feature = "mode2") { 576 } else { 640 };

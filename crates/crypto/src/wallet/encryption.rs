@@ -101,8 +101,9 @@ impl Encryptor {
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt
-        let ciphertext =
-            cipher.encrypt(nonce, plaintext).map_err(EncryptionError::AesGcm)?;
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext)
+            .map_err(EncryptionError::AesGcm)?;
 
         // Zeroize derived key asap
         key_bytes.zeroize();

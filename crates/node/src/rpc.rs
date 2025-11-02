@@ -36,7 +36,7 @@ impl NodeRpcHandler {
             .store
             .lock()
             .map_err(|e| RpcError::InternalError(format!("storage poisoned: {e}")))?;
-        f(&*guard).map_err(storage_to_rpc)
+        f(&guard).map_err(storage_to_rpc)
     }
 }
 

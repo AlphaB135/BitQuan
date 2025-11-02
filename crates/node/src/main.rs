@@ -2,7 +2,6 @@
 
 mod address;
 mod keystore;
-mod logging;
 mod mnemonic;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
@@ -568,16 +567,16 @@ fn main() -> Result<()> {
             let network_id = parse_network_id(&network)?;
             let pow_mode = PowMode::parse(&pow)?;
             ensure_pow_allowed(pow_mode, network_id)?;
-            mine_continuous(
-                &datadir,
-                &payout_script_hex,
-                bits,
+            mine_continuous(MiningOptions {
+                datadir: &datadir,
+                payout_script_hex: &payout_script_hex,
+                bits_override: bits,
                 max_nonce,
                 threads,
                 limit_blocks,
-                network_id,
+                network: network_id,
                 pow_mode,
-            )
+            })
         }
         Commands::WalletGen {
             algo,
@@ -717,28 +716,39 @@ fn main() -> Result<()> {
                     &listen,
                     max_peers,
                     &datadir,
-                    rpc_listen.as_deref(),
-                    rpc_username.as_deref(),
-                    rpc_password.as_deref(),
-                    rpc_max_body,
-                    rpc_rl_burst,
-                    rpc_rl_refill_per_sec,
-                    rpc_conn_cooldown_ms,
-                    rpc_max_header,
-                    rpc_header_timeout_ms,
-                    rpc_trust_proxy,
-                    rpc_trusted_cidr,
-                    rpc_tls_cert.as_deref(),
-                    rpc_tls_key.as_deref(),
-                    rpc_allow_insecure,
-                    jwt_config.as_deref(),
-                    jwt_secret.as_deref(),
+                    RpcServerOptions {
+                        listen: rpc_listen.as_deref(),
+                        username: rpc_username.as_deref(),
+                        password: rpc_password.as_deref(),
+                        max_body_bytes: rpc_max_body,
+                        rl_burst: rpc_rl_burst,
+                        rl_refill_per_sec: rpc_rl_refill_per_sec,
+                        conn_cooldown_ms: rpc_conn_cooldown_ms,
+                        max_header_bytes: rpc_max_header,
+                        header_timeout_ms: rpc_header_timeout_ms,
+                        trust_proxy: rpc_trust_proxy,
+                        trusted_cidr: rpc_trusted_cidr,
+                        tls_cert: rpc_tls_cert.as_deref(),
+                        tls_key: rpc_tls_key.as_deref(),
+                        allow_insecure: rpc_allow_insecure,
+                        jwt_config_path: jwt_config.as_deref(),
+                        jwt_secret: jwt_secret.as_deref(),
+                    },
                 )
             }
             #[cfg(not(feature = "rocksdb-backend"))]
             {
                 let _ = (&listen, max_peers, &datadir);
-                p2p_server(&listen, max_peers, &datadir, None, None, None)
+                p2p_server(
+                    &listen,
+                    max_peers,
+                    &datadir,
+                    RpcServerOptions {
+                        listen: None,
+                        username: None,
+                        password: None,
+                    },
+                )
             }
         }
         Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
@@ -1130,18 +1140,62 @@ fn mine_once(
     Ok(())
 }
 
-/// Continuous mining with persistent RocksDB storage
-#[cfg(feature = "rocksdb-backend")]
-fn mine_continuous(
-    datadir: &str,
-    payout_script_hex: &str,
+struct MiningOptions<'a> {
+    datadir: &'a str,
+    payout_script_hex: &'a str,
     bits_override: u32,
     max_nonce: u64,
     threads: usize,
     limit_blocks: Option<u64>,
     network: NetworkId,
     pow_mode: PowMode,
-) -> Result<()> {
+}
+
+struct RpcServerOptions<'a> {
+    listen: Option<&'a str>,
+    username: Option<&'a str>,
+    password: Option<&'a str>,
+    #[cfg(feature = "rocksdb-backend")]
+    max_body_bytes: usize,
+    #[cfg(feature = "rocksdb-backend")]
+    rl_burst: u32,
+    #[cfg(feature = "rocksdb-backend")]
+    rl_refill_per_sec: u32,
+    #[cfg(feature = "rocksdb-backend")]
+    conn_cooldown_ms: u64,
+    #[cfg(feature = "rocksdb-backend")]
+    max_header_bytes: usize,
+    #[cfg(feature = "rocksdb-backend")]
+    header_timeout_ms: u64,
+    #[cfg(feature = "rocksdb-backend")]
+    trust_proxy: bool,
+    #[cfg(feature = "rocksdb-backend")]
+    trusted_cidr: Vec<String>,
+    #[cfg(feature = "rocksdb-backend")]
+    tls_cert: Option<&'a str>,
+    #[cfg(feature = "rocksdb-backend")]
+    tls_key: Option<&'a str>,
+    #[cfg(feature = "rocksdb-backend")]
+    allow_insecure: bool,
+    #[cfg(feature = "rocksdb-backend")]
+    jwt_config_path: Option<&'a str>,
+    #[cfg(feature = "rocksdb-backend")]
+    jwt_secret: Option<&'a str>,
+}
+
+/// Continuous mining with persistent RocksDB storage
+#[cfg(feature = "rocksdb-backend")]
+fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
+    let MiningOptions {
+        datadir,
+        payout_script_hex,
+        bits_override,
+        max_nonce,
+        threads,
+        limit_blocks,
+        network,
+        pow_mode,
+    } = options;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
 
@@ -1464,16 +1518,7 @@ fn print_session_summary(interval_count: u64, total_intervals: f64, guard_total:
 }
 
 #[cfg(not(feature = "rocksdb-backend"))]
-fn mine_continuous(
-    _datadir: &str,
-    _payout_script_hex: &str,
-    _bits: u32,
-    _max_nonce: u64,
-    _threads: usize,
-    _limit_blocks: Option<u64>,
-    _network: NetworkId,
-    _pow_mode: PowMode,
-) -> Result<()> {
+fn mine_continuous(_options: MiningOptions<'_>) -> Result<()> {
     eprintln!("ERROR: Continuous mining requires 'rocksdb-backend' feature");
     eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
@@ -1865,22 +1910,7 @@ fn p2p_server(
     listen: &str,
     max_peers: usize,
     datadir: &str,
-    rpc_listen: Option<&str>,
-    rpc_username: Option<&str>,
-    rpc_password: Option<&str>,
-    #[cfg(feature = "rocksdb-backend")] rpc_max_body: usize,
-    #[cfg(feature = "rocksdb-backend")] rpc_rl_burst: u32,
-    #[cfg(feature = "rocksdb-backend")] rpc_rl_refill_per_sec: u32,
-    #[cfg(feature = "rocksdb-backend")] rpc_conn_cooldown_ms: u64,
-    #[cfg(feature = "rocksdb-backend")] rpc_max_header: usize,
-    #[cfg(feature = "rocksdb-backend")] rpc_header_timeout_ms: u64,
-    #[cfg(feature = "rocksdb-backend")] rpc_trust_proxy: bool,
-    #[cfg(feature = "rocksdb-backend")] rpc_trusted_cidr: Vec<String>,
-    #[cfg(feature = "rocksdb-backend")] rpc_tls_cert: Option<&str>,
-    #[cfg(feature = "rocksdb-backend")] rpc_tls_key: Option<&str>,
-    #[cfg(feature = "rocksdb-backend")] rpc_allow_insecure: bool,
-    #[cfg(feature = "rocksdb-backend")] jwt_config: Option<&str>,
-    #[cfg(feature = "rocksdb-backend")] jwt_secret: Option<&str>,
+    rpc: RpcServerOptions<'_>,
 ) -> Result<()> {
     use bitquan_network::{P2PListener, PeerManager};
     #[cfg(feature = "rocksdb-backend")]
@@ -1892,6 +1922,33 @@ fn p2p_server(
     println!("Listen: {}", listen);
     println!("Max peers: {}", max_peers);
     println!("Data dir: {}", datadir);
+
+    #[cfg(feature = "rocksdb-backend")]
+    let RpcServerOptions {
+        listen: rpc_listen,
+        username: rpc_username,
+        password: rpc_password,
+        max_body_bytes: rpc_max_body,
+        rl_burst: rpc_rl_burst,
+        rl_refill_per_sec: rpc_rl_refill_per_sec,
+        conn_cooldown_ms: rpc_conn_cooldown_ms,
+        max_header_bytes: rpc_max_header,
+        header_timeout_ms: rpc_header_timeout_ms,
+        trust_proxy: rpc_trust_proxy,
+        trusted_cidr: rpc_trusted_cidr,
+        tls_cert: rpc_tls_cert,
+        tls_key: rpc_tls_key,
+        allow_insecure: rpc_allow_insecure,
+        jwt_config_path: jwt_config,
+        jwt_secret,
+    } = rpc;
+
+    #[cfg(not(feature = "rocksdb-backend"))]
+    let RpcServerOptions {
+        listen: rpc_listen,
+        username: rpc_username,
+        password: rpc_password,
+    } = rpc;
 
     // Load current height from storage
     #[cfg(feature = "rocksdb-backend")]
@@ -1998,20 +2055,22 @@ fn p2p_server(
             );
         }
 
-        let mut rpc_config = RpcConfig::default();
-        rpc_config.max_body_bytes = rpc_max_body;
-        rpc_config.rl_burst = rpc_rl_burst;
-        rpc_config.rl_refill_per_sec = rpc_rl_refill_per_sec;
-        rpc_config.conn_cooldown_ms = rpc_conn_cooldown_ms;
-        rpc_config.trust_proxy = rpc_trust_proxy;
-        rpc_config.trusted_proxies = trusted_proxies;
-        rpc_config.max_header_bytes = rpc_max_header;
-        rpc_config.header_read_timeout_ms = rpc_header_timeout_ms;
-        rpc_config.require_tls = require_tls;
-        rpc_config.allow_self_signed = false; // TODO: make configurable for devnet
-        rpc_config.enable_hsts = true;
-        rpc_config.hsts_max_age = 31536000; // 1 year
-        rpc_config.hsts_include_subdomains = false;
+        let rpc_config = RpcConfig {
+            max_body_bytes: rpc_max_body,
+            rl_burst: rpc_rl_burst,
+            rl_refill_per_sec: rpc_rl_refill_per_sec,
+            conn_cooldown_ms: rpc_conn_cooldown_ms,
+            trust_proxy: rpc_trust_proxy,
+            trusted_proxies,
+            max_header_bytes: rpc_max_header,
+            header_read_timeout_ms: rpc_header_timeout_ms,
+            require_tls,
+            allow_self_signed: false,
+            enable_hsts: true,
+            hsts_max_age: 31_536_000,
+            hsts_include_subdomains: false,
+            ..RpcConfig::default()
+        };
         println!(
             "RPC starting with max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} max_header_bytes={} header_timeout_ms={} trust_proxy={} trusted_cidr={:?} require_tls={} tls_configured={}",
             rpc_config.max_body_bytes,
@@ -2923,8 +2982,6 @@ fn install_panic_hook() {
 
 #[cfg(test)]
 mod overflow_tests {
-    use super::*;
-
     #[test]
     fn test_balance_overflow_protection() {
         // This test verifies that checked_add is in place for balance calculation

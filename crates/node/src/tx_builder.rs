@@ -473,10 +473,7 @@ mod overflow_tests {
         );
 
         // Key: should not panic; may succeed or fail gracefully
-        match result {
-            Ok(_) => {}  // Succeeded
-            Err(_) => {} // Failed gracefully (insufficient funds after fee)
-        }
+        drop(result);
     }
 
     #[test]
@@ -494,9 +491,6 @@ mod overflow_tests {
         // Should handle gracefully - either succeed or fail due to overflow protection
         let result = select_coins(&utxos, 50_000_000, 100, CoinSelection::LargestFirst);
         // Accept both Ok and Err as valid outcomes (overflow protection may kick in)
-        match result {
-            Ok(_) => {}  // Success
-            Err(_) => {} // Failed gracefully (overflow or insufficient funds)
-        }
+        drop(result);
     }
 }

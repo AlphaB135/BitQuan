@@ -31,6 +31,26 @@
 
 BitQuan is a cryptocurrency designed for 50+ year security resilience against quantum computing threats. It uses lattice-based cryptography (Dilithium) for digital signatures and maintains Bitcoin's proven Proof-of-Work consensus model with block weight accounting for large PQC signatures.
 
+## Security Status
+
+**Last Security Audit:** November 2025 (Self-audit + AI-assisted)  
+**Status:** ✅ Hardened (Tasks I, J, K complete)
+
+### Recent Security Improvements
+- ✅ Integer overflow protection (Nov 2025)
+- ✅ Replay attack prevention (Nov 2025)
+- ✅ Entropy audit complete (Nov 2025)
+- ⏳ External security audit: Pending (pre-mainnet)
+
+### Security Features
+- Post-quantum signatures (Dilithium3)
+- Checked arithmetic in all production-critical paths
+- Network-bound signatures (replay protection)
+- CSPRNG-backed key generation and encryption
+- Reproducible builds and documented security policy
+
+See [SECURITY.md](SECURITY.md) for the vulnerability disclosure process.
+
 ## Quick Start
 
 ```bash
