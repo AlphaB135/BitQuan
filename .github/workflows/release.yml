@@ -29,6 +29,7 @@ jobs:
       - name: Ensure tag-backed release exists
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if gh release view "${{ env.RELEASE_TAG }}" >/dev/null 2>&1; then
             echo "Release ${{ env.RELEASE_TAG }} already exists"
