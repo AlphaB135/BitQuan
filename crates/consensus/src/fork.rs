@@ -67,7 +67,7 @@ impl BlockNode {
         // In a real implementation, this would compute 2^256 / target
         // For now, we use a simple heuristic: all blocks with same difficulty have same work
         // Chain work = sum of block works = height * constant (if difficulty constant)
-        
+
         // For testing: return constant work per block
         // This makes chain work proportional to chain length
         1.0
@@ -300,12 +300,12 @@ impl ForkChoice {
         // Find the fork point (last common ancestor)
         let mut fork_idx = 0;
         let min_len = old_path.len().min(new_path.len());
-        
+
         for i in 0..min_len {
             if old_path[i] == new_path[i] {
-                fork_idx = i;  // This is still common
+                fork_idx = i; // This is still common
             } else {
-                break;  // Found first difference, fork_idx is last common
+                break; // Found first difference, fork_idx is last common
             }
         }
 

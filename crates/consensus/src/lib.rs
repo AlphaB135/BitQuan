@@ -154,37 +154,59 @@ pub enum ConsensusError {
     /// Signature verification failed.
     #[error("signature verification failed: {0}")]
     Signature(#[from] CryptoError),
+    /// Arithmetic overflow in weight calculation.
+    #[error("overflow in {0}")]
+    WeightOverflow(&'static str),
 }
 
 /// Calculates transaction weight according to BQIP-0002.
 ///
 /// Formula: weight = (base_size * 4) + (signature_count * 384)
-pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> usize {
+pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> Result<usize, ConsensusError> {
     const WITNESS_SCALE_FACTOR: usize = 4;
     const SIGNATURE_WEIGHT: usize = 384;
 
     // Base size: transaction without witness data
     let base_size = tx
         .serialized_size_hint()
-        .saturating_sub(tx.witness_size_hint());
+        .checked_sub(tx.witness_size_hint())
+        .ok_or(ConsensusError::WeightOverflow(
+            "transaction base size calculation",
+        ))?;
 
-    // Count signatures in witnesses using saturating arithmetic to prevent overflow
-    let sig_count: usize = tx
-        .witnesses
-        .iter()
-        .fold(0usize, |acc, w| acc.saturating_add(w.signatures.len()));
+    // Count signatures in witnesses using checked arithmetic
+    let sig_count: usize = tx.witnesses.iter().try_fold(0usize, |acc, w| {
+        acc.checked_add(w.signatures.len())
+            .ok_or(ConsensusError::WeightOverflow("signature count"))
+    })?;
 
-    base_size
-        .saturating_mul(WITNESS_SCALE_FACTOR)
-        .saturating_add(sig_count.saturating_mul(SIGNATURE_WEIGHT))
+    // Calculate base weight: base_size * 4
+    let base_weight = base_size
+        .checked_mul(WITNESS_SCALE_FACTOR)
+        .ok_or(ConsensusError::WeightOverflow("base weight calculation"))?;
+
+    // Calculate signature weight: sig_count * 384
+    let sig_weight =
+        sig_count
+            .checked_mul(SIGNATURE_WEIGHT)
+            .ok_or(ConsensusError::WeightOverflow(
+                "signature weight calculation",
+            ))?;
+
+    // Add them together
+    base_weight
+        .checked_add(sig_weight)
+        .ok_or(ConsensusError::WeightOverflow("total transaction weight"))
 }
 
 /// Calculates block weight according to BQIP-0002.
 ///
 /// Formula: sum of all transaction weights
-pub fn calculate_block_weight(block: &Block) -> usize {
-    block.transactions.iter().fold(0usize, |acc, tx| {
-        acc.saturating_add(calculate_tx_weight(tx))
+pub fn calculate_block_weight(block: &Block) -> Result<usize, ConsensusError> {
+    block.transactions.iter().try_fold(0usize, |acc, tx| {
+        let tx_weight = calculate_tx_weight(tx)?;
+        acc.checked_add(tx_weight)
+            .ok_or(ConsensusError::WeightOverflow("block weight accumulation"))
     })
 }
 
@@ -220,8 +242,8 @@ pub fn validate_block(
     registry: &CryptoRegistry,
     network_id: bitquan_types::NetworkId,
 ) -> Result<BlockValidationReport, ConsensusError> {
-    // Calculate block weight using BQIP-0002 formula
-    let block_weight = calculate_block_weight(block);
+    // Calculate block weight using BQIP-0002 formula (with overflow protection)
+    let block_weight = calculate_block_weight(block)?;
     let signature_count = count_signatures(block);
     let block_subsidy = params.reward_schedule.subsidy_at_height(height);
 
