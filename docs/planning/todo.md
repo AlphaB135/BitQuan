@@ -10,6 +10,16 @@
 - [ ] External Security Audit (ต้องทำก่อน mainnet)
 
 ---
+## 🔥 Critical Follow-ups (หลังรีวิวล่าสุด)
+- [ ] Audit และแทนที่ `.unwrap()` ใน production paths (เริ่มจาก multisig, mnemonic, fork, mempool, consensus, network, storage, tx_builder)
+- [ ] เพิ่ม Retry-After header + body read timeout ใน RPC rate limiting/req handling
+- [ ] Cleanup ไฟล์สำรอง/ซ้ำ (`*.bak`, `*-e`, `.tmp`, `.DS_Store`, ENTROPY_AUDIT duplicates) และอัปเดต `.gitignore`
+- [ ] กำหนด activation heights สำหรับ feature flags ใน consensus params + tests
+- [ ] กำหนด mempool DoS caps (inputs/outputs/script size/sigops + ancestor limits) พร้อม validation tests
+- [ ] ตรวจและเติม P2P safety knobs (handshake timeout, max peers, ban score, max msg/block size, announce rate limit)
+- [ ] เพิ่ม fuzz + miri jobs ใน CI เพื่อตรวจ undefined behavior / parser crashes
+
+---
 ## 📦 รายละเอียดงานที่เสร็จแล้ว
 ### H) Timing & Side-channel Audit
 - Argon2/JWT, Dilithium, Script verify ใช้ constant-time ที่ library จัดให้
