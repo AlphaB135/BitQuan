@@ -17,6 +17,7 @@ use bitquan_consensus::{
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
+#[allow(deprecated)]
 use bitquan_rpc::{
     server::{RpcAuth, RpcServer},
     tls::TlsConfig,
@@ -465,6 +466,22 @@ enum Commands {
         #[arg(long, default_value = "jwt.toml")]
         config: String,
     },
+    /// Verify database integrity and optionally create backup
+    #[cfg(feature = "rocksdb-backend")]
+    VerifyDb {
+        /// Path to database directory
+        #[arg(long, default_value = "data/chaindata")]
+        path: String,
+        /// Create backup before verification
+        #[arg(long)]
+        backup: bool,
+        /// Backup directory path
+        #[arg(long)]
+        backup_path: Option<String>,
+        /// Rebuild indices if corrupted
+        #[arg(long)]
+        rebuild: bool,
+    },
     /// Connect to a peer as a client
     P2PConnect {
         /// Peer address to connect to (e.g., 127.0.0.1:8333)
@@ -693,6 +710,13 @@ fn main() -> Result<()> {
         } => jwt_user_add(&config, &username, &role, password.as_deref()),
         Commands::JwtUserRemove { config, username } => jwt_user_remove(&config, &username),
         Commands::JwtUserList { config } => jwt_user_list(&config),
+        #[cfg(feature = "rocksdb-backend")]
+        Commands::VerifyDb {
+            path,
+            backup,
+            backup_path,
+            rebuild,
+        } => verify_database(&path, backup, backup_path.as_deref(), rebuild),
     }
 }
 
@@ -1889,6 +1913,7 @@ fn p2p_server(
         }
 
         // For Basic Auth (deprecated path)
+        #[allow(deprecated)]
         let auth = if !use_jwt {
             Some(RpcAuth::new(username.to_string(), password_value.clone()))
         } else {
@@ -1928,21 +1953,20 @@ fn p2p_server(
             );
         }
 
-        let rpc_config = RpcConfig {
-            max_body_bytes: rpc_max_body,
-            rl_burst: rpc_rl_burst,
-            rl_refill_per_sec: rpc_rl_refill_per_sec,
-            conn_cooldown_ms: rpc_conn_cooldown_ms,
-            trust_proxy: rpc_trust_proxy,
-            trusted_proxies,
-            max_header_bytes: rpc_max_header,
-            header_read_timeout_ms: rpc_header_timeout_ms,
-            require_tls,
-            allow_self_signed: false, // TODO: make configurable for devnet
-            enable_hsts: true,
-            hsts_max_age: 31536000, // 1 year
-            hsts_include_subdomains: false,
-        };
+        let mut rpc_config = RpcConfig::default();
+        rpc_config.max_body_bytes = rpc_max_body;
+        rpc_config.rl_burst = rpc_rl_burst;
+        rpc_config.rl_refill_per_sec = rpc_rl_refill_per_sec;
+        rpc_config.conn_cooldown_ms = rpc_conn_cooldown_ms;
+        rpc_config.trust_proxy = rpc_trust_proxy;
+        rpc_config.trusted_proxies = trusted_proxies;
+        rpc_config.max_header_bytes = rpc_max_header;
+        rpc_config.header_read_timeout_ms = rpc_header_timeout_ms;
+        rpc_config.require_tls = require_tls;
+        rpc_config.allow_self_signed = false; // TODO: make configurable for devnet
+        rpc_config.enable_hsts = true;
+        rpc_config.hsts_max_age = 31536000; // 1 year
+        rpc_config.hsts_include_subdomains = false;
         println!(
             "RPC starting with max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} max_header_bytes={} header_timeout_ms={} trust_proxy={} trusted_cidr={:?} require_tls={} tls_configured={}",
             rpc_config.max_body_bytes,
@@ -2000,6 +2024,7 @@ fn p2p_server(
                 RpcServer::with_jwt(handler, rpc_addr.clone(), jwt_auth, rpc_config)
             } else {
                 // Basic Auth (deprecated)
+                #[allow(deprecated)]
                 let auth = RpcAuth::new(username_owned, password_owned);
                 RpcServer::with_auth(handler, rpc_addr.clone(), Some(auth), rpc_config)
             };
@@ -2363,6 +2388,44 @@ fn jwt_user_remove(config_path: &str, username: &str) -> Result<()> {
 }
 
 /// List users in JWT configuration
+#[cfg(feature = "rocksdb-backend")]
+fn verify_database(
+    path: &str,
+    backup: bool,
+    backup_path: Option<&str>,
+    rebuild: bool,
+) -> Result<()> {
+    use bitquan_storage::RecoveryOptions;
+
+    println!("🔍 Database Verification Tool");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Database path: {}", path);
+    println!();
+
+    let options = RecoveryOptions {
+        verify_checksums: true,
+        auto_backup: backup,
+        backup_path: backup_path.map(|s| s.to_string()),
+        rebuild_indices: rebuild,
+    };
+
+    println!("Opening database with recovery options...");
+    let store = RocksDBStore::open_with_options(path, options)?;
+
+    println!();
+    println!("📊 Database Statistics:");
+    let stats = store.get_stats()?;
+    println!("  Chain height: {}", stats.height);
+    println!("  Total blocks: {}", stats.num_blocks);
+    println!("  Transactions: {}", stats.num_transactions);
+    println!("  UTXOs: {}", stats.num_utxos);
+
+    println!();
+    println!("✅ Database verification complete!");
+
+    Ok(())
+}
+
 fn jwt_user_list(config_path: &str) -> Result<()> {
     use bitquan_rpc::jwt::JwtConfig;
     use std::path::Path;

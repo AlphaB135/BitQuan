@@ -9,6 +9,9 @@ use thiserror::Error;
 #[cfg(feature = "rocksdb-backend")]
 pub mod rocksdb_store;
 
+#[cfg(feature = "rocksdb-backend")]
+pub use rocksdb_store::{DatabaseStats, RecoveryOptions, RocksDBStore};
+
 /// Errors produced by chain storage backends.
 #[derive(Debug, Error)]
 pub enum StorageError {

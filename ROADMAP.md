@@ -38,7 +38,7 @@
 | P1-2 | Adaptive DDoS protection (connection guard + challenge) | 2 weeks | 🟠 High | Internal |
 | P1-3 | Security monitoring & alerting | 2 weeks | 🟠 High | Internal |
 | P1-4 | Audit logging pipeline | 1 week | 🟠 High | Internal |
-| P2-x | Mnemonic, hardware wallet, multisig, fuzzing suite | 1–3 weeks each | 🟡 Medium | Mixed |
+| P2-x | ~~Mnemonic~~ ✅ **Done**, hardware wallet, multisig, fuzzing suite | 1–3 weeks each | 🟡 Medium | Mixed |
 | P3 | External audits ×2, penetration testing | 4–8 weeks | 🔴 Critical | Vendors |
 
 ### Sprint 1–2 (Weeks 1–4) – Critical Security Fixes
@@ -49,7 +49,7 @@
 
 ### Months 3–12 Roadmap (High-Level)
 - Months 3–4: Finish P1 security (rate limiting, DDoS, monitoring, audit logging).
-- Months 5–6: Ship wallet enhancements (BIP39, multisig, hardware wallet), fuzz/property/stress testing, performance tuning.
+- Months 5–6: Ship wallet enhancements (~~BIP39~~ ✅ **Complete**, multisig, hardware wallet), fuzz/property/stress testing, performance tuning.
 - Months 7–8: Run dual external audits, remediate issues, rerun verification suites.
 - Months 9–10: Penetration testing + public bug bounty; drive critical/high bugs to zero.
 - Months 11–12: 6-month public beta, finalize documentation/support/legal, prepare production launch collateral.

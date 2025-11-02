@@ -102,8 +102,10 @@ pub fn encrypt_keystore(
 
     let mut key_bytes = derive_key(&pw, &salt, mem_kib, time_cost, parallelism);
 
+    #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
+    #[allow(deprecated)]
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher
@@ -172,8 +174,10 @@ pub fn decrypt_keystore(ks: &KeystoreFile, password: &str) -> Result<Vec<u8>, St
         ks.kdf.parallelism,
     );
 
+    #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
+    #[allow(deprecated)]
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let res = cipher

@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **AES-GCM Deprecation Warnings** (2025-11-02)
+  - Added `#[allow(deprecated)]` annotations for `from_slice()` calls in keystore
+  - Maintained compatibility with aes-gcm 0.10 while suppressing warnings
+  - All wallet tests passing (27/27)
+
+- **BasicAuth Deprecation Warnings** (2025-11-02)
+  - Isolated deprecated `RpcAuth` code with `#[allow(deprecated)]` annotations
+  - Marked BasicAuth as legacy authentication method (JWT recommended)
+  - Updated all usage sites in node CLI and RPC server
+  - All RPC tests passing (21/21)
+  - No deprecated warnings in compilation output
+
+### Added
+- **BIP39 Deterministic Mnemonic Support** (2025-11-02)
+  - Full deterministic Dilithium3 keypair generation from BIP39 mnemonic seeds
+  - Support for 12-word and 24-word mnemonic phrases
+  - HMAC-SHA512 based key derivation for cryptographic security
+  - Multiple key derivation from single mnemonic (index-based)
+  - Passphrase support for additional security layer
+  - Wallet recovery: same mnemonic → same keypair (reproducible)
+  - CLI commands: `wallet-gen-mnemonic` and `wallet-from-mnemonic`
+  - Comprehensive test coverage (12/12 tests passing)
+  - Production-ready implementation using patched `pqc_dilithium`
+
+### Changed
+- Migrated from `pqcrypto-dilithium` to patched `pqc-dilithium-seeded`
+  - Exposed `crypto_sign_keypair` function for deterministic generation
+  - Enables wallet backup and recovery via mnemonic phrases
+  - Maintains post-quantum security with Dilithium3
+
 ## [0.0.1-alpha] - 2025-10-27
 
 ### Added

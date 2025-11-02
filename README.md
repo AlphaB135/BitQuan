@@ -40,11 +40,18 @@ cargo build --release
 # Run tests
 cargo test --all --locked
 
-# Generate wallet keypair
+# Generate wallet keypair (random)
 ./target/release/bitquan-node wallet-gen --output wallet.keystore
+
+# Generate wallet from BIP39 mnemonic (deterministic recovery)
+./target/release/bitquan-node wallet-gen-mnemonic
+./target/release/bitquan-node wallet-from-mnemonic --phrase "your twelve word mnemonic phrase here..."
 
 # Get wallet address
 ./target/release/bitquan-node wallet-address --keystore wallet.keystore
+
+# Verify database integrity
+./target/release/bitquan-node verify-db --path data/chaindata --backup
 
 # Check balance (requires script pubkey hex)
 ./target/release/bitquan-node balance --script-hex <SCRIPT_HEX>
@@ -114,7 +121,8 @@ Guides:
 
 ## Features
 
-- Post-Quantum Cryptography (Dilithium3, 3293-byte signatures)
+- **Post-Quantum Cryptography** (Dilithium3, 3293-byte signatures)
+- **BIP39 Mnemonic Wallet** with deterministic key derivation (12/24 words)
 - Block weight accounting (4,000,000 WU cap, 384 WU per PQC sig)
 - Quantum-aware difficulty (ASERT + burst guard) with 4 h half-life, 11-block window, 0.33 floor ratio, 1.5× clamp
 - Fee-per-weight mempool ordering

@@ -6,7 +6,7 @@ pub mod peer;
 pub mod protocol;
 pub mod relay;
 
-pub use peer::{P2PListener, Peer, PeerManager, PeerState};
+pub use peer::{EclipseConfig, P2PListener, Peer, PeerManager, PeerState};
 pub use relay::{create_block_inv, create_tx_inv, RelayManager, RelayPolicy};
 
 use bitquan_types::Block;

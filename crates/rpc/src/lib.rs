@@ -40,6 +40,12 @@ pub struct RpcConfig {
     pub hsts_max_age: u64,
     /// Include subdomains in HSTS directive.
     pub hsts_include_subdomains: bool,
+    /// Allowed Host header values (DNS rebinding protection)
+    pub allowed_hosts: Vec<String>,
+    /// Allowed Origin header values (CORS protection)
+    pub allowed_origins: Vec<String>,
+    /// Enforce Host header validation
+    pub enforce_host_validation: bool,
 }
 
 impl Default for RpcConfig {
@@ -58,6 +64,9 @@ impl Default for RpcConfig {
             enable_hsts: true,
             hsts_max_age: 31536000, // 1 year
             hsts_include_subdomains: true,
+            allowed_hosts: vec!["localhost".to_string(), "127.0.0.1".to_string()],
+            allowed_origins: vec![],
+            enforce_host_validation: true,
         }
     }
 }
@@ -71,6 +80,7 @@ impl RpcConfig {
             enable_hsts: true,
             hsts_max_age: 31536000,
             hsts_include_subdomains: true,
+            enforce_host_validation: true, // ✅ Enforce Host validation
             ..Default::default()
         }
     }

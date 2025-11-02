@@ -40,6 +40,15 @@ pub const MAX_MESSAGE_SIZE: usize = 10_000_000;
 /// Maximum inv/getdata items per message.
 pub const MAX_INV_ITEMS: usize = 50_000;
 
+/// Maximum transactions per block message
+pub const MAX_BLOCK_TXS: usize = 10_000;
+
+/// Maximum headers in getheaders response
+pub const MAX_HEADERS: usize = 2_000;
+
+/// Maximum addresses in addr message
+pub const MAX_ADDR_ENTRIES: usize = 1_000;
+
 /// Network magic bytes for mainnet.
 pub const MAINNET_MAGIC: [u8; 4] = [0x42, 0x51, 0x01, 0x01]; // BQ mainnet
 
@@ -60,6 +69,39 @@ pub fn network_magic(network: bitquan_types::NetworkId) -> [u8; 4] {
         bitquan_types::NetworkId::Devnet => DEVNET_MAGIC,
         bitquan_types::NetworkId::Regtest => REGTEST_MAGIC,
     }
+}
+
+/// Validate message against memory exhaustion limits
+pub fn validate_message(msg: &Message) -> Result<(), P2pError> {
+    match msg {
+        Message::Inv { inventory } | Message::GetData { inventory } => {
+            if inventory.len() > MAX_INV_ITEMS {
+                return Err(P2pError::MessageTooLarge(inventory.len()));
+            }
+        }
+        Message::Headers { headers } => {
+            if headers.len() > MAX_HEADERS {
+                return Err(P2pError::MessageTooLarge(headers.len()));
+            }
+        }
+        Message::Addr { addrs } => {
+            if addrs.len() > MAX_ADDR_ENTRIES {
+                return Err(P2pError::MessageTooLarge(addrs.len()));
+            }
+        }
+        Message::GetHeaders { locator_hashes, .. } => {
+            if locator_hashes.len() > MAX_HEADERS {
+                return Err(P2pError::MessageTooLarge(locator_hashes.len()));
+            }
+        }
+        Message::Block { block } => {
+            if block.transactions.len() > MAX_BLOCK_TXS {
+                return Err(P2pError::MessageTooLarge(block.transactions.len()));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// P2P message types.

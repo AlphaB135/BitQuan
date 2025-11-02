@@ -1,3 +1,4 @@
+#![allow(unexpected_cfgs)]
 #![cfg(all(dilithium_kat, not(feature = "random_signing")))]
 
 use pqc_core::load::*;

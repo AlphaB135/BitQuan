@@ -18,11 +18,15 @@ use subtle::ConstantTimeEq;
 /// Basic authentication configuration for RPC server (DEPRECATED).
 #[deprecated(note = "Use JWT authentication instead")]
 #[derive(Clone, Debug)]
+#[allow(deprecated)]
 pub struct RpcAuth {
+    #[allow(deprecated)]
     username: String,
+    #[allow(deprecated)]
     password: String,
 }
 
+#[allow(deprecated)]
 impl RpcAuth {
     /// Creates a new auth configuration from username/password strings.
     pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
@@ -52,8 +56,10 @@ impl RpcAuth {
 
 /// Authentication method for RPC server
 #[derive(Clone)]
+#[allow(deprecated)]
 pub enum AuthMethod {
     /// Basic Auth (deprecated, for backward compatibility)
+    #[allow(deprecated)]
     Basic(RpcAuth),
     /// JWT Authentication (recommended)
     Jwt(Arc<crate::jwt::JwtAuth>),
@@ -79,7 +85,12 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
 
     /// Create RPC server with optional authentication.
     #[allow(deprecated)]
-    pub fn with_auth(handler: T, addr: String, auth: Option<RpcAuth>, config: RpcConfig) -> Self {
+    pub fn with_auth(
+        handler: T,
+        addr: String,
+        #[allow(deprecated)] auth: Option<RpcAuth>,
+        config: RpcConfig,
+    ) -> Self {
         let require_tls = config.require_tls;
         let auth_method = auth.map(AuthMethod::Basic);
         Self {
@@ -449,11 +460,6 @@ fn handle_connection<T: methods::RpcMethods>(
 
     let client_ip = resolve_client_ip(peer_ip, &headers, config);
 
-    let is_health = method.eq_ignore_ascii_case("GET") && path == "/health";
-    let is_metrics = method.eq_ignore_ascii_case("GET") && path == "/metrics";
-    let is_login = method.eq_ignore_ascii_case("POST") && path == "/auth/login";
-    let is_refresh = method.eq_ignore_ascii_case("POST") && path == "/auth/refresh";
-
     let content_length = headers
         .iter()
         .find_map(|line| {
@@ -465,6 +471,67 @@ fn handle_connection<T: methods::RpcMethods>(
             }
         })
         .unwrap_or(0);
+
+    let host_header = headers.iter().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        if name.trim().eq_ignore_ascii_case("host") {
+            Some(value.trim().to_string())
+        } else {
+            None
+        }
+    });
+
+    if !validate_host_header(host_header.as_deref(), config) {
+        let stream = buf_reader.get_mut();
+        send_forbidden(*stream)?;
+        record_response(
+            method,
+            &path_owned,
+            StatusCode::FORBIDDEN,
+            content_length,
+            start,
+            client_ip,
+            false,
+            false,
+            false,
+            false,
+        );
+        apply_cooldown(config);
+        return Ok(());
+    }
+
+    let origin_header = headers.iter().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        if name.trim().eq_ignore_ascii_case("origin") {
+            Some(value.trim().to_string())
+        } else {
+            None
+        }
+    });
+
+    if !validate_origin_header(origin_header.as_deref(), config) {
+        let stream = buf_reader.get_mut();
+        send_forbidden(*stream)?;
+        record_response(
+            method,
+            &path_owned,
+            StatusCode::FORBIDDEN,
+            content_length,
+            start,
+            client_ip,
+            false,
+            false,
+            false,
+            false,
+        );
+        apply_cooldown(config);
+        return Ok(());
+    }
+
+    let is_health = method.eq_ignore_ascii_case("GET") && path == "/health";
+    let is_metrics = method.eq_ignore_ascii_case("GET") && path == "/metrics";
+    let is_login = method.eq_ignore_ascii_case("POST") && path == "/auth/login";
+    let is_refresh = method.eq_ignore_ascii_case("POST") && path == "/auth/refresh";
 
     if is_metrics {
         if !client_ip.is_loopback() {
@@ -796,7 +863,7 @@ fn is_authorized_new(request_headers: &[String], auth: &AuthMethod) -> bool {
 }
 
 /// Old Basic Auth function (deprecated, kept for compatibility)
-#[allow(dead_code)]
+#[allow(dead_code, deprecated)]
 fn is_authorized(request_headers: &[String], auth: &RpcAuth) -> bool {
     let header = request_headers
         .iter()
@@ -1568,6 +1635,7 @@ fn record_response(
 
 #[cfg(test)]
 mod tests {
+    #![allow(deprecated)]
     use super::*;
     use crate::methods::{BlockTemplate, BlockchainInfo, MiningInfo, RpcMethods, TxInfo};
     use crate::test_util::{basic_auth_header, init_test_tracing, spawn_test_server, wait_ready};
@@ -1988,5 +2056,82 @@ mod tests {
         let _ = shutdown_tx.send(());
         let _ = timeout(Duration::from_secs(5), handle).await??;
         Ok(())
+    }
+}
+
+/// Validate Host header against whitelist (DNS rebinding protection)
+fn validate_host_header(host: Option<&str>, config: &RpcConfig) -> bool {
+    if !config.enforce_host_validation {
+        return true;
+    }
+
+    let Some(host_value) = host else {
+        return false; // Missing Host header
+    };
+
+    // Extract hostname without port
+    let hostname = host_value.split(':').next().unwrap_or(host_value);
+
+    config
+        .allowed_hosts
+        .iter()
+        .any(|allowed| allowed == hostname || allowed == host_value)
+}
+
+/// Validate Origin header (CORS protection)
+fn validate_origin_header(origin: Option<&str>, config: &RpcConfig) -> bool {
+    if config.allowed_origins.is_empty() {
+        return true; // No restrictions if list is empty
+    }
+
+    let Some(origin_value) = origin else {
+        return true; // Allow if no Origin header (same-origin requests)
+    };
+
+    config
+        .allowed_origins
+        .iter()
+        .any(|allowed| allowed == origin_value)
+}
+
+#[cfg(test)]
+mod dns_rebinding_tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_host_allowed() {
+        let config = RpcConfig {
+            allowed_hosts: vec!["localhost".to_string(), "127.0.0.1".to_string()],
+            enforce_host_validation: true,
+            ..Default::default()
+        };
+
+        assert!(validate_host_header(Some("localhost"), &config));
+        assert!(validate_host_header(Some("127.0.0.1"), &config));
+        assert!(validate_host_header(Some("localhost:8332"), &config));
+    }
+
+    #[test]
+    fn test_validate_host_rejected() {
+        let config = RpcConfig {
+            allowed_hosts: vec!["localhost".to_string()],
+            enforce_host_validation: true,
+            ..Default::default()
+        };
+
+        assert!(!validate_host_header(Some("evil.com"), &config));
+        assert!(!validate_host_header(None, &config));
+    }
+
+    #[test]
+    fn test_validate_origin() {
+        let config = RpcConfig {
+            allowed_origins: vec!["https://example.com".to_string()],
+            ..Default::default()
+        };
+
+        assert!(validate_origin_header(Some("https://example.com"), &config));
+        assert!(!validate_origin_header(Some("https://evil.com"), &config));
+        assert!(validate_origin_header(None, &config)); // Same-origin OK
     }
 }

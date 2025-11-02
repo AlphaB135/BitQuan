@@ -92,6 +92,9 @@ impl Peer {
         self.last_seen = SystemTime::now();
 
         // Rate limiting check
+        // Validate message for memory exhaustion attacks
+        crate::protocol::validate_message(&envelope.message)?;
+
         let now = SystemTime::now();
         if now
             .duration_since(self.rate_limit_window)
@@ -229,6 +232,27 @@ impl Peer {
     }
 }
 
+/// Eclipse attack mitigation configuration
+#[derive(Debug, Clone)]
+pub struct EclipseConfig {
+    /// Maximum peers from same /24 subnet
+    pub max_peers_per_subnet: usize,
+    /// Anchor peers (hardcoded, never evicted)
+    pub anchor_peers: Vec<SocketAddr>,
+    /// Enable subnet diversity checks
+    pub enforce_subnet_diversity: bool,
+}
+
+impl Default for EclipseConfig {
+    fn default() -> Self {
+        Self {
+            max_peers_per_subnet: 2,
+            anchor_peers: vec![],
+            enforce_subnet_diversity: true,
+        }
+    }
+}
+
 /// Manages multiple peer connections.
 pub struct PeerManager {
     /// Active peer connections.
@@ -239,6 +263,8 @@ pub struct PeerManager {
     current_height: Arc<Mutex<u64>>,
     /// Relay manager for tracking announced items.
     relay_manager: Option<Arc<crate::relay::RelayManager>>,
+    /// Eclipse attack mitigation config
+    eclipse_config: EclipseConfig,
 }
 
 impl PeerManager {
@@ -249,6 +275,7 @@ impl PeerManager {
             max_peers,
             current_height: Arc::new(Mutex::new(0)),
             relay_manager: None,
+            eclipse_config: EclipseConfig::default(),
         }
     }
 
@@ -259,6 +286,22 @@ impl PeerManager {
             max_peers,
             current_height: Arc::new(Mutex::new(0)),
             relay_manager: Some(relay_manager),
+            eclipse_config: EclipseConfig::default(),
+        }
+    }
+
+    /// Creates a new peer manager with eclipse attack mitigation
+    pub fn with_eclipse_config(
+        max_peers: usize,
+        relay_manager: Option<Arc<crate::relay::RelayManager>>,
+        eclipse_config: EclipseConfig,
+    ) -> Self {
+        PeerManager {
+            peers: Arc::new(Mutex::new(Vec::new())),
+            max_peers,
+            current_height: Arc::new(Mutex::new(0)),
+            relay_manager,
+            eclipse_config,
         }
     }
 
@@ -267,12 +310,59 @@ impl PeerManager {
         *self.current_height.lock().unwrap() = height;
     }
 
+    /// Extract /24 subnet from IP address
+    fn get_subnet_24(addr: &SocketAddr) -> Option<[u8; 3]> {
+        match addr.ip() {
+            std::net::IpAddr::V4(ipv4) => {
+                let octets = ipv4.octets();
+                Some([octets[0], octets[1], octets[2]])
+            }
+            std::net::IpAddr::V6(_) => {
+                // For IPv6, we'd use /64 or /48, simplified here
+                None
+            }
+        }
+    }
+
+    /// Count peers from the same /24 subnet
+    fn count_peers_in_subnet(&self, peers: &[Peer], subnet: [u8; 3]) -> usize {
+        peers
+            .iter()
+            .filter(|p| {
+                Self::get_subnet_24(&p.addr)
+                    .map(|s| s == subnet)
+                    .unwrap_or(false)
+            })
+            .count()
+    }
+
+    /// Check if peer is an anchor (hardcoded, never evicted)
+    fn is_anchor(&self, addr: &SocketAddr) -> bool {
+        self.eclipse_config
+            .anchor_peers
+            .iter()
+            .any(|anchor| anchor == addr)
+    }
+
     /// Adds a new peer connection (inbound).
     pub fn add_peer_inbound(&self, stream: TcpStream, addr: SocketAddr) -> Result<(), P2pError> {
         let mut peers = self.peers.lock().unwrap();
 
         if peers.len() >= self.max_peers {
             return Err(P2pError::ConnectionError("max peers reached".into()));
+        }
+
+        // Eclipse attack mitigation: check subnet diversity
+        if self.eclipse_config.enforce_subnet_diversity {
+            if let Some(subnet) = Self::get_subnet_24(&addr) {
+                let count = self.count_peers_in_subnet(&peers, subnet);
+                if count >= self.eclipse_config.max_peers_per_subnet && !self.is_anchor(&addr) {
+                    return Err(P2pError::ConnectionError(format!(
+                        "too many peers from same subnet: {} (max: {})",
+                        count, self.eclipse_config.max_peers_per_subnet
+                    )));
+                }
+            }
         }
 
         let mut peer = Peer::new(stream, addr)?;
@@ -384,6 +474,49 @@ impl PeerManager {
             .iter()
             .filter(|p| p.state == PeerState::Ready)
             .count()
+    }
+
+    /// Get subnet diversity statistics
+    pub fn get_subnet_stats(&self) -> std::collections::HashMap<[u8; 3], usize> {
+        let peers = self.peers.lock().unwrap();
+        let mut subnet_counts = std::collections::HashMap::new();
+
+        for peer in peers.iter() {
+            if let Some(subnet) = Self::get_subnet_24(&peer.addr) {
+                *subnet_counts.entry(subnet).or_insert(0) += 1;
+            }
+        }
+
+        subnet_counts
+    }
+
+    /// Evict lowest-reputation non-anchor peer
+    pub fn evict_lowest_reputation_peer(&self) -> Option<SocketAddr> {
+        let mut peers = self.peers.lock().unwrap();
+
+        let result = peers
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| !self.is_anchor(&p.addr))
+            .max_by_key(|(_, p)| p.ban_score)
+            .map(|(i, p)| (i, p.addr));
+
+        if let Some((idx, addr)) = result {
+            peers.remove(idx);
+            Some(addr)
+        } else {
+            None
+        }
+    }
+
+    /// Get list of anchor peers
+    pub fn get_anchors(&self) -> Vec<SocketAddr> {
+        self.eclipse_config.anchor_peers.clone()
+    }
+
+    /// Check if subnet diversity is enforced
+    pub fn is_subnet_diversity_enforced(&self) -> bool {
+        self.eclipse_config.enforce_subnet_diversity
     }
 }
 
