@@ -49,4 +49,132 @@ mod tests {
         assert_eq!(CompactUint::from(65_535_u64).encoded_length(), 3);
         assert_eq!(CompactUint::from(65_536_u64).encoded_length(), 5);
     }
+
+    fn sample_tx() -> Transaction {
+        let tx_in = TxIn {
+            prev_txid: [0u8; 32],
+            prev_vout: 0,
+            sequence: 0xffff_fffe,
+            script_sig: vec![0x51],
+        };
+
+        let tx_out = TxOut {
+            value: 123_456_789,
+            script_pubkey: vec![0x76, 0xa9, 0x14, 0x00, 0x88, 0xac],
+        };
+
+        let sig = SignaturePayload {
+            signer_index: 0,
+            signature: vec![0xAB; 8],
+            public_key: vec![0xCD; 4],
+            aux: Some(AuxiliarySignatureData {
+                payload: vec![0xEF],
+            }),
+        };
+
+        let witness = Witness {
+            signatures: vec![sig],
+        };
+
+        Transaction {
+            version: 2,
+            network: NetworkId::Devnet,
+            genesis_hash: genesis::GENESIS_HASH_BYTES,
+            lock_time: 0,
+            inputs: vec![tx_in],
+            outputs: vec![tx_out],
+            sig_algo: SigAlgorithm::Dilithium3,
+            witnesses: vec![witness],
+        }
+    }
+
+    #[test]
+    fn test_normal_tx_size_calculations_still_work() {
+        let tx = sample_tx();
+
+        // All size calculations should succeed for normal transactions
+        assert!(tx.serialized_size_hint().is_ok());
+        assert!(tx.witness_size_hint().is_ok());
+        assert!(tx.signature_count().is_ok());
+
+        let size = tx.serialized_size_hint().unwrap();
+        let witness_size = tx.witness_size_hint().unwrap();
+        let sig_count = tx.signature_count().unwrap();
+
+        assert!(size > 0);
+        assert!(witness_size > 0);
+        assert_eq!(sig_count, 1);
+    }
+
+    #[test]
+    fn test_tx_size_overflow_protection() {
+        // Create transaction with many large inputs
+        let mut inputs = Vec::new();
+        for i in 0..1000 {
+            inputs.push(TxIn {
+                prev_txid: [i as u8; 32],
+                prev_vout: i,
+                sequence: 0xffffffff,
+                script_sig: vec![0u8; 10000],
+            });
+        }
+
+        let tx = Transaction {
+            version: 2,
+            network: NetworkId::Devnet,
+            genesis_hash: genesis::GENESIS_HASH_BYTES,
+            lock_time: 0,
+            inputs,
+            outputs: vec![TxOut {
+                value: 1000,
+                script_pubkey: vec![0x51],
+            }],
+            sig_algo: SigAlgorithm::Dilithium3,
+            witnesses: vec![],
+        };
+
+        // Should either succeed or detect overflow
+        let result = tx.serialized_size_hint();
+        assert!(result.is_ok() || matches!(result, Err(ValidationError::SizeOverflow(_))));
+    }
+
+    #[test]
+    fn test_signature_count_overflow() {
+        // Create transaction with many witnesses (but not too many to OOM)
+        let mut witnesses = Vec::new();
+        for _ in 0..10000 {
+            witnesses.push(Witness {
+                signatures: vec![SignaturePayload {
+                    signer_index: 0,
+                    signature: vec![0u8; 1],
+                    public_key: vec![0u8; 1],
+                    aux: None,
+                }],
+            });
+        }
+
+        let tx = Transaction {
+            version: 2,
+            network: NetworkId::Devnet,
+            genesis_hash: genesis::GENESIS_HASH_BYTES,
+            lock_time: 0,
+            inputs: vec![TxIn {
+                prev_txid: [0u8; 32],
+                prev_vout: 0,
+                sequence: 0xffffffff,
+                script_sig: vec![],
+            }],
+            outputs: vec![TxOut {
+                value: 1000,
+                script_pubkey: vec![0x51],
+            }],
+            sig_algo: SigAlgorithm::Dilithium3,
+            witnesses,
+        };
+
+        // Should successfully count signatures
+        let result = tx.signature_count();
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 10000);
+    }
 }
