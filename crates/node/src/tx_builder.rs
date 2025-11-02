@@ -315,7 +315,10 @@ mod tests {
             select_coins(&utxos, 25_000_000, 1, CoinSelection::SmallestSufficient).unwrap();
         assert!(!selected.is_empty());
 
-        let total: u64 = selected.iter().map(|u| u.value).sum();
+        // Use saturating_add to prevent overflow when summing coin values
+        let total: u64 = selected
+            .iter()
+            .fold(0u64, |acc, u| acc.saturating_add(u.value));
         assert!(total >= 25_000_000);
     }
 

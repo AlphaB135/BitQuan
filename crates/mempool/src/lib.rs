@@ -20,7 +20,12 @@ fn calculate_tx_weight(tx: &Transaction) -> Result<usize, MempoolError> {
         .checked_sub(witness)
         .ok_or(MempoolError::WeightOverflow)?;
 
-    let sig_count: usize = tx.witnesses.iter().map(|w| w.signatures.len()).sum();
+    // Use checked arithmetic to prevent overflow when counting signatures
+    let sig_count: usize = tx
+        .witnesses
+        .iter()
+        .try_fold(0usize, |acc, w| acc.checked_add(w.signatures.len()))
+        .ok_or(MempoolError::WeightOverflow)?;
 
     calculate_weight_components(base_size, sig_count).ok_or(MempoolError::WeightOverflow)
 }

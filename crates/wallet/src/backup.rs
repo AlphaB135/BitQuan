@@ -13,6 +13,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
 const SALT_LEN: usize = 32;
@@ -203,9 +204,10 @@ impl WalletBackup {
             self.kdf.parallelism,
         )?;
 
-        // Verify HMAC (tamper detection)
+        // Verify HMAC (tamper detection) - uses constant-time comparison
         let computed_mac = compute_hmac(&key_bytes, &salt, &nonce_bytes, &ciphertext);
-        if computed_mac != expected_mac.as_slice() {
+        let mac_valid: bool = computed_mac.ct_eq(expected_mac.as_slice()).into();
+        if !mac_valid {
             key_bytes.zeroize();
             return Err("Backup integrity check failed (tampered or wrong password)".to_string());
         }

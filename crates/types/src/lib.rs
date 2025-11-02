@@ -26,11 +26,13 @@ pub type SignatureCount = u64;
 
 /// Returns the total number of signatures across all transactions in a block.
 pub fn count_signatures(block: &Block) -> SignatureCount {
+    // Use saturating_add to prevent overflow when counting block signatures
     block
         .transactions
         .iter()
-        .map(|tx| tx.signature_count() as SignatureCount)
-        .sum()
+        .fold(0 as SignatureCount, |acc, tx| {
+            acc.saturating_add(tx.signature_count() as SignatureCount)
+        })
 }
 
 #[cfg(test)]

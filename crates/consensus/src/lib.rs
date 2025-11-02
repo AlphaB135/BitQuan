@@ -168,8 +168,11 @@ pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> usize {
         .serialized_size_hint()
         .saturating_sub(tx.witness_size_hint());
 
-    // Count signatures in witnesses
-    let sig_count: usize = tx.witnesses.iter().map(|w| w.signatures.len()).sum();
+    // Count signatures in witnesses using saturating arithmetic to prevent overflow
+    let sig_count: usize = tx
+        .witnesses
+        .iter()
+        .fold(0usize, |acc, w| acc.saturating_add(w.signatures.len()));
 
     base_size
         .saturating_mul(WITNESS_SCALE_FACTOR)

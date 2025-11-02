@@ -97,11 +97,11 @@ impl UtxoSet {
     }
 
     /// Calculates the total value for a script pubkey.
+    /// Uses saturating arithmetic to prevent overflow.
     pub fn balance(&self, script_pubkey: &[u8]) -> u64 {
         self.get_by_script(script_pubkey)
             .iter()
-            .map(|utxo| utxo.value())
-            .sum()
+            .fold(0u64, |acc, utxo| acc.saturating_add(utxo.value()))
     }
 
     /// Applies a transaction to the UTXO set.

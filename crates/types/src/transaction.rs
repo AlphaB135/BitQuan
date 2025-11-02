@@ -227,8 +227,11 @@ impl Transaction {
         self.outputs.len()
     }
     /// Returns the number of explicit signatures across all witnesses.
+    /// Uses saturating arithmetic to prevent overflow.
     pub fn signature_count(&self) -> usize {
-        self.witnesses.iter().map(|w| w.signatures.len()).sum()
+        self.witnesses
+            .iter()
+            .fold(0usize, |acc, w| acc.saturating_add(w.signatures.len()))
     }
     /// Provides a heuristic serialized size used by consensus weight calculations.
     pub fn serialized_size_hint(&self) -> usize {

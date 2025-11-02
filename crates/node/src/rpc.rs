@@ -163,7 +163,11 @@ struct TransactionSummary {
 
 impl From<Transaction> for TransactionSummary {
     fn from(tx: Transaction) -> Self {
-        let value_out = tx.outputs.iter().map(|o| o.value).sum();
+        // Use saturating_add to prevent overflow when summing output values
+        let value_out = tx
+            .outputs
+            .iter()
+            .fold(0u64, |acc, o| acc.saturating_add(o.value));
         Self {
             txid: hex::encode(tx.txid()),
             version: tx.version,
