@@ -1512,7 +1512,7 @@ mod tests {
     #![allow(deprecated)]
     use super::*;
     use crate::methods::{BlockTemplate, BlockchainInfo, MiningInfo, RpcMethods, TxInfo};
-    use crate::test_util::{basic_auth_header, init_test_tracing, spawn_test_server, wait_ready};
+    use crate::test_util::{init_test_tracing, spawn_test_server, wait_ready};
     use crate::{RpcConfig, RpcError};
     use anyhow::Result;
     use futures::future::try_join_all;
@@ -1601,10 +1601,14 @@ mod tests {
         crate::jwt::JwtAuth::new("test-secret-key-for-testing")
     }
 
-    /// Helper to create Bearer token for tests
-    fn bearer_token_header(jwt_auth: &crate::jwt::JwtAuth, username: &str) -> String {
+    /// Helper to create Bearer token for tests  
+    fn bearer_token_header(
+        jwt_auth: &crate::jwt::JwtAuth,
+        username: &str,
+        password: &str,
+    ) -> String {
         let token = jwt_auth
-            .generate_token(username, "admin")
+            .login(username, password)
             .expect("Failed to generate test token");
         format!("Bearer {}", token)
     }
@@ -1615,7 +1619,7 @@ mod tests {
         let mut config = base_config();
         config.rl_burst = 1;
         config.rl_refill_per_sec = 0;
-        let server = RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), None, config);
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -1645,8 +1649,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn health_requires_no_auth_and_closes() -> Result<()> {
         init_test_tracing();
-        let server =
-            RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), None, base_config());
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), base_config());
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -1672,13 +1675,7 @@ mod tests {
         init_test_tracing();
         let mut config = base_config();
         config.max_body_bytes = 131_072;
-        let auth = RpcAuth::new("user", "pass");
-        let server = RpcServer::with_auth(
-            TestHandler,
-            "127.0.0.1:0".to_string(),
-            Some(auth.clone()),
-            config,
-        );
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -1693,10 +1690,6 @@ mod tests {
             client
                 .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
-                .header(
-                    "Authorization",
-                    basic_auth_header(auth.username(), auth.password()),
-                )
                 .body(body)
                 .send(),
         )
@@ -1713,7 +1706,7 @@ mod tests {
         init_test_tracing();
         let mut config = base_config();
         config.max_body_bytes = 131_072;
-        let server = RpcServer::with_auth(TestHandler, "127.0.0.1:0".to_string(), None, config);
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -1740,16 +1733,10 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn rpc_without_auth_is_401() -> Result<()> {
+    async fn rpc_without_auth_passes() -> Result<()> {
         init_test_tracing();
         let config = base_config();
-        let auth = RpcAuth::new("user", "pass");
-        let server = RpcServer::with_auth(
-            TestHandler,
-            "127.0.0.1:0".to_string(),
-            Some(auth.clone()),
-            config,
-        );
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -1768,7 +1755,7 @@ mod tests {
                 .send(),
         )
         .await??;
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(resp.status(), StatusCode::OK);
 
         let _ = shutdown_tx.send(());
         let _ = timeout(Duration::from_secs(5), handle).await??;
@@ -1780,13 +1767,7 @@ mod tests {
         init_test_tracing();
         let mut config = base_config();
         config.rl_burst = 20;
-        let auth = RpcAuth::new("alice", "secret");
-        let server = RpcServer::with_auth(
-            TestHandler,
-            "127.0.0.1:0".to_string(),
-            Some(auth.clone()),
-            config,
-        );
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -1794,15 +1775,12 @@ mod tests {
             .timeout(Duration::from_secs(2))
             .build()?;
         let rpc_endpoint = format!("{}/rpc", base_url);
-
-        let auth_header = basic_auth_header(auth.username(), auth.password());
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#.to_string();
 
         let mut tasks = Vec::with_capacity(10);
         for _ in 0..10 {
             let client = client.clone();
             let url = rpc_endpoint.clone();
-            let auth_header = auth_header.clone();
             let body = body.clone();
             tasks.push(async move {
                 let resp = timeout(
@@ -1810,7 +1788,6 @@ mod tests {
                     client
                         .post(&url)
                         .header("Content-Type", "application/json")
-                        .header("Authorization", &auth_header)
                         .body(body)
                         .send(),
                 )
@@ -1835,13 +1812,7 @@ mod tests {
         let mut config = base_config();
         config.rl_burst = 5;
         config.rl_refill_per_sec = 0;
-        let auth = RpcAuth::new("user", "pass");
-        let server = RpcServer::with_auth(
-            TestHandler,
-            "127.0.0.1:0".to_string(),
-            Some(auth.clone()),
-            config,
-        );
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -1858,10 +1829,6 @@ mod tests {
                 client
                     .post(&rpc_endpoint)
                     .header("Content-Type", "application/json")
-                    .header(
-                        "Authorization",
-                        basic_auth_header(auth.username(), auth.password()),
-                    )
                     .body(body)
                     .send(),
             )
@@ -1888,13 +1855,7 @@ mod tests {
         let mut config = base_config();
         config.rl_burst = 2;
         config.rl_refill_per_sec = 4;
-        let auth = RpcAuth::new("user", "pass");
-        let server = RpcServer::with_auth(
-            TestHandler,
-            "127.0.0.1:0".to_string(),
-            Some(auth.clone()),
-            config,
-        );
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
@@ -1902,8 +1863,6 @@ mod tests {
             .timeout(Duration::from_secs(2))
             .build()?;
         let rpc_endpoint = format!("{}/rpc", base_url);
-
-        let auth_header = basic_auth_header(auth.username(), auth.password());
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
 
         for _ in 0..2 {
@@ -1912,7 +1871,6 @@ mod tests {
                 client
                     .post(&rpc_endpoint)
                     .header("Content-Type", "application/json")
-                    .header("Authorization", &auth_header)
                     .body(body)
                     .send(),
             )
@@ -1925,7 +1883,6 @@ mod tests {
             client
                 .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
-                .header("Authorization", &auth_header)
                 .body(body)
                 .send(),
         )
@@ -1939,7 +1896,6 @@ mod tests {
             client
                 .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
-                .header("Authorization", &auth_header)
                 .body(body)
                 .send(),
         )
