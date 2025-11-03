@@ -3,32 +3,9 @@
 
 //! Canonical transaction digest construction for PQC signature verification.
 
+use bitquan_types::error::{Error, Result};
 use bitquan_types::{Transaction, TxContext, TxIn, TxOut, Witness};
 use sha2::{Digest, Sha256};
-use thiserror::Error;
-
-/// Errors that can occur during sighash computation.
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-pub enum SighashError {
-    /// Transaction network does not match context network.
-    #[error("network mismatch: transaction uses {tx_network:?}, context requires {ctx_network:?}")]
-    NetworkMismatch {
-        /// Network specified in transaction.
-        tx_network: bitquan_types::NetworkId,
-        /// Network specified in context.
-        ctx_network: bitquan_types::NetworkId,
-    },
-
-    /// Transaction genesis hash does not match context genesis hash.
-    #[error("genesis mismatch: transaction uses {}, context requires {}",
-        hex::encode(.tx_genesis), hex::encode(.ctx_genesis))]
-    GenesisMismatch {
-        /// Genesis hash in transaction.
-        tx_genesis: [u8; 32],
-        /// Genesis hash in context.
-        ctx_genesis: [u8; 32],
-    },
-}
 
 /// Domain separator for BitQuan transaction signatures (version 1).
 const DOMAIN_SEPARATOR: &[u8] = b"BitQuanSigHashV1";
@@ -40,22 +17,22 @@ const DOMAIN_SEPARATOR: &[u8] = b"BitQuanSigHashV1";
 ///
 /// # Errors
 ///
-/// Returns `SighashError::NetworkMismatch` if transaction and context networks differ.
-/// Returns `SighashError::GenesisMismatch` if transaction and context genesis hashes differ.
-pub fn transaction_sighash(tx: &Transaction, ctx: &TxContext) -> Result<[u8; 32], SighashError> {
+/// Returns `Error::Invalid` if transaction and context networks or genesis hashes differ.
+pub fn transaction_sighash(tx: &Transaction, ctx: &TxContext) -> Result<[u8; 32]> {
     // Verify transaction matches context
     if tx.network != ctx.network_id {
-        return Err(SighashError::NetworkMismatch {
-            tx_network: tx.network,
-            ctx_network: ctx.network_id,
-        });
+        return Err(Error::Invalid(format!(
+            "network mismatch: transaction uses {:?}, context requires {:?}",
+            tx.network, ctx.network_id
+        )));
     }
 
     if tx.genesis_hash != ctx.genesis_hash {
-        return Err(SighashError::GenesisMismatch {
-            tx_genesis: tx.genesis_hash,
-            ctx_genesis: ctx.genesis_hash,
-        });
+        return Err(Error::Invalid(format!(
+            "genesis mismatch: transaction uses {}, context requires {}",
+            hex::encode(tx.genesis_hash),
+            hex::encode(ctx.genesis_hash)
+        )));
     }
 
     let mut hasher = Sha256::new();
@@ -335,14 +312,12 @@ mod tests {
         assert!(result.is_err());
 
         match result {
-            Err(SighashError::NetworkMismatch {
-                tx_network,
-                ctx_network,
-            }) => {
-                assert_eq!(tx_network, NetworkId::Mainnet);
-                assert_eq!(ctx_network, NetworkId::Testnet);
+            Err(Error::Invalid(msg)) => {
+                assert!(msg.contains("network mismatch"));
+                assert!(msg.contains("Mainnet"));
+                assert!(msg.contains("Testnet"));
             }
-            _ => panic!("Expected NetworkMismatch error"),
+            _ => panic!("Expected network mismatch invalid error"),
         }
     }
 
@@ -357,14 +332,11 @@ mod tests {
         assert!(result.is_err());
 
         match result {
-            Err(SighashError::GenesisMismatch {
-                tx_genesis,
-                ctx_genesis,
-            }) => {
-                assert_eq!(tx_genesis, GENESIS_HASH_BYTES);
-                assert_eq!(ctx_genesis, different_genesis);
+            Err(Error::Invalid(msg)) => {
+                assert!(msg.contains("genesis mismatch"));
+                assert!(msg.contains(&hex::encode(GENESIS_HASH_BYTES)));
             }
-            _ => panic!("Expected GenesisMismatch error"),
+            _ => panic!("Expected genesis mismatch invalid error"),
         }
     }
 
@@ -411,5 +383,23 @@ mod tests {
         // The hash should be deterministic and different from any previous version
         // that didn't include the domain separator
         assert_eq!(hash.len(), 32);
+    }
+
+    #[test]
+    fn cross_network_replay_rejected() {
+        // Sign against mainnet context
+        let tx = tx_for_network(NetworkId::Mainnet);
+        let main_ctx = ctx_for_network(NetworkId::Mainnet);
+        let test_ctx = ctx_for_network(NetworkId::Testnet);
+
+        let main_hash = transaction_sighash(&tx, &main_ctx).unwrap();
+        assert_eq!(main_hash.len(), 32);
+
+        // Attempt to reuse the same transaction on a different network should fail
+        let err = transaction_sighash(&tx, &test_ctx).unwrap_err();
+        match err {
+            Error::Invalid(msg) => assert!(msg.contains("network mismatch")),
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }
