@@ -21,6 +21,7 @@ sha2.workspace = true
 subtle.workspace = true
 thiserror.workspace = true
 hex.workspace = true
+bitquan-types = { path = "../types" }
 
 [dev-dependencies]
 tempfile = "3.12"

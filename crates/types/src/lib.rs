@@ -4,7 +4,10 @@
 mod block;
 mod compact_uint;
 pub mod context;
+pub mod error;
+pub mod ext;
 pub mod genesis;
+pub mod time;
 mod transaction;
 pub mod validation;
 pub mod wire;
@@ -13,6 +16,8 @@ pub use block::merkle_root_from_txids as compute_merkle_root_from_txids;
 pub use block::{Block, BlockHeader};
 pub use compact_uint::CompactUint;
 pub use context::TxContext;
+pub use error::{Error, Result};
+pub use ext::ResultExt;
 pub use genesis::{
     create_genesis_block, is_valid_genesis, GENESIS_BITS, GENESIS_HASH, GENESIS_TIME,
 };

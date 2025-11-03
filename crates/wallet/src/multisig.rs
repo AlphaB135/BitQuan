@@ -3,6 +3,7 @@
 //! Supports M-of-N multi-signature schemes where M signatures are required
 //! from a set of N public keys to authorize a transaction.
 
+use bitquan_types::time;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -69,6 +70,12 @@ pub enum MultisigError {
     InvalidSignature,
     #[error("Transaction already complete")]
     AlreadyComplete,
+    #[error("system time error: {0}")]
+    Clock(&'static str),
+}
+
+fn unix_timestamp() -> Result<u64, MultisigError> {
+    time::unix_timestamp().map_err(|_| MultisigError::Clock("clock before epoch"))
 }
 
 impl MultisigConfig {
@@ -111,10 +118,7 @@ impl MultisigConfig {
             }
         }
 
-        let created_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let created_at = unix_timestamp()?;
 
         Ok(Self {
             required_sigs,
@@ -164,10 +168,7 @@ impl MultisigWallet {
     /// Creates a new pending transaction for signing.
     pub fn create_pending_tx(&self, tx_data: &[u8]) -> PendingMultisigTx {
         let tx_id = self.compute_tx_id(tx_data);
-        let created_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let created_at = unix_timestamp().unwrap_or(0);
 
         PendingMultisigTx {
             tx_id: hex::encode(tx_id),
@@ -201,10 +202,7 @@ impl MultisigWallet {
         }
 
         // Add signature
-        let signed_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let signed_at = unix_timestamp()?;
 
         pending.signatures.push(PartialSignature {
             public_key: public_key.to_string(),
@@ -256,10 +254,7 @@ impl MultisigWallet {
             tx_data: pending.tx_data.clone(),
             config: pending.config.clone(),
             signatures: pending.signatures.clone(),
-            finalized_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            finalized_at: unix_timestamp()?,
         })
     }
 

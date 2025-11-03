@@ -30,6 +30,8 @@ pub struct RpcConfig {
     pub max_header_bytes: usize,
     /// Header read timeout in milliseconds.
     pub header_read_timeout_ms: u64,
+    /// Body read timeout in milliseconds.
+    pub body_read_timeout_ms: u64,
     /// Require inbound RPC connections to use TLS.
     pub require_tls: bool,
     /// Allow self-signed certificates (devnet/testnet only).
@@ -59,6 +61,7 @@ impl Default for RpcConfig {
             trusted_proxies: Vec::new(),
             max_header_bytes: 8 * 1024,
             header_read_timeout_ms: 1_000,
+            body_read_timeout_ms: 2_500,
             require_tls: false,
             allow_self_signed: true, // Allow for dev/test
             enable_hsts: true,

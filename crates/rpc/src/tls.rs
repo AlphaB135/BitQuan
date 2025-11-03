@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rcgen::{generate_simple_self_signed, CertifiedKey};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer};
@@ -79,10 +80,10 @@ impl TlsConfig {
     /// Check if certificate expires soon (within given days)
     pub fn expires_soon(&self, days: u64) -> bool {
         if let Some(expires_at) = self.cert_expires_at {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64;
+            let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
+                Ok(duration) => duration.as_secs() as i64,
+                Err(_) => return false,
+            };
             let threshold = now + (days * 24 * 60 * 60) as i64;
             expires_at < threshold
         } else {

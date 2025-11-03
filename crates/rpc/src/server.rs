@@ -6,7 +6,7 @@ use once_cell::sync::Lazy;
 use rustls::{ServerConnection, StreamOwned};
 use serde_json::json;
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::net::{IpAddr, Shutdown, TcpListener, TcpStream};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -317,6 +317,7 @@ fn handle_connection<T: methods::RpcMethods>(
                 body_limit: false,
                 auth_fail: false,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             return Ok(());
@@ -337,6 +338,7 @@ fn handle_connection<T: methods::RpcMethods>(
                 body_limit: false,
                 auth_fail: false,
                 header_limit: true,
+                body_timeout: false,
             });
             apply_cooldown(config);
             return Ok(());
@@ -358,6 +360,7 @@ fn handle_connection<T: methods::RpcMethods>(
                     body_limit: false,
                     auth_fail: false,
                     header_limit: false,
+                    body_timeout: false,
                 });
                 apply_cooldown(config);
                 return Ok(());
@@ -389,6 +392,7 @@ fn handle_connection<T: methods::RpcMethods>(
             body_limit: false,
             auth_fail: false,
             header_limit: false,
+            body_timeout: false,
         });
         apply_cooldown(config);
         return Ok(());
@@ -436,6 +440,7 @@ fn handle_connection<T: methods::RpcMethods>(
             body_limit: false,
             auth_fail: false,
             header_limit: false,
+            body_timeout: false,
         });
         apply_cooldown(config);
         return Ok(());
@@ -464,6 +469,7 @@ fn handle_connection<T: methods::RpcMethods>(
             body_limit: false,
             auth_fail: false,
             header_limit: false,
+            body_timeout: false,
         });
         apply_cooldown(config);
         return Ok(());
@@ -489,6 +495,7 @@ fn handle_connection<T: methods::RpcMethods>(
                 body_limit: false,
                 auth_fail: false,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             return Ok(());
@@ -517,6 +524,7 @@ fn handle_connection<T: methods::RpcMethods>(
             body_limit: false,
             auth_fail: false,
             header_limit: false,
+            body_timeout: false,
         });
         return Ok(());
     }
@@ -540,6 +548,7 @@ fn handle_connection<T: methods::RpcMethods>(
             body_limit: false,
             auth_fail: false,
             header_limit: false,
+            body_timeout: false,
         });
         return Ok(());
     }
@@ -620,6 +629,7 @@ fn handle_connection<T: methods::RpcMethods>(
             body_limit: false,
             auth_fail: false,
             header_limit: false,
+            body_timeout: false,
         });
         apply_cooldown(config);
         return Ok(());
@@ -639,14 +649,15 @@ fn handle_connection<T: methods::RpcMethods>(
             body_limit: true,
             auth_fail: false,
             header_limit: false,
+            body_timeout: false,
         });
         apply_cooldown(config);
         return Ok(());
     }
 
-    if !take_token(client_ip, limiter, config) {
+    if let Err(retry_after) = take_token(client_ip, limiter, config) {
         let stream = buf_reader.get_mut();
-        send_too_many_requests(stream)?;
+        send_too_many_requests(stream, retry_after)?;
         record_response(ResponseContext {
             method,
             path: &path_owned,
@@ -658,6 +669,7 @@ fn handle_connection<T: methods::RpcMethods>(
             body_limit: false,
             auth_fail: false,
             header_limit: false,
+            body_timeout: false,
         });
         apply_cooldown(config);
         return Ok(());
@@ -678,6 +690,7 @@ fn handle_connection<T: methods::RpcMethods>(
                 body_limit: false,
                 auth_fail: true,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_auth_backoff(client_ip, auth_backoff);
             apply_cooldown(config);
@@ -687,9 +700,52 @@ fn handle_connection<T: methods::RpcMethods>(
         }
     }
 
-    (**buf_reader.get_mut()).set_read_timeout(Some(Duration::from_secs(5)))?;
+    let body_deadline = if config.body_read_timeout_ms == 0 {
+        None
+    } else {
+        Some(Duration::from_millis(config.body_read_timeout_ms))
+    };
+    (**buf_reader.get_mut()).set_read_timeout(body_deadline)?;
     let mut body = vec![0u8; content_length];
-    buf_reader.read_exact(&mut body)?;
+    if let Err(err) = buf_reader.read_exact(&mut body) {
+        let stream = buf_reader.get_mut();
+        match err.kind() {
+            ErrorKind::WouldBlock | ErrorKind::TimedOut => {
+                send_request_timeout(stream)?;
+                record_response(ResponseContext {
+                    method,
+                    path: &path_owned,
+                    status: StatusCode::REQUEST_TIMEOUT,
+                    content_length,
+                    start,
+                    client_ip,
+                    rate_limited: false,
+                    body_limit: false,
+                    auth_fail: false,
+                    header_limit: false,
+                    body_timeout: true,
+                });
+            }
+            _ => {
+                send_bad_request(stream)?;
+                record_response(ResponseContext {
+                    method,
+                    path: &path_owned,
+                    status: StatusCode::BAD_REQUEST,
+                    content_length,
+                    start,
+                    client_ip,
+                    rate_limited: false,
+                    body_limit: false,
+                    auth_fail: false,
+                    header_limit: false,
+                    body_timeout: false,
+                });
+            }
+        }
+        apply_cooldown(config);
+        return Ok(());
+    }
 
     // Release the buffered borrow so we can reuse the channel for writing.
     let stream = buf_reader.into_inner();
@@ -714,6 +770,7 @@ fn handle_connection<T: methods::RpcMethods>(
                 body_limit: false,
                 auth_fail: false,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             return Ok(());
@@ -747,6 +804,7 @@ fn handle_connection<T: methods::RpcMethods>(
         body_limit: false,
         auth_fail: false,
         header_limit: false,
+        body_timeout: false,
     });
     apply_cooldown(config);
     Ok(())
@@ -866,9 +924,21 @@ fn send_unauthorized(stream: &mut RpcStream) -> std::io::Result<()> {
     Ok(())
 }
 
-fn send_too_many_requests(stream: &mut RpcStream) -> std::io::Result<()> {
+fn send_too_many_requests(stream: &mut RpcStream, retry_after: u64) -> std::io::Result<()> {
+    let retry_after = retry_after.max(1);
+    let response = format!(
+        "HTTP/1.1 429 Too Many Requests\r\nRetry-After: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        retry_after
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    let _ = stream.shutdown();
+    Ok(())
+}
+
+fn send_request_timeout(stream: &mut RpcStream) -> std::io::Result<()> {
     let response = concat!(
-        "HTTP/1.1 429 Too Many Requests\r\n",
+        "HTTP/1.1 408 Request Timeout\r\n",
         "Content-Length: 0\r\n",
         "Connection: close\r\n",
         "\r\n"
@@ -963,6 +1033,7 @@ fn handle_login_endpoint(
                 body_limit: false,
                 auth_fail: false,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             return Ok(());
@@ -1002,6 +1073,7 @@ fn handle_login_endpoint(
                 body_limit: false,
                 auth_fail: false,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             Ok(())
@@ -1033,6 +1105,7 @@ fn handle_login_endpoint(
                 body_limit: false,
                 auth_fail: true,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             Ok(())
@@ -1108,6 +1181,7 @@ fn handle_refresh_endpoint(
                 body_limit: false,
                 auth_fail: false,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             return Ok(());
@@ -1147,6 +1221,7 @@ fn handle_refresh_endpoint(
                 body_limit: false,
                 auth_fail: false,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             Ok(())
@@ -1178,6 +1253,7 @@ fn handle_refresh_endpoint(
                 body_limit: false,
                 auth_fail: true,
                 header_limit: false,
+                body_timeout: false,
             });
             apply_cooldown(config);
             Ok(())
@@ -1220,6 +1296,7 @@ fn send_upgrade_required(
         body_limit: false,
         auth_fail: true, // TLS required acts like auth failure
         header_limit: false,
+        body_timeout: false,
     });
 
     Ok(())
@@ -1256,7 +1333,7 @@ fn take_token(
     ip: IpAddr,
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     config: &RpcConfig,
-) -> bool {
+) -> Result<(), u64> {
     let mut map = limiter.lock().unwrap();
     let bucket = map.entry(ip).or_insert_with(|| TokenBucket {
         tokens: config.rl_burst as f64,
@@ -1274,9 +1351,15 @@ fn take_token(
 
     if bucket.tokens >= 1.0 {
         bucket.tokens -= 1.0;
-        true
+        Ok(())
     } else {
-        false
+        let needed = 1.0 - bucket.tokens;
+        let secs = if config.rl_refill_per_sec > 0 {
+            (needed / config.rl_refill_per_sec as f64).ceil() as u64
+        } else {
+            1
+        };
+        Err(secs.max(1))
     }
 }
 
@@ -1343,6 +1426,7 @@ struct RpcMetrics {
     status_400: AtomicU64,
     status_401: AtomicU64,
     status_403: AtomicU64,
+    status_408: AtomicU64,
     status_413: AtomicU64,
     status_429: AtomicU64,
     status_431: AtomicU64,
@@ -1350,6 +1434,7 @@ struct RpcMetrics {
     rl_drops_total: AtomicU64,
     auth_fail_total: AtomicU64,
     body_too_large_total: AtomicU64,
+    body_timeout_total: AtomicU64,
     header_limit_total: AtomicU64,
     latency_sum_ms: AtomicU64,
     latency_count: AtomicU64,
@@ -1369,6 +1454,7 @@ impl Default for RpcMetrics {
             status_400: AtomicU64::new(0),
             status_401: AtomicU64::new(0),
             status_403: AtomicU64::new(0),
+            status_408: AtomicU64::new(0),
             status_413: AtomicU64::new(0),
             status_429: AtomicU64::new(0),
             status_431: AtomicU64::new(0),
@@ -1376,6 +1462,7 @@ impl Default for RpcMetrics {
             rl_drops_total: AtomicU64::new(0),
             auth_fail_total: AtomicU64::new(0),
             body_too_large_total: AtomicU64::new(0),
+            body_timeout_total: AtomicU64::new(0),
             header_limit_total: AtomicU64::new(0),
             latency_sum_ms: AtomicU64::new(0),
             latency_count: AtomicU64::new(0),
@@ -1390,6 +1477,7 @@ impl Default for RpcMetrics {
 }
 
 impl RpcMetrics {
+    #[allow(clippy::too_many_arguments)]
     fn record(
         &self,
         status: StatusCode,
@@ -1398,6 +1486,7 @@ impl RpcMetrics {
         body_limit: bool,
         auth_fail: bool,
         header_limit: bool,
+        body_timeout: bool,
     ) {
         self.requests_total.fetch_add(1, Ordering::Relaxed);
         match status {
@@ -1405,6 +1494,7 @@ impl RpcMetrics {
             StatusCode::BAD_REQUEST => self.status_400.fetch_add(1, Ordering::Relaxed),
             StatusCode::UNAUTHORIZED => self.status_401.fetch_add(1, Ordering::Relaxed),
             StatusCode::FORBIDDEN => self.status_403.fetch_add(1, Ordering::Relaxed),
+            StatusCode::REQUEST_TIMEOUT => self.status_408.fetch_add(1, Ordering::Relaxed),
             StatusCode::PAYLOAD_TOO_LARGE => self.status_413.fetch_add(1, Ordering::Relaxed),
             StatusCode::TOO_MANY_REQUESTS => self.status_429.fetch_add(1, Ordering::Relaxed),
             StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE => {
@@ -1418,6 +1508,9 @@ impl RpcMetrics {
         }
         if body_limit {
             self.body_too_large_total.fetch_add(1, Ordering::Relaxed);
+        }
+        if body_timeout {
+            self.body_timeout_total.fetch_add(1, Ordering::Relaxed);
         }
         if auth_fail {
             self.auth_fail_total.fetch_add(1, Ordering::Relaxed);
@@ -1451,18 +1544,20 @@ impl RpcMetrics {
             format!("rpc_requests_status_total{{code=\"{}\"}} {}\n", code, value)
         };
         let body = format!(
-            "rpc_requests_total {}\n{}{}{}{}{}{}{}{}rpc_rl_drops_total {}\nrpc_body_413_total {}\nrpc_header_limit_total {}\nrpc_auth_401_total {}\nrpc_latency_ms_sum {}\nrpc_latency_ms_count {}\nrpc_latency_ms_bucket{{le=\"50\"}} {}\nrpc_latency_ms_bucket{{le=\"100\"}} {}\nrpc_latency_ms_bucket{{le=\"250\"}} {}\nrpc_latency_ms_bucket{{le=\"500\"}} {}\nrpc_latency_ms_bucket{{le=\"1000\"}} {}\nrpc_latency_ms_bucket{{le=\"+Inf\"}} {}\n",
+            "rpc_requests_total {}\n{}{}{}{}{}{}{}{}{}rpc_rl_drops_total {}\nrpc_body_413_total {}\nrpc_body_timeout_total {}\nrpc_header_limit_total {}\nrpc_auth_401_total {}\nrpc_latency_ms_sum {}\nrpc_latency_ms_count {}\nrpc_latency_ms_bucket{{le=\"50\"}} {}\nrpc_latency_ms_bucket{{le=\"100\"}} {}\nrpc_latency_ms_bucket{{le=\"250\"}} {}\nrpc_latency_ms_bucket{{le=\"500\"}} {}\nrpc_latency_ms_bucket{{le=\"1000\"}} {}\nrpc_latency_ms_bucket{{le=\"+Inf\"}} {}\n",
             total,
             status_line("200", self.status_200.load(Ordering::Relaxed)),
             status_line("400", self.status_400.load(Ordering::Relaxed)),
             status_line("401", self.status_401.load(Ordering::Relaxed)),
             status_line("403", self.status_403.load(Ordering::Relaxed)),
+            status_line("408", self.status_408.load(Ordering::Relaxed)),
             status_line("413", self.status_413.load(Ordering::Relaxed)),
             status_line("429", self.status_429.load(Ordering::Relaxed)),
             status_line("431", self.status_431.load(Ordering::Relaxed)),
             status_line("other", self.status_other.load(Ordering::Relaxed)),
             self.rl_drops_total.load(Ordering::Relaxed),
             self.body_too_large_total.load(Ordering::Relaxed),
+            self.body_timeout_total.load(Ordering::Relaxed),
             self.header_limit_total.load(Ordering::Relaxed),
             self.auth_fail_total.load(Ordering::Relaxed),
             self.latency_sum_ms.load(Ordering::Relaxed),
@@ -1495,6 +1590,7 @@ struct ResponseContext<'a> {
     body_limit: bool,
     auth_fail: bool,
     header_limit: bool,
+    body_timeout: bool,
 }
 
 fn record_response(ctx: ResponseContext<'_>) {
@@ -1506,13 +1602,16 @@ fn record_response(ctx: ResponseContext<'_>) {
         ctx.body_limit,
         ctx.auth_fail,
         ctx.header_limit,
+        ctx.body_timeout,
     );
 
-    if ctx.rate_limited || ctx.body_limit || ctx.auth_fail || ctx.header_limit {
+    if ctx.rate_limited || ctx.body_limit || ctx.auth_fail || ctx.header_limit || ctx.body_timeout {
         let reason = if ctx.rate_limited {
             "rate_limit"
         } else if ctx.body_limit {
             "body_limit"
+        } else if ctx.body_timeout {
+            "body_timeout"
         } else if ctx.header_limit {
             "header_limit"
         } else {
