@@ -149,18 +149,25 @@ impl PowEngine for RandomXEngine {
     }
 
     fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
-        // TODO: Integrate actual RandomX library
-        // For now, use a placeholder that combines SHA-256 with header data
-        // This will be replaced with real RandomX once the library is integrated
         let bytes = header.to_bytes();
-        let mut hasher = Sha256::new();
-        hasher.update(b"RandomX-placeholder-");
-        hasher.update(&bytes);
-        let result = hasher.finalize();
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&result);
-        Ok(out)
+        Ok(randomx_pow_hash(&bytes, &self._config.seed))
     }
+}
+
+/// Computes RandomX PoW hash (feature-gated, exposed for Stratum).
+#[cfg(feature = "randomx")]
+pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
+    // TODO: Integrate actual RandomX library
+    // For now, use a placeholder that combines SHA-256 with header data and seed
+    // This will be replaced with real RandomX once the library is integrated
+    let mut hasher = Sha256::new();
+    hasher.update(b"RandomX-placeholder-");
+    hasher.update(seed);
+    hasher.update(preimage);
+    let result = hasher.finalize();
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&result);
+    out
 }
 
 /// RandomX configuration.
@@ -201,7 +208,12 @@ pub fn header_hash(header: &BlockHeader) -> [u8; 32] {
 /// Computes SHA-256d hash (legacy function name for compatibility).
 fn header_hash_sha256d(header: &BlockHeader) -> [u8; 32] {
     let bytes = header.to_bytes();
-    let h1 = Sha256::digest(&bytes);
+    sha256d_pow_hash(&bytes)
+}
+
+/// Computes double-SHA256 hash for PoW (exposed for Stratum verification).
+pub fn sha256d_pow_hash(preimage: &[u8]) -> [u8; 32] {
+    let h1 = Sha256::digest(preimage);
     let h2 = Sha256::digest(h1);
     let mut out = [0u8; 32];
     out.copy_from_slice(&h2);
@@ -220,15 +232,16 @@ pub fn compact_to_target_bytes(bits: u32) -> std::result::Result<[u8; 32], PowEr
         let m = (mantissa as u64) << (8 * shift);
         target[24..32].copy_from_slice(&m.to_be_bytes());
     } else {
-        let byte_pos = exponent as usize - 3; // number of bytes mantissa occupies from the left
-                                              // place mantissa at the leftmost bytes (big-endian)
+        let byte_pos = exponent as usize - 3;
+        // Place 3-byte mantissa starting at byte index (32 - byte_pos - 3)
+        // For exp=32: byte_pos=29, start=0 (leftmost position)
         let mut m_bytes = [0u8; 4];
         m_bytes.copy_from_slice(&mantissa.to_be_bytes());
         // mantissa is 3 bytes; take the last 3 bytes of m_bytes
         let mantissa_bytes = &m_bytes[1..4];
-        let start = 32 - byte_pos;
+        let start = 32 - byte_pos - 3;
         let end = start + 3;
-        if end <= 32 {
+        if end <= 32 && start < 32 {
             target[start..end].copy_from_slice(mantissa_bytes);
         } else {
             // overflow -> saturate to max
@@ -236,6 +249,23 @@ pub fn compact_to_target_bytes(bits: u32) -> std::result::Result<[u8; 32], PowEr
         }
     }
     Ok(target)
+}
+
+/// Alias for compact_to_target_bytes (Stratum-friendly name).
+pub fn target_from_bits(bits: u32) -> std::result::Result<[u8; 32], PowError> {
+    compact_to_target_bytes(bits)
+}
+
+/// Checks if hash meets target (exposed for Stratum verification).
+pub fn meets_target(hash: &[u8; 32], target: &[u8; 32]) -> bool {
+    hash_meets_target(hash, target)
+}
+
+/// Serializes header for PoW hashing (used by Stratum).
+pub fn serialize_header_for_pow(header: &BlockHeader, nonce: u64) -> Vec<u8> {
+    let mut h = header.clone();
+    h.nonce = nonce;
+    h.to_bytes()
 }
 
 /// Returns true if `hash` (big-endian) <= `target` (big-endian).
