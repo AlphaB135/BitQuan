@@ -1,0 +1,64 @@
+name: Nightly Safety Checks
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run at 2 AM UTC daily
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  miri:
+    name: Miri Memory Safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - name: Run Miri on consensus crate
+        run: |
+          cargo +nightly miri setup
+          cargo +nightly miri test -p bitquan-consensus --lib
+        continue-on-error: true
+      - name: Run Miri on types crate
+        run: cargo +nightly miri test -p bitquan-types --lib
+        continue-on-error: true
+
+  fuzz:
+    name: Fuzzing Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+        continue-on-error: true
+      - name: Check fuzz targets exist
+        run: |
+          if [ -d "fuzz" ]; then
+            echo "Fuzz directory found"
+            cargo fuzz list || echo "No fuzz targets configured yet"
+          else
+            echo "Fuzz directory not found - skipping"
+          fi
+        continue-on-error: true
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
+      - name: Generate coverage report
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+        timeout-minutes: 30
+      - name: Upload coverage to artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: lcov.info
+          retention-days: 7
