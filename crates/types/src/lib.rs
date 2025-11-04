@@ -4,6 +4,7 @@
 mod block;
 mod compact_uint;
 pub mod context;
+pub mod entropy;
 pub mod error;
 pub mod ext;
 pub mod genesis;
