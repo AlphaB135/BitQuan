@@ -7,6 +7,7 @@ mod miner;
 mod mnemonic;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
+mod stratum_server;
 mod tx_builder;
 mod utxo;
 mod wallet;
@@ -588,6 +589,21 @@ enum Commands {
         #[arg(long, default_value_t = 0)]
         height: u64,
     },
+    /// Start Stratum mining server
+    StratumServer {
+        /// Bind address for Stratum server
+        #[arg(long, default_value = "0.0.0.0:3333")]
+        stratum_bind: String,
+        /// Allowed client IPs (comma-separated)
+        #[arg(long, default_value = "127.0.0.1")]
+        stratum_allow: String,
+        /// Default difficulty for miners
+        #[arg(long, default_value_t = 1.0)]
+        stratum_diff: f64,
+        /// Network to target
+        #[arg(long, value_name = "NETWORK", default_value = "devnet")]
+        network: String,
+    },
     /// Check balance for a given script/address
     Balance {
         /// Data directory for blockchain storage
@@ -841,6 +857,20 @@ fn main() -> Result<()> {
             }
         }
         Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
+        Commands::StratumServer {
+            stratum_bind,
+            stratum_allow,
+            stratum_diff,
+            network,
+        } => {
+            let network_id = parse_network_id(&network)?;
+            let allow_list = stratum_allow
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect();
+            
+            run_stratum_server(stratum_bind, allow_list, stratum_diff, network_id)
+        }
         Commands::Balance {
             datadir,
             script_hex,
@@ -3205,6 +3235,40 @@ fn install_panic_hook() {
         eprintln!("   - Your configuration (without secrets)");
         eprintln!("════════════════════════════════════════════════════════════\n");
     }));
+}
+
+/// Run Stratum mining server.
+fn run_stratum_server(
+    bind_addr: String,
+    allow_list: Vec<String>,
+    default_difficulty: f64,
+    network: NetworkId,
+) -> Result<()> {
+    use crate::stratum_server::{StratumConfig, StratumServer};
+
+    let config = StratumConfig {
+        bind_addr: bind_addr.clone(),
+        allow_list,
+        default_difficulty,
+        network,
+    };
+
+    println!("Starting BitQuan Stratum Mining Server");
+    println!("  Bind address: {}", bind_addr);
+    println!("  Network: {:?}", network);
+    println!("  Default difficulty: {}", default_difficulty);
+    println!();
+
+    // Create runtime for async server
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|e| Error::Invalid(format!("failed to create tokio runtime: {}", e)))?;
+
+    runtime.block_on(async {
+        let mut server = StratumServer::new(config);
+        
+        // Start server (blocks until shutdown)
+        server.start().await
+    })
 }
 
 #[cfg(test)]
