@@ -1757,6 +1757,17 @@ mod tests {
                 txid: None,
             })
         }
+
+        fn getnetworkstatus(&self) -> std::result::Result<crate::methods::NetworkStatusResponse, RpcError> {
+            Ok(crate::methods::NetworkStatusResponse {
+                peers_connected: 3,
+                blocks_broadcast: 50,
+                blocks_received: 75,
+                sync_status: "synced".to_string(),
+                local_height: 100,
+                best_height: 100,
+            })
+        }
     }
 
     fn build_client(timeout: Duration) -> TestResult<reqwest::Client> {

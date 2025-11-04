@@ -8,7 +8,7 @@ use bitquan_consensus::header_hash;
 use bitquan_rpc::{
     methods::{
         BlockTemplate, BlockchainInfo, MinerBlock, MinerStatsResponse, MiningInfo,
-        PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods, TxInfo, WorkData,
+        NetworkStatusResponse, PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods, TxInfo, WorkData,
     },
     RpcError,
 };
@@ -165,12 +165,25 @@ impl RpcMethods for NodeRpcHandler {
         })
     }
 
-    fn createpayout(&self, request: PayoutRequest) -> Result<PayoutResponse, RpcError> {
+    fn createpayout(&self, _request: PayoutRequest) -> Result<PayoutResponse, RpcError> {
         // Payout creation requires reward engine integration
         // For now, return mock success
         Ok(PayoutResponse {
             payout_id: format!("payout_{}", uuid::Uuid::new_v4()),
             txid: None,
+        })
+    }
+
+    fn getnetworkstatus(&self) -> Result<NetworkStatusResponse, RpcError> {
+        // Network status requires network manager integration
+        // For now, return placeholder values
+        Ok(NetworkStatusResponse {
+            peers_connected: 0,
+            blocks_broadcast: 0,
+            blocks_received: 0,
+            sync_status: "idle".to_string(),
+            local_height: self.getblockcount()?,
+            best_height: self.getblockcount()?,
         })
     }
 }

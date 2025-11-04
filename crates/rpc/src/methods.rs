@@ -136,6 +136,23 @@ pub struct PayoutResponse {
     pub txid: Option<String>,
 }
 
+/// Network status response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkStatusResponse {
+    /// Number of connected peers
+    pub peers_connected: u64,
+    /// Total blocks broadcast
+    pub blocks_broadcast: u64,
+    /// Total blocks received
+    pub blocks_received: u64,
+    /// Sync status
+    pub sync_status: String,
+    /// Local chain height
+    pub local_height: u64,
+    /// Best known height
+    pub best_height: u64,
+}
+
 /// RPC method handler trait
 pub trait RpcMethods {
     /// Get current block count
@@ -176,6 +193,9 @@ pub trait RpcMethods {
 
     /// Create payout (mock implementation)
     fn createpayout(&self, request: PayoutRequest) -> Result<PayoutResponse, RpcError>;
+
+    /// Get network status
+    fn getnetworkstatus(&self) -> Result<NetworkStatusResponse, RpcError>;
 }
 
 /// Dispatch RPC call to appropriate method
@@ -354,6 +374,11 @@ pub fn dispatch_call<T: RpcMethods>(
             }
         }
 
+        "getnetworkstatus" => match handler.getnetworkstatus() {
+            Ok(status) => JsonRpcResponse::success(id, serde_json::to_value(status).unwrap()),
+            Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+        },
+
         _ => JsonRpcResponse::error(
             id,
             error_codes::METHOD_NOT_FOUND,
@@ -446,6 +471,17 @@ mod tests {
             Ok(PayoutResponse {
                 payout_id: "payout123".to_string(),
                 txid: Some("tx456".to_string()),
+            })
+        }
+
+        fn getnetworkstatus(&self) -> Result<NetworkStatusResponse, RpcError> {
+            Ok(NetworkStatusResponse {
+                peers_connected: 5,
+                blocks_broadcast: 100,
+                blocks_received: 150,
+                sync_status: "synced".to_string(),
+                local_height: 12345,
+                best_height: 12345,
             })
         }
     }

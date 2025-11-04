@@ -28,6 +28,14 @@ pub struct MiningMetrics {
     payouts_total: Arc<AtomicU64>,
     /// Current reward per block (satoshis).
     reward_per_block: Arc<AtomicU64>,
+    /// Network peers connected.
+    network_peers_connected: Arc<AtomicU64>,
+    /// Network blocks broadcast.
+    network_blocks_broadcast: Arc<AtomicU64>,
+    /// Network blocks received.
+    network_blocks_received: Arc<AtomicU64>,
+    /// Network sync active flag.
+    network_sync_active: Arc<AtomicU64>,
 }
 
 impl MiningMetrics {
@@ -54,6 +62,10 @@ impl MiningMetrics {
             pool_balance: Arc::new(AtomicU64::new(0)),
             payouts_total: Arc::new(AtomicU64::new(0)),
             reward_per_block: Arc::new(AtomicU64::new(0)),
+            network_peers_connected: Arc::new(AtomicU64::new(0)),
+            network_blocks_broadcast: Arc::new(AtomicU64::new(0)),
+            network_blocks_received: Arc::new(AtomicU64::new(0)),
+            network_sync_active: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -190,6 +202,41 @@ impl MiningMetrics {
         self.payouts_total.load(Ordering::Relaxed)
     }
 
+    /// Set network peers connected.
+    pub fn set_network_peers(&self, count: u64) {
+        self.network_peers_connected.store(count, Ordering::Relaxed);
+    }
+
+    /// Record network block broadcast.
+    pub fn record_network_block_broadcast(&self) {
+        self.network_blocks_broadcast.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record network block received.
+    pub fn record_network_block_received(&self) {
+        self.network_blocks_received.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Set network sync active status.
+    pub fn set_network_sync_active(&self, active: bool) {
+        self.network_sync_active.store(if active { 1 } else { 0 }, Ordering::Relaxed);
+    }
+
+    /// Get network peers count.
+    pub fn get_network_peers(&self) -> u64 {
+        self.network_peers_connected.load(Ordering::Relaxed)
+    }
+
+    /// Get network blocks broadcast.
+    pub fn get_network_blocks_broadcast(&self) -> u64 {
+        self.network_blocks_broadcast.load(Ordering::Relaxed)
+    }
+
+    /// Get network blocks received.
+    pub fn get_network_blocks_received(&self) -> u64 {
+        self.network_blocks_received.load(Ordering::Relaxed)
+    }
+
     /// Format metrics as Prometheus text format.
     pub fn format_prometheus(&self) -> String {
         let mut output = String::new();
@@ -269,6 +316,22 @@ impl MiningMetrics {
         output.push_str("# HELP reward_per_block_gauge Current reward per block in satoshis\n");
         output.push_str("# TYPE reward_per_block_gauge gauge\n");
         output.push_str(&format!("reward_per_block_gauge {}\n", self.reward_per_block.load(Ordering::Relaxed)));
+        
+        output.push_str("# HELP network_peers_connected Number of connected peers\n");
+        output.push_str("# TYPE network_peers_connected gauge\n");
+        output.push_str(&format!("network_peers_connected {}\n", self.get_network_peers()));
+        
+        output.push_str("# HELP network_blocks_broadcast_total Total blocks broadcast to network\n");
+        output.push_str("# TYPE network_blocks_broadcast_total counter\n");
+        output.push_str(&format!("network_blocks_broadcast_total {}\n", self.get_network_blocks_broadcast()));
+        
+        output.push_str("# HELP network_blocks_received_total Total blocks received from network\n");
+        output.push_str("# TYPE network_blocks_received_total counter\n");
+        output.push_str(&format!("network_blocks_received_total {}\n", self.get_network_blocks_received()));
+        
+        output.push_str("# HELP network_sync_active_gauge Network sync active status (0=idle, 1=syncing)\n");
+        output.push_str("# TYPE network_sync_active_gauge gauge\n");
+        output.push_str(&format!("network_sync_active_gauge {}\n", self.network_sync_active.load(Ordering::Relaxed)));
         
         output
     }

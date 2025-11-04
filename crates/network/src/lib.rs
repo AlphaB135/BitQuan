@@ -1,16 +1,27 @@
 //! Peer-to-peer networking scaffolding for BitQuan.
 #![warn(missing_docs)]
 
+pub mod discovery;
 pub mod io;
 pub mod peer;
+pub mod propagation;
 pub mod protocol;
 pub mod relay;
+pub mod sync;
 
+pub use discovery::{
+    bootstrap_peers, discover_from_seeds, PeerBook, PersistentPeer,
+    MAINNET_SEEDS, TESTNET_SEEDS, PEER_TIMEOUT_SECS, PING_INTERVAL_SECS,
+};
 pub use peer::{
     handshake, read_frame, EclipseConfig, P2PListener, Peer, PeerManager, PeerState,
     HANDSHAKE_TIMEOUT_MS, MAX_MSG_BYTES,
 };
+pub use propagation::{
+    BlockPropagator, PropagationStats, SeenFilter, broadcast_block_inv, create_envelope,
+};
 pub use relay::{create_block_inv, create_tx_inv, RelayManager, RelayPolicy};
+pub use sync::{ChainSync, SyncProgress, SyncStatus, process_headers, request_blocks};
 
 use bitquan_types::Block;
 use thiserror::Error;
