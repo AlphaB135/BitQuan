@@ -378,8 +378,11 @@ dependencies = [
 name = "bitquan-types"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.3.4",
  "hex",
  "http 0.2.12",
+ "rand 0.8.5",
+ "rand_core 0.9.3",
  "serde",
  "serde_json",
  "sha2",

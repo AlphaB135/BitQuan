@@ -2,10 +2,7 @@
 
 use std::fs;
 use tempfile::tempdir;
-use wallet::keystore::{
-    decrypt_keystore, encrypt_keystore, rotate_keystore, KeystoreFile, DEFAULT_MEM_KIB,
-    DEFAULT_PARALLELISM, DEFAULT_TIME_COST,
-};
+use wallet::keystore::{decrypt_keystore, encrypt_keystore, rotate_keystore, KeystoreFile};
 
 #[test]
 fn test_password_rotation_roundtrip() {
@@ -94,14 +91,10 @@ fn test_multiple_password_rotations() {
 
     // Rotate through multiple passwords
     for i in 0..passwords.len() - 1 {
-        keystore = rotate_keystore(&keystore, passwords[i], passwords[i + 1], 8192, 1, 1)
-            
-            .unwrap();
+        keystore = rotate_keystore(&keystore, passwords[i], passwords[i + 1], 8192, 1, 1).unwrap();
 
         // Verify new password works
-        let decrypted = decrypt_keystore(&keystore, passwords[i + 1])
-            
-            .unwrap();
+        let decrypted = decrypt_keystore(&keystore, passwords[i + 1]).unwrap();
         assert_eq!(decrypted, data);
 
         // Verify old password no longer works

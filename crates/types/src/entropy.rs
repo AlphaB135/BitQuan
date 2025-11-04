@@ -100,10 +100,10 @@ mod tests {
     fn test_fill_secure_different_calls() {
         let mut buf1 = [0u8; 32];
         let mut buf2 = [0u8; 32];
-        
+
         fill_secure(&mut buf1);
         fill_secure(&mut buf2);
-        
+
         assert_ne!(buf1, buf2, "Two fills should produce different data");
     }
 
