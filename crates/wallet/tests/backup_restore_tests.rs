@@ -1,7 +1,7 @@
 //! Integration tests for wallet backup and restore functionality.
 
-use wallet::backup::{WalletBackup, Network};
 use tempfile::tempdir;
+use wallet::backup::{Network, WalletBackup};
 
 #[test]
 fn test_backup_and_restore_roundtrip() {
@@ -13,8 +13,7 @@ fn test_backup_and_restore_roundtrip() {
         .expect("backup creation should succeed");
 
     // Restore from backup
-    let restored = backup.restore(password)
-        .expect("restore should succeed");
+    let restored = backup.restore(password).expect("restore should succeed");
 
     assert_eq!(restored, wallet_data);
 }
@@ -23,7 +22,7 @@ fn test_backup_and_restore_roundtrip() {
 fn test_backup_save_and_load() {
     let dir = tempdir().expect("temp dir");
     let path = dir.path().join("wallet.backup");
-    
+
     let password = "test_password";
     let wallet_data = b"test wallet keystore data";
 
@@ -43,7 +42,7 @@ fn test_backup_save_and_load() {
 fn test_backup_wrong_password_fails() {
     let password = "correct_password";
     let wrong_password = "wrong_password";
-    
+
     let wallet_data = b"sensitive wallet data";
 
     let backup = WalletBackup::create(wallet_data, password, Network::Mainnet, None)
@@ -67,8 +66,8 @@ fn test_backup_network_preservation() {
     assert_eq!(restored_main, wallet_data);
 
     // Test devnet
-    let backup_dev = WalletBackup::create(wallet_data, password, Network::Devnet, None)
-        .expect("devnet backup");
+    let backup_dev =
+        WalletBackup::create(wallet_data, password, Network::Devnet, None).expect("devnet backup");
     assert_eq!(backup_dev.network, Network::Devnet);
     let restored_dev = backup_dev.restore(password).expect("restore devnet");
     assert_eq!(restored_dev, wallet_data);

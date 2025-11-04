@@ -1,8 +1,11 @@
 //! Integration tests for wallet password rotation.
 
-use wallet::keystore::{encrypt_keystore, decrypt_keystore, rotate_keystore, KeystoreFile, DEFAULT_MEM_KIB, DEFAULT_TIME_COST, DEFAULT_PARALLELISM};
-use tempfile::tempdir;
 use std::fs;
+use tempfile::tempdir;
+use wallet::keystore::{
+    decrypt_keystore, encrypt_keystore, rotate_keystore, KeystoreFile, DEFAULT_MEM_KIB,
+    DEFAULT_PARALLELISM, DEFAULT_TIME_COST,
+};
 
 #[test]
 fn test_password_rotation_roundtrip() {
@@ -24,11 +27,14 @@ fn test_password_rotation_roundtrip() {
 
     // Old password should no longer work
     let old_result = decrypt_keystore(&rotated, old_password);
-    assert!(old_result.is_err(), "old password should fail after rotation");
+    assert!(
+        old_result.is_err(),
+        "old password should fail after rotation"
+    );
 
     // New password should work
-    let decrypted_new = decrypt_keystore(&rotated, new_password)
-        .expect("decrypt with new password should succeed");
+    let decrypted_new =
+        decrypt_keystore(&rotated, new_password).expect("decrypt with new password should succeed");
     assert_eq!(decrypted_new, plaintext);
 }
 
@@ -36,7 +42,7 @@ fn test_password_rotation_roundtrip() {
 fn test_password_rotation_persists() {
     let dir = tempdir().expect("temp dir");
     let path = dir.path().join("keystore.json");
-    
+
     let old_pw = "password1";
     let new_pw = "password2";
     let data = b"wallet secret key";
@@ -70,29 +76,34 @@ fn test_password_rotation_wrong_old_password() {
     let data = b"test data";
 
     let keystore = encrypt_keystore(data, old_password, None, 8192, 1, 1);
-    
+
     // Attempt rotation with wrong old password should fail
     let result = rotate_keystore(&keystore, wrong_password, new_password, 8192, 1, 1);
-    assert!(result.is_err(), "rotation with wrong old password should fail");
+    assert!(
+        result.is_err(),
+        "rotation with wrong old password should fail"
+    );
 }
 
 #[test]
 fn test_multiple_password_rotations() {
     let data = b"multi-rotation test";
     let passwords = ["pass1", "pass2", "pass3", "pass4"];
-    
+
     let mut keystore = encrypt_keystore(data, passwords[0], None, 8192, 1, 1);
-    
+
     // Rotate through multiple passwords
-    for i in 0..passwords.len()-1 {
-        keystore = rotate_keystore(&keystore, passwords[i], passwords[i+1], 8192, 1, 1)
-            .expect(&format!("rotation {} should succeed", i));
-        
+    for i in 0..passwords.len() - 1 {
+        keystore = rotate_keystore(&keystore, passwords[i], passwords[i + 1], 8192, 1, 1)
+            
+            .unwrap();
+
         // Verify new password works
-        let decrypted = decrypt_keystore(&keystore, passwords[i+1])
-            .expect(&format!("decrypt with password {} should work", i+1));
+        let decrypted = decrypt_keystore(&keystore, passwords[i + 1])
+            
+            .unwrap();
         assert_eq!(decrypted, data);
-        
+
         // Verify old password no longer works
         let old_result = decrypt_keystore(&keystore, passwords[i]);
         assert!(old_result.is_err(), "old password {} should not work", i);
