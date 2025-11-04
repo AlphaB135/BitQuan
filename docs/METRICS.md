@@ -570,6 +570,159 @@ rate(stratum_vardiff_adjustments_total[10m]) * 600
 
 ---
 
+## Pool Reward Metrics (Phase 4)
+
+### stratum_blocks_persisted_total
+
+**Type:** Counter  
+**Description:** Total blocks persisted to chain database  
+**Labels:** None
+
+**Example:**
+```prometheus
+stratum_blocks_persisted_total 1052
+```
+
+**Use Cases:**
+- Track successful block submissions
+- Monitor chain growth
+- Verify pool persistence
+
+---
+
+### stratum_total_rewards_distributed
+
+**Type:** Counter  
+**Description:** Total mining rewards distributed in satoshis  
+**Labels:** None
+
+**Example:**
+```prometheus
+stratum_total_rewards_distributed 5250000000000
+```
+
+**Use Cases:**
+- Track total pool revenue
+- Calculate ROI metrics
+- Monitor reward accumulation
+
+**PromQL Example:**
+```promql
+# Rewards in BQ (convert from satoshis)
+stratum_total_rewards_distributed / 100000000
+
+# Rewards per hour
+rate(stratum_total_rewards_distributed[1h]) * 3600
+```
+
+---
+
+### stratum_pool_balance_gauge
+
+**Type:** Gauge  
+**Description:** Current pool balance (total rewards - payouts) in satoshis  
+**Labels:** None
+
+**Example:**
+```prometheus
+stratum_pool_balance_gauge 4500000000000
+```
+
+**Use Cases:**
+- Monitor pool liquidity
+- Track pending payouts
+- Alert on low balance
+
+**PromQL Example:**
+```promql
+# Pool balance in BQ
+stratum_pool_balance_gauge / 100000000
+
+# Balance change over 24h
+delta(stratum_pool_balance_gauge[24h])
+```
+
+---
+
+### stratum_payouts_total
+
+**Type:** Counter  
+**Description:** Total number of payouts completed  
+**Labels:** None
+
+**Example:**
+```prometheus
+stratum_payouts_total 45
+```
+
+**Use Cases:**
+- Track payout frequency
+- Monitor pool operations
+- Calculate average payout size
+
+---
+
+### reward_per_block_gauge
+
+**Type:** Gauge  
+**Description:** Current reward per block in satoshis (includes halving)  
+**Labels:** None
+
+**Example:**
+```prometheus
+reward_per_block_gauge 5000000000
+```
+
+**Use Cases:**
+- Monitor halving events
+- Track reward changes
+- Calculate expected revenue
+
+**PromQL Example:**
+```promql
+# Current reward in BQ
+reward_per_block_gauge / 100000000
+
+# Detect halving events
+changes(reward_per_block_gauge[1d])
+```
+
+---
+
+## Grafana Dashboard Examples
+
+### Pool Revenue Panel
+
+```promql
+# Total rewards (BQ)
+stratum_total_rewards_distributed / 100000000
+
+# Hourly rate
+rate(stratum_total_rewards_distributed[1h]) * 3600 / 100000000
+```
+
+### Balance Monitoring
+
+```promql
+# Current balance
+stratum_pool_balance_gauge / 100000000
+
+# Alert: Low balance
+stratum_pool_balance_gauge / 100000000 < 1000
+```
+
+### Halving Tracker
+
+```promql
+# Current reward per block (BQ)
+reward_per_block_gauge / 100000000
+
+# Blocks until next halving
+210000 - (stratum_blocks_persisted_total % 210000)
+```
+
+---
+
 ## References
 
 - [Prometheus Metric Types](https://prometheus.io/docs/concepts/metric_types/)

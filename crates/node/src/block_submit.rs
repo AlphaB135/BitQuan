@@ -7,6 +7,10 @@ use bitquan_consensus::check_header_pow;
 use bitquan_types::{Block, NetworkId, Result};
 use std::sync::Arc;
 
+use crate::chainstate::ChainState;
+use crate::reward_engine::RewardEngine;
+use crate::metrics::MiningMetrics;
+
 /// Result of a block submission attempt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SubmitResult {
@@ -35,6 +39,12 @@ pub struct BlockSubmitter {
     pub network_id: NetworkId,
     /// Mock mode for testing (doesn't actually broadcast).
     pub mock_mode: bool,
+    /// Chain state tracker (optional).
+    pub chain_state: Option<Arc<ChainState>>,
+    /// Reward engine (optional).
+    pub reward_engine: Option<Arc<std::sync::Mutex<RewardEngine>>>,
+    /// Mining metrics (optional).
+    pub metrics: Option<Arc<MiningMetrics>>,
 }
 
 impl BlockSubmitter {
@@ -43,6 +53,9 @@ impl BlockSubmitter {
         Self {
             network_id,
             mock_mode: false,
+            chain_state: None,
+            reward_engine: None,
+            metrics: None,
         }
     }
 
@@ -51,7 +64,28 @@ impl BlockSubmitter {
         Self {
             network_id,
             mock_mode: true,
+            chain_state: None,
+            reward_engine: None,
+            metrics: None,
         }
+    }
+
+    /// Set chain state.
+    pub fn with_chain_state(mut self, state: Arc<ChainState>) -> Self {
+        self.chain_state = Some(state);
+        self
+    }
+
+    /// Set reward engine.
+    pub fn with_reward_engine(mut self, engine: Arc<std::sync::Mutex<RewardEngine>>) -> Self {
+        self.reward_engine = Some(engine);
+        self
+    }
+
+    /// Set metrics.
+    pub fn with_metrics(mut self, metrics: Arc<MiningMetrics>) -> Self {
+        self.metrics = Some(metrics);
+        self
     }
 
     /// Submit a mined block to the network.
@@ -59,8 +93,9 @@ impl BlockSubmitter {
     /// Steps:
     /// 1. Validate header PoW locally (skipped in mock mode)
     /// 2. Broadcast to P2P network (or mock log if testing)
-    /// 3. Return result
-    pub async fn submit(&self, block: &Block) -> Result<SubmitResult> {
+    /// 3. Persist to chain and credit reward
+    /// 4. Return result
+    pub async fn submit(&self, block: &Block, miner_id: Option<&str>) -> Result<SubmitResult> {
         // 1. Validate header PoW locally (skip in mock mode for testing)
         if !self.mock_mode {
             let pow_valid = check_header_pow(&block.header).map_err(|e| {
@@ -86,7 +121,7 @@ impl BlockSubmitter {
         let hash_hex = hex::encode(&hash[..8]);
 
         // 3. Broadcast to network (or mock)
-        if self.mock_mode {
+        let result = if self.mock_mode {
             // Mock mode: just log what would be broadcast
             println!(
                 "[INFO] MOCK: Would broadcast block hash={} algo={} height=unknown",
@@ -94,14 +129,49 @@ impl BlockSubmitter {
                 block.header.algo_id
             );
 
-            Ok(SubmitResult::Accepted {
+            SubmitResult::Accepted {
                 hash,
                 height: None, // Height unknown in mock mode
-            })
+            }
         } else {
             // Real mode: broadcast to P2P network
-            self.broadcast_to_network(block, hash).await
+            self.broadcast_to_network(block, hash).await?
+        };
+
+        // 4. If accepted, persist and credit reward
+        if let SubmitResult::Accepted { .. } = result {
+            if let (Some(chain_state), Some(reward_engine)) = (&self.chain_state, &self.reward_engine) {
+                // Append to chain
+                let height = chain_state.append_block(block, hash)?;
+                
+                // Record block and credit reward
+                let miner = miner_id.unwrap_or("unknown");
+                let mut engine = reward_engine.lock().unwrap();
+                let reward = engine.record_block(block, hash, height, miner)?;
+                
+                // Update metrics
+                if let Some(metrics) = &self.metrics {
+                    metrics.record_block_persisted();
+                    metrics.set_total_rewards(engine.total_distributed());
+                    metrics.set_pool_balance(engine.total_distributed());
+                    metrics.set_reward_per_block(reward);
+                }
+                
+                // Log success
+                let reward_bq = reward as f64 / 1_0000_0000.0;
+                println!(
+                    "[INFO] Block accepted! height={}, miner={}, reward={:.2} BQ",
+                    height, miner, reward_bq
+                );
+                
+                return Ok(SubmitResult::Accepted {
+                    hash,
+                    height: Some(height),
+                });
+            }
         }
+
+        Ok(result)
     }
 
     /// Broadcast block to P2P network.
@@ -172,7 +242,7 @@ mod tests {
         let submitter = BlockSubmitter::mock(NetworkId::Testnet);
         let block = dummy_block();
 
-        let result = submitter.submit(&block).await.unwrap();
+        let result = submitter.submit(&block, None).await.unwrap();
 
         // Should reject blocks with no transactions
         match result {
@@ -200,7 +270,7 @@ mod tests {
             witnesses: vec![],
         });
 
-        let result = submitter.submit(&block).await.unwrap();
+        let result = submitter.submit(&block, Some("test_miner")).await.unwrap();
 
         match result {
             SubmitResult::Accepted { hash, .. } => {

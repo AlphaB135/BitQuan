@@ -1731,6 +1731,32 @@ mod tests {
         fn submitwork(&self, _: String) -> std::result::Result<bool, RpcError> {
             Ok(true)
         }
+
+        fn getpoolstats(&self) -> std::result::Result<crate::methods::PoolStatsResponse, RpcError> {
+            Ok(crate::methods::PoolStatsResponse {
+                height: 100,
+                total_rewards: 1000000,
+                miner_count: 5,
+                pool_balance: 500000,
+                block_count: 100,
+            })
+        }
+
+        fn getminerstats(&self, miner_id: String) -> std::result::Result<crate::methods::MinerStatsResponse, RpcError> {
+            Ok(crate::methods::MinerStatsResponse {
+                miner_id,
+                total_reward: 50000,
+                blocks_mined: 10,
+                recent_blocks: vec![],
+            })
+        }
+
+        fn createpayout(&self, _request: crate::methods::PayoutRequest) -> std::result::Result<crate::methods::PayoutResponse, RpcError> {
+            Ok(crate::methods::PayoutResponse {
+                payout_id: "test123".to_string(),
+                txid: None,
+            })
+        }
     }
 
     fn build_client(timeout: Duration) -> TestResult<reqwest::Client> {

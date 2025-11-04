@@ -18,6 +18,16 @@ pub struct MiningMetrics {
     last_block_time: Arc<RwLock<HashMap<PowAlgo, Instant>>>,
     /// Block time durations for calculating averages.
     block_durations: Arc<RwLock<HashMap<PowAlgo, Vec<Duration>>>>,
+    /// Total blocks persisted to chain.
+    blocks_persisted: Arc<AtomicU64>,
+    /// Total rewards distributed (satoshis).
+    total_rewards: Arc<AtomicU64>,
+    /// Current pool balance (satoshis).
+    pool_balance: Arc<AtomicU64>,
+    /// Total payouts completed.
+    payouts_total: Arc<AtomicU64>,
+    /// Current reward per block (satoshis).
+    reward_per_block: Arc<AtomicU64>,
 }
 
 impl MiningMetrics {
@@ -39,6 +49,11 @@ impl MiningMetrics {
             verify_failures,
             last_block_time: Arc::new(RwLock::new(HashMap::new())),
             block_durations: Arc::new(RwLock::new(HashMap::new())),
+            blocks_persisted: Arc::new(AtomicU64::new(0)),
+            total_rewards: Arc::new(AtomicU64::new(0)),
+            pool_balance: Arc::new(AtomicU64::new(0)),
+            payouts_total: Arc::new(AtomicU64::new(0)),
+            reward_per_block: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -130,6 +145,51 @@ impl MiningMetrics {
         0.0
     }
 
+    /// Record a block persisted to chain.
+    pub fn record_block_persisted(&self) {
+        self.blocks_persisted.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Update total rewards distributed.
+    pub fn set_total_rewards(&self, amount: u64) {
+        self.total_rewards.store(amount, Ordering::Relaxed);
+    }
+
+    /// Update pool balance.
+    pub fn set_pool_balance(&self, amount: u64) {
+        self.pool_balance.store(amount, Ordering::Relaxed);
+    }
+
+    /// Record a payout.
+    pub fn record_payout(&self) {
+        self.payouts_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Set current reward per block.
+    pub fn set_reward_per_block(&self, amount: u64) {
+        self.reward_per_block.store(amount, Ordering::Relaxed);
+    }
+
+    /// Get blocks persisted.
+    pub fn get_blocks_persisted(&self) -> u64 {
+        self.blocks_persisted.load(Ordering::Relaxed)
+    }
+
+    /// Get total rewards.
+    pub fn get_total_rewards(&self) -> u64 {
+        self.total_rewards.load(Ordering::Relaxed)
+    }
+
+    /// Get pool balance.
+    pub fn get_pool_balance(&self) -> u64 {
+        self.pool_balance.load(Ordering::Relaxed)
+    }
+
+    /// Get total payouts.
+    pub fn get_payouts_total(&self) -> u64 {
+        self.payouts_total.load(Ordering::Relaxed)
+    }
+
     /// Format metrics as Prometheus text format.
     pub fn format_prometheus(&self) -> String {
         let mut output = String::new();
@@ -189,6 +249,26 @@ impl MiningMetrics {
                 ));
             }
         }
+        
+        output.push_str("# HELP stratum_blocks_persisted_total Total blocks persisted to chain\n");
+        output.push_str("# TYPE stratum_blocks_persisted_total counter\n");
+        output.push_str(&format!("stratum_blocks_persisted_total {}\n", self.get_blocks_persisted()));
+        
+        output.push_str("# HELP stratum_total_rewards_distributed Total rewards distributed in satoshis\n");
+        output.push_str("# TYPE stratum_total_rewards_distributed counter\n");
+        output.push_str(&format!("stratum_total_rewards_distributed {}\n", self.get_total_rewards()));
+        
+        output.push_str("# HELP stratum_pool_balance_gauge Current pool balance in satoshis\n");
+        output.push_str("# TYPE stratum_pool_balance_gauge gauge\n");
+        output.push_str(&format!("stratum_pool_balance_gauge {}\n", self.get_pool_balance()));
+        
+        output.push_str("# HELP stratum_payouts_total Total payouts completed\n");
+        output.push_str("# TYPE stratum_payouts_total counter\n");
+        output.push_str(&format!("stratum_payouts_total {}\n", self.get_payouts_total()));
+        
+        output.push_str("# HELP reward_per_block_gauge Current reward per block in satoshis\n");
+        output.push_str("# TYPE reward_per_block_gauge gauge\n");
+        output.push_str(&format!("reward_per_block_gauge {}\n", self.reward_per_block.load(Ordering::Relaxed)));
         
         output
     }

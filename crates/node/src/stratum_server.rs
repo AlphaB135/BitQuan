@@ -829,7 +829,7 @@ async fn handle_submit(
 
     // REAL PoW verification
     match verify_share_pow(&template, nonce, session.algo) {
-        Ok(ShareVerdict::Accept { hash, target }) => {
+        Ok(ShareVerdict::Accept { hash, target: _ }) => {
             // Share accepted!
             session.accept_share();
             session.record_share_time().await;
@@ -937,7 +937,7 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
 
     let submitter = BlockSubmitter::mock(network_id); // Use mock mode for now
     
-    match submitter.submit(&block).await {
+    match submitter.submit(&block, None).await {
         Ok(SubmitResult::Accepted { hash, height }) => {
             metrics.record_block_accepted();
             let hash_hex = hex::encode(&hash);

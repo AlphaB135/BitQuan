@@ -80,7 +80,42 @@
 
 ---
 
-## Latest Progress (2025-11-02T18:00:00Z) – Security Hardening Milestone ✅
+## Latest Progress (2025-11-04T22:50:00Z) – Phase 4: Reward Engine & Pool Persistence ✅
+
+**Highlights**
+- ✅ Implemented Bitcoin-style reward halving (50 BQ → 25 BQ every 210,000 blocks)
+- ✅ Added SQLite-backed pool database for miners, blocks, and payouts
+- ✅ Created ChainState tracker with automatic height increment
+- ✅ Integrated RewardEngine with block submission flow
+- ✅ Added RPC endpoints: `getpoolstats`, `getminerstats`, `createpayout`
+- ✅ Extended metrics: `stratum_blocks_persisted_total`, `stratum_total_rewards_distributed`, `stratum_pool_balance_gauge`
+- ✅ Comprehensive test suite (10 integration tests, all passing)
+- ✅ Documentation: `POOL_OPERATIONS.md`, updated `METRICS.md` and `README.md`
+
+**Test Results**
+```
+test test_reward_halving_logic ... ok
+test test_block_persistence_and_height_increment ... ok
+test test_credit_and_settle_rewards ... ok
+test test_pool_balance_metrics ... ok
+test test_miner_reward_accumulation ... ok
+```
+
+**Architecture**
+- `pool_db.rs`: SQLite persistence layer
+- `chainstate.rs`: Height and tip tracking
+- `reward_engine.rs`: Halving logic and miner accounting
+- `block_submit.rs`: Integration with persistence
+- `metrics.rs`: Extended reward metrics
+
+**Next Up**
+- Continue with security sprint initiatives
+- Integrate reward engine with live pool operations
+- Add automated payout threshold triggers
+
+---
+
+## Previous Progress (2025-11-02T18:00:00Z) – Security Hardening Milestone ✅
 
 **Highlights**
 - ✅ Completed anti-overflow audit (Task I), replay protection overhaul (Task J), entropy audit (Task K) with regression tests

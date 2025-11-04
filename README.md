@@ -313,7 +313,18 @@ BitQuan includes a full-featured mining pool for testnet operations:
 - **Prometheus Metrics**: Full observability with Grafana integration
 - **Share Verification**: Real PoW verification using SHA-256d or RandomX
 
-See [DASHBOARD.md](docs/DASHBOARD.md) for complete setup and visualization guide.
+### Reward Engine & Pool Persistence (Phase 4)
+
+BitQuan now includes complete reward calculation and pool accounting:
+
+- **Bitcoin-Style Halving**: 50 BQ initial reward, halvings every 210,000 blocks
+- **Chain Persistence**: SQLite-backed block and miner tracking
+- **Reward Calculation**: Automatic base reward + transaction fees
+- **Pool Database**: Miner accounts, block history, payout records
+- **RPC Endpoints**: `getpoolstats`, `getminerstats`, `createpayout`
+- **Metrics Integration**: Real-time reward and balance tracking
+
+See [POOL_OPERATIONS.md](docs/POOL_OPERATIONS.md) for pool lifecycle and payout details.
 
 ## Repository Structure
 

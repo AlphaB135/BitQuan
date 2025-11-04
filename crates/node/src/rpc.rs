@@ -6,7 +6,10 @@ use std::sync::{Arc, Mutex};
 
 use bitquan_consensus::header_hash;
 use bitquan_rpc::{
-    methods::{BlockTemplate, BlockchainInfo, MiningInfo, RpcMethods, TxInfo, WorkData},
+    methods::{
+        BlockTemplate, BlockchainInfo, MinerBlock, MinerStatsResponse, MiningInfo,
+        PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods, TxInfo, WorkData,
+    },
     RpcError,
 };
 use bitquan_storage::{rocksdb_store::RocksDBStore, ChainStore, StorageError};
@@ -135,6 +138,39 @@ impl RpcMethods for NodeRpcHandler {
                 .get_block_by_height(height)?
                 .ok_or(StorageError::BlockNotFound)?;
             Ok(hex::encode(header_hash(&block.header)))
+        })
+    }
+
+    fn getpoolstats(&self) -> Result<PoolStatsResponse, RpcError> {
+        // Pool stats require reward engine integration
+        // For now, return placeholder values from chain state
+        let height = self.getblockcount()?;
+        Ok(PoolStatsResponse {
+            height,
+            total_rewards: 0,
+            miner_count: 0,
+            pool_balance: 0,
+            block_count: height,
+        })
+    }
+
+    fn getminerstats(&self, miner_id: String) -> Result<MinerStatsResponse, RpcError> {
+        // Miner stats require reward engine integration
+        // For now, return placeholder
+        Ok(MinerStatsResponse {
+            miner_id,
+            total_reward: 0,
+            blocks_mined: 0,
+            recent_blocks: vec![],
+        })
+    }
+
+    fn createpayout(&self, request: PayoutRequest) -> Result<PayoutResponse, RpcError> {
+        // Payout creation requires reward engine integration
+        // For now, return mock success
+        Ok(PayoutResponse {
+            payout_id: format!("payout_{}", uuid::Uuid::new_v4()),
+            txid: None,
         })
     }
 }

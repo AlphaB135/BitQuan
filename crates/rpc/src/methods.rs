@@ -77,6 +77,65 @@ pub struct TxInfo {
     pub value_out: u64,
 }
 
+/// Pool statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PoolStatsResponse {
+    /// Current chain height
+    pub height: u64,
+    /// Total rewards distributed (satoshis)
+    pub total_rewards: u64,
+    /// Number of active miners
+    pub miner_count: u64,
+    /// Pool balance (satoshis)
+    pub pool_balance: u64,
+    /// Total blocks mined
+    pub block_count: u64,
+}
+
+/// Miner info response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MinerStatsResponse {
+    /// Miner ID
+    pub miner_id: String,
+    /// Total reward earned (satoshis)
+    pub total_reward: u64,
+    /// Number of blocks mined
+    pub blocks_mined: u64,
+    /// Recent blocks (limited)
+    pub recent_blocks: Vec<MinerBlock>,
+}
+
+/// Miner block info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MinerBlock {
+    /// Block hash
+    pub hash: String,
+    /// Block height
+    pub height: u64,
+    /// Reward (satoshis)
+    pub reward: u64,
+    /// Timestamp
+    pub timestamp: u64,
+}
+
+/// Payout request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PayoutRequest {
+    /// Miner ID
+    pub miner_id: String,
+    /// Amount to pay out (satoshis)
+    pub amount: u64,
+}
+
+/// Payout response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PayoutResponse {
+    /// Payout ID
+    pub payout_id: String,
+    /// Transaction ID (if available)
+    pub txid: Option<String>,
+}
+
 /// RPC method handler trait
 pub trait RpcMethods {
     /// Get current block count
@@ -108,6 +167,15 @@ pub trait RpcMethods {
 
     /// Get block hash by height
     fn getblockhash(&self, height: u64) -> Result<String, RpcError>;
+
+    /// Get pool statistics
+    fn getpoolstats(&self) -> Result<PoolStatsResponse, RpcError>;
+
+    /// Get miner statistics
+    fn getminerstats(&self, miner_id: String) -> Result<MinerStatsResponse, RpcError>;
+
+    /// Create payout (mock implementation)
+    fn createpayout(&self, request: PayoutRequest) -> Result<PayoutResponse, RpcError>;
 }
 
 /// Dispatch RPC call to appropriate method
@@ -228,6 +296,64 @@ pub fn dispatch_call<T: RpcMethods>(
             }
         }
 
+        "getpoolstats" => match handler.getpoolstats() {
+            Ok(stats) => JsonRpcResponse::success(id, serde_json::to_value(stats).unwrap()),
+            Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+        },
+
+        "getminerstats" => {
+            if let Some(miner_id) = params
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+            {
+                match handler.getminerstats(miner_id.to_string()) {
+                    Ok(stats) => JsonRpcResponse::success(id, serde_json::to_value(stats).unwrap()),
+                    Err(e) => {
+                        JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
+                    }
+                }
+            } else {
+                JsonRpcResponse::error(
+                    id,
+                    error_codes::INVALID_PARAMS,
+                    "expected miner_id".to_string(),
+                )
+            }
+        }
+
+        "createpayout" => {
+            if let Some(params_obj) = params.as_object() {
+                if let (Some(miner_id), Some(amount)) = (
+                    params_obj.get("miner_id").and_then(|v| v.as_str()),
+                    params_obj.get("amount").and_then(|v| v.as_u64()),
+                ) {
+                    let request = PayoutRequest {
+                        miner_id: miner_id.to_string(),
+                        amount,
+                    };
+                    match handler.createpayout(request) {
+                        Ok(response) => JsonRpcResponse::success(id, serde_json::to_value(response).unwrap()),
+                        Err(e) => {
+                            JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
+                        }
+                    }
+                } else {
+                    JsonRpcResponse::error(
+                        id,
+                        error_codes::INVALID_PARAMS,
+                        "expected miner_id and amount".to_string(),
+                    )
+                }
+            } else {
+                JsonRpcResponse::error(
+                    id,
+                    error_codes::INVALID_PARAMS,
+                    "expected object with miner_id and amount".to_string(),
+                )
+            }
+        }
+
         _ => JsonRpcResponse::error(
             id,
             error_codes::METHOD_NOT_FOUND,
@@ -295,6 +421,32 @@ mod tests {
 
         fn submitwork(&self, _data: String) -> Result<bool, RpcError> {
             Ok(true)
+        }
+
+        fn getpoolstats(&self) -> Result<PoolStatsResponse, RpcError> {
+            Ok(PoolStatsResponse {
+                height: 12345,
+                total_rewards: 1000000000,
+                miner_count: 5,
+                pool_balance: 500000000,
+                block_count: 100,
+            })
+        }
+
+        fn getminerstats(&self, _miner_id: String) -> Result<MinerStatsResponse, RpcError> {
+            Ok(MinerStatsResponse {
+                miner_id: "test_miner".to_string(),
+                total_reward: 50000000,
+                blocks_mined: 10,
+                recent_blocks: vec![],
+            })
+        }
+
+        fn createpayout(&self, _request: PayoutRequest) -> Result<PayoutResponse, RpcError> {
+            Ok(PayoutResponse {
+                payout_id: "payout123".to_string(),
+                txid: Some("tx456".to_string()),
+            })
         }
     }
 

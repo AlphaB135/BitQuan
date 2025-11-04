@@ -2,11 +2,14 @@
 
 mod address;
 mod block_submit;
+mod chainstate;
 mod keystore;
 mod metrics;
 mod miner;
 mod mnemonic;
+mod pool_db;
 mod pool_template;
+mod reward_engine;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
 mod stratum_server;
