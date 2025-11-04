@@ -293,6 +293,112 @@ func main() {
 }
 ```
 
+## Stratum Server Metrics
+
+### stratum_connections_total
+
+**Type:** Counter  
+**Description:** Total Stratum mining connections since server start  
+
+**Example:**
+```prometheus
+stratum_connections_total 127
+```
+
+**Use Cases:**
+- Track pool popularity
+- Detect connection spam
+- Monitor server uptime
+
+---
+
+### stratum_shares_total
+
+**Type:** Counter  
+**Description:** Total shares submitted by miners  
+**Labels:**
+- `status`: Share status (`ok`, `reject`)
+- `algo`: Algorithm name (`sha256d`, `randomx`)
+
+**Example:**
+```prometheus
+stratum_shares_total{status="ok",algo="sha256d"} 45623
+stratum_shares_total{status="reject",algo="sha256d"} 128
+stratum_shares_total{status="ok",algo="randomx"} 12456
+stratum_shares_total{status="reject",algo="randomx"} 43
+```
+
+**Use Cases:**
+- Calculate pool hashrate
+- Monitor miner efficiency
+- Detect misconfigured miners (high reject rate)
+
+---
+
+### stratum_active_miners
+
+**Type:** Gauge  
+**Description:** Currently connected miners  
+
+**Example:**
+```prometheus
+stratum_active_miners 24
+```
+
+**Use Cases:**
+- Monitor pool capacity
+- Track peak usage times
+- Detect DDoS attacks
+
+---
+
+### stratum_difficulty_gauge
+
+**Type:** Gauge  
+**Description:** Current difficulty setting per algorithm  
+**Labels:**
+- `algo`: Algorithm name
+
+**Example:**
+```prometheus
+stratum_difficulty_gauge{algo="sha256d"} 2.0
+stratum_difficulty_gauge{algo="randomx"} 1.5
+```
+
+**Use Cases:**
+- Track difficulty adjustments
+- Optimize pool settings
+- Compare algorithm difficulty
+
+---
+
+## Stratum Monitoring Queries
+
+### Pool Hashrate Estimation
+
+```promql
+# SHA-256d hashrate (shares/sec × difficulty × 2^32)
+rate(stratum_shares_total{status="ok",algo="sha256d"}[5m]) * 2.0 * 4294967296
+
+# RandomX hashrate  
+rate(stratum_shares_total{status="ok",algo="randomx"}[5m]) * 1.5
+```
+
+### Reject Rate
+
+```promql
+# Percentage of rejected shares
+rate(stratum_shares_total{status="reject"}[5m]) / 
+rate(stratum_shares_total[5m]) * 100
+```
+
+### Active Miners by Algorithm
+
+```promql
+# Would require additional labels in future version
+stratum_active_miners
+```
+
 ## Performance Impact
 
 Metrics collection has minimal overhead:

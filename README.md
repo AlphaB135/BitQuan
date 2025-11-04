@@ -143,6 +143,32 @@ cargo build --release --features randomx
 
 See [docs/TESTNET_README.md](docs/TESTNET_README.md) for detailed hybrid mining instructions.
 
+### Stratum Mining Server (Pool Mode)
+
+BitQuan includes a Stratum V1-compatible mining server for connecting external miners:
+
+```bash
+# Start Stratum server on testnet
+./target/release/bitquan-node stratum-server \
+  --network testnet \
+  --stratum-bind 0.0.0.0:3333 \
+  --stratum-allow "127.0.0.1,192.168.0.0/16" \
+  --stratum-diff 1.0
+
+# Connect external miners (example with cgminer)
+cgminer -o stratum+tcp://your-server:3333 -u miner1 -p x
+
+# Monitor Stratum metrics
+curl http://localhost:9090/metrics | grep stratum
+```
+
+**Stratum Features:**
+- ✅ JSON-RPC protocol (mining.subscribe, mining.authorize, mining.submit)
+- ✅ Per-miner session tracking and statistics
+- ✅ Prometheus metrics (connections, shares, difficulty)
+- ✅ Algorithm support: SHA-256d (mainnet) + RandomX (testnet)
+- ✅ IP allowlist for access control
+
 ```
 
 ## RPC Server with TLS + JWT Authentication

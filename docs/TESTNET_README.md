@@ -154,6 +154,74 @@ curl -s http://localhost:9090/metrics | grep pow_hashrate_gauge
 cargo build --release --features randomx
 ```
 
+## Stratum Mining Server
+
+BitQuan supports running as a Stratum V1 mining pool for external miners.
+
+### Starting Stratum Server
+
+```bash
+# Basic Stratum server
+./target/release/bitquan-node stratum-server \
+  --network testnet \
+  --stratum-bind 0.0.0.0:3333 \
+  --stratum-diff 1.0
+
+# With IP allowlist
+./target/release/bitquan-node stratum-server \
+  --network devnet \
+  --stratum-bind 0.0.0.0:3333 \
+  --stratum-allow "127.0.0.1,192.168.1.0/24,10.0.0.0/8" \
+  --stratum-diff 2.0
+```
+
+### Connecting Miners
+
+**cgminer (SHA-256d)**:
+```bash
+cgminer -o stratum+tcp://your-server:3333 \
+  -u worker1 \
+  -p x \
+  --algo sha256d
+```
+
+**xmrig (RandomX, testnet only)**:
+```bash
+xmrig -o your-server:3333 \
+  -u worker2 \
+  -p x \
+  --randomx
+```
+
+### Stratum Metrics
+
+Monitor pool activity via Prometheus:
+
+```bash
+# Active miners
+curl -s http://localhost:9090/metrics | grep stratum_active_miners
+
+# Accepted shares
+curl -s http://localhost:9090/metrics | grep 'stratum_shares_total{status="ok"}'
+
+# Rejected shares
+curl -s http://localhost:9090/metrics | grep 'stratum_shares_total{status="reject"}'
+
+# Total connections
+curl -s http://localhost:9090/metrics | grep stratum_connections_total
+```
+
+### Stratum Protocol Support
+
+**Supported Methods**:
+- `mining.subscribe` - Initial connection
+- `mining.authorize` - Miner authentication
+- `mining.submit` - Share submission
+
+**Response Format**: Standard JSON-RPC 2.0
+
+**Share Verification**: Validates nonce against difficulty target for selected algorithm.
+
 ---
 
 **Remember**: Hybrid PoW is for testnet experimentation only. Mainnet remains SHA-256d to ensure maximum security, ASIC compatibility, and battle-tested consensus.
