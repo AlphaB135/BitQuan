@@ -680,6 +680,7 @@ mod tests {
             time: 1234567890,
             bits: 0x1d00ffff,
             nonce: 424242,
+            algo_id: 0,
         };
 
         let mut buf = Vec::new();
@@ -703,6 +704,7 @@ mod tests {
                 time: 1234567890,
                 bits: 0x1d00ffff,
                 nonce: 424242,
+                algo_id: 0,
             },
             transactions: vec![Transaction {
                 version: 1,

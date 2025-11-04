@@ -1,7 +1,8 @@
 //! RocksDB-based persistent chain storage.
 
 use std::sync::Arc;
-use std::{convert::TryInto, path::Path};
+use std::time::SystemTime;
+use std::{convert::TryInto, fs, path::Path};
 
 use rocksdb::{Options, WriteBatch, DB};
 
@@ -100,9 +101,6 @@ impl RocksDBStore {
         db_path: P,
         options: &RecoveryOptions,
     ) -> Result<(), StorageError> {
-        use std::fs;
-        use std::time::SystemTime;
-
         let db_path = db_path.as_ref();
         if !db_path.exists() {
             return Ok(()); // Nothing to backup
@@ -111,12 +109,14 @@ impl RocksDBStore {
         let backup_dir = if let Some(ref path) = options.backup_path {
             Path::new(path)
         } else {
-            db_path.parent().unwrap_or(Path::new("."))
+            db_path.parent().ok_or_else(|| {
+                StorageError::DatabaseError("cannot determine backup directory".to_string())
+            })?
         };
 
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|e| StorageError::DatabaseError(format!("system time error: {}", e)))?
             .as_secs();
 
         let backup_name = format!("chaindata.backup.{}", timestamp);
@@ -627,6 +627,7 @@ mod tests {
             time: 1729900000,
             bits: 0x1d00ffff,
             nonce: 0,
+            algo_id: 0,
         };
 
         let block = Block {
