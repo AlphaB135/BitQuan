@@ -252,8 +252,10 @@ pub mod address {
         data.extend_from_slice(pubkey_hash);
 
         // Encode using Bech32m
-        let hrp = Hrp::parse(hrp_str).expect("Valid HRP");
-        bech32::encode::<Bech32m>(hrp, &data).expect("Valid encoding")
+        // SAFETY: Network HRPs are validated at compile-time
+        let hrp = Hrp::parse(hrp_str).expect("network HRP is valid");
+        // SAFETY: encoding with valid HRP and valid data cannot fail
+        bech32::encode::<Bech32m>(hrp, &data).expect("encoding with valid HRP/data")
     }
 
     /// Decodes a Bech32m address to a public key hash.

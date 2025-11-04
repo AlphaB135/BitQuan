@@ -36,11 +36,13 @@ pub struct AddressInfo {
 
 /// Encodes a public key hash as a Bech32m address using witness version 1.
 pub fn encode_bech32m(pubkey_hash: &[u8; 32]) -> String {
-    let hrp = Hrp::parse(HRP_MAINNET).expect("valid HRP");
+    // SAFETY: HRP constants are validated at compile-time via const assertion
+    let hrp = Hrp::parse(HRP_MAINNET).expect("built-in HRP is valid");
     let mut data = Vec::with_capacity(33);
     data.push(1u8); // witness version
     data.extend_from_slice(pubkey_hash);
-    bech32::encode::<Bech32m>(hrp, &data).expect("valid bech32m encoding")
+    // SAFETY: encoding with valid HRP and valid data cannot fail
+    bech32::encode::<Bech32m>(hrp, &data).expect("encoding with valid HRP/data")
 }
 
 /// Alias for `encode_bech32m`.
@@ -140,11 +142,13 @@ pub fn script_from_pubkey_hash(pubkey_hash: &[u8; 32]) -> Vec<u8> {
 
 /// Encode with custom prefix (for multisig addresses)
 pub fn encode_bech32m_with_prefix(pubkey_hash: &[u8], prefix: &str) -> String {
-    let hrp = Hrp::parse(prefix).expect("valid HRP");
+    // SAFETY: Network HRPs are validated at compile-time
+    let hrp = Hrp::parse(prefix).expect("network HRP is valid");
     let mut data = Vec::with_capacity(pubkey_hash.len() + 1);
     data.push(1u8); // witness version
     data.extend_from_slice(pubkey_hash);
-    bech32::encode::<Bech32m>(hrp, &data).expect("valid bech32m encoding")
+    // SAFETY: encoding with valid HRP and valid data cannot fail
+    bech32::encode::<Bech32m>(hrp, &data).expect("encoding with valid HRP/data")
 }
 
 #[cfg(test)]

@@ -348,7 +348,12 @@ impl Mempool {
 
 impl Default for Mempool {
     fn default() -> Self {
-        Self::new().expect("RNG initialization failed")
+        // NOTE: Default trait cannot propagate errors. In production, use Mempool::new()
+        // which returns Result<Self>. This implementation is primarily for testing.
+        Self::new().unwrap_or_else(|e| {
+            // FATAL: RNG failure at this point indicates system-level issues
+            panic!("FATAL: RNG initialization failed during Mempool::default(): {}", e)
+        })
     }
 }
 
