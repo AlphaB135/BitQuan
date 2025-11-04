@@ -2,22 +2,25 @@
 //!
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
 
-use bitquan_consensus::pow::{PowAlgo, PowEngine, Sha256dEngine};
-use bitquan_types::{BlockHeader, NetworkId, Result};
+use bitquan_consensus::pow::{PowAlgo, sha256d_pow_hash, target_from_bits, meets_target};
+use bitquan_types::{NetworkId, Result};
 use dashmap::DashMap;
+use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::net::SocketAddr;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[cfg(feature = "randomx")]
-use bitquan_consensus::pow::{RandomXEngine, RandomXConfig, RandomXMode};
+use bitquan_consensus::pow::{RandomXEngine, RandomXConfig, RandomXMode, randomx_pow_hash};
 
-use crate::pool_template::PoolTemplateManager;
+use crate::pool_template::{PoolTemplateManager, BlockTemplate};
 use crate::vardiff::VarDiff;
 
 /// Stratum V1 mining server.
@@ -71,6 +74,51 @@ impl Default for StratumConfig {
     }
 }
 
+/// Share verification result.
+#[derive(Debug, Clone)]
+pub enum ShareVerdict {
+    /// Share accepted - meets difficulty.
+    Accept {
+        /// PoW hash that met the target.
+        hash: [u8; 32],
+        /// Target that was met.
+        target: [u8; 32],
+    },
+    /// Share rejected with reason.
+    Reject {
+        /// Rejection reason code.
+        reason: RejectReason,
+    },
+}
+
+/// Share rejection reasons (for metrics and logging).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RejectReason {
+    /// Hash does not meet target difficulty.
+    LowDifficulty,
+    /// Algorithm mismatch between share and template.
+    AlgoMismatch,
+    /// Template stale (height or prev_hash changed).
+    Stale,
+    /// Duplicate share submission.
+    Duplicate,
+    /// Invalid header format or serialization.
+    InvalidHeader,
+}
+
+impl RejectReason {
+    /// Get string representation for metrics label.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RejectReason::LowDifficulty => "low_difficulty",
+            RejectReason::AlgoMismatch => "algo_mismatch",
+            RejectReason::Stale => "stale",
+            RejectReason::Duplicate => "duplicate",
+            RejectReason::InvalidHeader => "invalid_header",
+        }
+    }
+}
+
 /// Active miner session.
 #[derive(Debug)]
 pub struct MinerSession {
@@ -92,11 +140,24 @@ pub struct MinerSession {
     pub last_share_time: Arc<tokio::sync::RwLock<std::time::Instant>>,
     /// Shares since last difficulty adjustment.
     pub shares_since_adjust: AtomicU64,
+    /// Duplicate share cache (LRU of recent nonces).
+    pub duplicate_cache: Arc<Mutex<LruCache<u64, ()>>>,
+    /// Extranonce1 assigned at subscribe.
+    pub extranonce1: u32,
+    /// Current job_id being worked on.
+    pub current_job_id: Arc<tokio::sync::RwLock<u64>>,
 }
 
 impl MinerSession {
     /// Create a new miner session.
     pub fn new(algo: PowAlgo, address: String, difficulty: f64) -> Self {
+        // Duplicate cache: keep last 4096 nonces
+        let cache_size = NonZeroUsize::new(4096).unwrap();
+        let duplicate_cache = Arc::new(Mutex::new(LruCache::new(cache_size)));
+        
+        // Assign random extranonce1
+        let extranonce1 = rand::random::<u32>();
+        
         Self {
             id: Uuid::new_v4(),
             algo,
@@ -107,6 +168,9 @@ impl MinerSession {
             connected_at: std::time::Instant::now(),
             last_share_time: Arc::new(tokio::sync::RwLock::new(std::time::Instant::now())),
             shares_since_adjust: AtomicU64::new(0),
+            duplicate_cache,
+            extranonce1,
+            current_job_id: Arc::new(tokio::sync::RwLock::new(0)),
         }
     }
 
@@ -153,6 +217,28 @@ impl MinerSession {
     pub fn get_shares_since_adjust(&self) -> u64 {
         self.shares_since_adjust.load(Ordering::Relaxed)
     }
+    
+    /// Check if nonce is duplicate and mark it if not.
+    pub async fn check_and_mark_duplicate(&self, nonce: u64) -> bool {
+        let mut cache = self.duplicate_cache.lock().await;
+        if cache.contains(&nonce) {
+            true // Duplicate
+        } else {
+            cache.put(nonce, ());
+            false // New
+        }
+    }
+    
+    /// Update current job_id.
+    pub async fn set_job_id(&self, job_id: u64) {
+        let mut current = self.current_job_id.write().await;
+        *current = job_id;
+    }
+    
+    /// Get current job_id.
+    pub async fn get_job_id(&self) -> u64 {
+        *self.current_job_id.read().await
+    }
 }
 
 /// Stratum server metrics.
@@ -162,8 +248,8 @@ pub struct StratumMetrics {
     pub connections_total: AtomicU64,
     /// Accepted shares per algorithm.
     pub shares_accepted: DashMap<PowAlgo, AtomicU64>,
-    /// Rejected shares per algorithm.
-    pub shares_rejected: DashMap<PowAlgo, AtomicU64>,
+    /// Rejected shares per algorithm and reason.
+    pub shares_rejected: DashMap<(PowAlgo, &'static str), AtomicU64>,
     /// Last valid share timestamp (Unix epoch).
     pub last_valid_share_timestamp: AtomicU64,
     /// Vardiff adjustments counter.
@@ -174,21 +260,17 @@ impl StratumMetrics {
     /// Create new metrics collector.
     pub fn new() -> Self {
         let shares_accepted = DashMap::new();
-        let shares_rejected = DashMap::new();
-
         shares_accepted.insert(PowAlgo::Sha256d, AtomicU64::new(0));
-        shares_rejected.insert(PowAlgo::Sha256d, AtomicU64::new(0));
 
         #[cfg(feature = "randomx")]
         {
             shares_accepted.insert(PowAlgo::RandomX, AtomicU64::new(0));
-            shares_rejected.insert(PowAlgo::RandomX, AtomicU64::new(0));
         }
 
         Self {
             connections_total: AtomicU64::new(0),
             shares_accepted,
-            shares_rejected,
+            shares_rejected: DashMap::new(), // Now DashMap<(PowAlgo, &'static str), AtomicU64>
             last_valid_share_timestamp: AtomicU64::new(0),
             vardiff_adjustments: AtomicU64::new(0),
         }
@@ -207,11 +289,13 @@ impl StratumMetrics {
         self.last_valid_share_timestamp.store(now, Ordering::Relaxed);
     }
 
-    /// Record rejected share.
-    pub fn record_share_rejected(&self, algo: PowAlgo) {
-        if let Some(counter) = self.shares_rejected.get(&algo) {
-            counter.fetch_add(1, Ordering::Relaxed);
-        }
+    /// Record rejected share with reason.
+    pub fn record_share_rejected(&self, algo: PowAlgo, reason: RejectReason) {
+        let key = (algo, reason.as_str());
+        self.shares_rejected
+            .entry(key)
+            .or_insert_with(|| AtomicU64::new(0))
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Get total accepted shares for algorithm.
@@ -222,10 +306,20 @@ impl StratumMetrics {
             .unwrap_or(0)
     }
 
-    /// Get total rejected shares for algorithm.
+    /// Get total rejected shares for algorithm (all reasons).
     pub fn get_rejected(&self, algo: PowAlgo) -> u64 {
         self.shares_rejected
-            .get(&algo)
+            .iter()
+            .filter(|entry| entry.key().0 == algo)
+            .map(|entry| entry.value().load(Ordering::Relaxed))
+            .sum()
+    }
+    
+    /// Get rejected shares for specific reason.
+    pub fn get_rejected_by_reason(&self, algo: PowAlgo, reason: RejectReason) -> u64 {
+        let key = (algo, reason.as_str());
+        self.shares_rejected
+            .get(&key)
             .map(|c| c.load(Ordering::Relaxed))
             .unwrap_or(0)
     }
@@ -267,9 +361,10 @@ impl StratumMetrics {
             ));
         }
         for entry in self.shares_rejected.iter() {
-            let (algo, counter) = entry.pair();
+            let ((algo, reason), counter) = entry.pair();
             output.push_str(&format!(
-                "stratum_shares_total{{status=\"reject\",algo=\"{}\"}} {}\n",
+                "stratum_shares_total{{status=\"reject\",reason=\"{}\",algo=\"{}\"}} {}\n",
+                reason,
                 algo.name(),
                 counter.load(Ordering::Relaxed)
             ));
@@ -583,7 +678,7 @@ async fn handle_request(
     }
 }
 
-/// Handle a share submission.
+/// Handle a share submission with REAL PoW verification.
 async fn handle_submit(
     peer_key: &str,
     params: &[Value],
@@ -595,7 +690,7 @@ async fn handle_submit(
 ) -> bool {
     // Extract params: [worker_name, job_id, extranonce2, ntime, nonce]
     let _worker = params.get(0).and_then(|v| v.as_str());
-    let _job_id = params.get(1).and_then(|v| v.as_str());
+    let job_id_str = params.get(1).and_then(|v| v.as_str());
     let _extranonce2 = params.get(2).and_then(|v| v.as_str());
     let _ntime = params.get(3).and_then(|v| v.as_str());
     let nonce_str = params.get(4).and_then(|v| v.as_str());
@@ -605,127 +700,186 @@ async fn handle_submit(
         None => {
             if let Some(session) = peers.get(peer_key) {
                 session.reject_share();
-                metrics.record_share_rejected(session.algo);
+                metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
             }
             return false;
         }
     };
 
-    // Get session and verify share
-    let mut session = match peers.get_mut(peer_key) {
+    // Get session
+    let session = match peers.get(peer_key) {
         Some(s) => s,
         None => return false,
     };
 
-    // Try real PoW verification if template manager is available
-    let valid = if let Some(tm) = template_manager {
-        if let Some(template) = tm.get_template().await {
-            verify_share_pow(&template.header, nonce, session.algo, &template.target)
-        } else {
-            // Fallback to simple verification if no template available
-            verify_share_simple(nonce, session.algo, session.difficulty)
+    // Check for duplicate submission
+    if session.check_and_mark_duplicate(nonce).await {
+        session.reject_share();
+        metrics.record_share_rejected(session.algo, RejectReason::Duplicate);
+        eprintln!(
+            "Stratum: Share DUPLICATE from {} (algo={}, nonce={})",
+            session.address,
+            session.algo.name(),
+            nonce
+        );
+        return false;
+    }
+
+    // Get current template
+    let template = match template_manager {
+        Some(tm) => match tm.get_template().await {
+            Some(t) => t,
+            None => {
+                session.reject_share();
+                metrics.record_share_rejected(session.algo, RejectReason::Stale);
+                eprintln!("Stratum: No template available for {}", session.address);
+                return false;
+            }
+        },
+        None => {
+            session.reject_share();
+            metrics.record_share_rejected(session.algo, RejectReason::Stale);
+            return false;
         }
-    } else {
-        // Fallback to simple verification
-        verify_share_simple(nonce, session.algo, session.difficulty)
     };
 
-    if valid {
-        session.accept_share();
-        session.record_share_time().await;
-        metrics.record_share_accepted(session.algo);
-        
-        // Log accepted share with details
-        println!(
-            "Stratum: Share ACCEPTED from {} (algo={}, diff={:.2}, nonce={})",
-            session.address,
-            session.algo.name(),
-            session.difficulty,
-            nonce
-        );
-
-        // Apply vardiff adjustment if enabled
-        if let Some(vd) = vardiff {
-            let shares_since = session.get_shares_since_adjust();
-            if vd.should_adjust(shares_since) {
-                let time_since = session.time_since_last_share().await;
-                let new_diff = vd.adjust(time_since, session.difficulty);
-                
-                if (new_diff - session.difficulty).abs() > 0.01 {
-                    println!(
-                        "Stratum: Adjusting difficulty for {} from {:.2} to {:.2}",
-                        session.address,
-                        session.difficulty,
-                        new_diff
-                    );
-                    session.set_difficulty(new_diff);
-                    metrics.record_vardiff_adjustment();
-                }
+    // Check if job_id matches (stale detection)
+    if let Some(job_id) = job_id_str {
+        let current_job_id = session.get_job_id().await;
+        if let Ok(submit_job_id) = job_id.parse::<u64>() {
+            if submit_job_id != current_job_id {
+                session.reject_share();
+                metrics.record_share_rejected(session.algo, RejectReason::Stale);
+                eprintln!(
+                    "Stratum: Share STALE from {} (job {} != current {})",
+                    session.address, submit_job_id, current_job_id
+                );
+                return false;
             }
         }
-    } else {
-        session.reject_share();
-        metrics.record_share_rejected(session.algo);
-        
-        // Log rejected share
-        println!(
-            "Stratum: Share REJECTED from {} (algo={}, nonce={})",
-            session.address,
-            session.algo.name(),
-            nonce
-        );
     }
 
-    valid
-}
+    // REAL PoW verification
+    match verify_share_pow(&template, nonce, session.algo) {
+        Ok(ShareVerdict::Accept { hash, target: _ }) => {
+            // Share accepted!
+            session.accept_share();
+            session.record_share_time().await;
+            metrics.record_share_accepted(session.algo);
 
-/// Simple share verification (placeholder for actual PoW check).
-///
-/// This is used when no block template is available. In production, use verify_share_pow.
-fn verify_share_simple(nonce: u64, algo: PowAlgo, _difficulty: f64) -> bool {
-    // Placeholder: accept shares with nonce < 1000000 for testing
-    // In production, this would do actual PoW verification against block template
-    match algo {
-        PowAlgo::Sha256d => nonce < 1_000_000,
-        #[cfg(feature = "randomx")]
-        PowAlgo::RandomX => nonce < 500_000,
+            // Log with hash prefix
+            let hash_hex = hex::encode(&hash[..4]);
+            println!(
+                "Stratum: Share ACCEPTED from {} (algo={}, diff={:.2}, nonce={}, hash={}…)",
+                session.address,
+                session.algo.name(),
+                session.difficulty,
+                nonce,
+                hash_hex
+            );
+
+            // Apply vardiff adjustment if enabled
+            if let Some(vd) = vardiff {
+                let shares_since = session.get_shares_since_adjust();
+                if vd.should_adjust(shares_since) {
+                    let time_since = session.time_since_last_share().await;
+                    
+                    // Need mutable access for set_difficulty
+                    drop(session); // Release immutable borrow
+                    if let Some(mut session) = peers.get_mut(peer_key) {
+                        let new_diff = vd.adjust(time_since, session.difficulty);
+                        if (new_diff - session.difficulty).abs() > 0.01 {
+                            println!(
+                                "Stratum: Adjusting difficulty for {} from {:.2} to {:.2}",
+                                session.address, session.difficulty, new_diff
+                            );
+                            session.set_difficulty(new_diff);
+                            metrics.record_vardiff_adjustment();
+                        }
+                    }
+                }
+            }
+
+            true
+        }
+        Ok(ShareVerdict::Reject { reason }) => {
+            // Share rejected
+            session.reject_share();
+            metrics.record_share_rejected(session.algo, reason);
+
+            eprintln!(
+                "Stratum: Share REJECTED from {} (reason={}, algo={}, nonce={})",
+                session.address,
+                reason.as_str(),
+                session.algo.name(),
+                nonce
+            );
+
+            false
+        }
+        Err(e) => {
+            // Verification error
+            session.reject_share();
+            metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
+
+            eprintln!(
+                "Stratum: Share verification ERROR from {} ({})",
+                session.address, e
+            );
+
+            false
+        }
     }
 }
 
-/// Verify a share against a block header using real PoW verification.
+/// Verify a share against a block template using REAL PoW verification.
 ///
-/// Checks if the hash meets the target difficulty for the given algorithm.
-fn verify_share_pow(header: &BlockHeader, nonce: u64, algo: PowAlgo, _target: &[u8; 32]) -> bool {
-    let mut header = header.clone();
+/// Returns ShareVerdict with accept/reject and reason.
+fn verify_share_pow(
+    tpl: &BlockTemplate,
+    nonce: u64,
+    algo: PowAlgo,
+) -> std::result::Result<ShareVerdict, bitquan_types::Error> {
+    // 1) Check algorithm match
+    if algo != tpl.algo {
+        return Ok(ShareVerdict::Reject {
+            reason: RejectReason::AlgoMismatch,
+        });
+    }
+
+    // 2) Build header with provided nonce
+    let mut header = tpl.header.clone();
     header.nonce = nonce;
     header.algo_id = algo.to_u8();
 
-    // First verify PoW is valid
-    let pow_valid = match algo {
-        PowAlgo::Sha256d => {
-            let engine = Sha256dEngine;
-            engine.verify(&header).is_ok()
-        }
+    // 3) Serialize header for PoW
+    let preimage = header.to_bytes();
+
+    // 4) Compute PoW hash according to algorithm
+    let pow_hash = match algo {
+        PowAlgo::Sha256d => sha256d_pow_hash(&preimage),
         #[cfg(feature = "randomx")]
         PowAlgo::RandomX => {
-            let config = RandomXConfig {
-                mode: RandomXMode::Fast,
-                seed: [0u8; 32],
-            };
-            let engine = RandomXEngine::new(config);
-            engine.verify(&header).is_ok()
+            // Use seed from genesis hash (same as HybridMiner)
+            let seed = [0u8; 32]; // TODO: get from consensus or config
+            randomx_pow_hash(&preimage, &seed)
         }
     };
 
-    // Then check if hash meets share target
-    if pow_valid {
-        // For share validation, we compare against pool difficulty target
-        // which is typically easier than block target
-        // In production, compute hash and compare with target
-        // For now, accept if basic PoW is valid
-        true
+    // 5) Derive target from template bits
+    let target = target_from_bits(tpl.header.bits)
+        .map_err(|e| bitquan_types::Error::Invalid(format!("invalid bits: {}", e)))?;
+
+    // 6) Compare hash with target
+    if meets_target(&pow_hash, &target) {
+        Ok(ShareVerdict::Accept {
+            hash: pow_hash,
+            target,
+        })
     } else {
-        false
+        Ok(ShareVerdict::Reject {
+            reason: RejectReason::LowDifficulty,
+        })
     }
 }
 
@@ -771,7 +925,8 @@ mod tests {
         metrics.record_share_accepted(PowAlgo::Sha256d);
         assert_eq!(metrics.get_accepted(PowAlgo::Sha256d), 2);
         
-        metrics.record_share_rejected(PowAlgo::Sha256d);
+        metrics.record_share_rejected(PowAlgo::Sha256d, RejectReason::LowDifficulty);
         assert_eq!(metrics.get_rejected(PowAlgo::Sha256d), 1);
+        assert_eq!(metrics.get_rejected_by_reason(PowAlgo::Sha256d, RejectReason::LowDifficulty), 1);
     }
 }

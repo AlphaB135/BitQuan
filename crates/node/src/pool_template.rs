@@ -20,6 +20,8 @@ pub struct BlockTemplate {
     pub target: [u8; 32],
     /// Mining algorithm for this template.
     pub algo: PowAlgo,
+    /// Job ID for Stratum (increments on each refresh).
+    pub job_id: u64,
 }
 
 /// Pool template manager with automatic refresh.
@@ -30,6 +32,8 @@ pub struct PoolTemplateManager {
     last_refresh: Arc<RwLock<Instant>>,
     /// Refresh interval in seconds.
     refresh_interval: u64,
+    /// Next job_id counter.
+    next_job_id: Arc<RwLock<u64>>,
 }
 
 impl PoolTemplateManager {
@@ -42,6 +46,7 @@ impl PoolTemplateManager {
             cache: Arc::new(RwLock::new(None)),
             last_refresh: Arc::new(RwLock::new(Instant::now())),
             refresh_interval,
+            next_job_id: Arc::new(RwLock::new(1)),
         }
     }
 
@@ -51,8 +56,13 @@ impl PoolTemplateManager {
         cache.clone()
     }
 
-    /// Manually update the template cache.
-    pub async fn update_template(&self, template: BlockTemplate) {
+    /// Manually update the template cache with auto-incremented job_id.
+    pub async fn update_template(&self, mut template: BlockTemplate) {
+        // Assign next job_id
+        let mut job_id = self.next_job_id.write().await;
+        template.job_id = *job_id;
+        *job_id = job_id.wrapping_add(1);
+        
         let mut cache = self.cache.write().await;
         *cache = Some(template);
         
@@ -130,6 +140,7 @@ mod tests {
             txs: vec![],
             target: [0xff; 32],
             algo: PowAlgo::Sha256d,
+            job_id: 0, // Will be auto-assigned
         };
         
         manager.update_template(template.clone()).await;

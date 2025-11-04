@@ -39,6 +39,7 @@ zeroize.workspace = true
 tokio = { version = "1.35", features = ["full"] }
 uuid = { version = "1.6", features = ["v4", "serde"] }
 dashmap = "5.5"
+lru = "0.12"
 
 [features]
 default = ["rocksdb-backend"]

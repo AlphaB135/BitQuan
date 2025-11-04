@@ -1,7 +1,7 @@
 //! Integration tests for Stratum mining server.
 
 use bitquan_consensus::pow::PowAlgo;
-use bitquan_node::stratum_server::{MinerSession, StratumConfig, StratumMetrics, StratumServer};
+use bitquan_node::stratum_server::{MinerSession, RejectReason, StratumConfig, StratumMetrics, StratumServer};
 use bitquan_types::NetworkId;
 
 #[test]
@@ -53,8 +53,8 @@ fn stratum_metrics_recording() {
     metrics.record_share_accepted(PowAlgo::Sha256d);
     assert_eq!(metrics.get_accepted(PowAlgo::Sha256d), 3);
     
-    metrics.record_share_rejected(PowAlgo::Sha256d);
-    metrics.record_share_rejected(PowAlgo::Sha256d);
+    metrics.record_share_rejected(PowAlgo::Sha256d, RejectReason::LowDifficulty);
+    metrics.record_share_rejected(PowAlgo::Sha256d, RejectReason::Duplicate);
     assert_eq!(metrics.get_rejected(PowAlgo::Sha256d), 2);
     
     #[cfg(feature = "randomx")]
@@ -64,7 +64,7 @@ fn stratum_metrics_recording() {
         metrics.record_share_accepted(PowAlgo::RandomX);
         assert_eq!(metrics.get_accepted(PowAlgo::RandomX), 2);
         
-        metrics.record_share_rejected(PowAlgo::RandomX);
+        metrics.record_share_rejected(PowAlgo::RandomX, RejectReason::LowDifficulty);
         assert_eq!(metrics.get_rejected(PowAlgo::RandomX), 1);
     }
 }
@@ -74,7 +74,7 @@ fn stratum_prometheus_format() {
     let metrics = StratumMetrics::new();
     
     metrics.record_share_accepted(PowAlgo::Sha256d);
-    metrics.record_share_rejected(PowAlgo::Sha256d);
+    metrics.record_share_rejected(PowAlgo::Sha256d, RejectReason::LowDifficulty);
     
     let output = metrics.format_prometheus(5);
     

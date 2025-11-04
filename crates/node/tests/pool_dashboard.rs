@@ -27,6 +27,7 @@ async fn test_block_template_refresh() {
         txs: vec![],
         target: [0xff; 32],
         algo: PowAlgo::Sha256d,
+        job_id: 0, // Will be auto-assigned
     };
     
     manager.update_template(template.clone()).await;
@@ -119,7 +120,8 @@ fn test_metrics_update_after_share() {
     assert!(metrics.get_last_valid_share_timestamp() > 0, "Timestamp should be updated");
     
     // Record rejected share
-    metrics.record_share_rejected(PowAlgo::Sha256d);
+    use bitquan_node::stratum_server::RejectReason;
+    metrics.record_share_rejected(PowAlgo::Sha256d, RejectReason::LowDifficulty);
     assert_eq!(metrics.get_rejected(PowAlgo::Sha256d), 1);
     
     // Check Prometheus format includes new metrics
