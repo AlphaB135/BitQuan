@@ -19,6 +19,7 @@ This document defines the observability strategy for BitQuan nodes, including me
 **Default**: `http://localhost:9090/metrics`
 
 Configure in `config/testnet.toml`:
+
 ```toml
 [metrics]
 enabled = true
@@ -176,28 +177,28 @@ storage_operation_duration_seconds{operation="get"} histogram
 
 ### Testnet SLOs
 
-| Metric | Target | Measurement Window |
-|--------|--------|-------------------|
-| Block interval p50 | 10 min ± 20% | 7 days |
-| Block interval p99 | <20 min | 7 days |
-| Reorg rate | <0.5% | 7 days |
-| BurstGuard activations | <2 per 200 blocks | 24 hours |
-| P2P peer count | >5 | 1 hour |
-| RPC availability | >99% | 30 days |
-| RPC p99 latency | <5 seconds | 24 hours |
-| Mempool capacity | <80% full | 1 hour |
+| Metric                 | Target            | Measurement Window |
+| ---------------------- | ----------------- | ------------------ |
+| Block interval p50     | 10 min ± 20%      | 7 days             |
+| Block interval p99     | <20 min           | 7 days             |
+| Reorg rate             | <0.5%             | 7 days             |
+| BurstGuard activations | <2 per 200 blocks | 24 hours           |
+| P2P peer count         | >5                | 1 hour             |
+| RPC availability       | >99%              | 30 days            |
+| RPC p99 latency        | <5 seconds        | 24 hours           |
+| Mempool capacity       | <80% full         | 1 hour             |
 
 ### Mainnet SLOs (Future)
 
-| Metric | Target | Measurement Window |
-|--------|--------|-------------------|
-| Block interval p50 | 10 min ± 10% | 30 days |
-| Block interval p99 | <15 min | 30 days |
-| Reorg rate | <0.1% | 30 days |
-| BurstGuard activations | <1 per 1000 blocks | 7 days |
-| P2P peer count | >20 | 1 hour |
-| RPC availability | >99.9% | 30 days |
-| RPC p99 latency | <2 seconds | 24 hours |
+| Metric                 | Target             | Measurement Window |
+| ---------------------- | ------------------ | ------------------ |
+| Block interval p50     | 10 min ± 10%       | 30 days            |
+| Block interval p99     | <15 min            | 30 days            |
+| Reorg rate             | <0.1%              | 30 days            |
+| BurstGuard activations | <1 per 1000 blocks | 7 days             |
+| P2P peer count         | >20                | 1 hour             |
+| RPC availability       | >99.9%             | 30 days            |
+| RPC p99 latency        | <2 seconds         | 24 hours           |
 
 ---
 
@@ -212,46 +213,46 @@ global:
   resolve_timeout: 5m
 
 route:
-  group_by: ['alertname', 'severity']
+  group_by: ["alertname", "severity"]
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 12h
-  receiver: 'bitquan-alerts'
+  receiver: "bitquan-alerts"
   routes:
     - match:
         severity: critical
-      receiver: 'bitquan-critical'
+      receiver: "bitquan-critical"
       continue: true
     - match:
         severity: warning
-      receiver: 'bitquan-warnings'
+      receiver: "bitquan-warnings"
 
 receivers:
-  - name: 'bitquan-critical'
+  - name: "bitquan-critical"
     email_configs:
-      - to: 'alerts@bitquan.dev'
-        from: 'prometheus@bitquan.dev'
-        smarthost: 'smtp.example.com:587'
+      - to: "alerts@bitquan.dev"
+        from: "prometheus@bitquan.dev"
+        smarthost: "smtp.example.com:587"
         headers:
-          Subject: '🚨 [CRITICAL] BitQuan Alert: {{ .GroupLabels.alertname }}'
-    
+          Subject: "🚨 [CRITICAL] BitQuan Alert: {{ .GroupLabels.alertname }}"
+
     slack_configs:
-      - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
-        channel: '#bitquan-critical'
-        title: '🚨 Critical Alert'
-        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
-  
-  - name: 'bitquan-warnings'
+      - api_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+        channel: "#bitquan-critical"
+        title: "🚨 Critical Alert"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}{{ end }}"
+
+  - name: "bitquan-warnings"
     email_configs:
-      - to: 'warnings@bitquan.dev'
-        from: 'prometheus@bitquan.dev'
+      - to: "warnings@bitquan.dev"
+        from: "prometheus@bitquan.dev"
         headers:
-          Subject: '⚠️  [WARNING] BitQuan Alert: {{ .GroupLabels.alertname }}'
-  
-  - name: 'bitquan-alerts'
+          Subject: "⚠️  [WARNING] BitQuan Alert: {{ .GroupLabels.alertname }}"
+
+  - name: "bitquan-alerts"
     email_configs:
-      - to: 'alerts@bitquan.dev'
-        from: 'prometheus@bitquan.dev'
+      - to: "alerts@bitquan.dev"
+        from: "prometheus@bitquan.dev"
 ```
 
 ### Alert Rules
@@ -391,7 +392,7 @@ groups:
     interval: 300s
     rules:
       - alert: DatabaseSizeGrowing
-        expr: rate(storage_db_size_bytes[1h]) > 1e9  # 1 GB/hour
+        expr: rate(storage_db_size_bytes[1h]) > 1e9 # 1 GB/hour
         for: 1h
         labels:
           severity: warning
@@ -435,13 +436,13 @@ groups:
 
 ### Log Levels
 
-| Level | Use Case | Examples |
-|-------|----------|----------|
-| **ERROR** | System failures | Consensus break, DB corruption |
-| **WARN** | Recoverable issues | Rate limits, banned peers |
-| **INFO** | Normal operations | Block mined, tx validated |
-| **DEBUG** | Development/troubleshooting | Function entry/exit |
-| **TRACE** | Verbose debugging | Variable values, loops |
+| Level     | Use Case                    | Examples                       |
+| --------- | --------------------------- | ------------------------------ |
+| **ERROR** | System failures             | Consensus break, DB corruption |
+| **WARN**  | Recoverable issues          | Rate limits, banned peers      |
+| **INFO**  | Normal operations           | Block mined, tx validated      |
+| **DEBUG** | Development/troubleshooting | Function entry/exit            |
+| **TRACE** | Verbose debugging           | Variable values, loops         |
 
 ### Critical Events to Log
 
@@ -534,7 +535,7 @@ filter {
       match => ["timestamp", "ISO8601"]
       target => "@timestamp"
     }
-    
+
     # Add geo IP data
     if [client_ip] {
       geoip {
@@ -542,7 +543,7 @@ filter {
         target => "geoip"
       }
     }
-    
+
     # Tag critical events
     if [level] == "ERROR" or [level] == "CRITICAL" {
       mutate {
@@ -569,6 +570,7 @@ output {
 #### 1. Consensus Dashboard
 
 **Panels**:
+
 - Block height (time series)
 - Block interval distribution (histogram)
 - Reorg count (counter)
@@ -576,6 +578,7 @@ output {
 - Difficulty over time (time series)
 
 **Example PromQL**:
+
 ```promql
 # Block interval p50
 histogram_quantile(0.50, rate(block_interval_seconds_bucket[5m]))
@@ -590,6 +593,7 @@ increase(guard_activation_total[1h])
 #### 2. Network Health Dashboard
 
 **Panels**:
+
 - Peer count (gauge)
 - Banned peers (counter)
 - Message throughput (time series)
@@ -598,6 +602,7 @@ increase(guard_activation_total[1h])
 #### 3. RPC Performance Dashboard
 
 **Panels**:
+
 - Request rate (time series)
 - Error rate by status code (stacked area)
 - Latency percentiles (heatmap)
@@ -606,6 +611,7 @@ increase(guard_activation_total[1h])
 #### 4. Mempool Dashboard
 
 **Panels**:
+
 - Mempool size (time series)
 - Memory usage (time series)
 - Transaction acceptance vs rejection (stacked bar)
@@ -626,17 +632,17 @@ use opentelemetry::trace::{Tracer, Span};
 #[instrument]
 pub async fn validate_block(block: &Block) -> Result<(), Error> {
     let span = tracer.start("validate_block");
-    
+
     // Validate block header
     let _header_span = tracer.start("validate_header");
     validate_header(&block.header)?;
-    
+
     // Validate transactions
     let _tx_span = tracer.start("validate_transactions");
     for tx in &block.transactions {
         validate_transaction(tx)?;
     }
-    
+
     Ok(())
 }
 ```
@@ -646,24 +652,29 @@ pub async fn validate_block(block: &Block) -> Result<(), Error> {
 ## Monitoring Best Practices
 
 ### 1. **Monitor Both Symptoms and Causes**
+
 - Symptom: "Block interval is high"
 - Cause: "Peer count dropped" or "Difficulty spiked"
 
 ### 2. **Use SLOs, Not Just Alerts**
+
 - Define acceptable thresholds
 - Measure over time windows
 - Burn down error budgets
 
 ### 3. **Alert on User Impact**
+
 - ❌ Bad: "CPU at 80%"
 - ✅ Good: "RPC latency p99 >5s affecting users"
 
 ### 4. **Runbooks for Every Alert**
+
 - Link to documentation
 - Clear action steps
 - Escalation path
 
 ### 5. **Regular Review**
+
 - Weekly: Review alert fatigue
 - Monthly: Update SLOs based on data
 - Quarterly: Audit unused metrics

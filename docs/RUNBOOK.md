@@ -11,6 +11,7 @@
 ### 🚨 Critical Incident Response
 
 **Decision Tree**:
+
 1. Consensus break detected → **HALT MINING** (see below)
 2. Network split detected → **BROADCAST NOTICE** + investigate
 3. BurstGuard flapping → **BUMP GUARD** threshold
@@ -68,6 +69,7 @@ iptables -A INPUT -p tcp --dport 18444 -j DROP  # P2P port
 **Reason**: [Brief description]
 
 **Action Required**:
+
 - Stop mining immediately
 - Do not accept blocks after height [CHAIN_TIP]
 - Await patched release
@@ -79,6 +81,7 @@ iptables -A INPUT -p tcp --dport 18444 -j DROP  # P2P port
 ```
 
 **Channels**:
+
 - GitHub: Pin issue with `emergency` label
 - Twitter/X: @bitquanchain (if available)
 - Discord/Telegram: Announcement channel
@@ -125,6 +128,7 @@ echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] NOTICE: [MESSAGE]" | tee -a /var/log/bitq
 ### Symptom: BurstGuard Flapping
 
 **Indicators**:
+
 - `guard_activation_total` metric increasing >5 per 100 blocks
 - Logs show: `BurstGuard activated: difficulty spike detected`
 - Legitimate mining causing false positives
@@ -200,6 +204,7 @@ ansible-playbook playbooks/update_nodes.yml -e version=v1.0.0-rc1-hotfix1
 ### Critical CVE Discovered
 
 **Triage**:
+
 1. **Severity**: Use CVSS score and impact analysis
 2. **Exploitability**: In-the-wild exploits? Testnet-only?
 3. **Scope**: Consensus / Wallet / RPC / Network?
@@ -264,21 +269,27 @@ Day 30: Full technical details published
 **Fixed in**: v1.0.0-rc1-patch1
 
 ## Summary
+
 [Brief description of vulnerability]
 
 ## Impact
+
 [What can an attacker do?]
 
 ## Mitigation
+
 Upgrade to v1.0.0-rc1-patch1 immediately.
 
 ## Workaround
+
 [If upgrade not possible, temporary mitigation]
 
 ## Credit
+
 [Researcher name, responsible disclosure timeline]
 
 ## Timeline
+
 - 2024-11-01: Vulnerability reported
 - 2024-11-04: Patch released
 - 2024-12-04: Full disclosure (30 days)
@@ -369,6 +380,7 @@ groups:
 ```
 
 **Log these events**:
+
 - 401 Unauthorized: `client_ip`, `endpoint`, `auth_method`
 - 413 Payload Too Large: `client_ip`, `payload_size`, `limit`
 - 429 Too Many Requests: `client_ip`, `endpoint`, `retry_after`
@@ -564,30 +576,37 @@ After any incident, create post-mortem:
 **Severity**: Critical / High / Medium / Low
 
 ## Summary
+
 [What happened?]
 
 ## Impact
+
 - Nodes affected: [count]
 - Blocks lost: [count]
 - Downtime: [duration]
 
 ## Timeline
+
 - HH:MM - Incident detected
 - HH:MM - [Actions taken]
 - HH:MM - Resolution
 
 ## Root Cause
+
 [Why did this happen?]
 
 ## Resolution
+
 [How was it fixed?]
 
 ## Action Items
+
 - [ ] Update monitoring: [link to issue]
 - [ ] Improve documentation: [link to PR]
 - [ ] Code fix: [link to commit]
 
 ## Lessons Learned
+
 [What did we learn?]
 ```
 

@@ -82,6 +82,7 @@ BitQuan is a post-quantum resistant blockchain implementation combining Bitcoin'
 ## Critical Security Properties to Verify
 
 ### 1. Consensus Security
+
 - [ ] ASERT difficulty adjustment is mathematically sound
 - [ ] BurstGuard correctly detects and mitigates >10x spikes
 - [ ] No timestamp manipulation vulnerabilities
@@ -89,6 +90,7 @@ BitQuan is a post-quantum resistant blockchain implementation combining Bitcoin'
 - [ ] Block validation rules match specification
 
 ### 2. Cryptographic Security
+
 - [ ] All entropy from `OsRng` (no weak RNG)
 - [ ] SPHINCS+/Dilithium parameters match NIST standards
 - [ ] Signature verification is constant-time where applicable
@@ -96,18 +98,21 @@ BitQuan is a post-quantum resistant blockchain implementation combining Bitcoin'
 - [ ] Replay protection across networks verified
 
 ### 3. Economic Security
+
 - [ ] Fee calculation prevents overflow/underflow
 - [ ] Mining reward schedule correct (halving every 210k blocks)
 - [ ] No inflation bugs in coin generation
 - [ ] Transaction fee verification enforced
 
 ### 4. Network Security
+
 - [ ] Peer connection limits prevent resource exhaustion
 - [ ] Message size limits prevent memory attacks
 - [ ] Network ID prevents cross-network replay
 - [ ] Handshake prevents eclipse attacks
 
 ### 5. Wallet Security
+
 - [ ] Key derivation (BIP32-like) is secure
 - [ ] Keystore encryption uses authenticated encryption
 - [ ] Seed phrases properly validated (BIP39 checksum)
@@ -141,6 +146,7 @@ BitQuan is a post-quantum resistant blockchain implementation combining Bitcoin'
 ### Audit Logs
 
 Pre-audit analysis available in:
+
 - `docs/audit/cargo_audit.log` - Dependency vulnerability scan
 - `docs/audit/license_check.log` - License compliance
 - `docs/audit/unsafe_usage.log` - Unsafe code analysis
@@ -231,21 +237,27 @@ cargo fuzz run mempool_fuzz -- -max_total_time=300
 **CWE**: [if applicable]
 
 ### Description
+
 [Clear description of the issue]
 
 ### Impact
+
 [What can an attacker achieve?]
 
 ### Steps to Reproduce
+
 [Detailed reproduction steps]
 
 ### Proof of Concept
+
 [Code/script demonstrating the issue]
 
 ### Recommended Fix
+
 [Suggested remediation]
 
 ### References
+
 [Related CVEs, papers, or documentation]
 ```
 
@@ -262,12 +274,12 @@ cargo fuzz run mempool_fuzz -- -max_total_time=300
 ## Response SLA
 
 | Severity | Acknowledgment | Initial Response | Fix Timeline |
-|----------|----------------|------------------|--------------|
-| Critical | 24 hours | 48 hours | 7 days |
-| High | 48 hours | 72 hours | 14 days |
-| Medium | 72 hours | 1 week | 30 days |
-| Low | 1 week | 2 weeks | Next release |
-| Info | 2 weeks | As scheduled | Backlog |
+| -------- | -------------- | ---------------- | ------------ |
+| Critical | 24 hours       | 48 hours         | 7 days       |
+| High     | 48 hours       | 72 hours         | 14 days      |
+| Medium   | 72 hours       | 1 week           | 30 days      |
+| Low      | 1 week         | 2 weeks          | Next release |
+| Info     | 2 weeks        | As scheduled     | Backlog      |
 
 ---
 
@@ -304,6 +316,7 @@ cargo fuzz run mempool_fuzz -- -max_total_time=300
 - ❌ **Forbidden**: Refactoring without security justification
 
 All hotfixes require:
+
 1. Issue created with `audit-finding` label
 2. Review and approval from maintainer
 3. Cherry-pick to `audit-freeze` branch
@@ -356,6 +369,7 @@ We expect the following from the audit:
 ### Audit Coordination
 
 We will:
+
 - ✅ Respond to questions within 48 hours
 - ✅ Provide clarifications on implementation details
 - ✅ Schedule video calls if needed

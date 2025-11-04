@@ -295,4 +295,3 @@ Visit: https://faucet.bitquan.dev
 - Block Explorer: https://explorer.bitquan.dev
 
 For full testnet documentation, see [docs/TESTNET_README.md](docs/TESTNET_README.md)
-

@@ -11,6 +11,7 @@
 BitQuan is committed to the security of our post-quantum blockchain. We welcome responsible security researchers to help identify vulnerabilities and improve the protocol. This bug bounty program rewards ethical hackers for disclosing security issues through coordinated disclosure.
 
 **Key Principles**:
+
 - 🔒 Responsible disclosure (30-day window)
 - 💰 Fair rewards based on severity and impact
 - 🤝 Collaborative remediation process
@@ -23,6 +24,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 ### In-Scope Components
 
 ✅ **Consensus Layer** (Critical)
+
 - ASERT difficulty adjustment logic
 - BurstGuard spike protection mechanism
 - Block validation rules
@@ -31,6 +33,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - **Example**: Bypass BurstGuard, manipulate difficulty
 
 ✅ **Cryptographic Implementation** (Critical)
+
 - SPHINCS+ signature verification
 - Dilithium signature verification
 - Entropy sources and RNG usage
@@ -39,12 +42,14 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - **Example**: Forge signature, predict private keys
 
 ✅ **Cross-Network Replay Protection** (Critical)
+
 - Network ID validation
 - Genesis hash binding
 - Transaction replay across testnet/mainnet
 - **Example**: Replay testnet tx on mainnet
 
 ✅ **Wallet & Keystore** (High)
+
 - Private key storage and encryption
 - Seed phrase generation (BIP39)
 - Multi-signature logic (m-of-n)
@@ -53,6 +58,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - **Example**: Extract keys from encrypted keystore
 
 ✅ **Mempool & Transaction Policy** (High)
+
 - Transaction validation and propagation
 - Double-spend detection
 - Fee calculation and manipulation
@@ -61,6 +67,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - **Example**: DoS via malformed transactions
 
 ✅ **RPC Security** (High)
+
 - Authentication and authorization
 - Input validation and sanitization
 - Rate limiting bypass
@@ -69,6 +76,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - **Example**: Execute unauthorized RPC calls
 
 ✅ **Network Protocol (P2P)** (Medium)
+
 - Handshake and peer authentication
 - Message parsing and validation
 - Connection limits and DoS protection
@@ -77,6 +85,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - **Example**: Crash node via malformed P2P message
 
 ✅ **Storage Layer** (Medium)
+
 - Database integrity
 - Backup and recovery
 - Data corruption attacks
@@ -85,6 +94,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 ### Out-of-Scope
 
 ❌ **Not Eligible for Rewards**:
+
 - Social engineering attacks
 - Physical attacks on hardware
 - Denial of service (DDoS) attacks on infrastructure
@@ -106,6 +116,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 **Impact**: Consensus break, total loss of funds, network-wide compromise
 
 **Examples**:
+
 - Bypass consensus rules to create invalid blocks
 - Forge signatures for arbitrary addresses
 - Steal private keys from encrypted keystore
@@ -115,6 +126,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - Remote code execution on nodes
 
 **Requirements**:
+
 - Proof-of-concept demonstrating full exploit
 - Detailed write-up of root cause
 - Suggested remediation
@@ -124,6 +136,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 **Impact**: Partial loss of funds, node crash, mempool DoS
 
 **Examples**:
+
 - Mempool DoS causing network congestion
 - RPC authentication bypass
 - Crack keystore encryption with reasonable resources
@@ -133,6 +146,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - Eclipse attack against honest nodes
 
 **Requirements**:
+
 - Reproducible exploit steps
 - Impact analysis
 - Code pointers to vulnerable components
@@ -142,6 +156,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 **Impact**: Information disclosure, minor DoS, policy violations
 
 **Examples**:
+
 - Leak sensitive information through RPC
 - Bypass rate limiting
 - Transaction policy violations
@@ -150,6 +165,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - Time-based side-channel leaks
 
 **Requirements**:
+
 - Clear reproduction steps
 - Evidence of successful exploit
 
@@ -158,6 +174,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 **Impact**: Best practice violations, minor information leaks
 
 **Examples**:
+
 - Weak default configurations
 - Logging sensitive data
 - Insecure error messages
@@ -165,6 +182,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - Suboptimal cryptographic parameters
 
 **Requirements**:
+
 - Description of issue
 - Suggested improvement
 
@@ -173,6 +191,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 **Impact**: Code quality, documentation improvements
 
 **Examples**:
+
 - Code style inconsistencies
 - Missing documentation
 - Typos in error messages
@@ -206,6 +225,7 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 - **Critical timing (pre-mainnet)**: +50% bonus
 
 **Example**: Critical bug with excellent write-up and fix suggestion:
+
 - Base: 50,000 BQ
 - Quality bonus: +12,500 BQ (25%)
 - Fix bonus: +7,500 BQ (15%)
@@ -237,12 +257,15 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 # Vulnerability Report: [Short Title]
 
 ## Summary
+
 [Brief description in 1-2 sentences]
 
 ## Severity Assessment
+
 Critical / High / Medium / Low / Informational
 
 ## Affected Component
+
 - **Module**: consensus / wallet / rpc / p2p / crypto / storage
 - **File**: [path to vulnerable file]
 - **Function**: [affected function name]
@@ -250,73 +273,92 @@ Critical / High / Medium / Low / Informational
 ## Vulnerability Details
 
 ### Description
+
 [Detailed explanation of the vulnerability]
 
 ### Root Cause
+
 [Why does this vulnerability exist?]
 
 ### Attack Scenario
+
 [Step-by-step attack scenario]
 
 ### Prerequisites
+
 [What does attacker need? Network access? Running node?]
 
 ## Proof of Concept
 
 ### Environment
+
 - BitQuan version: v1.0.0-rc1
 - Operating System: Ubuntu 22.04
 - Rust version: 1.82.0
 
 ### Reproduction Steps
+
 1. [Step 1]
 2. [Step 2]
 3. [Observe: Expected vs Actual behavior]
 
 ### Code/Script
+
 \`\`\`bash
+
 # PoC exploit script
+
 [Include runnable proof-of-concept]
 \`\`\`
 
 ### Evidence
+
 [Screenshots, logs, or other evidence]
 
 ## Impact Analysis
 
 ### Worst-Case Scenario
+
 [What's the maximum damage?]
 
 ### Likelihood
+
 High / Medium / Low - [Why?]
 
 ### Affected Users
+
 [Who is impacted? All nodes? Wallet users only?]
 
 ## Suggested Fix
 
 ### Proposed Solution
+
 [High-level fix strategy]
 
 ### Code Patch (Optional)
+
 \`\`\`rust
 // Suggested code changes
 \`\`\`
 
 ### Mitigation
+
 [Temporary workaround until patch deployed?]
 
 ## References
+
 - [Related CVEs]
 - [Academic papers]
 - [Similar vulnerabilities in other projects]
 
 ## Disclosure Timeline
+
 - [Date] - Vulnerability discovered
 - [Date] - Reported to BitQuan team
 - [Target] - Expected public disclosure (30 days after fix)
 
 ## Researcher Information
+
 - **Name**: [Your name or pseudonym]
 - **Contact**: [Email or Twitter]
 - **Payment Address**: [BQ address for reward]
@@ -341,6 +383,7 @@ Day 60:   Public disclosure (30 days after patch)
 ### Researcher Expectations
 
 ✅ **DO**:
+
 - Report vulnerabilities promptly
 - Provide detailed reproduction steps
 - Give reasonable time for remediation (30 days minimum)
@@ -348,6 +391,7 @@ Day 60:   Public disclosure (30 days after patch)
 - Verify fixes before public disclosure
 
 ❌ **DON'T**:
+
 - Publicly disclose before coordinated release
 - Exploit vulnerabilities for personal gain
 - Attack production infrastructure
@@ -357,6 +401,7 @@ Day 60:   Public disclosure (30 days after patch)
 ### Safe Harbor
 
 BitQuan commits to:
+
 - ✅ Not pursue legal action against security researchers acting in good faith
 - ✅ Work collaboratively to understand and fix issues
 - ✅ Provide credit and recognition (if desired)
@@ -387,13 +432,17 @@ BitQuan commits to:
 ## FAQ
 
 ### Q: Can I test on the public testnet?
+
 **A**: Yes! Testnet is explicitly for testing. However:
+
 - Don't attack infrastructure (nodes, faucet)
 - Don't spam network (stay within rate limits)
 - Don't steal testnet funds from others
 
 ### Q: What if my report is rejected?
+
 **A**: You'll receive explanation for rejection. Common reasons:
+
 - Out of scope
 - Duplicate report
 - Insufficient severity
@@ -402,18 +451,23 @@ BitQuan commits to:
 You can appeal or provide additional evidence.
 
 ### Q: How long until I receive payment?
+
 **A**: Typically 7-30 days after fix verification. Complex issues may take longer.
 
 ### Q: Can I remain anonymous?
+
 **A**: Yes, pseudonyms accepted. Provide valid BQ address for payment.
 
 ### Q: What if I find multiple vulnerabilities?
+
 **A**: Submit separate reports for each. Each evaluated independently.
 
 ### Q: Is there a limit to rewards?
+
 **A**: Program cap: 500,000 BQ per year (testnet). Mainnet limits TBD.
 
 ### Q: What about vulnerabilities in dependencies?
+
 **A**: Report to upstream project first. If they're unresponsive and it impacts BitQuan, report to us.
 
 ---
@@ -423,11 +477,13 @@ You can appeal or provide additional evidence.
 ### Hall of Fame
 
 Security researchers who help secure BitQuan will be listed in:
+
 - `docs/SECURITY.md` - Hall of Fame section
 - GitHub Security Advisories (public credit)
 - Release notes for patched versions
 
 **Format**:
+
 ```
 - [Researcher Name/Pseudonym] - [Vulnerability Type] - [Date] - [Severity]
 ```
@@ -435,6 +491,7 @@ Security researchers who help secure BitQuan will be listed in:
 ### Swag & Perks
 
 Top contributors receive:
+
 - 🏆 BitQuan Contributor Badge (GitHub)
 - 👕 Limited edition BitQuan swag
 - 📣 Shoutout on social media (if desired)
@@ -447,6 +504,7 @@ Top contributors receive:
 ### Terms & Conditions
 
 By participating in this bug bounty program:
+
 - You agree to our responsible disclosure policy
 - You confirm the vulnerability is original research
 - You grant BitQuan right to use your findings for remediation
@@ -455,6 +513,7 @@ By participating in this bug bounty program:
 ### Safe Harbor Agreement
 
 BitQuan provides safe harbor for security researchers acting in good faith, provided:
+
 - Testing is limited to your own accounts/nodes
 - You don't access data belonging to others
 - You report findings promptly
@@ -474,6 +533,7 @@ BitQuan provides safe harbor for security researchers acting in good faith, prov
 ## Updates to This Program
 
 This bug bounty program may be updated as BitQuan evolves:
+
 - Scope adjustments (mainnet launch)
 - Reward structure changes
 - New vulnerability categories
