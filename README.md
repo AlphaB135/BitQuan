@@ -1,3 +1,20 @@
+# BitQuan
+
+## Genesis Manifesto
+
+BitQuan is a minimal proof-of-work blockchain designed for 50-year security
+resilience in the quantum era. It follows Bitcoin's simplicity but upgrades
+its cryptography, ensuring verifiable, tamper-resistant value transfer beyond
+the limits of classical computation.
+
+**Core Principles:**
+- **Quantum-Resistant**: CRYSTALS-Dilithium3 post-quantum signatures
+- **Minimalist Design**: Only essential features, Bitcoin-inspired UTXO model
+- **Long-Term Security**: Built for multi-decade cryptographic durability
+- **Production-Ready**: Comprehensive tests, audit tooling, CI/CD safety checks
+
+---
+
 <p align="center">
   <a href="./docs/README.md">
     <img src="./docs/img/BitQuan.png" alt="BitQuan logo" width="200"/>
