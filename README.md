@@ -274,3 +274,25 @@ BitQuan is a spare-time solo project. If it helps your work or research, you can
 - BitQuan stays Apache 2.0 open-source with or without funding; contributions pay for development only.
 - Monthly operating target: **~$300 USD**. Donation summaries are published quarterly in `FUNDING.md`.
 - Questions about support or larger sponsorships: contact `security@bitquan.org`.
+
+## Try the BitQuan Public Testnet
+
+BitQuan testnet is now available for testing and development!
+
+**Quick Start:**
+```bash
+# Run testnet node
+./target/release/bitquan-node --network testnet --config config/testnet.toml
+
+# Get testnet coins
+Visit: https://faucet.bitquan.dev
+```
+
+**Network Details:**
+- Network: testnet
+- P2P Port: 18444
+- RPC Port: 18443
+- Block Explorer: https://explorer.bitquan.dev
+
+For full testnet documentation, see [docs/TESTNET_README.md](docs/TESTNET_README.md)
+
