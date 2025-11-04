@@ -1,0 +1,77 @@
+name: Audit & Dependency Safety
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Run daily at 3 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+  pull_request:
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  security-audit:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      - name: Run security audit
+        run: cargo audit
+        continue-on-error: true
+
+  license-check:
+    name: License Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+      - name: Check licenses
+        run: cargo deny check licenses
+        continue-on-error: true
+
+  unsafe-code-check:
+    name: Unsafe Code Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-geiger
+        run: cargo install cargo-geiger
+      - name: Check for unsafe code
+        run: cargo geiger --all-features
+        continue-on-error: true
+
+  dependency-audit:
+    name: Dependency Tree Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check dependency tree
+        run: |
+          cargo tree --all-features > dependency-tree.txt
+          echo "Dependency count: $(cargo tree --all-features --prefix none | wc -l)"
+      - name: Upload dependency tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-tree
+          path: dependency-tree.txt
+          retention-days: 7
+
+  full-audit:
+    name: Full Audit Script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run full audit script
+        run: bash scripts/audit.sh
+        continue-on-error: true

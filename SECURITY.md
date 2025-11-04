@@ -75,3 +75,57 @@ The codebase is now in a stronger position for security audit:
 - Comprehensive test coverage for critical paths
 - Automated safety checks in CI
 - Documentation of all intentional panics
+
+## External Audit Preparation (Sprint 4)
+
+### Audit Tooling
+
+BitQuan includes comprehensive audit tooling to support external security reviews:
+
+#### Automated Audit Script
+
+Run the full audit suite:
+```bash
+bash scripts/audit.sh
+```
+
+This script performs:
+- **Security Vulnerability Scan** (`cargo audit`): Checks for known CVEs in dependencies
+- **License Compatibility** (`cargo deny`): Ensures all dependencies have compatible licenses
+- **Unsafe Code Detection** (`cargo geiger`): Identifies unsafe blocks requiring review
+- **Code Coverage** (`cargo llvm-cov`): Generates coverage metrics
+
+#### Continuous Integration
+
+Audit checks run automatically:
+- **Daily**: Full audit suite runs every night at 3 AM UTC
+- **On PR**: License and dependency checks run on Cargo.toml/lock changes
+- **Manual**: Can be triggered via GitHub Actions workflow_dispatch
+
+See `.github/workflows/audit.yml` for CI configuration.
+
+### For External Auditors
+
+**Documentation**:
+- `docs/ENTROPY_AUDIT.md`: Complete RNG security audit
+- `docs/COVERAGE.md`: Code coverage reporting instructions
+- `ROADMAP.md`: Development history and sprint summaries
+
+**Test Coverage**:
+- Run all tests: `cargo test --all`
+- Integration tests: `cargo test --test '*'`
+- Entropy sanity: `cargo test entropy`
+- Replay protection: `cargo test replay_protection`
+
+**Static Analysis**:
+- Clippy (strict): `cargo clippy --all-targets -D warnings`
+- Format check: `cargo fmt --all -- --check`
+- Dependency tree: `cargo tree --all-features`
+
+**Key Security Properties**:
+1. ✅ All RNG uses OsRng (cryptographically secure)
+2. ✅ Cross-network replay protection via network_id + genesis_hash
+3. ✅ Post-quantum signatures (Dilithium3)
+4. ✅ Zero clippy warnings in production code
+5. ✅ Comprehensive error handling (no unwrap/expect in critical paths)
+
