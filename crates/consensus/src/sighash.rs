@@ -105,6 +105,23 @@ fn hash_len(hasher: &mut Sha256, len: usize) {
     hasher.update((len as u64).to_le_bytes());
 }
 
+/// Wrapper function for computing signature hash with transaction context.
+///
+/// This is an alias for `transaction_sighash` with reordered parameters for
+/// compatibility with external tests. The underlying implementation is identical.
+///
+/// # Arguments
+///
+/// * `ctx` - Transaction context containing network ID and genesis hash
+/// * `tx` - Transaction to compute signature hash for
+///
+/// # Errors
+///
+/// Returns `Error::Invalid` if transaction and context networks or genesis hashes differ.
+pub fn compute_sighash_with_context(ctx: &TxContext, tx: &Transaction) -> Result<[u8; 32]> {
+    transaction_sighash(tx, ctx)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

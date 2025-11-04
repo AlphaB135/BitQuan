@@ -10,7 +10,7 @@ mod difficulty;
 pub mod fork;
 pub mod pow;
 pub mod script;
-mod sighash;
+pub mod sighash;
 pub mod utxo;
 
 #[cfg(test)]
@@ -24,7 +24,7 @@ pub use pow::{
     DEVNET_MAX_BITS, DEVNET_MIN_BITS,
 };
 pub use script::{verify_script, OpCode, ScriptError, ScriptInterpreter, MAX_SCRIPT_SIZE};
-pub use sighash::transaction_sighash;
+pub use sighash::{compute_sighash_with_context, transaction_sighash};
 pub use utxo::{OutPoint, UtxoEntry, UtxoError, UtxoSet};
 
 /// Difficulty retarget parameters (ASERT + burst guard activation).
