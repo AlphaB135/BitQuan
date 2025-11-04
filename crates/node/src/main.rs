@@ -1,6 +1,7 @@
 //! BitQuan reference node entrypoint.
 
 mod address;
+mod block_submit;
 mod keystore;
 mod metrics;
 mod miner;

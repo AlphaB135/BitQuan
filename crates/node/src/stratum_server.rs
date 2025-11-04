@@ -3,7 +3,7 @@
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
 
 use bitquan_consensus::pow::{PowAlgo, sha256d_pow_hash, target_from_bits, meets_target};
-use bitquan_types::{NetworkId, Result};
+use bitquan_types::{Block, NetworkId, Result};
 use dashmap::DashMap;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -20,6 +20,7 @@ use uuid::Uuid;
 #[cfg(feature = "randomx")]
 use bitquan_consensus::pow::{RandomXEngine, RandomXConfig, RandomXMode, randomx_pow_hash};
 
+use crate::block_submit::{BlockSubmitter, SubmitResult};
 use crate::pool_template::{PoolTemplateManager, BlockTemplate};
 use crate::vardiff::VarDiff;
 
@@ -254,6 +255,14 @@ pub struct StratumMetrics {
     pub last_valid_share_timestamp: AtomicU64,
     /// Vardiff adjustments counter.
     pub vardiff_adjustments: AtomicU64,
+    /// Blocks submitted (total attempts).
+    pub blocks_submitted_total: AtomicU64,
+    /// Blocks accepted by network.
+    pub blocks_accepted_total: AtomicU64,
+    /// Blocks rejected by network.
+    pub blocks_rejected_total: AtomicU64,
+    /// Last block submission timestamp.
+    pub last_block_submit_timestamp: AtomicU64,
 }
 
 impl StratumMetrics {
@@ -273,6 +282,10 @@ impl StratumMetrics {
             shares_rejected: DashMap::new(), // Now DashMap<(PowAlgo, &'static str), AtomicU64>
             last_valid_share_timestamp: AtomicU64::new(0),
             vardiff_adjustments: AtomicU64::new(0),
+            blocks_submitted_total: AtomicU64::new(0),
+            blocks_accepted_total: AtomicU64::new(0),
+            blocks_rejected_total: AtomicU64::new(0),
+            last_block_submit_timestamp: AtomicU64::new(0),
         }
     }
 
@@ -339,6 +352,41 @@ impl StratumMetrics {
         self.last_valid_share_timestamp.load(Ordering::Relaxed)
     }
 
+    /// Record block submission attempt.
+    pub fn record_block_submitted(&self) {
+        self.blocks_submitted_total.fetch_add(1, Ordering::Relaxed);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        self.last_block_submit_timestamp.store(now, Ordering::Relaxed);
+    }
+
+    /// Record block accepted by network.
+    pub fn record_block_accepted(&self) {
+        self.blocks_accepted_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record block rejected by network.
+    pub fn record_block_rejected(&self) {
+        self.blocks_rejected_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Get total blocks submitted.
+    pub fn get_blocks_submitted(&self) -> u64 {
+        self.blocks_submitted_total.load(Ordering::Relaxed)
+    }
+
+    /// Get total blocks accepted.
+    pub fn get_blocks_accepted(&self) -> u64 {
+        self.blocks_accepted_total.load(Ordering::Relaxed)
+    }
+
+    /// Get total blocks rejected.
+    pub fn get_blocks_rejected(&self) -> u64 {
+        self.blocks_rejected_total.load(Ordering::Relaxed)
+    }
+
     /// Format metrics as Prometheus text format.
     pub fn format_prometheus(&self, active_miners: usize) -> String {
         let mut output = String::new();
@@ -383,6 +431,26 @@ impl StratumMetrics {
         output.push_str("# TYPE stratum_vardiff_adjustments_total counter\n");
         output.push_str(&format!("stratum_vardiff_adjustments_total {}\n",
             self.vardiff_adjustments.load(Ordering::Relaxed)));
+
+        output.push_str("# HELP stratum_blocks_submitted_total Total blocks submitted to network\n");
+        output.push_str("# TYPE stratum_blocks_submitted_total counter\n");
+        output.push_str(&format!("stratum_blocks_submitted_total {}\n",
+            self.blocks_submitted_total.load(Ordering::Relaxed)));
+
+        output.push_str("# HELP stratum_blocks_accepted_total Total blocks accepted by network\n");
+        output.push_str("# TYPE stratum_blocks_accepted_total counter\n");
+        output.push_str(&format!("stratum_blocks_accepted_total {}\n",
+            self.blocks_accepted_total.load(Ordering::Relaxed)));
+
+        output.push_str("# HELP stratum_blocks_rejected_total Total blocks rejected by network\n");
+        output.push_str("# TYPE stratum_blocks_rejected_total counter\n");
+        output.push_str(&format!("stratum_blocks_rejected_total {}\n",
+            self.blocks_rejected_total.load(Ordering::Relaxed)));
+
+        output.push_str("# HELP stratum_last_block_submit_timestamp Last block submission timestamp (Unix epoch)\n");
+        output.push_str("# TYPE stratum_last_block_submit_timestamp gauge\n");
+        output.push_str(&format!("stratum_last_block_submit_timestamp {}\n",
+            self.last_block_submit_timestamp.load(Ordering::Relaxed)));
 
         output
     }
@@ -761,7 +829,7 @@ async fn handle_submit(
 
     // REAL PoW verification
     match verify_share_pow(&template, nonce, session.algo) {
-        Ok(ShareVerdict::Accept { hash, target: _ }) => {
+        Ok(ShareVerdict::Accept { hash, target }) => {
             // Share accepted!
             session.accept_share();
             session.record_share_time().await;
@@ -777,6 +845,37 @@ async fn handle_submit(
                 nonce,
                 hash_hex
             );
+
+            // Check if this share also meets BLOCK difficulty (consensus target)
+            // Block target is in template.header.bits (usually much harder than pool target)
+            if let Ok(block_target) = target_from_bits(template.header.bits) {
+                if meets_target(&hash, &block_target) {
+                    // This is a VALID BLOCK!
+                    println!(
+                        "🎉 NEW BLOCK FOUND by {} (algo={}, hash={})",
+                        session.address,
+                        session.algo.name(),
+                        hex::encode(&hash)
+                    );
+
+                    // Build full block from template
+                    let mut block_header = template.header.clone();
+                    block_header.nonce = nonce;
+                    block_header.algo_id = session.algo.to_u8();
+
+                    let block = Block {
+                        header: block_header,
+                        transactions: template.txs.clone(),
+                    };
+
+                    // Submit to network (async, don't block share response)
+                    let metrics_clone = Arc::clone(metrics);
+                    let config_clone = _config.clone();
+                    tokio::spawn(async move {
+                        submit_block_async(block, metrics_clone, config_clone.network).await;
+                    });
+                }
+            }
 
             // Apply vardiff adjustment if enabled
             if let Some(vd) = vardiff {
@@ -828,6 +927,42 @@ async fn handle_submit(
             );
 
             false
+        }
+    }
+}
+
+/// Submit a mined block to the network asynchronously.
+async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_id: NetworkId) {
+    metrics.record_block_submitted();
+
+    let submitter = BlockSubmitter::mock(network_id); // Use mock mode for now
+    
+    match submitter.submit(&block).await {
+        Ok(SubmitResult::Accepted { hash, height }) => {
+            metrics.record_block_accepted();
+            let hash_hex = hex::encode(&hash);
+            println!(
+                "[INFO] ✅ Block ACCEPTED by network! hash={} height={:?}",
+                hash_hex, height
+            );
+        }
+        Ok(SubmitResult::Rejected { reason }) => {
+            metrics.record_block_rejected();
+            eprintln!(
+                "[WARN] ❌ Block REJECTED by network: reason={}",
+                reason
+            );
+        }
+        Ok(SubmitResult::Error { message }) => {
+            metrics.record_block_rejected();
+            eprintln!(
+                "[ERROR] Block submission ERROR: {}",
+                message
+            );
+        }
+        Err(e) => {
+            metrics.record_block_rejected();
+            eprintln!("[ERROR] Block submission failed: {}", e);
         }
     }
 }

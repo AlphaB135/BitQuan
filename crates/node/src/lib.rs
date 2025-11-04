@@ -1,5 +1,6 @@
 //! BitQuan node library - exposes modules for integration testing.
 
+pub mod block_submit;
 pub mod miner;
 pub mod metrics;
 pub mod pool_template;
@@ -8,6 +9,7 @@ pub mod vardiff;
 pub mod ws_dashboard;
 
 // Re-export commonly used types
+pub use block_submit::{BlockSubmitter, SubmitResult};
 pub use miner::{HybridMiner, MinerMetrics};
 pub use metrics::MiningMetrics;
 pub use pool_template::{BlockTemplate, PoolTemplateManager};
