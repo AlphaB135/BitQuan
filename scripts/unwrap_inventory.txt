@@ -1,0 +1,100 @@
+crates/storage/src/rocksdb_store.rs:119:            .unwrap()
+crates/storage/src/rocksdb_store.rs:599:        let temp_dir = tempfile::tempdir().unwrap();
+crates/storage/src/rocksdb_store.rs:600:        let mut store = RocksDBStore::open(temp_dir.path()).unwrap();
+crates/storage/src/rocksdb_store.rs:638:        store.insert_block(block.clone()).unwrap();
+crates/storage/src/rocksdb_store.rs:641:        assert_eq!(store.height().unwrap(), 1);
+crates/storage/src/rocksdb_store.rs:644:        let tip = store.tip().unwrap().unwrap();
+crates/storage/src/rocksdb_store.rs:648:        let retrieved = store.get_block_by_height(1).unwrap().unwrap();
+crates/storage/src/rocksdb_store.rs:653:        let tx = store.get_transaction(&txid).unwrap().unwrap();
+crates/storage/src/rocksdb_store.rs:659:        let temp_dir = tempfile::tempdir().unwrap();
+crates/storage/src/rocksdb_store.rs:660:        let mut store = RocksDBStore::open(temp_dir.path()).unwrap();
+crates/storage/src/rocksdb_store.rs:666:        store.put_utxo(outpoint, data).unwrap();
+crates/storage/src/rocksdb_store.rs:669:        let retrieved = store.get_utxo(outpoint).unwrap().unwrap();
+crates/storage/src/rocksdb_store.rs:673:        store.delete_utxo(outpoint).unwrap();
+crates/storage/src/rocksdb_store.rs:676:        assert!(store.get_utxo(outpoint).unwrap().is_none());
+crates/wallet/src/keystore.rs:125:        .unwrap()
+crates/wallet/src/keystore.rs:305:        let dir = tempdir().unwrap();
+crates/wallet/src/keystore.rs:320:            .unwrap();
+crates/wallet/src/keystore.rs:381:    let dir = tempdir().unwrap();
+crates/wallet/src/keystore.rs:385:    std::fs::write(&path, b"{invalid}").unwrap();
+crates/wallet/src/keystore.rs:390:    let json = ks.to_json().unwrap();
+crates/wallet/src/keystore.rs:391:    std::fs::write(&path, &json[..json.len() / 2]).unwrap();
+crates/wallet/src/keystore.rs:395:    std::fs::write(&path, r#"{"version": 1}"#).unwrap();
+crates/rpc/src/methods.rs:215:            Ok(info) => JsonRpcResponse::success(id, serde_json::to_value(info).unwrap()),
+crates/rpc/src/methods.rs:220:            Ok(info) => JsonRpcResponse::success(id, serde_json::to_value(info).unwrap()),
+crates/rpc/src/methods.rs:225:            Ok(template) => JsonRpcResponse::success(id, serde_json::to_value(template).unwrap()),
+crates/rpc/src/methods.rs:230:            Ok(work) => JsonRpcResponse::success(id, serde_json::to_value(work).unwrap()),
+crates/rpc/src/methods.rs:283:                    Ok(tx) => JsonRpcResponse::success(id, serde_json::to_value(tx).unwrap()),
+crates/rpc/src/methods.rs:320:            Ok(stats) => JsonRpcResponse::success(id, serde_json::to_value(stats).unwrap()),
+crates/rpc/src/methods.rs:331:                    Ok(stats) => JsonRpcResponse::success(id, serde_json::to_value(stats).unwrap()),
+crates/rpc/src/methods.rs:356:                        Ok(response) => JsonRpcResponse::success(id, serde_json::to_value(response).unwrap()),
+crates/rpc/src/methods.rs:378:            Ok(status) => JsonRpcResponse::success(id, serde_json::to_value(status).unwrap()),
+crates/rpc/src/methods.rs:499:        assert_eq!(response.result.unwrap(), 12345);
+crates/rpc/src/methods.rs:512:        assert_eq!(response.error.unwrap().code, error_codes::METHOD_NOT_FOUND);
+crates/rpc/src/lib.rs:210:        let req: JsonRpcRequest = serde_json::from_str(json).unwrap();
+crates/rpc/src/lib.rs:221:        let json = serde_json::to_string(&resp).unwrap();
+crates/rpc/src/lib.rs:233:        let json = serde_json::to_string(&resp).unwrap();
+crates/storage/tests/recovery_tests.rs:26:        let temp_dir = TempDir::new().unwrap();
+crates/storage/tests/recovery_tests.rs:31:            let mut store = RocksDBStore::open(&db_path).unwrap();
+crates/storage/tests/recovery_tests.rs:35:                store.insert_block(block).unwrap();
+crates/storage/tests/recovery_tests.rs:47:        let store = RocksDBStore::open_with_options(&db_path, options).unwrap();
+crates/storage/tests/recovery_tests.rs:48:        let stats = store.get_stats().unwrap();
+crates/storage/tests/recovery_tests.rs:62:        let temp_dir = TempDir::new().unwrap();
+crates/storage/tests/recovery_tests.rs:66:        std::fs::create_dir_all(&backup_dir).unwrap();
+crates/storage/tests/recovery_tests.rs:70:            let mut store = RocksDBStore::open(&db_path).unwrap();
+crates/storage/tests/recovery_tests.rs:72:            store.insert_block(block).unwrap();
+crates/storage/tests/recovery_tests.rs:79:            backup_path: Some(backup_dir.to_str().unwrap().to_string()),
+crates/storage/tests/recovery_tests.rs:83:        let _store = RocksDBStore::open_with_options(&db_path, options).unwrap();
+crates/storage/tests/recovery_tests.rs:87:            .unwrap()
+crates/storage/tests/recovery_tests.rs:99:        let temp_dir = TempDir::new().unwrap();
+crates/storage/tests/recovery_tests.rs:113:        let store = result.unwrap();
+crates/storage/tests/recovery_tests.rs:114:        let stats = store.get_stats().unwrap();
+crates/rpc/src/server.rs:864:    let response_body = serde_json::to_string(response).unwrap();
+crates/rpc/src/server.rs:1033:            let error_json = serde_json::to_string(&error).unwrap();
+crates/rpc/src/server.rs:1069:            let response_json = serde_json::to_string(&response_data).unwrap();
+crates/rpc/src/server.rs:1105:            let error_json = serde_json::to_string(&error).unwrap();
+crates/rpc/src/server.rs:1181:            let error_json = serde_json::to_string(&error).unwrap();
+crates/rpc/src/server.rs:1217:            let response_json = serde_json::to_string(&response_data).unwrap();
+crates/rpc/src/server.rs:1253:            let error_json = serde_json::to_string(&error).unwrap();
+crates/rpc/src/server.rs:1355:    let mut map = limiter.lock().unwrap();
+crates/rpc/src/server.rs:1423:    let mut map = backoff.lock().unwrap();
+crates/rpc/src/server.rs:1437:    let mut map = backoff.lock().unwrap();
+crates/rpc/src/jwt/auth.rs:177:        let token = jwt.login("admin", "admin123").unwrap();
+crates/wallet/src/backup.rs:147:            .unwrap()
+crates/wallet/src/backup.rs:319:        .unwrap();
+crates/wallet/src/backup.rs:321:        let restored = backup.restore(password).unwrap();
+crates/wallet/src/backup.rs:329:            WalletBackup::create(wallet_data, "correct_password", Network::Mainnet, None).unwrap();
+crates/wallet/src/backup.rs:342:            WalletBackup::create(wallet_data, password, Network::Devnet, None).unwrap();
+crates/wallet/src/backup.rs:347:            .unwrap();
+crates/wallet/src/backup.rs:368:        .unwrap();
+crates/wallet/src/backup.rs:370:        backup.save(&temp_path).unwrap();
+crates/wallet/src/backup.rs:371:        let loaded = WalletBackup::load(&temp_path).unwrap();
+crates/wallet/src/backup.rs:377:        let restored = loaded.restore(password).unwrap();
+crates/wallet/src/backup.rs:389:            WalletBackup::create(wallet_data, password, Network::Mainnet, None).unwrap();
+crates/wallet/src/backup.rs:406:                .unwrap();
+crates/rpc/src/jwt/token.rs:62:        let token = gen.generate("alice", "admin").unwrap();
+crates/rpc/src/jwt/token.rs:63:        let claims = gen.verify(&token).unwrap();
+crates/network/src/relay.rs:34:        let mut announced = self.announced.lock().unwrap();
+crates/network/src/relay.rs:47:        let announced = self.announced.lock().unwrap();
+crates/network/src/relay.rs:53:        let mut requests = self.pending_requests.lock().unwrap();
+crates/network/src/relay.rs:59:        let mut requests = self.pending_requests.lock().unwrap();
+crates/network/src/relay.rs:65:        let requests = self.pending_requests.lock().unwrap();
+crates/network/src/relay.rs:74:        let mut relayed = self.relayed.lock().unwrap();
+crates/network/src/relay.rs:86:        let relayed = self.relayed.lock().unwrap();
+crates/network/src/relay.rs:94:        let mut announced = self.announced.lock().unwrap();
+crates/crypto/src/wallet/kdf.rs:114:        let key1 = kdf.derive_key(&password, &salt).unwrap();
+crates/crypto/src/wallet/kdf.rs:115:        let key2 = kdf.derive_key(&password, &salt).unwrap();
+crates/crypto/src/wallet/kdf.rs:127:        let key1 = kdf.derive_key(&password, &salt1).unwrap();
+crates/crypto/src/wallet/kdf.rs:128:        let key2 = kdf.derive_key(&password, &salt2).unwrap();
+crates/network/src/propagation.rs:31:        let mut seen = self.seen_blocks.lock().unwrap();
+crates/network/src/propagation.rs:43:        let mut seen = self.seen_txs.lock().unwrap();
+crates/network/src/propagation.rs:54:        self.seen_blocks.lock().unwrap().contains(hash)
+crates/network/src/propagation.rs:59:        self.seen_txs.lock().unwrap().contains(hash)
+crates/network/src/propagation.rs:123:        let mut stats = self.stats.lock().unwrap();
+crates/network/src/propagation.rs:130:        let mut stats = self.stats.lock().unwrap();
+crates/network/src/propagation.rs:144:        let mut stats = self.stats.lock().unwrap();
+crates/network/src/propagation.rs:151:        let mut stats = self.stats.lock().unwrap();
+crates/network/src/propagation.rs:162:        self.stats.lock().unwrap().clone()
+crates/network/src/propagation.rs:167:        *self.stats.lock().unwrap() = PropagationStats::default();
+crates/wallet/tests/password_rotation_tests.rs:94:        keystore = rotate_keystore(&keystore, passwords[i], passwords[i + 1], 8192, 1, 1).unwrap();
+crates/wallet/tests/password_rotation_tests.rs:97:        let decrypted = decrypt_keystore(&keystore, passwords[i + 1]).unwrap();
