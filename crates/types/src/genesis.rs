@@ -79,6 +79,7 @@ pub fn create_genesis_block() -> Block {
         time: GENESIS_TIME,
         bits: GENESIS_BITS,
         nonce: GENESIS_NONCE,
+        algo_id: 0, // Genesis always uses SHA-256d
     };
 
     Block {

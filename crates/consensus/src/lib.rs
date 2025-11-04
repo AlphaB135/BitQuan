@@ -64,6 +64,57 @@ impl DifficultyParams {
     }
 }
 
+/// Proof-of-Work algorithm set parameters.
+#[derive(Clone, Debug)]
+pub struct PowSetParams {
+    /// Height at which multiple PoW algorithms are activated.
+    pub activated_height: u64,
+    /// List of allowed PoW algorithms.
+    pub allowed_algos: Vec<pow::PowAlgo>,
+    /// Default algorithm to use before activation height.
+    pub default_algo: pow::PowAlgo,
+}
+
+impl PowSetParams {
+    /// Mainnet configuration (SHA-256d only, hybrid disabled).
+    pub fn mainnet() -> Self {
+        Self {
+            activated_height: u64::MAX, // Never activate hybrid on mainnet
+            allowed_algos: vec![pow::PowAlgo::Sha256d],
+            default_algo: pow::PowAlgo::Sha256d,
+        }
+    }
+
+    /// Testnet configuration (hybrid enabled at height 1000).
+    #[cfg(feature = "randomx")]
+    pub fn testnet_hybrid() -> Self {
+        Self {
+            activated_height: 1000,
+            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX],
+            default_algo: pow::PowAlgo::Sha256d,
+        }
+    }
+
+    /// Devnet configuration (hybrid enabled from genesis).
+    #[cfg(feature = "randomx")]
+    pub fn devnet_hybrid() -> Self {
+        Self {
+            activated_height: 0,
+            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX],
+            default_algo: pow::PowAlgo::Sha256d,
+        }
+    }
+
+    /// Check if an algorithm is allowed at given height.
+    pub fn is_algo_allowed(&self, algo: pow::PowAlgo, height: u64) -> bool {
+        if height < self.activated_height {
+            algo == self.default_algo
+        } else {
+            self.allowed_algos.contains(&algo)
+        }
+    }
+}
+
 /// Parameters controlling consensus validation.
 #[derive(Clone, Debug)]
 pub struct ConsensusParams {
@@ -77,10 +128,12 @@ pub struct ConsensusParams {
     pub difficulty: DifficultyParams,
     /// Block reward schedule parameters.
     pub reward_schedule: RewardSchedule,
+    /// Proof-of-Work algorithm set parameters.
+    pub pow_set: PowSetParams,
 }
 
 impl ConsensusParams {
-    /// Returns the default Phase 3 configuration.
+    /// Returns the default Phase 3 configuration (mainnet).
     pub fn phase3_defaults() -> Self {
         Self {
             block_weight_cap: 4_000_000,
@@ -88,6 +141,33 @@ impl ConsensusParams {
             witness_weight_beta: 0.5,
             difficulty: DifficultyParams::phase3_defaults(),
             reward_schedule: RewardSchedule::phase3_defaults(),
+            pow_set: PowSetParams::mainnet(),
+        }
+    }
+
+    /// Returns testnet configuration with hybrid PoW enabled.
+    #[cfg(feature = "randomx")]
+    pub fn testnet_hybrid() -> Self {
+        Self {
+            block_weight_cap: 4_000_000,
+            signature_weight_alpha: 384,
+            witness_weight_beta: 0.5,
+            difficulty: DifficultyParams::phase3_defaults(),
+            reward_schedule: RewardSchedule::phase3_defaults(),
+            pow_set: PowSetParams::testnet_hybrid(),
+        }
+    }
+
+    /// Returns devnet configuration with hybrid PoW enabled.
+    #[cfg(feature = "randomx")]
+    pub fn devnet_hybrid() -> Self {
+        Self {
+            block_weight_cap: 4_000_000,
+            signature_weight_alpha: 384,
+            witness_weight_beta: 0.5,
+            difficulty: DifficultyParams::phase3_defaults(),
+            reward_schedule: RewardSchedule::phase3_defaults(),
+            pow_set: PowSetParams::devnet_hybrid(),
         }
     }
 }

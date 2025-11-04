@@ -2,8 +2,9 @@
 #![deny(missing_docs)]
 
 //! Proof-of-Work helpers: header hashing and target checks with bounded difficulty.
+//! Supports pluggable PoW algorithms (SHA-256d, RandomX) with per-algorithm difficulty.
 
-use bitquan_types::BlockHeader;
+use bitquan_types::{BlockHeader, Result};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -11,6 +12,43 @@ use thiserror::Error;
 pub const DEVNET_MIN_BITS: u32 = 0x1d00ffff;
 /// Maximum compact bits permitted on dev/test networks (easiest difficulty).
 pub const DEVNET_MAX_BITS: u32 = 0x207fffff;
+
+/// Proof-of-Work algorithm identifier.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[repr(u8)]
+pub enum PowAlgo {
+    /// SHA-256d (double SHA-256) - Bitcoin-style PoW.
+    Sha256d = 0,
+    /// RandomX - CPU-friendly memory-hard PoW (testnet-only, feature-gated).
+    #[cfg(feature = "randomx")]
+    RandomX = 1,
+}
+
+impl PowAlgo {
+    /// Parse algorithm from u8 identifier.
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(PowAlgo::Sha256d),
+            #[cfg(feature = "randomx")]
+            1 => Some(PowAlgo::RandomX),
+            _ => None,
+        }
+    }
+
+    /// Convert algorithm to u8 identifier.
+    pub fn to_u8(self) -> u8 {
+        self as u8
+    }
+
+    /// Get human-readable name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            PowAlgo::Sha256d => "sha256d",
+            #[cfg(feature = "randomx")]
+            PowAlgo::RandomX => "randomx",
+        }
+    }
+}
 
 /// Errors returned by Proof-of-Work helpers.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -25,10 +63,143 @@ pub enum PowError {
         /// Maximum permitted bits (easiest difficulty).
         max: u32,
     },
+    /// Invalid PoW algorithm ID.
+    #[error("invalid pow algorithm id: {0}")]
+    InvalidAlgoId(u8),
+    /// Algorithm not allowed on this network.
+    #[error("pow algorithm {algo:?} not allowed on this network")]
+    AlgoNotAllowed {
+        /// The algorithm that was rejected.
+        algo: PowAlgo,
+    },
+    /// Hash does not meet target.
+    #[error("pow hash does not meet target")]
+    HashDoesNotMeetTarget,
+}
+
+/// Trait for pluggable Proof-of-Work engines.
+pub trait PowEngine: Send + Sync {
+    /// Returns the algorithm identifier.
+    fn algo(&self) -> PowAlgo;
+
+    /// Verifies that the header meets the PoW target specified by `bits`.
+    fn verify(&self, header: &BlockHeader) -> Result<()>;
+
+    /// Computes the algorithm-specific PoW hash of the header.
+    fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]>;
+}
+
+/// SHA-256d PoW engine (default, always available).
+pub struct Sha256dEngine;
+
+impl PowEngine for Sha256dEngine {
+    fn algo(&self) -> PowAlgo {
+        PowAlgo::Sha256d
+    }
+
+    fn verify(&self, header: &BlockHeader) -> Result<()> {
+        let hash = self.pow_hash(header)?;
+        let target = compact_to_target_bytes(header.bits)
+            .map_err(|e| bitquan_types::Error::Invalid(e.to_string()))?;
+        if hash_meets_target(&hash, &target) {
+            Ok(())
+        } else {
+            Err(bitquan_types::Error::Invalid(
+                "sha256d: hash does not meet target".to_string(),
+            ))
+        }
+    }
+
+    fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
+        Ok(header_hash_sha256d(header))
+    }
+}
+
+/// RandomX PoW engine (feature-gated, testnet-only).
+#[cfg(feature = "randomx")]
+pub struct RandomXEngine {
+    _config: RandomXConfig,
+}
+
+#[cfg(feature = "randomx")]
+impl RandomXEngine {
+    /// Create a new RandomX engine with the given configuration.
+    pub fn new(config: RandomXConfig) -> Self {
+        Self { _config: config }
+    }
+}
+
+#[cfg(feature = "randomx")]
+impl PowEngine for RandomXEngine {
+    fn algo(&self) -> PowAlgo {
+        PowAlgo::RandomX
+    }
+
+    fn verify(&self, header: &BlockHeader) -> Result<()> {
+        let hash = self.pow_hash(header)?;
+        let target = compact_to_target_bytes(header.bits)
+            .map_err(|e| bitquan_types::Error::Invalid(e.to_string()))?;
+        if hash_meets_target(&hash, &target) {
+            Ok(())
+        } else {
+            Err(bitquan_types::Error::Invalid(
+                "randomx: hash does not meet target".to_string(),
+            ))
+        }
+    }
+
+    fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
+        // TODO: Integrate actual RandomX library
+        // For now, use a placeholder that combines SHA-256 with header data
+        // This will be replaced with real RandomX once the library is integrated
+        let bytes = header.to_bytes();
+        let mut hasher = Sha256::new();
+        hasher.update(b"RandomX-placeholder-");
+        hasher.update(&bytes);
+        let result = hasher.finalize();
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&result);
+        Ok(out)
+    }
+}
+
+/// RandomX configuration.
+#[cfg(feature = "randomx")]
+#[derive(Clone, Debug)]
+pub struct RandomXConfig {
+    /// Cache mode: fast or full.
+    pub mode: RandomXMode,
+    /// Initialization seed (derived from genesis hash by default).
+    pub seed: [u8; 32],
+}
+
+#[cfg(feature = "randomx")]
+impl Default for RandomXConfig {
+    fn default() -> Self {
+        Self {
+            mode: RandomXMode::Fast,
+            seed: [0u8; 32],
+        }
+    }
+}
+
+/// RandomX cache mode.
+#[cfg(feature = "randomx")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RandomXMode {
+    /// Fast mode (less memory, faster init).
+    Fast,
+    /// Full mode (more memory, better performance).
+    Full,
 }
 
 /// Computes double-SHA256 hash of the block header (Bitcoin-style), big-endian bytes.
 pub fn header_hash(header: &BlockHeader) -> [u8; 32] {
+    header_hash_sha256d(header)
+}
+
+/// Computes SHA-256d hash (legacy function name for compatibility).
+fn header_hash_sha256d(header: &BlockHeader) -> [u8; 32] {
     let bytes = header.to_bytes();
     let h1 = Sha256::digest(&bytes);
     let h2 = Sha256::digest(h1);
@@ -38,7 +209,7 @@ pub fn header_hash(header: &BlockHeader) -> [u8; 32] {
 }
 
 /// Converts compact `bits` to a 32-byte big-endian target.
-pub fn compact_to_target_bytes(bits: u32) -> Result<[u8; 32], PowError> {
+pub fn compact_to_target_bytes(bits: u32) -> std::result::Result<[u8; 32], PowError> {
     let bits = clamp_bits(bits)?;
     let exponent = (bits >> 24) as i32;
     let mantissa = bits & 0x007f_ffff; // 23-bit mantissa per Bitcoin-style rule
@@ -74,7 +245,7 @@ pub fn hash_meets_target(hash: &[u8; 32], target: &[u8; 32]) -> bool {
 }
 
 /// Checks Proof-of-Work for the header using its `bits`.
-pub fn check_header_pow(header: &BlockHeader) -> Result<bool, PowError> {
+pub fn check_header_pow(header: &BlockHeader) -> std::result::Result<bool, PowError> {
     let hash = header_hash(header);
     let target = compact_to_target_bytes(header.bits)?;
     Ok(hash_meets_target(&hash, &target))
@@ -85,7 +256,7 @@ pub fn clamp_bits_within_bounds(bits: u32) -> u32 {
     bits.clamp(DEVNET_MIN_BITS, DEVNET_MAX_BITS)
 }
 
-fn clamp_bits(bits: u32) -> Result<u32, PowError> {
+fn clamp_bits(bits: u32) -> std::result::Result<u32, PowError> {
     if (DEVNET_MIN_BITS..=DEVNET_MAX_BITS).contains(&bits) {
         Ok(bits)
     } else {
@@ -101,6 +272,19 @@ fn clamp_bits(bits: u32) -> Result<u32, PowError> {
 mod tests {
     use super::*;
 
+    fn dummy_header() -> BlockHeader {
+        BlockHeader {
+            version: 1,
+            prev_block: [0u8; 32],
+            merkle_root: [0u8; 32],
+            pqc_agg_hint: [0u8; 32],
+            time: 0,
+            bits: 0x207fffff, // very easy target (like regtest/testnet style)
+            nonce: 0,
+            algo_id: 0,
+        }
+    }
+
     #[test]
     fn header_hash_changes_with_nonce() {
         let mut hdr = dummy_header();
@@ -108,6 +292,34 @@ mod tests {
         hdr.nonce = 1;
         let h2 = header_hash(&hdr);
         assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn header_carries_algo_id() {
+        let mut hdr = dummy_header();
+        hdr.algo_id = 0;
+        let bytes1 = hdr.to_bytes();
+        hdr.algo_id = 1;
+        let bytes2 = hdr.to_bytes();
+
+        // Serialization should differ based on algo_id
+        assert_ne!(bytes1, bytes2);
+
+        // algo_id should be at the end
+        assert_eq!(bytes1[bytes1.len() - 1], 0);
+        assert_eq!(bytes2[bytes2.len() - 1], 1);
+    }
+
+    #[test]
+    fn pow_algo_conversion() {
+        assert_eq!(PowAlgo::from_u8(0), Some(PowAlgo::Sha256d));
+        #[cfg(feature = "randomx")]
+        assert_eq!(PowAlgo::from_u8(1), Some(PowAlgo::RandomX));
+        assert_eq!(PowAlgo::from_u8(255), None);
+
+        assert_eq!(PowAlgo::Sha256d.to_u8(), 0);
+        #[cfg(feature = "randomx")]
+        assert_eq!(PowAlgo::RandomX.to_u8(), 1);
     }
 
     #[test]
@@ -142,15 +354,39 @@ mod tests {
         );
     }
 
-    fn dummy_header() -> BlockHeader {
-        BlockHeader {
-            version: 1,
-            prev_block: [0u8; 32],
-            merkle_root: [0u8; 32],
-            pqc_agg_hint: [0u8; 32],
-            time: 0,
-            bits: 0x207fffff, // very easy target (like regtest/testnet style)
-            nonce: 0,
-        }
+    #[test]
+    fn sha256d_engine_basic() {
+        let engine = Sha256dEngine;
+        assert_eq!(engine.algo(), PowAlgo::Sha256d);
+
+        let hdr = dummy_header();
+        let hash = engine.pow_hash(&hdr).unwrap();
+        assert_eq!(hash.len(), 32);
+    }
+
+    #[test]
+    #[cfg(feature = "randomx")]
+    fn randomx_engine_basic() {
+        let config = RandomXConfig::default();
+        let engine = RandomXEngine::new(config);
+        assert_eq!(engine.algo(), PowAlgo::RandomX);
+
+        let hdr = dummy_header();
+        let hash = engine.pow_hash(&hdr).unwrap();
+        assert_eq!(hash.len(), 32);
+    }
+
+    #[test]
+    #[cfg(feature = "randomx")]
+    fn randomx_and_sha256d_produce_different_hashes() {
+        let sha_engine = Sha256dEngine;
+        let rx_engine = RandomXEngine::new(RandomXConfig::default());
+
+        let hdr = dummy_header();
+        let sha_hash = sha_engine.pow_hash(&hdr).unwrap();
+        let rx_hash = rx_engine.pow_hash(&hdr).unwrap();
+
+        // Different algorithms should produce different hashes
+        assert_ne!(sha_hash, rx_hash);
     }
 }

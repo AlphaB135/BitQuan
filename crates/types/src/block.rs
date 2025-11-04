@@ -21,12 +21,15 @@ pub struct BlockHeader {
     pub bits: u32,
     /// Expanded nonce size (64-bit) to support larger search spaces.
     pub nonce: u64,
+    /// Proof-of-Work algorithm identifier (0=SHA-256d, 1=RandomX).
+    /// Added for hybrid PoW support (testnet-only).
+    pub algo_id: u8,
 }
 
 impl BlockHeader {
     /// Returns the serialized size of the header (always fixed length).
     pub const fn serialized_size(&self) -> usize {
-        4 + 32 + 32 + 32 + 4 + 4 + 8
+        4 + 32 + 32 + 32 + 4 + 4 + 8 + 1 // version + prev + merkle + pqc + time + bits + nonce + algo_id
     }
 
     /// Serializes the header to bytes (little-endian fields per wire format).
@@ -40,6 +43,7 @@ impl BlockHeader {
                 time: 0,
                 bits: 0,
                 nonce: 0,
+                algo_id: 0,
             }
             .serialized_size(),
         );
@@ -50,6 +54,7 @@ impl BlockHeader {
         out.extend_from_slice(&self.time.to_le_bytes());
         out.extend_from_slice(&self.bits.to_le_bytes());
         out.extend_from_slice(&self.nonce.to_le_bytes());
+        out.push(self.algo_id);
         out
     }
 }

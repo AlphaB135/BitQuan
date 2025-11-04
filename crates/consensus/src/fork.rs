@@ -412,6 +412,7 @@ mod tests {
             time,
             bits,
             nonce,
+            algo_id: 0,
         }
     }
 

@@ -7,6 +7,10 @@ repository.workspace = true
 rust-version.workspace = true
 description = "Consensus rules and validation primitives for BitQuan."
 
+[features]
+default = []
+randomx = []  # Feature flag for RandomX PoW engine (testnet-only)
+
 [dependencies]
 bq-crypto = { path = "../crypto", version = "0.0.1" }
 bitquan-types = { path = "../types", version = "0.1.0" }

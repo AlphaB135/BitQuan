@@ -138,6 +138,7 @@ mod tests {
                 burst_guard_activation_height: 0,
             },
             reward_schedule: RewardSchedule::phase3_defaults(),
+            pow_set: crate::PowSetParams::mainnet(),
         }
     }
 

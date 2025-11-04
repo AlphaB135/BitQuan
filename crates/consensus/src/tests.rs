@@ -61,6 +61,7 @@ fn difficultystate_with_chainstore_mtp_anchor() {
             time: (base + i * params.difficulty.target_block_time) as u32,
             bits,
             nonce: 0,
+            algo_id: 0,
         };
         headers.push(header.clone());
         let _ = store.insert_block(Block {
@@ -164,6 +165,7 @@ fn test_block_weight_calculation() {
             time: 1700000000,
             bits: 0x1d00ffff,
             nonce: 0,
+            algo_id: 0,
         },
         transactions: vec![coinbase],
     };
@@ -227,6 +229,7 @@ fn test_block_weight_exceeds_limit() {
             time: 1700000000,
             bits: 0x1d00ffff,
             nonce: 0,
+            algo_id: 0,
         },
         transactions,
     };
@@ -291,6 +294,7 @@ fn test_transaction_and_block_hash_determinism() {
             time: 1_700_000_123,
             bits: 0x1d00ffff,
             nonce: 99,
+            algo_id: 0,
         },
         transactions: vec![tx.clone()],
     };
@@ -502,6 +506,7 @@ mod property_tests {
                     time: 1700000000,
                     bits: 0x1d00ffff,
                     nonce: 0,
+            algo_id: 0,
                 },
                 transactions: txs.clone(),
             };
@@ -607,6 +612,7 @@ fn test_block_weight_overflow_protection() {
             time: 1700000000,
             bits: 0x1d00ffff,
             nonce: 0,
+            algo_id: 0,
         },
         transactions,
     };
@@ -727,6 +733,7 @@ fn test_validate_block_weight_overflow() {
             time: 1700000000,
             bits: 0x1d00ffff,
             nonce: 0,
+            algo_id: 0,
         },
         transactions,
     };

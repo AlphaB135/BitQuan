@@ -54,6 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .as_secs() as u32,
             bits,
             nonce: 0,
+            algo_id: 0, // SHA-256d
         };
 
         let start = Instant::now();
@@ -81,13 +82,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if args.verbose && hashes % 10000 == 0 {
                 let elapsed = start.elapsed().as_secs_f64();
                 let hashrate = hashes as f64 / elapsed;
-                println!("   [{:.2}s] {} hashes, {:.2} H/s", elapsed, hashes, hashrate);
+                println!(
+                    "   [{:.2}s] {} hashes, {:.2} H/s",
+                    elapsed, hashes, hashrate
+                );
             }
 
             if hashes % 1_000_000 == 0 {
                 let elapsed = start.elapsed().as_secs_f64();
                 let hashrate = hashes as f64 / elapsed;
-                print!("   ⚡ {:.1}M hashes, {:.2} H/s\r", hashes as f64 / 1_000_000.0, hashrate);
+                print!(
+                    "   ⚡ {:.1}M hashes, {:.2} H/s\r",
+                    hashes as f64 / 1_000_000.0,
+                    hashrate
+                );
             }
         }
     }

@@ -490,11 +490,12 @@ impl WireEncode for BlockHeader {
         write_u32_le(writer, self.time)?;
         write_u32_le(writer, self.bits)?;
         write_u64_le(writer, self.nonce)?;
+        writer.write_all(&[self.algo_id])?;
         Ok(())
     }
 
     fn encoded_size(&self) -> usize {
-        4 + 32 + 32 + 32 + 4 + 4 + 8 // 116 bytes
+        4 + 32 + 32 + 32 + 4 + 4 + 8 + 1 // 117 bytes (added algo_id)
     }
 }
 
@@ -515,6 +516,14 @@ impl WireDecode for BlockHeader {
         let bits = read_u32_le(reader)?;
         let nonce = read_u64_le(reader)?;
 
+        // Read algo_id (added for hybrid PoW support)
+        let mut algo_id_buf = [0u8; 1];
+        let algo_id = if reader.read_exact(&mut algo_id_buf).is_ok() {
+            algo_id_buf[0]
+        } else {
+            0 // Default to SHA-256d for legacy headers without algo_id
+        };
+
         Ok(BlockHeader {
             version,
             prev_block,
@@ -523,6 +532,7 @@ impl WireDecode for BlockHeader {
             time,
             bits,
             nonce,
+            algo_id,
         })
     }
 }
