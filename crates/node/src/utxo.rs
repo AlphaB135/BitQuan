@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use anyhow::{bail, Result};
+use bitquan_types::error::{Error, Result};
 use bitquan_types::{Transaction, TxOut};
 use std::collections::HashMap;
 
@@ -114,11 +114,11 @@ impl UtxoSet {
             }
 
             if !self.contains(&input.prev_txid, input.prev_vout) {
-                bail!(
+                return Err(Error::Invalid(format!(
                     "Input references non-existent UTXO: {}:{}",
                     hex::encode(input.prev_txid),
                     input.prev_vout
-                );
+                )));
             }
 
             self.remove(&input.prev_txid, input.prev_vout);
@@ -150,41 +150,39 @@ impl UtxoSet {
 
             // Get the UTXO
             let utxo = self.get(&input.prev_txid, input.prev_vout).ok_or_else(|| {
-                anyhow::anyhow!(
+                Error::Invalid(format!(
                     "Input references non-existent UTXO: {}:{}",
                     hex::encode(input.prev_txid),
                     input.prev_vout
-                )
+                ))
             })?;
 
             // Check coinbase maturity (100 blocks)
             if utxo.is_coinbase && height < utxo.height + 100 {
-                bail!(
+                return Err(Error::Invalid(format!(
                     "Coinbase output not mature: created at {}, current {}",
-                    utxo.height,
-                    height
-                );
+                    utxo.height, height
+                )));
             }
 
             total_input_value = total_input_value
                 .checked_add(utxo.value())
-                .ok_or_else(|| anyhow::anyhow!("Input value overflow"))?;
+                .ok_or(Error::Overflow("Input value overflow"))?;
         }
 
         // Check outputs
         for output in &tx.outputs {
             total_output_value = total_output_value
                 .checked_add(output.value)
-                .ok_or_else(|| anyhow::anyhow!("Output value overflow"))?;
+                .ok_or(Error::Overflow("Output value overflow"))?;
         }
 
         // Validate fees (inputs >= outputs)
         if total_input_value < total_output_value {
-            bail!(
+            return Err(Error::Invalid(format!(
                 "Outputs exceed inputs: {} < {}",
-                total_input_value,
-                total_output_value
-            );
+                total_input_value, total_output_value
+            )));
         }
 
         Ok(())

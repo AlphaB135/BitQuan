@@ -1,6 +1,7 @@
 //! Transaction memory pool with fee-per-weight ordering.
 #![warn(missing_docs)]
 
+use bitquan_consensus::MempoolPolicy;
 use bitquan_types::{checked, Error, Result, Transaction};
 use bq_crypto::rng::{RandomSource, RngService};
 use std::collections::BTreeMap;
@@ -85,41 +86,43 @@ pub struct Mempool {
     size_bytes: usize,
     /// Maximum allowed size
     max_size_bytes: usize,
-    /// Minimum fee rate (qbits/WU)
-    min_fee_rate: u64,
+    /// Admission policy configuration
+    policy: MempoolPolicy,
 }
 
 impl Mempool {
     /// Maximum mempool size in bytes (300 MB)
     const DEFAULT_MAX_SIZE: usize = 300_000_000;
 
-    /// Default minimum fee rate (1 qbit/WU)
-    const DEFAULT_MIN_FEE_RATE: u64 = 1;
-
     /// Protected fee rate threshold (never evict >= 10 qbits/WU)
     const PROTECTED_FEE_RATE: u64 = 10;
 
-    /// Constructs a new mempool instance.
+    /// Constructs a new mempool instance using the standard policy.
     pub fn new() -> Result<Self> {
+        Self::with_policy(MempoolPolicy::standard())
+    }
+
+    /// Constructs a new mempool with custom policy.
+    pub fn with_policy(policy: MempoolPolicy) -> Result<Self> {
         let rng = RngService::new().map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
         Ok(Self {
             entries: BTreeMap::new(),
             rng,
             size_bytes: 0,
             max_size_bytes: Self::DEFAULT_MAX_SIZE,
-            min_fee_rate: Self::DEFAULT_MIN_FEE_RATE,
+            policy,
         })
     }
 
-    /// Constructs a new mempool with custom size limit and min fee rate.
-    pub fn with_limits(max_size_bytes: usize, min_fee_rate: u64) -> Result<Self> {
+    /// Constructs a new mempool with explicit size limits in addition to policy.
+    pub fn with_limits(policy: MempoolPolicy, max_size_bytes: usize) -> Result<Self> {
         let rng = RngService::new().map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
         Ok(Self {
             entries: BTreeMap::new(),
             rng,
             size_bytes: 0,
             max_size_bytes,
-            min_fee_rate,
+            policy,
         })
     }
 
@@ -143,7 +146,12 @@ impl Mempool {
 
     /// Returns the current minimum fee rate.
     pub fn min_fee_rate(&self) -> u64 {
-        self.min_fee_rate
+        self.policy.min_relay_fee_per_wu
+    }
+
+    /// Returns the policy in effect.
+    pub fn policy(&self) -> &MempoolPolicy {
+        &self.policy
     }
 
     /// Inserts a transaction together with its absolute fee.
@@ -153,6 +161,48 @@ impl Mempool {
         // Validate transaction structure first
         validate_transaction(&tx)
             .map_err(|e| Error::Invalid(format!("transaction rejected: {e}")))?;
+
+        // Enforce policy limits
+        let max_script = self.policy.max_scriptsize as usize;
+        if tx.inputs.len() > self.policy.max_inputs_per_tx as usize {
+            return Err(Error::Invalid(format!(
+                "transaction has {} inputs (limit {})",
+                tx.inputs.len(),
+                self.policy.max_inputs_per_tx
+            )));
+        }
+
+        for (idx, input) in tx.inputs.iter().enumerate() {
+            if input.script_sig.len() > max_script {
+                return Err(Error::Invalid(format!(
+                    "input {} script size {} exceeds limit {}",
+                    idx,
+                    input.script_sig.len(),
+                    max_script
+                )));
+            }
+        }
+
+        for (idx, output) in tx.outputs.iter().enumerate() {
+            if output.script_pubkey.len() > max_script {
+                return Err(Error::Invalid(format!(
+                    "output {} script size {} exceeds limit {}",
+                    idx,
+                    output.script_pubkey.len(),
+                    max_script
+                )));
+            }
+        }
+
+        let sigops = tx
+            .signature_count()
+            .map_err(|_| Error::Invalid("failed to count signatures".to_string()))?;
+        if sigops > self.policy.max_sigops_per_tx as usize {
+            return Err(Error::Invalid(format!(
+                "transaction has {} signatures (limit {})",
+                sigops, self.policy.max_sigops_per_tx
+            )));
+        }
 
         let tx_size = tx
             .serialized_size_hint()
@@ -164,10 +214,10 @@ impl Mempool {
         let entry = MempoolEntry::from_transaction(tx, fee, tie_breaker)?;
 
         // Check minimum fee rate
-        if entry.fee_per_weight < self.min_fee_rate {
+        if entry.fee_per_weight < self.policy.min_relay_fee_per_wu {
             return Err(Error::Invalid(format!(
                 "fee rate {} below minimum {}",
-                entry.fee_per_weight, self.min_fee_rate
+                entry.fee_per_weight, self.policy.min_relay_fee_per_wu
             )));
         }
 
@@ -312,9 +362,13 @@ mod tests {
 
     fn create_test_tx(inputs: usize, outputs: usize, signatures: usize) -> Transaction {
         let inputs = (0..inputs)
-            .map(|_| TxIn {
-                prev_txid: [0u8; 32],
-                prev_vout: 0,
+            .map(|i| TxIn {
+                prev_txid: {
+                    let mut txid = [0u8; 32];
+                    txid[0] = i as u8;
+                    txid
+                },
+                prev_vout: i as u32,
                 script_sig: vec![],
                 sequence: 0xffffffff,
             })
@@ -379,8 +433,45 @@ mod tests {
     }
 
     #[test]
+    fn rejects_tx_exceeding_scriptsize() {
+        let mut policy = MempoolPolicy::standard();
+        policy.max_scriptsize = 12;
+        let mut mempool = Mempool::with_policy(policy).unwrap();
+
+        let mut tx = create_test_tx(1, 1, 1);
+        tx.outputs[0].script_pubkey = vec![0u8; 32];
+
+        let err = mempool.insert(tx, 1_000).unwrap_err();
+        assert!(matches!(err, Error::Invalid(msg) if msg.contains("script size")));
+    }
+
+    #[test]
+    fn rejects_tx_exceeding_inputs() {
+        let mut policy = MempoolPolicy::standard();
+        policy.max_inputs_per_tx = 2;
+        let mut mempool = Mempool::with_policy(policy).unwrap();
+
+        let tx = create_test_tx(3, 1, 1);
+        let err = mempool.insert(tx, 1_000).unwrap_err();
+        assert!(matches!(err, Error::Invalid(msg) if msg.contains("inputs")));
+    }
+
+    #[test]
+    fn rejects_tx_exceeding_sigops() {
+        let mut policy = MempoolPolicy::standard();
+        policy.max_sigops_per_tx = 2;
+        let mut mempool = Mempool::with_policy(policy).unwrap();
+
+        let tx = create_test_tx(1, 1, 5);
+        let err = mempool.insert(tx, 1_000).unwrap_err();
+        assert!(matches!(err, Error::Invalid(msg) if msg.contains("signatures")));
+    }
+
+    #[test]
     fn test_mempool_min_fee_rate() {
-        let mut mempool = Mempool::with_limits(1_000_000, 10).unwrap();
+        let mut policy = MempoolPolicy::standard();
+        policy.min_relay_fee_per_wu = 10;
+        let mut mempool = Mempool::with_limits(policy, 1_000_000).unwrap();
         let tx = create_test_tx(1, 2, 1);
 
         // Fee too low for min rate
@@ -413,7 +504,8 @@ mod tests {
     #[test]
     fn test_mempool_eviction() {
         // Small mempool
-        let mut mempool = Mempool::with_limits(500, 1).unwrap();
+        let policy = MempoolPolicy::standard();
+        let mut mempool = Mempool::with_limits(policy, 500).unwrap();
 
         let tx1 = create_test_tx(1, 2, 1);
         let tx2 = create_test_tx(1, 2, 1);
@@ -429,7 +521,8 @@ mod tests {
     #[test]
     #[ignore] // TODO: Fix protected fee rate test logic
     fn test_protected_fee_rate() {
-        let mut mempool = Mempool::with_limits(1000, 1).unwrap();
+        let policy = MempoolPolicy::standard();
+        let mut mempool = Mempool::with_limits(policy, 1000).unwrap();
 
         let tx1 = create_test_tx(1, 2, 1);
         let weight = calculate_tx_weight(&tx1).expect("weight");
@@ -514,7 +607,8 @@ mod tests {
 
     #[test]
     fn test_overflow_in_size_bytes() {
-        let mut mempool = Mempool::with_limits(usize::MAX, 1).unwrap();
+        let policy = MempoolPolicy::standard();
+        let mut mempool = Mempool::with_limits(policy, usize::MAX).unwrap();
 
         // Force size_bytes to near max
         mempool.size_bytes = usize::MAX - 100;
@@ -551,7 +645,8 @@ mod tests {
 
     #[test]
     fn test_overflow_in_freed_bytes() {
-        let mut mempool = Mempool::with_limits(1000, 1).unwrap();
+        let policy = MempoolPolicy::standard();
+        let mut mempool = Mempool::with_limits(policy, 1000).unwrap();
 
         // Create a mock transaction that would cause overflow in freed calculation
         // This is hard to test directly, but we verify the code path exists

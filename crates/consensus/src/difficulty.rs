@@ -120,20 +120,23 @@ impl DifficultyState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ConsensusParams, RewardSchedule};
+    use crate::{ConsensusParams, DifficultyParams, RewardSchedule};
 
     fn params() -> ConsensusParams {
         ConsensusParams {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
-            target_block_time: 600,
-            difficulty_half_life: 14_400,
-            burst_guard_window: 11,
-            burst_guard_floor_ratio: 0.33,
-            burst_guard_release_ratio: 0.38,
-            burst_guard_multiplier: 1.5,
-            burst_guard_cooldown_blocks: 5,
+            difficulty: DifficultyParams {
+                target_block_time: 600,
+                difficulty_half_life: 14_400,
+                burst_guard_window: 11,
+                burst_guard_floor_ratio: 0.33,
+                burst_guard_release_ratio: 0.38,
+                burst_guard_multiplier: 1.5,
+                burst_guard_cooldown_blocks: 5,
+                burst_guard_activation_height: 0,
+            },
             reward_schedule: RewardSchedule::phase3_defaults(),
         }
     }
@@ -153,5 +156,56 @@ mod tests {
         assert!(next > 0);
         assert_eq!(state.anchor_height, 101);
         assert_eq!(state.anchor_timestamp, 1_000_600);
+    }
+
+    #[test]
+    fn guard_inactive_before_activation_height() {
+        let mut params = params();
+        params.difficulty.burst_guard_activation_height = 200;
+        let anchor_height = 150u64;
+        let anchor_time = 1_000_000u64;
+        let anchor_bits = 0x1d00ffff;
+        let mut state = DifficultyState::new(
+            anchor_height,
+            anchor_time,
+            anchor_bits,
+            params.difficulty.burst_guard_activation_height,
+        );
+
+        // Fast window but below activation height
+        let window = params.difficulty.burst_guard_window;
+        let expected = (params.difficulty.target_block_time * window) as f64;
+        let fast_delta =
+            (expected * params.difficulty.burst_guard_floor_ratio * 0.5).max(1.0) as u64;
+
+        let next_height = anchor_height + window;
+        let next_time = anchor_time + fast_delta;
+        let _ = state.update(next_height, next_time, &params);
+        assert!(state.guard_state().last_trigger_height().is_none());
+    }
+
+    #[test]
+    fn guard_active_at_activation_height() {
+        let mut params = params();
+        params.difficulty.burst_guard_activation_height = 50;
+        let anchor_height = 50u64;
+        let anchor_time = 2_000_000u64;
+        let anchor_bits = 0x1d00ffff;
+        let mut state = DifficultyState::new(
+            anchor_height,
+            anchor_time,
+            anchor_bits,
+            params.difficulty.burst_guard_activation_height,
+        );
+
+        let window = params.difficulty.burst_guard_window;
+        let expected = (params.difficulty.target_block_time * window) as f64;
+        let fast_delta =
+            (expected * params.difficulty.burst_guard_floor_ratio * 0.5).max(1.0) as u64;
+
+        let next_height = anchor_height + window;
+        let next_time = anchor_time + fast_delta;
+        let _ = state.update(next_height, next_time, &params);
+        assert!(state.guard_state().is_active());
     }
 }

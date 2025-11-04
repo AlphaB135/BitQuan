@@ -8,7 +8,6 @@ rust-version.workspace = true
 description = "BitQuan reference node entrypoint."
 
 [dependencies]
-anyhow.workspace = true
 argon2 = "0.5"
 base64 = "0.22"
 base64ct = { version = "1.6.0", features = ["alloc"] }

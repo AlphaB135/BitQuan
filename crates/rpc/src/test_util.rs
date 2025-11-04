@@ -6,7 +6,7 @@
 //! cleanly without relying on `sleep` heuristics.
 
 use crate::server::RpcServer;
-use anyhow::Result;
+use bitquan_types::error::{Error, Result};
 use std::net::TcpListener;
 use std::sync::mpsc;
 use tokio::sync::oneshot;
@@ -15,7 +15,7 @@ use tokio::time::{sleep, Duration};
 
 /// Spawns the RPC server on `127.0.0.1:0` and returns the base URL, task handle,
 /// and shutdown sender.
-pub(crate) fn spawn_test_server<T>(
+pub fn spawn_test_server<T>(
     server: RpcServer<T>,
 ) -> Result<(String, JoinHandle<Result<()>>, oneshot::Sender<()>)>
 where
@@ -35,7 +35,7 @@ where
     let handle = tokio::task::spawn_blocking(move || {
         server
             .serve_with_listener_and_shutdown(listener, Some(signal_rx))
-            .map_err(|e| anyhow::anyhow!(e))
+            .map_err(|e| Error::Net(e.to_string()))
     });
 
     Ok((format!("http://{}", addr), handle, shutdown_tx))
@@ -43,10 +43,11 @@ where
 
 /// Polls the `/health` endpoint until the server reports ready or the timeout
 /// is exceeded.
-pub(crate) async fn wait_ready(base_url: &str) -> Result<()> {
+pub async fn wait_ready(base_url: &str) -> Result<()> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(200))
-        .build()?;
+        .build()
+        .map_err(|e| Error::Net(format!("failed to build HTTP client: {e}")))?;
 
     let health_url = format!("{}/health", base_url.trim_end_matches('/'));
 
@@ -57,11 +58,13 @@ pub(crate) async fn wait_ready(base_url: &str) -> Result<()> {
         }
     }
 
-    Err(anyhow::anyhow!("RPC server not ready after waiting 5s"))
+    Err(Error::Timeout(
+        "RPC server not ready after waiting 5s".to_string(),
+    ))
 }
 
 /// Initialise pretty test logging once.
-pub(crate) fn init_test_tracing() {
+pub fn init_test_tracing() {
     static INIT: std::sync::Once = std::sync::Once::new();
     INIT.call_once(|| {
         let _ = tracing_subscriber::fmt()

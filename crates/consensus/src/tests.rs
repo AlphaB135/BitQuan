@@ -58,7 +58,7 @@ fn difficultystate_with_chainstore_mtp_anchor() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
-            time: (base + i * params.target_block_time) as u32,
+            time: (base + i * params.difficulty.target_block_time) as u32,
             bits,
             nonce: 0,
         };

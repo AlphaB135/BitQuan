@@ -1,7 +1,7 @@
 //! Consensus rule scaffolding for BitQuan.
 #![warn(missing_docs)]
 
-use bitquan_types::{count_signatures, Block};
+use bitquan_types::{count_signatures, Block, NetworkId};
 use bq_crypto::{CryptoError, CryptoRegistry};
 use thiserror::Error;
 
@@ -27,15 +27,9 @@ pub use script::{verify_script, OpCode, ScriptError, ScriptInterpreter, MAX_SCRI
 pub use sighash::transaction_sighash;
 pub use utxo::{OutPoint, UtxoEntry, UtxoError, UtxoSet};
 
-/// Parameters controlling consensus validation.
+/// Difficulty retarget parameters (ASERT + burst guard activation).
 #[derive(Clone, Debug)]
-pub struct ConsensusParams {
-    /// Maximum permitted block weight.
-    pub block_weight_cap: u64,
-    /// Weight multiplier applied per PQ signature.
-    pub signature_weight_alpha: u32,
-    /// Witness byte discount coefficient (0.0..=1.0).
-    pub witness_weight_beta: f32,
+pub struct DifficultyParams {
     /// Target block interval in seconds.
     pub target_block_time: u64,
     /// ASERT/LWMA half-life in seconds for difficulty retargeting.
@@ -50,6 +44,37 @@ pub struct ConsensusParams {
     pub burst_guard_multiplier: f64,
     /// Cooldown period (blocks) before the guard may trigger again.
     pub burst_guard_cooldown_blocks: u64,
+    /// Height at which the burst guard becomes active.
+    pub burst_guard_activation_height: u64,
+}
+
+impl DifficultyParams {
+    /// Returns the default Phase 3 difficulty configuration.
+    pub fn phase3_defaults() -> Self {
+        Self {
+            target_block_time: 600,
+            difficulty_half_life: 14_400,
+            burst_guard_window: 11,
+            burst_guard_floor_ratio: 0.33,
+            burst_guard_release_ratio: 0.38,
+            burst_guard_multiplier: 1.5,
+            burst_guard_cooldown_blocks: 5,
+            burst_guard_activation_height: 0,
+        }
+    }
+}
+
+/// Parameters controlling consensus validation.
+#[derive(Clone, Debug)]
+pub struct ConsensusParams {
+    /// Maximum permitted block weight.
+    pub block_weight_cap: u64,
+    /// Weight multiplier applied per PQ signature.
+    pub signature_weight_alpha: u32,
+    /// Witness byte discount coefficient (0.0..=1.0).
+    pub witness_weight_beta: f32,
+    /// Difficulty retarget parameters.
+    pub difficulty: DifficultyParams,
     /// Block reward schedule parameters.
     pub reward_schedule: RewardSchedule,
 }
@@ -61,14 +86,86 @@ impl ConsensusParams {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
-            target_block_time: 600,
-            difficulty_half_life: 14_400,
-            burst_guard_window: 11,
-            burst_guard_floor_ratio: 0.33,
-            burst_guard_release_ratio: 0.38,
-            burst_guard_multiplier: 1.5,
-            burst_guard_cooldown_blocks: 5,
+            difficulty: DifficultyParams::phase3_defaults(),
             reward_schedule: RewardSchedule::phase3_defaults(),
+        }
+    }
+}
+
+/// Policy controls for mempool admission and DoS protection.
+#[derive(Clone, Debug)]
+pub struct MempoolPolicy {
+    /// Maximum size of any script (scriptSig/scriptPubKey) in bytes.
+    pub max_scriptsize: u32,
+    /// Maximum number of inputs permitted per transaction.
+    pub max_inputs_per_tx: u32,
+    /// Maximum number of signature operations permitted per transaction.
+    pub max_sigops_per_tx: u32,
+    /// Minimum relay fee per weight unit (qbits/WU).
+    pub min_relay_fee_per_wu: u64,
+    /// Maximum number of in-mempool ancestors allowed.
+    pub ancestor_limit: u32,
+    /// Maximum number of in-mempool descendants allowed.
+    pub descendant_limit: u32,
+}
+
+impl MempoolPolicy {
+    /// Standard policy suitable for devnet/testnet usage.
+    pub fn standard() -> Self {
+        Self {
+            max_scriptsize: 10_000,
+            max_inputs_per_tx: 256,
+            max_sigops_per_tx: 80_000,
+            min_relay_fee_per_wu: 1,
+            ancestor_limit: 50,
+            descendant_limit: 50,
+        }
+    }
+}
+
+/// Aggregated parameters for a specific BitQuan network.
+#[derive(Clone, Debug)]
+pub struct NetworkParams {
+    /// Network identifier (mainnet/testnet/devnet/regtest).
+    pub network_id: NetworkId,
+    /// Genesis hash associated with the network.
+    pub genesis_hash: [u8; 32],
+    /// Consensus parameters for validation.
+    pub consensus: ConsensusParams,
+    /// Mempool admission and DoS policy.
+    pub mempool: MempoolPolicy,
+}
+
+impl NetworkParams {
+    /// Returns devnet defaults.
+    pub fn devnet() -> Self {
+        Self {
+            network_id: NetworkId::Devnet,
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
+            consensus: ConsensusParams::phase3_defaults(),
+            mempool: MempoolPolicy::standard(),
+        }
+    }
+
+    /// Returns testnet defaults (currently identical to devnet).
+    pub fn testnet() -> Self {
+        Self {
+            network_id: NetworkId::Testnet,
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
+            consensus: ConsensusParams::phase3_defaults(),
+            mempool: MempoolPolicy::standard(),
+        }
+    }
+
+    /// Returns mainnet defaults with conservative guard activation.
+    pub fn mainnet() -> Self {
+        let mut consensus = ConsensusParams::phase3_defaults();
+        consensus.difficulty.burst_guard_activation_height = 100_000;
+        Self {
+            network_id: NetworkId::Mainnet,
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
+            consensus,
+            mempool: MempoolPolicy::standard(),
         }
     }
 }
@@ -347,6 +444,16 @@ impl ConsensusEngine {
             network_id,
             genesis_hash,
         }
+    }
+
+    /// Constructs an engine from aggregated network parameters.
+    pub fn from_network(network: &NetworkParams, registry: CryptoRegistry) -> Self {
+        Self::with_network(
+            network.consensus.clone(),
+            registry,
+            network.network_id,
+            network.genesis_hash,
+        )
     }
 
     /// Returns the consensus parameters in use.

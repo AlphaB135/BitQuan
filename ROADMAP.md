@@ -1,6 +1,6 @@
 # BitQuan Roadmap
 
-## Current Status: v0.0.2-alpha (Security Hardening) – 2025-11-02
+## Current Status: v0.0.2-alpha (Security Hardening) – 2025-11-03
 
 **Completion toward mainnet:** ~60 % | **Regression suite:** 320 + tests | **Build:** Clean (`cargo fmt`, `cargo clippy -D warnings`, `cargo test --all --locked`)
 

@@ -4,10 +4,14 @@
 
 use std::fmt;
 
-use anyhow::{anyhow, Context, Result};
+use bitquan_types::error::{Error, Result};
 use clap::Parser;
 
 use bitquan_consensus::{asert_next_target, compact_to_target, ConsensusParams};
+
+fn invalid<T>(msg: impl Into<String>) -> Result<T> {
+    Err(Error::Invalid(msg.into()))
+}
 
 /// Command-line arguments for the simulation runner.
 #[derive(Parser, Debug)]
@@ -91,7 +95,7 @@ fn main() -> Result<()> {
     let segments = parse_pattern(&args.pattern)?;
 
     if segments.is_empty() {
-        return Err(anyhow!("no segments parsed from pattern"));
+        return invalid("no segments parsed from pattern");
     }
 
     let params = ConsensusParams::phase3_defaults();
@@ -126,7 +130,7 @@ fn main() -> Result<()> {
 
             let difficulty_ratio = baseline_target / current_target;
             let mean_interval =
-                (params.target_block_time as f64) * difficulty_ratio / segment.hash_rate;
+                (params.difficulty.target_block_time as f64) * difficulty_ratio / segment.hash_rate;
             let dt_seconds = mean_interval.max(1.0).round() as i64;
 
             let timestamp = prev.timestamp + dt_seconds;
@@ -152,23 +156,25 @@ fn main() -> Result<()> {
                 stats.interval_sum += dt_seconds as f64;
             }
 
-            let window = params.burst_guard_window;
+            let window = params.difficulty.burst_guard_window;
             let anchor_index = if height >= window {
                 (height - window) as usize
             } else {
                 0usize
             };
-            let anchor = blocks.get(anchor_index).context("anchor lookup failed")?;
+            let anchor = blocks
+                .get(anchor_index)
+                .ok_or_else(|| Error::Invalid("anchor lookup failed".to_string()))?;
 
             let height_delta = height as i64 - anchor.height as i64;
             let time_delta = timestamp - anchor.timestamp;
             let next_target =
                 asert_next_target(anchor.target, height_delta, time_delta, &params, None);
 
-            let expected_time = params.target_block_time as f64 * height_delta as f64;
-            let guard_triggered = height_delta as u64 >= params.burst_guard_window
+            let expected_time = params.difficulty.target_block_time as f64 * height_delta as f64;
+            let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
                 && time_delta > 0
-                && (time_delta as f64) < expected_time * params.burst_guard_floor_ratio;
+                && (time_delta as f64) < expected_time * params.difficulty.burst_guard_floor_ratio;
 
             if guard_triggered {
                 guard_events.push(GuardEvent {
@@ -187,7 +193,7 @@ fn main() -> Result<()> {
                 let avg_interval = if height_delta > 0 {
                     time_delta as f64 / height_delta as f64
                 } else {
-                    params.target_block_time as f64
+                    params.difficulty.target_block_time as f64
                 };
                 let ratio = if expected_time > 0.0 {
                     time_delta as f64 / expected_time
@@ -218,7 +224,7 @@ fn main() -> Result<()> {
     println!("blocks simulated: {}", total_blocks);
     println!(
         "average interval: {:.2} s (target {} s)",
-        avg_interval, params.target_block_time
+        avg_interval, params.difficulty.target_block_time
     );
     let total_guard = guard_events.len() as f64;
     let guard_per_100 = if total_blocks == 0 {
@@ -277,7 +283,7 @@ fn main() -> Result<()> {
         if idx > 0 {
             let prev = guard_events[idx - 1];
             if event.height > prev.height
-                && event.height - prev.height <= params.burst_guard_window / 2
+                && event.height - prev.height <= params.difficulty.burst_guard_window / 2
             {
                 flapping += 1;
             }
@@ -287,7 +293,7 @@ fn main() -> Result<()> {
     println!(
         "flapping events  : {} (threshold ≤ {} blocks between triggers)",
         flapping,
-        params.burst_guard_window / 2
+        params.difficulty.burst_guard_window / 2
     );
     if guard_events.is_empty() {
         println!("guard floor usage: none (all windows above floor ratio)");
@@ -337,32 +343,31 @@ fn parse_pattern(pattern: &str) -> Result<Vec<Segment>> {
             continue;
         }
         let mut split = entry.split(':');
-        let blocks_str = split
-            .next()
-            .ok_or_else(|| anyhow!("missing block count in pattern entry '{}'", entry))?;
-        let rate_str = split
-            .next()
-            .ok_or_else(|| anyhow!("missing hash-rate in pattern entry '{}'", entry))?;
+        let blocks_str = split.next().ok_or_else(|| {
+            Error::Invalid(format!("missing block count in pattern entry '{entry}'"))
+        })?;
+        let rate_str = split.next().ok_or_else(|| {
+            Error::Invalid(format!("missing hash-rate in pattern entry '{entry}'"))
+        })?;
 
         if split.next().is_some() {
-            return Err(anyhow!(
-                "too many fields in pattern entry '{}', expected <blocks>:<hash>",
-                entry
+            return invalid(format!(
+                "too many fields in pattern entry '{entry}', expected <blocks>:<hash>"
             ));
         }
 
         let blocks: u64 = blocks_str
             .parse()
-            .with_context(|| format!("invalid block count '{}'", blocks_str))?;
+            .map_err(|_| Error::Invalid(format!("invalid block count '{}'", blocks_str)))?;
         if blocks == 0 {
-            return Err(anyhow!("segment '{}' has zero blocks", entry));
+            return invalid(format!("segment '{entry}' has zero blocks"));
         }
 
         let hash_rate: f64 = rate_str
             .parse()
-            .with_context(|| format!("invalid hash-rate '{}'", rate_str))?;
+            .map_err(|_| Error::Invalid(format!("invalid hash-rate '{}'", rate_str)))?;
         if hash_rate <= 0.0 {
-            return Err(anyhow!("segment '{}' must have positive hash-rate", entry));
+            return invalid(format!("segment '{entry}' must have positive hash-rate"));
         }
 
         segments.push(Segment { blocks, hash_rate });

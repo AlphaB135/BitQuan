@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use anyhow::{bail, Result};
+use bitquan_types::error::{Error, Result};
 use bitquan_types::{
     genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxContext, TxIn, TxOut,
     Witness,
@@ -95,10 +95,14 @@ impl TransactionBuilder {
     /// Builds the unsigned transaction.
     pub fn build_unsigned(self) -> Result<Transaction> {
         if self.inputs.is_empty() {
-            bail!("Transaction must have at least one input");
+            return Err(Error::Invalid(
+                "Transaction must have at least one input".to_string(),
+            ));
         }
         if self.outputs.is_empty() {
-            bail!("Transaction must have at least one output");
+            return Err(Error::Invalid(
+                "Transaction must have at least one output".to_string(),
+            ));
         }
 
         Ok(Transaction {
@@ -151,6 +155,46 @@ impl Default for TransactionBuilder {
     }
 }
 
+/// Convenience helper for building a simple unsigned transaction.
+pub fn build_simple_tx(
+    ctx: &TxContext,
+    inputs: &[([u8; 32], u32, u64)],
+    outputs: &[(Vec<u8>, u64)],
+) -> Result<Transaction> {
+    if inputs.is_empty() {
+        return Err(Error::Invalid("no inputs".to_string()));
+    }
+    if outputs.is_empty() {
+        return Err(Error::Invalid("no outputs".to_string()));
+    }
+
+    let mut builder = TransactionBuilder::new().with_context(ctx.clone());
+
+    let mut total_in: u64 = 0;
+    for &(prev_txid, prev_vout, value) in inputs {
+        builder = builder.add_input(prev_txid, prev_vout, value);
+        total_in = total_in
+            .checked_add(value)
+            .ok_or(Error::Overflow("input sum overflow"))?;
+    }
+
+    let mut total_out: u64 = 0;
+    for (script, value) in outputs {
+        builder = builder.add_output(script.clone(), *value);
+        total_out = total_out
+            .checked_add(*value)
+            .ok_or(Error::Overflow("output sum overflow"))?;
+    }
+
+    if total_out > total_in {
+        return Err(Error::Invalid("insufficient input amount".to_string()));
+    }
+
+    builder
+        .build_unsigned()
+        .map_err(|e| Error::Invalid(e.to_string()))
+}
+
 /// Computes the signature hash for a transaction input using TxContext.
 ///
 /// This function wraps the consensus transaction_sighash and adds per-input
@@ -164,12 +208,12 @@ pub fn compute_sighash_with_context(
     use sha2::Digest;
 
     if input_index >= tx.inputs.len() {
-        bail!("Input index out of bounds");
+        return Err(Error::Invalid("Input index out of bounds".to_string()));
     }
 
     // Use consensus transaction_sighash
     let base_hash = bitquan_consensus::transaction_sighash(tx, ctx)
-        .map_err(|e| anyhow::anyhow!("Sighash error: {}", e))?;
+        .map_err(|e| Error::Invalid(format!("Sighash error: {}", e)))?;
 
     // For per-input signing, hash the base sighash with the input index
     // This allows each input to have a unique signature
@@ -238,7 +282,7 @@ pub fn select_coins(
     strategy: CoinSelection,
 ) -> Result<Vec<Utxo>> {
     if utxos.is_empty() {
-        bail!("No UTXOs available");
+        return Err(Error::Invalid("No UTXOs available".to_string()));
     }
 
     let mut available = utxos.to_vec();
@@ -279,16 +323,16 @@ pub fn select_coins(
         }
     }
 
-    bail!(
+    Err(Error::Invalid(format!(
         "Insufficient funds: need {} qbits, have {} qbits",
-        target_amount,
-        total
-    );
+        target_amount, total
+    )))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bitquan_types::error::Error;
 
     #[test]
     fn test_transaction_builder() {
@@ -410,6 +454,33 @@ mod tests {
 
         // Same transaction data but different genesis should produce different hashes
         assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn build_simple_tx_no_inputs_errs() {
+        let ctx = TxContext::devnet(GENESIS_HASH_BYTES);
+        let result = build_simple_tx(&ctx, &[], &[(vec![0x51], 1)]);
+        assert!(matches!(result, Err(Error::Invalid(msg)) if msg == "no inputs"));
+    }
+
+    #[test]
+    fn build_simple_tx_insufficient_amount_errs() {
+        let ctx = TxContext::devnet(GENESIS_HASH_BYTES);
+        let inputs = [([0xAA; 32], 0, 1)];
+        let outputs = [(vec![0x51], 2)];
+        let result = build_simple_tx(&ctx, &inputs, &outputs);
+        assert!(matches!(result, Err(Error::Invalid(msg)) if msg == "insufficient input amount"));
+    }
+
+    #[test]
+    fn build_simple_tx_success() {
+        let ctx = TxContext::devnet(GENESIS_HASH_BYTES);
+        let inputs = [([0xAA; 32], 0, 5)];
+        let outputs = [(vec![0x51], 3)];
+        let tx = build_simple_tx(&ctx, &inputs, &outputs).expect("tx");
+        assert_eq!(tx.inputs.len(), 1);
+        assert_eq!(tx.outputs.len(), 1);
+        assert_eq!(tx.outputs[0].value, 3);
     }
 
     #[test]

@@ -69,12 +69,12 @@ pub fn asert_next_target(
     params: &ConsensusParams,
     guard: Option<GuardContext<'_>>,
 ) -> f64 {
-    let half_life = params.difficulty_half_life as f64;
+    let half_life = params.difficulty.difficulty_half_life as f64;
     let min_target = 1.0;
     let max_target = compact_to_target(DEVNET_MAX_BITS);
 
     let anchor = clamp_target(anchor_target, min_target, max_target);
-    let expected_time = expected_window_time(height_delta, params.target_block_time);
+    let expected_time = expected_window_time(height_delta, params.difficulty.target_block_time);
     let time_delta_f = saturating_i64_to_f64(time_delta);
 
     let mut exponent = if half_life > 0.0 {
@@ -89,7 +89,7 @@ pub fn asert_next_target(
 
     if let Some(mut ctx) = guard {
         if burst_guard_active(&mut ctx, params, height_delta, time_delta, expected_time) {
-            let multiplier = params.burst_guard_multiplier.max(1.0);
+            let multiplier = params.difficulty.burst_guard_multiplier.max(1.0);
             next = saturating_div(next, multiplier, min_target);
         }
     }
@@ -140,17 +140,20 @@ fn burst_guard_active(
         1.0
     };
 
-    if ctx.state.active && ratio >= params.burst_guard_release_ratio {
+    if ctx.state.active && ratio >= params.difficulty.burst_guard_release_ratio {
         ctx.state.active = false;
     }
 
     let cooldown_active = ctx.state.cooldown_active(ctx.current_height);
-    let eligible_window = height_delta > 0 && (height_delta as u64) >= params.burst_guard_window;
-    let fast_enough = time_delta > 0 && ratio < params.burst_guard_floor_ratio;
+    let eligible_window =
+        height_delta > 0 && (height_delta as u64) >= params.difficulty.burst_guard_window;
+    let fast_enough = time_delta > 0 && ratio < params.difficulty.burst_guard_floor_ratio;
 
     if !ctx.state.active && !cooldown_active && eligible_window && fast_enough {
-        ctx.state
-            .trigger(ctx.current_height, params.burst_guard_cooldown_blocks);
+        ctx.state.trigger(
+            ctx.current_height,
+            params.difficulty.burst_guard_cooldown_blocks,
+        );
     }
 
     ctx.state.active
@@ -193,7 +196,7 @@ mod tests {
     use super::*;
     use crate::{
         compact_to_target, pow::DEVNET_MAX_BITS, target_to_compact, ConsensusParams,
-        DifficultyState, RewardSchedule,
+        DifficultyParams, DifficultyState, RewardSchedule,
     };
 
     fn eval(anchor: f64, height_delta: i64, time_delta: i64, params: &ConsensusParams) -> f64 {
@@ -227,24 +230,28 @@ mod tests {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
-            target_block_time: 600,
-            difficulty_half_life: 14_400,
-            burst_guard_window: 11,
-            burst_guard_floor_ratio: 0.33,
-            burst_guard_release_ratio: 0.38,
-            burst_guard_multiplier: 1.5,
-            burst_guard_cooldown_blocks: 5,
+            difficulty: DifficultyParams {
+                target_block_time: 600,
+                difficulty_half_life: 14_400,
+                burst_guard_window: 11,
+                burst_guard_floor_ratio: 0.33,
+                burst_guard_release_ratio: 0.38,
+                burst_guard_multiplier: 1.5,
+                burst_guard_cooldown_blocks: 5,
+                burst_guard_activation_height: 0,
+            },
             reward_schedule: RewardSchedule::phase3_defaults(),
         }
     }
 
     fn params_no_guard() -> ConsensusParams {
         let mut cfg = params();
-        cfg.burst_guard_window = u64::MAX;
-        cfg.burst_guard_floor_ratio = 0.0;
-        cfg.burst_guard_release_ratio = 1.0;
-        cfg.burst_guard_multiplier = 1.0;
-        cfg.burst_guard_cooldown_blocks = 0;
+        cfg.difficulty.burst_guard_window = u64::MAX;
+        cfg.difficulty.burst_guard_floor_ratio = 0.0;
+        cfg.difficulty.burst_guard_release_ratio = 1.0;
+        cfg.difficulty.burst_guard_multiplier = 1.0;
+        cfg.difficulty.burst_guard_cooldown_blocks = 0;
+        cfg.difficulty.burst_guard_activation_height = u64::MAX;
         cfg
     }
 
@@ -312,9 +319,10 @@ mod tests {
         let guarded = params();
         let no_guard = params_no_guard();
 
-        let height = guarded.burst_guard_window as i64;
-        let expected = (guarded.target_block_time * guarded.burst_guard_window) as i64;
-        let fast_time = (expected as f64 * guarded.burst_guard_floor_ratio * 0.9) as i64;
+        let height = guarded.difficulty.burst_guard_window as i64;
+        let expected =
+            (guarded.difficulty.target_block_time * guarded.difficulty.burst_guard_window) as i64;
+        let fast_time = (expected as f64 * guarded.difficulty.burst_guard_floor_ratio * 0.9) as i64;
 
         let baseline = eval(anchor, height, expected, &guarded);
         let fast_without_guard = eval(anchor, height, fast_time, &no_guard);
@@ -325,13 +333,16 @@ mod tests {
             fast_time,
             &guarded,
             &mut guard_state,
-            guarded.burst_guard_window,
+            guarded.difficulty.burst_guard_window,
             1,
         );
 
         assert!(fast_without_guard < baseline);
         assert!(fast_with_guard < fast_without_guard / 1.25); // guard should cut noticeably
-        assert!(fast_with_guard <= fast_without_guard / guarded.burst_guard_multiplier + 10.0);
+        assert!(
+            fast_with_guard
+                <= fast_without_guard / guarded.difficulty.burst_guard_multiplier + 10.0
+        );
         assert!(guard_state.is_active());
     }
 
@@ -354,9 +365,10 @@ mod tests {
         let anchor = 50_000.0;
         let guarded = params();
         let no_guard = params_no_guard();
-        let height = guarded.burst_guard_window as i64;
-        let expected = (guarded.target_block_time * guarded.burst_guard_window) as i64;
-        let fast_time = (expected as f64 * guarded.burst_guard_floor_ratio * 0.9) as i64;
+        let height = guarded.difficulty.burst_guard_window as i64;
+        let expected =
+            (guarded.difficulty.target_block_time * guarded.difficulty.burst_guard_window) as i64;
+        let fast_time = (expected as f64 * guarded.difficulty.burst_guard_floor_ratio * 0.9) as i64;
 
         let mut guard_state = BurstGuardState::default();
         let guarded_target = eval_with_guard(
@@ -365,14 +377,14 @@ mod tests {
             fast_time,
             &guarded,
             &mut guard_state,
-            guarded.burst_guard_window,
+            guarded.difficulty.burst_guard_window,
             1,
         );
         let unguarded_target = eval(anchor, height, fast_time, &no_guard);
 
         assert!(guarded_target < unguarded_target);
         let ratio = guarded_target / unguarded_target;
-        assert!(ratio <= 1.0 / guarded.burst_guard_multiplier + 0.05);
+        assert!(ratio <= 1.0 / guarded.difficulty.burst_guard_multiplier + 0.05);
         assert!(guard_state.is_active());
     }
 
@@ -382,8 +394,9 @@ mod tests {
         let guarded = params();
         let no_guard = params_no_guard();
 
-        let height = guarded.burst_guard_window as i64;
-        let expected = (guarded.target_block_time * guarded.burst_guard_window) as i64;
+        let height = guarded.difficulty.burst_guard_window as i64;
+        let expected =
+            (guarded.difficulty.target_block_time * guarded.difficulty.burst_guard_window) as i64;
         let close_time = (expected as f64 * 0.36) as i64;
 
         let mut guard_state = BurstGuardState::default();
@@ -393,7 +406,7 @@ mod tests {
             close_time,
             &guarded,
             &mut guard_state,
-            guarded.burst_guard_window,
+            guarded.difficulty.burst_guard_window,
             1,
         );
         let unguarded_target = eval(anchor, height, close_time, &no_guard);
@@ -408,8 +421,9 @@ mod tests {
         let guarded = params();
         let no_guard = params_no_guard();
 
-        let height = guarded.burst_guard_window as i64;
-        let expected = (guarded.target_block_time * guarded.burst_guard_window) as i64;
+        let height = guarded.difficulty.burst_guard_window as i64;
+        let expected =
+            (guarded.difficulty.target_block_time * guarded.difficulty.burst_guard_window) as i64;
         let total = expected - 400; // one block 400s fast vs others normal
 
         let mut guard_state = BurstGuardState::default();
@@ -419,7 +433,7 @@ mod tests {
             total,
             &guarded,
             &mut guard_state,
-            guarded.burst_guard_window,
+            guarded.difficulty.burst_guard_window,
             1,
         );
         let unguarded_target = eval(anchor, height, total, &no_guard);
@@ -432,10 +446,12 @@ mod tests {
     fn guard_no_flap_on_boundary() {
         let params = params();
         let anchor = 12_000.0;
-        let window = params.burst_guard_window as i64;
-        let expected = (params.target_block_time * params.burst_guard_window) as i64;
-        let fast_time = (expected as f64 * params.burst_guard_floor_ratio * 0.9) as i64;
-        let release_time = (expected as f64 * params.burst_guard_release_ratio * 1.05) as i64;
+        let window = params.difficulty.burst_guard_window as i64;
+        let expected =
+            (params.difficulty.target_block_time * params.difficulty.burst_guard_window) as i64;
+        let fast_time = (expected as f64 * params.difficulty.burst_guard_floor_ratio * 0.9) as i64;
+        let release_time =
+            (expected as f64 * params.difficulty.burst_guard_release_ratio * 1.05) as i64;
         let boundary_time = (expected as f64 * 0.36) as i64; // between floor and release
 
         let mut guard_state = BurstGuardState::default();
@@ -446,7 +462,7 @@ mod tests {
             fast_time,
             &params,
             &mut guard_state,
-            params.burst_guard_window,
+            params.difficulty.burst_guard_window,
             1,
         );
         assert!(guard_state.is_active());
@@ -458,7 +474,7 @@ mod tests {
             release_time,
             &params,
             &mut guard_state,
-            params.burst_guard_window + 1,
+            params.difficulty.burst_guard_window + 1,
             1,
         );
         assert!(!guard_state.is_active());
@@ -470,7 +486,7 @@ mod tests {
             boundary_time,
             &params,
             &mut guard_state,
-            params.burst_guard_window + 2,
+            params.difficulty.burst_guard_window + 2,
             1,
         );
         assert!(!guard_state.is_active());
@@ -480,13 +496,15 @@ mod tests {
     fn guard_cooldown_blocks_respected() {
         let params = params();
         let anchor = 15_000.0;
-        let window = params.burst_guard_window as i64;
-        let expected = (params.target_block_time * params.burst_guard_window) as i64;
-        let fast_time = (expected as f64 * params.burst_guard_floor_ratio * 0.9) as i64;
-        let release_time = (expected as f64 * params.burst_guard_release_ratio * 1.05) as i64;
+        let window = params.difficulty.burst_guard_window as i64;
+        let expected =
+            (params.difficulty.target_block_time * params.difficulty.burst_guard_window) as i64;
+        let fast_time = (expected as f64 * params.difficulty.burst_guard_floor_ratio * 0.9) as i64;
+        let release_time =
+            (expected as f64 * params.difficulty.burst_guard_release_ratio * 1.05) as i64;
 
         let mut guard_state = BurstGuardState::default();
-        let trigger_height = params.burst_guard_window;
+        let trigger_height = params.difficulty.burst_guard_window;
         // Trigger guard
         let _ = eval_with_guard(
             anchor,
@@ -512,7 +530,7 @@ mod tests {
         assert!(!guard_state.is_active());
 
         // During cooldown, fast blocks should not re-trigger
-        for i in 1..params.burst_guard_cooldown_blocks {
+        for i in 1..params.difficulty.burst_guard_cooldown_blocks {
             let height = trigger_height + 1 + i;
             let _ = eval_with_guard(
                 anchor,
@@ -531,7 +549,7 @@ mod tests {
         }
 
         // After cooldown expires, fast block should re-trigger
-        let resume_height = trigger_height + params.burst_guard_cooldown_blocks + 2;
+        let resume_height = trigger_height + params.difficulty.burst_guard_cooldown_blocks + 2;
         let _ = eval_with_guard(
             anchor,
             window,
@@ -550,12 +568,12 @@ mod tests {
         let anchor_height = 10_000u64;
         let anchor_time = 1_000_000u64;
         let anchor_bits = 0x1d00ffff;
-        let window = params.burst_guard_window;
+        let window = params.difficulty.burst_guard_window;
 
-        let fast_delta = ((params.target_block_time * window) as f64
-            * params.burst_guard_floor_ratio
+        let fast_delta = ((params.difficulty.target_block_time * window) as f64
+            * params.difficulty.burst_guard_floor_ratio
             * 0.9) as u64;
-        let slow_delta = params.target_block_time * window + 1_200;
+        let slow_delta = params.difficulty.target_block_time * window + 1_200;
 
         let mut slow_state = DifficultyState::new(anchor_height, anchor_time, anchor_bits, 0);
         let _ = slow_state.update(anchor_height + window, anchor_time + slow_delta, &params);
@@ -577,10 +595,15 @@ mod tests {
 
         let mut slow_state_after = slow_state.clone();
         let next_height = anchor_height + window + 1;
-        let next_timestamp = anchor_time + slow_delta + params.target_block_time;
+        let next_timestamp = anchor_time + slow_delta + params.difficulty.target_block_time;
         let via_state_bits = slow_state_after.update(next_height, next_timestamp, &params);
 
-        let direct_target = eval(slow_float, 1, params.target_block_time as i64, &params);
+        let direct_target = eval(
+            slow_float,
+            1,
+            params.difficulty.target_block_time as i64,
+            &params,
+        );
         let direct_bits = target_to_compact(direct_target);
 
         assert_eq!(via_state_bits, direct_bits);
@@ -591,11 +614,12 @@ mod tests {
         let guard = params();
         let no_guard = params_no_guard();
         let anchor = 42_000.0;
-        let window = guard.burst_guard_window as i64;
-        let expected = (guard.target_block_time * guard.burst_guard_window) as i64;
+        let window = guard.difficulty.burst_guard_window as i64;
+        let expected =
+            (guard.difficulty.target_block_time * guard.difficulty.burst_guard_window) as i64;
 
         let attempted_delta =
-            ((expected as f64) * guard.burst_guard_floor_ratio * 0.5).max(1.0) as i64;
+            ((expected as f64) * guard.difficulty.burst_guard_floor_ratio * 0.5).max(1.0) as i64;
         let mut guard_state = BurstGuardState::default();
         let attacked = eval_with_guard(
             anchor,
@@ -603,7 +627,7 @@ mod tests {
             attempted_delta,
             &guard,
             &mut guard_state,
-            guard.burst_guard_window,
+            guard.difficulty.burst_guard_window,
             1,
         );
         let attacked_no_guard = eval(anchor, window, attempted_delta, &no_guard);
@@ -611,7 +635,7 @@ mod tests {
 
         let enforced_delta = expected - 1_200;
         assert!(
-            (enforced_delta as f64) > expected as f64 * guard.burst_guard_floor_ratio,
+            (enforced_delta as f64) > expected as f64 * guard.difficulty.burst_guard_floor_ratio,
             "MTP clamp should keep the delta above guard floor"
         );
 
@@ -621,7 +645,7 @@ mod tests {
             enforced_delta,
             &guard,
             &mut guard_state,
-            guard.burst_guard_window + 1,
+            guard.difficulty.burst_guard_window + 1,
             1,
         );
         let enforced_no_guard = eval(anchor, window, enforced_delta, &no_guard);
@@ -673,7 +697,7 @@ mod tests {
             let hash_rate = pattern[segment_index].1;
             segment_remaining -= 1;
 
-            let base_interval = (params.target_block_time as f64) / hash_rate;
+            let base_interval = (params.difficulty.target_block_time as f64) / hash_rate;
             let dt = base_interval.max(1.0).round() as u64;
             timestamp = timestamp.saturating_add(dt);
             height += 1;
@@ -687,7 +711,7 @@ mod tests {
 
         let avg_interval: f64 = intervals.iter().sum::<f64>() / intervals.len() as f64;
         assert!(
-            (avg_interval - params.target_block_time as f64).abs() < 30.0,
+            (avg_interval - params.difficulty.target_block_time as f64).abs() < 30.0,
             "avg interval deviates: {avg_interval}"
         );
 
@@ -703,6 +727,7 @@ mod tests {
 #[cfg(test)]
 mod property_tests {
     use super::*;
+    use crate::{DifficultyParams, RewardSchedule};
     use proptest::prelude::*;
 
     fn params() -> ConsensusParams {
@@ -710,14 +735,17 @@ mod property_tests {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
-            target_block_time: 600,
-            difficulty_half_life: 14_400,
-            burst_guard_window: 11,
-            burst_guard_floor_ratio: 0.33,
-            burst_guard_release_ratio: 0.38,
-            burst_guard_multiplier: 1.5,
-            burst_guard_cooldown_blocks: 5,
-            reward_schedule: crate::RewardSchedule::phase3_defaults(),
+            difficulty: DifficultyParams {
+                target_block_time: 600,
+                difficulty_half_life: 14_400,
+                burst_guard_window: 11,
+                burst_guard_floor_ratio: 0.33,
+                burst_guard_release_ratio: 0.38,
+                burst_guard_multiplier: 1.5,
+                burst_guard_cooldown_blocks: 5,
+                burst_guard_activation_height: 0,
+            },
+            reward_schedule: RewardSchedule::phase3_defaults(),
         }
     }
 

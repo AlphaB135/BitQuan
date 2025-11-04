@@ -9,7 +9,6 @@ mod tx_builder;
 mod utxo;
 mod wallet;
 
-use anyhow::{anyhow, bail, Context, Result};
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
     target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
@@ -21,6 +20,7 @@ use bitquan_rpc::{server::RpcServer, tls::TlsConfig, IpNetwork, RpcConfig};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
 use bitquan_storage::{ChainStore, InMemoryChainStore};
+use bitquan_types::error::{Error, Result};
 use bitquan_types::{
     genesis::GENESIS_HASH_BYTES, Block, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut,
 };
@@ -40,6 +40,11 @@ use std::time::Duration;
 #[cfg(feature = "rocksdb-backend")]
 use rpc::NodeRpcHandler;
 
+#[inline]
+fn invalid<T>(msg: impl Into<String>) -> Result<T> {
+    Err(Error::Invalid(msg.into()))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PowMode {
     Hashcash,
@@ -51,7 +56,7 @@ impl PowMode {
         match value.to_ascii_lowercase().as_str() {
             "hashcash" | "sha256d" | "real" => Ok(PowMode::Hashcash),
             "mock" | "dev-fast-pow" => Ok(PowMode::Mock),
-            other => bail!("unknown pow engine '{}'", other),
+            other => invalid(format!("unknown pow engine '{}'", other)),
         }
     }
 }
@@ -62,13 +67,13 @@ fn parse_network_id(value: &str) -> Result<NetworkId> {
         "testnet" => Ok(NetworkId::Testnet),
         "devnet" => Ok(NetworkId::Devnet),
         "regtest" => Ok(NetworkId::Regtest),
-        other => bail!("unknown network '{}'", other),
+        other => invalid(format!("unknown network '{}'", other)),
     }
 }
 
 fn ensure_pow_allowed(pow_mode: PowMode, network: NetworkId) -> Result<()> {
     if matches!(pow_mode, PowMode::Mock) && matches!(network, NetworkId::Mainnet) {
-        bail!("mock PoW is disabled on mainnet");
+        return invalid("mock PoW is disabled on mainnet");
     }
     Ok(())
 }
@@ -975,11 +980,16 @@ fn rng_demo(label: &str, length: usize) -> Result<()> {
         return Ok(());
     }
 
-    let mut master = RngService::new()?;
+    let mut master =
+        RngService::new().map_err(|e| Error::Invalid(format!("rng init failed: {e}")))?;
     let mut derived = master.derive_stream(label);
 
-    let master_bytes = master.bytes(length)?;
-    let derived_bytes = derived.bytes(length)?;
+    let master_bytes = master
+        .bytes(length)
+        .map_err(|e| Error::Invalid(format!("rng bytes failed: {e}")))?;
+    let derived_bytes = derived
+        .bytes(length)
+        .map_err(|e| Error::Invalid(format!("rng bytes failed: {e}")))?;
 
     println!(
         "Master stream sample  ({length} bytes): {}",
@@ -1043,7 +1053,8 @@ fn mine_once(
     }
 
     // Build coinbase (placeholder coinbase input and payout output)
-    let payout_script = hex::decode(payout_script_hex)?;
+    let payout_script = hex::decode(payout_script_hex)
+        .map_err(|e| Error::Invalid(format!("invalid payout script hex: {e}")))?;
     // Construct coinbase input: prev=00..00:vout=0xffffffff, sequence=0xffffffff, script_sig=[height_le|extranonce]
     let height_le = (store.height() as u32 + 1).to_le_bytes();
     let mut script_sig = height_le.to_vec();
@@ -1117,7 +1128,8 @@ fn mine_once(
         let pow_valid = if allow_mock {
             header.nonce == 0 || header.bits >= DEVNET_MAX_BITS
         } else {
-            check_header_pow(&header).with_context(|| "pow verification failed")?
+            check_header_pow(&header)
+                .map_err(|e| Error::Invalid(format!("pow verification failed: {e}")))?
         };
 
         if pow_valid {
@@ -1207,13 +1219,15 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
     }
 
     let params = ConsensusParams::phase3_defaults();
-    let window = params.burst_guard_window as usize;
+    let window = params.difficulty.burst_guard_window as usize;
 
     // Open or create RocksDB store
-    let store = RocksDBStore::open(datadir)?;
+    let store = RocksDBStore::open(datadir)
+        .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
     let store = Arc::new(Mutex::new(store));
 
-    let payout_script = hex::decode(payout_script_hex)?;
+    let payout_script = hex::decode(payout_script_hex)
+        .map_err(|e| Error::Invalid(format!("invalid payout script hex: {e}")))?;
     let found = Arc::new(AtomicBool::new(false));
     let blocks_mined = Arc::new(AtomicU64::new(0));
 
@@ -1243,13 +1257,18 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
 
     {
         let s = store.lock().unwrap();
-        let current_height = s.height()?;
+        let current_height = s
+            .height()
+            .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?;
         if current_height > 0 {
             let start = current_height
-                .saturating_sub(params.burst_guard_window)
+                .saturating_sub(params.difficulty.burst_guard_window)
                 .saturating_add(1);
             for h in start..=current_height {
-                if let Some(block) = s.get_block_by_height(h)? {
+                if let Some(block) = s
+                    .get_block_by_height(h)
+                    .map_err(|e| Error::Invalid(format!("storage block fetch error: {e}")))?
+                {
                     let log = BlockLog {
                         height: h,
                         timestamp: block.header.time as i64,
@@ -1260,7 +1279,11 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 }
             }
             if bits == 0 {
-                bits = s.tip()?.map(|tip| tip.bits).unwrap_or(0x207fffff);
+                bits = s
+                    .tip()
+                    .map_err(|e| Error::Invalid(format!("storage tip error: {e}")))?
+                    .map(|tip| tip.bits)
+                    .unwrap_or(0x207fffff);
             }
         } else if bits == 0 {
             bits = 0x207fffff;
@@ -1278,7 +1301,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
     loop {
         let height = {
             let s = store.lock().unwrap();
-            s.height()?
+            s.height()
+                .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?
         };
 
         println!("\n[Block #{}] Mining...", height + 1);
@@ -1365,7 +1389,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             let pow_valid = if allow_mock {
                 header.nonce == 0 || header.bits >= DEVNET_MAX_BITS
             } else {
-                check_header_pow(&header).with_context(|| "pow verification failed")?
+                check_header_pow(&header)
+                    .map_err(|e| Error::Invalid(format!("pow verification failed: {e}")))?
             };
 
             if pow_valid {
@@ -1388,7 +1413,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
 
                 {
                     let mut s = store.lock().unwrap();
-                    s.insert_block(block)?;
+                    s.insert_block(block)
+                        .map_err(|e| Error::Invalid(format!("failed to insert block: {e}")))?;
                 }
 
                 let block_height = height + 1;
@@ -1401,7 +1427,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                     total_intervals += interval;
                     interval_count = interval_count
                         .checked_add(1)
-                        .ok_or_else(|| anyhow!("overflow in interval count"))?;
+                        .ok_or(Error::Overflow("interval count overflow"))?;
                 }
                 last_timestamp = Some(block_time);
 
@@ -1424,24 +1450,25 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
 
                 let height_delta = block_height as i64 - anchor.height as i64;
                 let time_delta = block_time - anchor.timestamp;
-                let expected_time = params.target_block_time as f64 * height_delta.max(1) as f64;
+                let expected_time =
+                    params.difficulty.target_block_time as f64 * height_delta.max(1) as f64;
                 let average = if height_delta > 0 {
                     time_delta as f64 / height_delta as f64
                 } else {
-                    params.target_block_time as f64
+                    params.difficulty.target_block_time as f64
                 };
                 let ratio = if expected_time > 0.0 {
                     time_delta as f64 / expected_time
                 } else {
                     1.0
                 };
-                let guard_triggered = height_delta as u64 >= params.burst_guard_window
+                let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
                     && time_delta > 0
-                    && ratio < params.burst_guard_floor_ratio;
+                    && ratio < params.difficulty.burst_guard_floor_ratio;
                 if guard_triggered {
                     guard_total = guard_total
                         .checked_add(1)
-                        .ok_or_else(|| anyhow!("overflow in guard count"))?;
+                        .ok_or(Error::Overflow("guard count overflow"))?;
                 }
 
                 let next_target =
@@ -1533,7 +1560,7 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     println!("Algorithm: {}", algo);
 
     if algo != "dilithium3" {
-        anyhow::bail!("Only 'dilithium3' is supported currently");
+        return invalid("Only 'dilithium3' is supported currently");
     }
 
     println!("\n⏳ Generating keypair...");
@@ -1560,7 +1587,7 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     };
 
     if password.len() < 8 {
-        anyhow::bail!("Password must be at least 8 characters");
+        return invalid("Password must be at least 8 characters");
     }
 
     // Serialize keypair metadata for encryption
@@ -1568,10 +1595,12 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     let json = serde_json::to_string_pretty(&serializable)?;
 
     // Encrypt and save
-    let keystore_file = keystore::encrypt_keypair(&json, &password, &address_str)?;
+    let keystore_file = keystore::encrypt_keypair(&json, &password, &address_str)
+        .map_err(|e| Error::Invalid(format!("keystore encrypt failed: {e}")))?;
 
     let path = output_path.unwrap_or("wallet.keystore");
-    keystore::save_keystore(&keystore_file, Path::new(path))?;
+    keystore::save_keystore(&keystore_file, Path::new(path))
+        .map_err(|e| Error::Invalid(format!("keystore save failed: {e}")))?;
 
     println!("\n💾 Encrypted keystore saved to: {}", path);
     println!("\n⚠️  IMPORTANT:");
@@ -1592,7 +1621,8 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
     println!("Loading keystore from: {}", keystore_path);
 
     // Load keystore
-    let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
+    let keystore_file = keystore::load_keystore(Path::new(keystore_path))
+        .map_err(|e| Error::Invalid(format!("keystore load failed: {e}")))?;
 
     // Get password
     let password = match password {
@@ -1604,7 +1634,8 @@ fn wallet_address(keystore_path: &str, password: Option<&str>) -> Result<()> {
     };
 
     // Decrypt
-    let json = keystore::decrypt_keypair(&keystore_file, &password)?;
+    let json = keystore::decrypt_keypair(&keystore_file, &password)
+        .map_err(|e| Error::Invalid(format!("keystore decrypt failed: {e}")))?;
     let data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
 
     println!("\n📍 Address: {}", data.address);
@@ -1624,8 +1655,8 @@ fn address_network_label(network: address::AddressNetwork) -> &'static str {
 
 /// Convert Bech32m address to script hex for mining/balance checks.
 fn script_from_address(addr: &str) -> Result<()> {
-    let info =
-        address::inspect(addr).map_err(|e| anyhow::anyhow!("Failed to decode address: {}", e))?;
+    let info = address::inspect(addr)
+        .map_err(|e| Error::Invalid(format!("Failed to decode address: {}", e)))?;
 
     let script = address::script_from_pubkey_hash(&info.payload);
     let script_hex = hex::encode(script);
@@ -1644,8 +1675,8 @@ fn script_from_address(addr: &str) -> Result<()> {
 
 /// Validate a Bech32m address and display decoded metadata.
 fn address_validate(addr: &str) -> Result<()> {
-    let info =
-        address::inspect(addr).map_err(|e| anyhow::anyhow!("Address validation failed: {}", e))?;
+    let info = address::inspect(addr)
+        .map_err(|e| Error::Invalid(format!("Address validation failed: {}", e)))?;
     let trimmed = addr.trim();
 
     println!("BitQuan Address Validation");
@@ -1673,11 +1704,13 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
     println!("BitQuan Wallet Sign");
     println!("Keystore: {}", keystore_path);
 
-    let message = hex::decode(message_hex)?;
+    let message = hex::decode(message_hex)
+        .map_err(|e| Error::Invalid(format!("invalid message hex: {e}")))?;
     println!("Message: {} ({} bytes)", message_hex, message.len());
 
     // Load keystore
-    let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
+    let keystore_file = keystore::load_keystore(Path::new(keystore_path))
+        .map_err(|e| Error::Invalid(format!("keystore load failed: {e}")))?;
 
     // Get password
     let password = match password {
@@ -1690,7 +1723,8 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
 
     // Decrypt keystore
     println!("\n⏳ Decrypting keystore...");
-    let json = keystore::decrypt_keypair(&keystore_file, &password)?;
+    let json = keystore::decrypt_keypair(&keystore_file, &password)
+        .map_err(|e| Error::Invalid(format!("keystore decrypt failed: {e}")))?;
     let data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
 
     println!("✅ Keystore decrypted!");
@@ -1725,9 +1759,12 @@ fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Re
 
     println!("BitQuan Wallet Verify");
 
-    let pubkey_bytes = hex::decode(pubkey_hex)?;
-    let message = hex::decode(message_hex)?;
-    let signature = hex::decode(signature_hex)?;
+    let pubkey_bytes = hex::decode(pubkey_hex)
+        .map_err(|e| Error::Invalid(format!("invalid public key hex: {e}")))?;
+    let message = hex::decode(message_hex)
+        .map_err(|e| Error::Invalid(format!("invalid message hex: {e}")))?;
+    let signature = hex::decode(signature_hex)
+        .map_err(|e| Error::Invalid(format!("invalid signature hex: {e}")))?;
 
     println!("Public key: {} bytes", pubkey_bytes.len());
     println!("Message: {} bytes", message.len());
@@ -1745,7 +1782,7 @@ fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Re
         Ok(())
     } else {
         println!("Signature is INVALID!");
-        anyhow::bail!("Signature verification failed")
+        invalid("Signature verification failed")
     }
 }
 
@@ -1769,7 +1806,8 @@ fn wallet_send(
     println!();
 
     // Load keystore
-    let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
+    let keystore_file = keystore::load_keystore(Path::new(keystore_path))
+        .map_err(|e| Error::Invalid(format!("keystore load failed: {e}")))?;
 
     // Get password
     let password = match password {
@@ -1782,7 +1820,8 @@ fn wallet_send(
 
     // Decrypt keystore
     println!("Decrypting keystore...");
-    let json = keystore::decrypt_keypair(&keystore_file, &password)?;
+    let json = keystore::decrypt_keypair(&keystore_file, &password)
+        .map_err(|e| Error::Invalid(format!("keystore decrypt failed: {e}")))?;
     let _data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
 
     println!();
@@ -1806,13 +1845,15 @@ fn wallet_send(
 
 fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str) -> Result<()> {
     let mut prev = [0u8; 32];
-    let prev_vec = hex::decode(prev_txid_hex)?;
+    let prev_vec = hex::decode(prev_txid_hex)
+        .map_err(|e| Error::Invalid(format!("invalid prev_txid hex: {e}")))?;
     if prev_vec.len() != 32 {
         println!("prev_txid must be 32 bytes hex");
         return Ok(());
     }
     prev.copy_from_slice(&prev_vec);
-    let script_pubkey = hex::decode(to_script_hex)?;
+    let script_pubkey = hex::decode(to_script_hex)
+        .map_err(|e| Error::Invalid(format!("invalid script hex: {e}")))?;
 
     let input = TxIn {
         prev_txid: prev,
@@ -1841,11 +1882,11 @@ fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str
 }
 
 fn write_envelope(mut stream: &TcpStream, env: &MessageEnvelope) -> Result<()> {
-    send_envelope(&mut stream, env).map_err(|e| anyhow::anyhow!(e.to_string()))
+    send_envelope(&mut stream, env).map_err(|e| Error::Net(e.to_string()))
 }
 
 fn read_envelope(mut stream: &TcpStream) -> Result<MessageEnvelope> {
-    recv_envelope(&mut stream).map_err(|e| anyhow::anyhow!(e.to_string()))
+    recv_envelope(&mut stream).map_err(|e| Error::Net(e.to_string()))
 }
 
 fn p2p_demo(addr: &str) -> Result<()> {
@@ -1954,7 +1995,8 @@ fn p2p_server(
     #[cfg(feature = "rocksdb-backend")]
     let (height, store) = {
         use bitquan_storage::rocksdb_store::RocksDBStore;
-        let store = RocksDBStore::open(datadir)?;
+        let store = RocksDBStore::open(datadir)
+            .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
         let h = store.height().unwrap_or(0);
         (h, Some(Arc::new(Mutex::new(store))))
     };
@@ -1975,7 +2017,7 @@ fn p2p_server(
     #[cfg(feature = "rocksdb-backend")]
     if let Some(addr) = rpc_listen {
         let username = rpc_username.ok_or_else(|| {
-            anyhow::anyhow!("--rpc-username is required when enabling RPC server")
+            Error::Invalid("--rpc-username is required when enabling RPC server".to_string())
         })?;
 
         let password_value = if let Some(pass) = rpc_password {
@@ -1984,17 +2026,17 @@ fn p2p_server(
             println!("Enter RPC password:");
             let input = read_password_from_stdin()?;
             if input.is_empty() {
-                anyhow::bail!("RPC password cannot be empty");
+                return invalid("RPC password cannot be empty");
             }
             input
         };
 
         if password_value.is_empty() {
-            anyhow::bail!("RPC password cannot be empty");
+            return invalid("RPC password cannot be empty");
         }
 
         if username.is_empty() {
-            anyhow::bail!("RPC username cannot be empty");
+            return invalid("RPC username cannot be empty");
         }
 
         if !addr.starts_with("127.") && !addr.starts_with("localhost") {
@@ -2005,7 +2047,7 @@ fn p2p_server(
         }
 
         let Some(store_arc) = store.clone() else {
-            anyhow::bail!("RPC server requires RocksDB storage backend");
+            return invalid("RPC server requires RocksDB storage backend");
         };
 
         let handler = NodeRpcHandler::new(store_arc, "mainnet");
@@ -2015,8 +2057,9 @@ fn p2p_server(
         use bitquan_rpc::jwt::{JwtAuth, JwtConfig};
 
         if jwt_config.is_none() && jwt_secret.is_none() {
-            anyhow::bail!(
+            return invalid(
                 "RPC server requires JWT authentication. Provide --jwt-config or --jwt-secret"
+                    .to_string(),
             );
         }
 
@@ -2028,30 +2071,34 @@ fn p2p_server(
             if trimmed.is_empty() {
                 continue;
             }
-            let network = IpNetwork::from_str(trimmed)
-                .map_err(|e| anyhow::anyhow!("invalid --rpc-trusted-cidr '{}': {}", trimmed, e))?;
+            let network = IpNetwork::from_str(trimmed).map_err(|e| {
+                Error::Invalid(format!("invalid --rpc-trusted-cidr '{}': {}", trimmed, e))
+            })?;
             trusted_proxies.push(network);
         }
 
         if rpc_tls_key.is_some() && rpc_tls_cert.is_none() {
-            anyhow::bail!("--rpc-tls-key provided without --rpc-tls-cert");
+            return invalid("--rpc-tls-key provided without --rpc-tls-cert");
         }
 
         let require_tls = !rpc_allow_insecure;
         let tls_config = if let Some(cert_path) = rpc_tls_cert {
             let key_path = rpc_tls_key.ok_or_else(|| {
-                anyhow::anyhow!("--rpc-tls-key is required when --rpc-tls-cert is provided")
+                Error::Invalid(
+                    "--rpc-tls-key is required when --rpc-tls-cert is provided".to_string(),
+                )
             })?;
             let tls = TlsConfig::new(Path::new(cert_path), Path::new(key_path))
-                .map_err(|err| anyhow::anyhow!("failed to initialise RPC TLS: {err}"))?;
+                .map_err(|err| Error::Invalid(format!("failed to initialise RPC TLS: {err}")))?;
             Some(tls)
         } else {
             None
         };
 
         if require_tls && tls_config.is_none() {
-            anyhow::bail!(
+            return invalid(
                 "RPC TLS is required. Provide --rpc-tls-cert/--rpc-tls-key or pass --rpc-allow-insecure for development."
+                    .to_string(),
             );
         }
 
@@ -2142,8 +2189,12 @@ fn p2p_server(
     let peer_manager = Arc::new(PeerManager::with_relay(max_peers, relay_manager.clone()));
     peer_manager.update_height(height);
 
-    let listener = P2PListener::bind(listen, peer_manager.clone())?;
-    println!("Server started at {}", listener.local_addr()?);
+    let listener = P2PListener::bind(listen, peer_manager.clone())
+        .map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
+    let local_addr = listener
+        .local_addr()
+        .map_err(|e| Error::Invalid(format!("p2p local addr failed: {e}")))?;
+    println!("Server started at {}", local_addr);
     println!("Waiting for connections...");
     println!();
     println!("Commands:");
@@ -2221,7 +2272,9 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
     let peer_manager = Arc::new(PeerManager::new(1));
     peer_manager.update_height(height);
 
-    let addr: SocketAddr = peer.parse()?;
+    let addr: SocketAddr = peer
+        .parse()
+        .map_err(|e| Error::Invalid(format!("invalid peer address: {e}")))?;
 
     println!("⏳ Connecting...");
     match peer_manager.connect_peer(addr) {
@@ -2240,7 +2293,7 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
         }
         Err(e) => {
             eprintln!("❌ Connection failed: {}", e);
-            Err(e.into())
+            Err(Error::Invalid(format!("connection failed: {e}")))
         }
     }
 }
@@ -2250,25 +2303,28 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
 fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>) -> Result<()> {
     use bitquan_storage::rocksdb_store::RocksDBStore;
 
-    let store = RocksDBStore::open(datadir)?;
-    let height = store.height()?;
+    let store = RocksDBStore::open(datadir)
+        .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
+    let height = store
+        .height()
+        .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?;
 
     println!("\n=== BitQuan Balance ===");
     println!("Chain height: {}", height);
 
     // Determine script_pubkey from either script_hex or address
     let target_script = if let Some(script) = script_hex {
-        hex::decode(script)?
+        hex::decode(script).map_err(|e| Error::Invalid(format!("invalid script hex: {e}")))?
     } else if let Some(addr) = address {
         let info = address::inspect(addr)
-            .map_err(|e| anyhow::anyhow!("Failed to decode address: {}", e))?;
+            .map_err(|e| Error::Invalid(format!("Failed to decode address: {}", e)))?;
 
         println!("Decoded address: {}", info.normalized);
         println!("Pubkey hash: {}", hex::encode(info.payload));
 
         address::script_from_pubkey_hash(&info.payload)
     } else {
-        anyhow::bail!("Either --script-hex or --address must be provided");
+        return invalid("Either --script-hex or --address must be provided");
     };
 
     println!("Script: {}", hex::encode(&target_script));
@@ -2286,10 +2342,10 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
                         // Check if spent (simplified - should check UTXO set)
                         balance = balance
                             .checked_add(output.value)
-                            .ok_or_else(|| anyhow!("overflow in balance calculation"))?;
+                            .ok_or(Error::Overflow("balance accumulation overflow"))?;
                         utxo_count = utxo_count
                             .checked_add(1)
-                            .ok_or_else(|| anyhow!("overflow in UTXO count"))?;
+                            .ok_or(Error::Overflow("UTXO count overflow"))?;
                         println!(
                             "  Block #{} TX {} vout={} amount={}",
                             h,
@@ -2322,11 +2378,16 @@ fn generate_self_signed_cert_cli(output_dir: &str) -> Result<()> {
     use std::path::Path;
 
     let path = Path::new(output_dir);
-    std::fs::create_dir_all(path)
-        .with_context(|| format!("failed to create output directory {}", path.display()))?;
+    std::fs::create_dir_all(path).map_err(|e| {
+        Error::Invalid(format!(
+            "failed to create output directory {}: {e}",
+            path.display()
+        ))
+    })?;
 
-    bitquan_rpc::tls::generate_self_signed_cert(path)
-        .map_err(|err| anyhow::anyhow!("failed to generate self-signed certificate: {err}"))?;
+    bitquan_rpc::tls::generate_self_signed_cert(path).map_err(|err| {
+        Error::Invalid(format!("failed to generate self-signed certificate: {err}"))
+    })?;
 
     println!("✅ Generated self-signed certificate:");
     println!("   cert: {}/cert.pem", path.display());
@@ -2358,7 +2419,7 @@ fn hash_password_cli(password: Option<&str>) -> Result<()> {
     };
 
     if password.is_empty() {
-        anyhow::bail!("Password cannot be empty");
+        return invalid("Password cannot be empty");
     }
 
     let salt = SaltString::generate(&mut OsRng);
@@ -2366,7 +2427,7 @@ fn hash_password_cli(password: Option<&str>) -> Result<()> {
 
     let hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?
+        .map_err(|e| Error::Invalid(format!("Failed to hash password: {}", e)))?
         .to_string();
 
     println!("\nHashed password:");
@@ -2392,23 +2453,23 @@ fn jwt_user_add(
 
     // Validate role
     if !["admin", "miner", "readonly"].contains(&role) {
-        anyhow::bail!(
+        return invalid(format!(
             "Invalid role '{}'. Must be: admin, miner, or readonly",
             role
-        );
+        ));
     }
 
     // Load existing config or create new
     let mut config = if Path::new(config_path).exists() {
         JwtConfig::from_file(config_path)
-            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
+            .map_err(|e| Error::Invalid(format!("Failed to load config: {}", e)))?
     } else {
         JwtConfig::default()
     };
 
     // Check if user already exists
     if config.users.iter().any(|u| u.username == username) {
-        anyhow::bail!("User '{}' already exists in config", username);
+        return invalid(format!("User '{}' already exists in config", username));
     }
 
     // Get password
@@ -2421,7 +2482,7 @@ fn jwt_user_add(
     };
 
     if password.is_empty() {
-        anyhow::bail!("Password cannot be empty");
+        return invalid("Password cannot be empty");
     }
 
     // Hash password
@@ -2429,7 +2490,7 @@ fn jwt_user_add(
     let argon2 = Argon2::default();
     let hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?
+        .map_err(|e| Error::Invalid(format!("Failed to hash password: {}", e)))?
         .to_string();
 
     // Add user
@@ -2442,7 +2503,7 @@ fn jwt_user_add(
     // Save config
     config
         .save_to_file(config_path)
-        .map_err(|e| anyhow::anyhow!("Failed to save config: {}", e))?;
+        .map_err(|e| Error::Invalid(format!("Failed to save config: {}", e)))?;
 
     println!(
         "✅ User '{}' added successfully with role '{}'",
@@ -2459,26 +2520,26 @@ fn jwt_user_remove(config_path: &str, username: &str) -> Result<()> {
     use std::path::Path;
 
     if !Path::new(config_path).exists() {
-        anyhow::bail!("Config file not found: {}", config_path);
+        return invalid(format!("Config file not found: {}", config_path));
     }
 
     let mut config = JwtConfig::from_file(config_path)
-        .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?;
+        .map_err(|e| Error::Invalid(format!("Failed to load config: {}", e)))?;
 
     let initial_count = config.users.len();
     config.users.retain(|u| u.username != username);
 
     if config.users.len() == initial_count {
-        anyhow::bail!("User '{}' not found in config", username);
+        return invalid(format!("User '{}' not found in config", username));
     }
 
     if config.users.is_empty() {
-        anyhow::bail!("Cannot remove last user. At least one user must remain.");
+        return invalid("Cannot remove last user. At least one user must remain.");
     }
 
     config
         .save_to_file(config_path)
-        .map_err(|e| anyhow::anyhow!("Failed to save config: {}", e))?;
+        .map_err(|e| Error::Invalid(format!("Failed to save config: {}", e)))?;
 
     println!("✅ User '{}' removed successfully", username);
     println!("📄 Config saved to: {}", config_path);
@@ -2509,11 +2570,14 @@ fn verify_database(
     };
 
     println!("Opening database with recovery options...");
-    let store = RocksDBStore::open_with_options(path, options)?;
+    let store = RocksDBStore::open_with_options(path, options)
+        .map_err(|e| Error::Invalid(format!("failed to open RocksDB with options: {e}")))?;
 
     println!();
     println!("📊 Database Statistics:");
-    let stats = store.get_stats()?;
+    let stats = store
+        .get_stats()
+        .map_err(|e| Error::Invalid(format!("storage stats error: {e}")))?;
     println!("  Chain height: {}", stats.height);
     println!("  Total blocks: {}", stats.num_blocks);
     println!("  Transactions: {}", stats.num_transactions);
@@ -2530,11 +2594,11 @@ fn jwt_user_list(config_path: &str) -> Result<()> {
     use std::path::Path;
 
     if !Path::new(config_path).exists() {
-        anyhow::bail!("Config file not found: {}", config_path);
+        return invalid(format!("Config file not found: {}", config_path));
     }
 
     let config = JwtConfig::from_file(config_path)
-        .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?;
+        .map_err(|e| Error::Invalid(format!("Failed to load config: {}", e)))?;
 
     if config.users.is_empty() {
         println!("No users found in config");
@@ -2608,13 +2672,15 @@ fn wallet_gen_mnemonic(
     };
 
     if password_value.is_empty() {
-        anyhow::bail!("Password cannot be empty");
+        return invalid("Password cannot be empty");
     }
 
     // Encrypt and save keystore
-    let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)?;
+    let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)
+        .map_err(|e| Error::Invalid(format!("keystore encrypt failed: {e}")))?;
     let output_file = output_path.unwrap_or("wallet.keystore");
-    keystore::save_keystore(&keystore_file, Path::new(output_file))?;
+    keystore::save_keystore(&keystore_file, Path::new(output_file))
+        .map_err(|e| Error::Invalid(format!("keystore save failed: {e}")))?;
 
     println!("\n✅ Wallet created successfully!");
     println!("📄 Keystore saved to: {}", output_file);
@@ -2647,7 +2713,7 @@ fn wallet_from_mnemonic(
     };
 
     if mnemonic_phrase.is_empty() {
-        anyhow::bail!("Mnemonic phrase cannot be empty");
+        return invalid("Mnemonic phrase cannot be empty");
     }
 
     // Validate and parse mnemonic
@@ -2670,13 +2736,15 @@ fn wallet_from_mnemonic(
     };
 
     if password_value.is_empty() {
-        anyhow::bail!("Password cannot be empty");
+        return invalid("Password cannot be empty");
     }
 
     // Encrypt and save keystore
-    let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)?;
+    let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)
+        .map_err(|e| Error::Invalid(format!("keystore encrypt failed: {e}")))?;
     let output_file = output_path.unwrap_or("wallet-recovered.keystore");
-    keystore::save_keystore(&keystore_file, Path::new(output_file))?;
+    keystore::save_keystore(&keystore_file, Path::new(output_file))
+        .map_err(|e| Error::Invalid(format!("keystore save failed: {e}")))?;
 
     println!("\n✅ Wallet recovered successfully!");
     println!("📄 Keystore saved to: {}", output_file);
@@ -2696,7 +2764,7 @@ fn wallet_gen_multisig(
     use std::path::Path;
 
     if keystores.is_empty() {
-        anyhow::bail!("At least 2 keystore files required for multisig");
+        return invalid("At least 2 keystore files required for multisig");
     }
 
     println!(
@@ -2716,12 +2784,14 @@ fn wallet_gen_multisig(
             keystore_path
         );
 
-        let keystore_file = keystore::load_keystore(Path::new(keystore_path))?;
+        let keystore_file = keystore::load_keystore(Path::new(keystore_path))
+            .map_err(|e| Error::Invalid(format!("keystore load failed: {e}")))?;
 
         // Prompt for password
         println!("🔑 Enter password for {}:", keystore_path);
         let password = read_password_from_stdin()?;
-        let json = keystore::decrypt_keypair(&keystore_file, &password)?;
+        let json = keystore::decrypt_keypair(&keystore_file, &password)
+            .map_err(|e| Error::Invalid(format!("keystore decrypt failed: {e}")))?;
         let serializable: wallet::SerializableKeypair = serde_json::from_str(&json)?;
 
         public_keys.push(serializable.public_key.clone());
@@ -2735,7 +2805,8 @@ fn wallet_gen_multisig(
     };
 
     // Create multisig config
-    let config = MultisigConfig::new(threshold as u8, public_keys, label)?;
+    let config = MultisigConfig::new(threshold as u8, public_keys, label)
+        .map_err(|e| Error::Invalid(format!("multisig config error: {e}")))?;
 
     // Generate address
     let address = config.address();
@@ -2812,7 +2883,7 @@ fn tx_sign_partial(
     println!("\n💡 For now, use the multisig module directly in your code:");
     println!("   use wallet::multisig::{{MultisigWallet, PendingMultisigTx}};");
 
-    anyhow::bail!("Feature coming soon: partial transaction signing")
+    invalid("Feature coming soon: partial transaction signing")
 }
 
 /// Combine partial signatures
@@ -2828,7 +2899,7 @@ fn tx_combine_signatures(
     println!("\n💡 For now, use the multisig module directly in your code:");
     println!("   use wallet::multisig::{{MultisigWallet, FinalizedMultisigTx}};");
 
-    anyhow::bail!("Feature coming soon: signature combination")
+    invalid("Feature coming soon: signature combination")
 }
 
 /// Create encrypted backup of wallet keystore
@@ -2844,7 +2915,7 @@ fn wallet_backup(
 
     // Read keystore file
     let keystore_data = fs::read(keystore_path)
-        .with_context(|| format!("Failed to read keystore: {}", keystore_path))?;
+        .map_err(|e| Error::Invalid(format!("Failed to read keystore {}: {e}", keystore_path)))?;
 
     // Get backup password
     let backup_pw = match backup_password {
@@ -2861,21 +2932,23 @@ fn wallet_backup(
         "mainnet" => Network::Mainnet,
         "testnet" => Network::Testnet,
         "devnet" => Network::Devnet,
-        _ => bail!(
-            "Invalid network: {} (use mainnet, testnet, or devnet)",
-            network
-        ),
+        _ => {
+            return invalid(format!(
+                "Invalid network: {} (use mainnet, testnet, or devnet)",
+                network
+            ))
+        }
     };
 
     // Create backup
     println!("Creating encrypted backup...");
     let backup = WalletBackup::create(&keystore_data, &backup_pw, net, label)
-        .map_err(|e| anyhow!("Backup creation failed: {}", e))?;
+        .map_err(|e| Error::Invalid(format!("Backup creation failed: {}", e)))?;
 
     // Save to file
     backup
         .save(output_path)
-        .with_context(|| format!("Failed to save backup: {}", output_path))?;
+        .map_err(|e| Error::Invalid(format!("Failed to save backup {}: {e}", output_path)))?;
 
     println!("✅ Backup created successfully: {}", output_path);
     println!("   Version: {}", backup.version);
@@ -2901,7 +2974,7 @@ fn wallet_restore(
     // Load backup
     println!("Loading backup file...");
     let backup = WalletBackup::load(backup_path)
-        .with_context(|| format!("Failed to load backup: {}", backup_path))?;
+        .map_err(|e| Error::Invalid(format!("Failed to load backup {}: {e}", backup_path)))?;
 
     println!("Backup information:");
     println!("   Version: {}", backup.version);
@@ -2925,7 +2998,7 @@ fn wallet_restore(
     println!("Decrypting and restoring wallet...");
     let keystore_data = backup
         .restore(&backup_pw)
-        .map_err(|e| anyhow!("Restore failed: {}", e))?;
+        .map_err(|e| Error::Invalid(format!("Restore failed: {}", e)))?;
 
     // Check if output exists
     if std::path::Path::new(output_path).exists() {
@@ -2934,13 +3007,13 @@ fn wallet_restore(
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
         if !input.trim().eq_ignore_ascii_case("y") {
-            bail!("Restore cancelled");
+            return invalid("Restore cancelled");
         }
     }
 
     // Write keystore
     fs::write(output_path, keystore_data)
-        .with_context(|| format!("Failed to write keystore: {}", output_path))?;
+        .map_err(|e| Error::Invalid(format!("Failed to write keystore {}: {e}", output_path)))?;
 
     println!("✅ Wallet restored successfully: {}", output_path);
     println!("\n⚠️  Remember to use your original wallet password to access this keystore.");

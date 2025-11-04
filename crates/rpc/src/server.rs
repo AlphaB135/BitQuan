@@ -1333,7 +1333,7 @@ fn take_token(
     ip: IpAddr,
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     config: &RpcConfig,
-) -> Result<(), u64> {
+) -> std::result::Result<(), u64> {
     let mut map = limiter.lock().unwrap();
     let bucket = map.entry(ip).or_insert_with(|| TokenBucket {
         tokens: config.rl_burst as f64,
@@ -1639,19 +1639,21 @@ mod tests {
     use crate::methods::{BlockTemplate, BlockchainInfo, MiningInfo, RpcMethods, TxInfo};
     use crate::test_util::{init_test_tracing, spawn_test_server, wait_ready};
     use crate::{RpcConfig, RpcError};
-    use anyhow::Result;
+    use bitquan_types::error::Error;
     use futures::future::try_join_all;
     use reqwest::StatusCode;
     use tokio::time::{sleep, timeout, Duration};
 
+    type TestResult<T> = std::result::Result<T, Error>;
+
     struct TestHandler;
 
     impl RpcMethods for TestHandler {
-        fn getblockcount(&self) -> Result<u64, RpcError> {
+        fn getblockcount(&self) -> std::result::Result<u64, RpcError> {
             Ok(100)
         }
 
-        fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError> {
+        fn getblockchaininfo(&self) -> std::result::Result<BlockchainInfo, RpcError> {
             Ok(BlockchainInfo {
                 chain: "test".to_string(),
                 blocks: 100,
@@ -1661,7 +1663,7 @@ mod tests {
             })
         }
 
-        fn getmininginfo(&self) -> Result<MiningInfo, RpcError> {
+        fn getmininginfo(&self) -> std::result::Result<MiningInfo, RpcError> {
             Ok(MiningInfo {
                 blocks: 100,
                 difficulty: 1.0,
@@ -1669,36 +1671,59 @@ mod tests {
             })
         }
 
-        fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError> {
+        fn getblocktemplate(&self) -> std::result::Result<BlockTemplate, RpcError> {
             Err(RpcError::InternalError("not implemented".to_string()))
         }
 
-        fn submitblock(&self, _: String) -> Result<bool, RpcError> {
+        fn submitblock(&self, _: String) -> std::result::Result<bool, RpcError> {
             Ok(true)
         }
 
-        fn gettransaction(&self, _: String) -> Result<TxInfo, RpcError> {
+        fn gettransaction(&self, _: String) -> std::result::Result<TxInfo, RpcError> {
             Err(RpcError::InternalError("not found".to_string()))
         }
 
-        fn getbestblockhash(&self) -> Result<String, RpcError> {
+        fn getbestblockhash(&self) -> std::result::Result<String, RpcError> {
             Ok("test".to_string())
         }
 
-        fn getblockhash(&self, _: u64) -> Result<String, RpcError> {
+        fn getblockhash(&self, _: u64) -> std::result::Result<String, RpcError> {
             Ok("test".to_string())
         }
 
-        fn getwork(&self) -> Result<crate::methods::WorkData, RpcError> {
+        fn getwork(&self) -> std::result::Result<crate::methods::WorkData, RpcError> {
             Ok(crate::methods::WorkData {
                 data: "00000000".to_string(),
                 target: "00000000ffff".to_string(),
             })
         }
 
-        fn submitwork(&self, _: String) -> Result<bool, RpcError> {
+        fn submitwork(&self, _: String) -> std::result::Result<bool, RpcError> {
             Ok(true)
         }
+    }
+
+    fn build_client(timeout: Duration) -> TestResult<reqwest::Client> {
+        reqwest::Client::builder()
+            .timeout(timeout)
+            .build()
+            .map_err(|e| Error::Net(format!("failed to build HTTP client: {e}")))
+    }
+
+    async fn send_with_timeout<F>(fut: F, duration: Duration) -> TestResult<reqwest::Response>
+    where
+        F: std::future::Future<Output = std::result::Result<reqwest::Response, reqwest::Error>>,
+    {
+        timeout(duration, fut)
+            .await
+            .map_err(|_| Error::Timeout("rpc request timed out".to_string()))?
+            .map_err(|e| Error::Net(format!("rpc request failed: {e}")))
+    }
+
+    async fn read_body(resp: reqwest::Response) -> TestResult<String> {
+        resp.text()
+            .await
+            .map_err(|e| Error::Net(format!("failed to read response body: {e}")))
     }
 
     fn base_config() -> RpcConfig {
@@ -1722,7 +1747,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn health_not_rate_limited_under_load() -> Result<()> {
+    async fn health_not_rate_limited_under_load() -> TestResult<()> {
         init_test_tracing();
         let mut config = base_config();
         config.rl_burst = 1;
@@ -1731,9 +1756,7 @@ mod tests {
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()?;
+        let client = build_client(Duration::from_secs(2))?;
         let health_url = format!("{}/health", base_url);
 
         let mut tasks = Vec::with_capacity(50);
@@ -1741,8 +1764,9 @@ mod tests {
             let client = client.clone();
             let url = health_url.clone();
             tasks.push(async move {
-                let resp = timeout(Duration::from_secs(5), client.get(url).send()).await??;
-                anyhow::Result::<StatusCode>::Ok(resp.status())
+                let resp =
+                    send_with_timeout(client.get(url).send(), Duration::from_secs(5)).await?;
+                Ok::<StatusCode, Error>(resp.status())
             });
         }
 
@@ -1750,36 +1774,41 @@ mod tests {
         assert!(statuses.into_iter().all(|code| code == StatusCode::OK));
 
         let _ = shutdown_tx.send(());
-        let _ = timeout(Duration::from_secs(5), handle).await??;
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn health_requires_no_auth_and_closes() -> Result<()> {
+    async fn health_requires_no_auth_and_closes() -> TestResult<()> {
         init_test_tracing();
         let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), base_config());
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()?;
+        let client = build_client(Duration::from_secs(2))?;
 
-        let resp = timeout(
-            Duration::from_secs(5),
+        let resp = send_with_timeout(
             client.get(format!("{}/health", base_url)).send(),
+            Duration::from_secs(5),
         )
-        .await??;
+        .await?;
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.text().await?, "ok");
+        let body = read_body(resp).await?;
+        assert_eq!(body, "ok");
 
         let _ = shutdown_tx.send(());
-        let _ = timeout(Duration::from_secs(5), handle).await??;
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn rpc_body_within_limit_allows_200() -> Result<()> {
+    async fn rpc_body_within_limit_allows_200() -> TestResult<()> {
         init_test_tracing();
         let mut config = base_config();
         config.max_body_bytes = 131_072;
@@ -1787,30 +1816,31 @@ mod tests {
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()?;
+        let client = build_client(Duration::from_secs(2))?;
         let rpc_endpoint = format!("{}/rpc", base_url);
 
         let body = vec![b'a'; 64 * 1024];
-        let resp = timeout(
-            Duration::from_secs(5),
+        let resp = send_with_timeout(
             client
                 .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
                 .body(body)
                 .send(),
+            Duration::from_secs(5),
         )
-        .await??;
+        .await?;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let _ = shutdown_tx.send(());
-        let _ = timeout(Duration::from_secs(5), handle).await??;
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn rpc_max_body_returns_413() -> Result<()> {
+    async fn rpc_max_body_returns_413() -> TestResult<()> {
         init_test_tracing();
         let mut config = base_config();
         config.max_body_bytes = 131_072;
@@ -1818,60 +1848,62 @@ mod tests {
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()?;
+        let client = build_client(Duration::from_secs(2))?;
         let rpc_endpoint = format!("{}/rpc", base_url);
 
         let oversized = vec![b'a'; 256 * 1024];
-        let resp = timeout(
-            Duration::from_secs(5),
+        let resp = send_with_timeout(
             client
                 .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
                 .body(oversized)
                 .send(),
+            Duration::from_secs(5),
         )
-        .await??;
+        .await?;
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         let _ = shutdown_tx.send(());
-        let _ = timeout(Duration::from_secs(5), handle).await??;
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn rpc_without_auth_passes() -> Result<()> {
+    async fn rpc_without_auth_passes() -> TestResult<()> {
         init_test_tracing();
         let config = base_config();
         let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()?;
+        let client = build_client(Duration::from_secs(2))?;
         let rpc_endpoint = format!("{}/rpc", base_url);
 
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
-        let resp = timeout(
-            Duration::from_secs(5),
+        let resp = send_with_timeout(
             client
                 .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
                 .body(body)
                 .send(),
+            Duration::from_secs(5),
         )
-        .await??;
+        .await?;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let _ = shutdown_tx.send(());
-        let _ = timeout(Duration::from_secs(5), handle).await??;
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn rpc_concurrency_smoke() -> Result<()> {
+    async fn rpc_concurrency_smoke() -> TestResult<()> {
         init_test_tracing();
         let mut config = base_config();
         config.rl_burst = 20;
@@ -1879,9 +1911,7 @@ mod tests {
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()?;
+        let client = build_client(Duration::from_secs(2))?;
         let rpc_endpoint = format!("{}/rpc", base_url);
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#.to_string();
 
@@ -1891,16 +1921,16 @@ mod tests {
             let url = rpc_endpoint.clone();
             let body = body.clone();
             tasks.push(async move {
-                let resp = timeout(
-                    Duration::from_secs(5),
+                let resp = send_with_timeout(
                     client
                         .post(&url)
                         .header("Content-Type", "application/json")
                         .body(body)
                         .send(),
+                    Duration::from_secs(5),
                 )
-                .await??;
-                anyhow::Result::<String>::Ok(resp.text().await?)
+                .await?;
+                read_body(resp).await
             });
         }
 
@@ -1910,12 +1940,15 @@ mod tests {
         }
 
         let _ = shutdown_tx.send(());
-        let _ = timeout(Duration::from_secs(5), handle).await??;
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn rpc_rate_limit_429_when_exceeded() -> Result<()> {
+    async fn rpc_rate_limit_429_when_exceeded() -> TestResult<()> {
         init_test_tracing();
         let mut config = base_config();
         config.rl_burst = 5;
@@ -1924,23 +1957,21 @@ mod tests {
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()?;
+        let client = build_client(Duration::from_secs(2))?;
         let rpc_endpoint = format!("{}/rpc", base_url);
 
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
         let mut statuses = Vec::new();
         for _ in 0..10 {
-            let resp = timeout(
-                Duration::from_secs(5),
+            let resp = send_with_timeout(
                 client
                     .post(&rpc_endpoint)
                     .header("Content-Type", "application/json")
                     .body(body)
                     .send(),
+                Duration::from_secs(5),
             )
-            .await??;
+            .await?;
             statuses.push(resp.status());
         }
 
@@ -1953,12 +1984,15 @@ mod tests {
         assert_eq!(limited, 5);
 
         let _ = shutdown_tx.send(());
-        let _ = timeout(Duration::from_secs(5), handle).await??;
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn rpc_rate_limit_recovers_after_time() -> Result<()> {
+    async fn rpc_rate_limit_recovers_after_time() -> TestResult<()> {
         init_test_tracing();
         let mut config = base_config();
         config.rl_burst = 2;
@@ -1967,51 +2001,207 @@ mod tests {
         let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
 
         wait_ready(&base_url).await?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()?;
+        let client = build_client(Duration::from_secs(2))?;
         let rpc_endpoint = format!("{}/rpc", base_url);
         let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
 
         for _ in 0..2 {
-            let resp = timeout(
-                Duration::from_secs(5),
+            let resp = send_with_timeout(
                 client
                     .post(&rpc_endpoint)
                     .header("Content-Type", "application/json")
                     .body(body)
                     .send(),
+                Duration::from_secs(5),
             )
-            .await??;
+            .await?;
             assert_eq!(resp.status(), StatusCode::OK);
         }
 
-        let third = timeout(
-            Duration::from_secs(5),
+        let third = send_with_timeout(
             client
                 .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
                 .body(body)
                 .send(),
+            Duration::from_secs(5),
         )
-        .await??;
+        .await?;
         assert_eq!(third.status(), StatusCode::TOO_MANY_REQUESTS);
 
         sleep(Duration::from_millis(300)).await;
 
-        let fourth = timeout(
-            Duration::from_secs(5),
+        let fourth = send_with_timeout(
             client
                 .post(&rpc_endpoint)
                 .header("Content-Type", "application/json")
                 .body(body)
                 .send(),
+            Duration::from_secs(5),
         )
-        .await??;
+        .await?;
         assert_eq!(fourth.status(), StatusCode::OK);
 
         let _ = shutdown_tx.send(());
-        let _ = timeout(Duration::from_secs(5), handle).await??;
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_rate_limit_sets_retry_after_header() -> TestResult<()> {
+        init_test_tracing();
+        let mut config = base_config();
+        config.rl_burst = 1;
+        config.rl_refill_per_sec = 1;
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
+
+        wait_ready(&base_url).await?;
+        let client = build_client(Duration::from_secs(2))?;
+        let endpoint = format!("{}/rpc", base_url);
+        let body = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
+
+        // First request should succeed.
+        send_with_timeout(
+            client
+                .post(&endpoint)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .send(),
+            Duration::from_secs(5),
+        )
+        .await?;
+
+        // Second should be rate limited and include Retry-After.
+        let limited = send_with_timeout(
+            client
+                .post(&endpoint)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .send(),
+            Duration::from_secs(5),
+        )
+        .await?;
+        assert_eq!(limited.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(limited.headers().get("Retry-After").is_some());
+
+        let _ = shutdown_tx.send(());
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_slow_body_times_out_with_408() -> TestResult<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        init_test_tracing();
+        let mut config = base_config();
+        config.body_read_timeout_ms = 200;
+        config.conn_cooldown_ms = 0;
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
+
+        wait_ready(&base_url).await?;
+        let addr = base_url
+            .strip_prefix("http://")
+            .ok_or_else(|| Error::Invalid(format!("unexpected base url: {base_url}")))?;
+
+        let mut stream = tokio::net::TcpStream::connect(addr)
+            .await
+            .map_err(|e| Error::Net(format!("failed to connect {addr}: {e}")))?;
+
+        let request = format!(
+            "POST /rpc HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: 20\r\nConnection: close\r\n\r\n"
+        );
+        stream
+            .write_all(request.as_bytes())
+            .await
+            .map_err(|e| Error::Net(format!("failed to send headers: {e}")))?;
+
+        sleep(Duration::from_millis(400)).await;
+
+        stream
+            .write_all(b"{\"jsonrpc\":\"2.0\"}")
+            .await
+            .map_err(|e| Error::Net(format!("failed to send body: {e}")))?;
+        stream
+            .shutdown()
+            .await
+            .map_err(|e| Error::Net(format!("failed to shutdown stream: {e}")))?;
+
+        let mut buf = Vec::new();
+        timeout(Duration::from_secs(5), stream.read_to_end(&mut buf))
+            .await
+            .map_err(|_| Error::Timeout("response read timed out".to_string()))?
+            .map_err(|e| Error::Net(format!("read failed: {e}")))?;
+        let response = String::from_utf8(buf)
+            .map_err(|e| Error::Invalid(format!("invalid response utf-8: {e}")))?;
+        assert!(response.starts_with("HTTP/1.1 408"));
+
+        let _ = shutdown_tx.send(());
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rpc_header_flood_returns_431_or_400() -> TestResult<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        init_test_tracing();
+        let mut config = base_config();
+        config.max_header_bytes = 1_024;
+        config.header_read_timeout_ms = 300;
+        config.conn_cooldown_ms = 0;
+        let server = RpcServer::without_auth(TestHandler, "127.0.0.1:0".to_string(), config);
+        let (base_url, handle, shutdown_tx) = spawn_test_server(server)?;
+
+        wait_ready(&base_url).await?;
+        let addr = base_url
+            .strip_prefix("http://")
+            .ok_or_else(|| Error::Invalid(format!("unexpected base url: {base_url}")))?;
+
+        let mut stream = tokio::net::TcpStream::connect(addr)
+            .await
+            .map_err(|e| Error::Net(format!("failed to connect {addr}: {e}")))?;
+
+        let mut request = format!(
+            "POST /rpc HTTP/1.1\r\nHost: {addr}\r\nContent-Length: 2\r\nConnection: close\r\n"
+        );
+        for i in 0..128 {
+            request.push_str(&format!("X-Noise-{i}: {}\r\n", "A".repeat(16)));
+        }
+        request.push_str("Content-Type: application/json\r\n\r\n{}\r\n");
+
+        stream
+            .write_all(request.as_bytes())
+            .await
+            .map_err(|e| Error::Net(format!("failed to send flood request: {e}")))?;
+        stream
+            .shutdown()
+            .await
+            .map_err(|e| Error::Net(format!("failed to shutdown stream: {e}")))?;
+
+        let mut buf = Vec::new();
+        timeout(Duration::from_secs(5), stream.read_to_end(&mut buf))
+            .await
+            .map_err(|_| Error::Timeout("response read timed out".to_string()))?
+            .map_err(|e| Error::Net(format!("read failed: {e}")))?;
+        let response = String::from_utf8(buf)
+            .map_err(|e| Error::Invalid(format!("invalid response utf-8: {e}")))?;
+        assert!(response.starts_with("HTTP/1.1 431") || response.starts_with("HTTP/1.1 400"));
+
+        let _ = shutdown_tx.send(());
+        timeout(Duration::from_secs(5), handle)
+            .await
+            .map_err(|_| Error::Timeout("server shutdown timeout".to_string()))?
+            .map_err(|e| Error::Invalid(format!("server join error: {e}")))??;
         Ok(())
     }
 }

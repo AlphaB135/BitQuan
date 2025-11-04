@@ -3,7 +3,7 @@
 //! This module provides key management, address generation, and transaction signing
 //! using post-quantum cryptography (Dilithium).
 
-use anyhow::{bail, Result};
+use bitquan_types::error::{Error, Result};
 use pqc_dilithium_seeded::{self as dilithium, Keypair, PUBLICKEYBYTES, SECRETKEYBYTES, SIGNBYTES};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -132,7 +132,9 @@ impl WalletKeypair {
         // Cannot reconstruct keypair from serialized format
         // with current pqc_dilithium 0.2 API
         // User must generate a new keypair instead
-        bail!("Keypair reconstruction not supported - please generate a new keypair")
+        Err(Error::Invalid(
+            "Keypair reconstruction not supported - please generate a new keypair".to_string(),
+        ))
     }
 
     /// Returns the public key hash (for address generation).
@@ -176,7 +178,9 @@ impl WalletKeypair {
     /// Loads keypair from a file.
     #[allow(dead_code)]
     pub fn load_from_file(_path: &Path) -> Result<Self> {
-        bail!("Keypair loading not yet implemented - generate new keypair for now")
+        Err(Error::Invalid(
+            "Keypair loading not yet implemented - generate new keypair for now".to_string(),
+        ))
     }
 
     /// Exports public key only (safe to share).
@@ -219,8 +223,8 @@ impl WalletPublicKey {
 
 /// Bech32m address encoding (BIP 350 compatible).
 pub mod address {
-    use anyhow::{bail, Result};
     use bech32::{Bech32m, Hrp};
+    use bitquan_types::error::{Error, Result};
 
     /// Human-readable prefix for BitQuan mainnet addresses.
     pub const HRP_MAINNET: &str = "bq";
@@ -263,32 +267,35 @@ pub mod address {
     pub fn decode_with_hrp(address: &str, expected_hrp: &str) -> Result<[u8; 32]> {
         // Decode Bech32m
         let (hrp, data) = bech32::decode(address)
-            .map_err(|e| anyhow::anyhow!("Invalid Bech32m address: {}", e))?;
+            .map_err(|e| Error::Invalid(format!("Invalid Bech32m address: {}", e)))?;
 
         // Verify HRP
         if hrp.as_str() != expected_hrp {
-            bail!("Invalid HRP: expected '{}', got '{}'", expected_hrp, hrp);
+            return Err(Error::Invalid(format!(
+                "Invalid HRP: expected '{}', got '{}'",
+                expected_hrp, hrp
+            )));
         }
 
         // Verify witness version
         if data.is_empty() {
-            bail!("Address data is empty");
+            return Err(Error::Invalid("Address data is empty".to_string()));
         }
 
         let witness_version = data[0];
         if witness_version != 1 {
-            bail!(
+            return Err(Error::Invalid(format!(
                 "Invalid witness version: expected 1, got {}",
                 witness_version
-            );
+            )));
         }
 
         // Extract pubkey hash (skip witness version byte)
         if data.len() != 33 {
-            bail!(
+            return Err(Error::Invalid(format!(
                 "Invalid address length: expected 33 bytes, got {}",
                 data.len()
-            );
+            )));
         }
 
         let mut pubkey_hash = [0u8; 32];
@@ -319,7 +326,7 @@ pub mod address {
                     "Address has invalid checksum or characters"
                 };
 
-                Err(anyhow::anyhow!("{}\nHint: {}", e, hint))
+                Err(Error::Invalid(format!("{}\nHint: {}", e, hint)))
             }
         }
     }

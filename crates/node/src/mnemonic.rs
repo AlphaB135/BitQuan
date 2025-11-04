@@ -5,8 +5,8 @@
 
 #![allow(dead_code)]
 
-use anyhow::{bail, Result};
 use bip39::Mnemonic;
+use bitquan_types::error::{Error, Result};
 
 /// Default mnemonic word count (12 words = 128 bits entropy).
 #[allow(dead_code)]
@@ -30,15 +30,20 @@ pub fn generate_mnemonic(word_count: usize) -> Result<Mnemonic> {
         18 => 192,
         21 => 224,
         24 => 256,
-        _ => bail!("Invalid word count: must be 12, 15, 18, 21, or 24"),
+        _ => {
+            return Err(Error::Invalid(
+                "Invalid word count: must be 12, 15, 18, 21, or 24".to_string(),
+            ))
+        }
     };
 
     let entropy_bytes = entropy_bits / 8;
     let mut entropy = vec![0u8; entropy_bytes];
-    getrandom::getrandom(&mut entropy)?;
+    getrandom::getrandom(&mut entropy)
+        .map_err(|e| Error::Invalid(format!("Failed to generate mnemonic entropy: {e}")))?;
 
     Mnemonic::from_entropy(&entropy)
-        .map_err(|e| anyhow::anyhow!("Failed to generate mnemonic: {:?}", e))
+        .map_err(|e| Error::Invalid(format!("Failed to generate mnemonic: {:?}", e)))
 }
 
 /// Converts a mnemonic phrase to a seed.
@@ -53,7 +58,7 @@ pub fn mnemonic_to_seed(mnemonic: &Mnemonic, passphrase: Option<&str>) -> [u8; 6
 
 /// Parses a mnemonic phrase from a string.
 pub fn parse_mnemonic(phrase: &str) -> Result<Mnemonic> {
-    Mnemonic::parse(phrase).map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))
+    Mnemonic::parse(phrase).map_err(|e| Error::Invalid(format!("Invalid mnemonic phrase: {:?}", e)))
 }
 
 /// Validates a mnemonic phrase.
@@ -94,7 +99,7 @@ pub fn seed_to_keypair_with_index(
 
     // Create HMAC-SHA512 with seed as key
     let mut mac = Hmac::<Sha512>::new_from_slice(seed)
-        .map_err(|e| anyhow::anyhow!("HMAC initialization failed: {}", e))?;
+        .map_err(|e| Error::Invalid(format!("HMAC initialization failed: {e}")))?;
 
     // Add index to derive different keys
     mac.update(b"BitQuan Dilithium Key Derivation");
@@ -205,6 +210,11 @@ mod tests {
         assert!(!validate_mnemonic("invalid phrase here"));
         assert!(!validate_mnemonic(""));
         assert!(!validate_mnemonic("word1 word2 word3"));
+    }
+
+    #[test]
+    fn parse_mnemonic_invalid_returns_error() {
+        assert!(parse_mnemonic("this is not a valid mnemonic").is_err());
     }
 
     #[test]

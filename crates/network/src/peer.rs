@@ -1,9 +1,67 @@
 //! TCP-based P2P connection handler.
 
 use crate::protocol::{Message, MessageEnvelope, P2pError, PROTOCOL_VERSION};
+use bitquan_types::error::{Error, Result as TypesResult};
+use bitquan_types::ext::ResultExt;
+use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+/// Maximum frame size accepted by low-level peer helpers (2 MiB).
+pub const MAX_MSG_BYTES: usize = 2 * 1024 * 1024;
+/// Handshake timeout in milliseconds.
+pub const HANDSHAKE_TIMEOUT_MS: u64 = 1_200;
+
+/// Performs a minimal TCP handshake with timeouts applied.
+pub fn handshake(stream: &mut TcpStream) -> TypesResult<()> {
+    let timeout = Duration::from_millis(HANDSHAKE_TIMEOUT_MS);
+    stream.set_read_timeout(Some(timeout))?;
+    stream.set_write_timeout(Some(timeout))?;
+
+    match do_handshake(stream) {
+        Ok(()) => Ok(()),
+        Err(e)
+            if matches!(
+                e.kind(),
+                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+            ) =>
+        {
+            Err(Error::Timeout("handshake timeout".to_string()))
+        }
+        Err(e) => Err(Error::Net(e.to_string())),
+    }
+}
+
+/// Reads a single length-prefixed message frame.
+pub fn read_frame<R: Read>(reader: &mut R) -> TypesResult<Vec<u8>> {
+    let mut len_le = [0u8; 4];
+    reader.read_exact(&mut len_le).ctx("read len")?;
+    let len = u32::from_le_bytes(len_le) as usize;
+    if len == 0 {
+        return Err(Error::Invalid("empty frame".to_string()));
+    }
+    if len > MAX_MSG_BYTES {
+        return Err(Error::Invalid("message too large".to_string()));
+    }
+    let mut buf = vec![0u8; len];
+    reader.read_exact(&mut buf).ctx("read frame")?;
+    Ok(buf)
+}
+
+fn do_handshake(stream: &mut TcpStream) -> io::Result<()> {
+    // Exchange a single magic byte to confirm liveness.
+    stream.write_all(&[0x42])?;
+    let mut response = [0u8; 1];
+    stream.read_exact(&mut response)?;
+    if response[0] != 0x42 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid handshake token",
+        ));
+    }
+    Ok(())
+}
 
 /// Peer connection states.
 #[derive(Debug, Clone, PartialEq, Eq)]
