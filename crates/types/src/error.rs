@@ -38,4 +38,7 @@ pub enum Error {
     /// Request was rate limited.
     #[error("rate limited")]
     RateLimited,
+    /// Fatal unrecoverable error (replaces panic! in production).
+    #[error("fatal: {0}")]
+    Fatal(&'static str),
 }

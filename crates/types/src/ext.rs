@@ -15,6 +15,19 @@ impl<T, E: std::fmt::Debug> ResultExt<T> for std::result::Result<T, E> {
     }
 }
 
+/// Extension trait to convert Option to Result with context.
+pub trait OptionExt<T> {
+    /// Converts None into [`Error::NotFound`] with the supplied message.
+    fn ctx(self, msg: &'static str) -> Result<T>;
+}
+
+impl<T> OptionExt<T> for Option<T> {
+    #[inline]
+    fn ctx(self, msg: &'static str) -> Result<T> {
+        self.ok_or_else(|| Error::NotFound(msg.to_string()))
+    }
+}
+
 /// Checked arithmetic helper returning [`Error::Overflow`] on failure.
 #[macro_export]
 macro_rules! checked {

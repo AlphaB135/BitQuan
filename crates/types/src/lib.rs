@@ -17,7 +17,7 @@ pub use block::{Block, BlockHeader};
 pub use compact_uint::CompactUint;
 pub use context::TxContext;
 pub use error::{Error, Result};
-pub use ext::ResultExt;
+pub use ext::{OptionExt, ResultExt};
 pub use genesis::{
     create_genesis_block, is_valid_genesis, GENESIS_BITS, GENESIS_HASH, GENESIS_TIME,
 };
