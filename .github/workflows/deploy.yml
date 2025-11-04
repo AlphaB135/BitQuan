@@ -1,0 +1,54 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - testnet
+          - mainnet
+
+jobs:
+  deploy:
+    name: Deploy to Cluster
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'testnet' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bitquan-linux-x86_64
+          path: dist
+      
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      
+      - name: Deploy to cluster
+        env:
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          REMOTE_DIR: ${{ vars.REMOTE_DIR }}
+        run: |
+          chmod +x deploy/scripts/deploy-cluster.sh
+          ./deploy/scripts/deploy-cluster.sh deploy/configs/cluster-nodes-${{ github.event.inputs.environment || 'testnet' }}.txt
+      
+      - name: Verify deployment
+        run: |
+          echo "Deployment completed. Verify nodes are running:"
+          # Add health check commands here

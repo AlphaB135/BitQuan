@@ -1,0 +1,9 @@
+# BitQuan Cluster Nodes
+# Format: hostname or IP address (one per line)
+# Lines starting with # are ignored
+
+# Example nodes:
+# node1.bitquan.network
+# node2.bitquan.network
+# 192.168.1.10
+# 192.168.1.11

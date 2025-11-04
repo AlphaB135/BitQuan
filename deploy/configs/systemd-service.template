@@ -1,0 +1,45 @@
+[Unit]
+Description=BitQuan Node (%i)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bitquan
+Group=bitquan
+WorkingDirectory=/opt/bitquan
+
+# Load environment from file
+EnvironmentFile=/etc/bitquan/%i.env
+
+ExecStart=/opt/bitquan/bitquan-node \
+    --network %i \
+    --data-dir ${DATA_DIR} \
+    --p2p-bind ${P2P_BIND} \
+    --rpc-bind ${RPC_BIND} \
+    --metrics-port ${METRICS_PORT}
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/bitquan /var/log/bitquan
+
+# Resource limits
+LimitNOFILE=8192
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bitquan-%i
+
+[Install]
+WantedBy=multi-user.target

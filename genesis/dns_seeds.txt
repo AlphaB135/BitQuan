@@ -1,0 +1,14 @@
+# BitQuan DNS Seeds
+# Format: domain:port (one per line)
+
+# Mainnet Seeds
+seed1.bitquan.network:8333
+seed2.bitquan.network:8333
+seed3.bitquan.network:8333
+seed4.bitquan.network:8333
+seed5.bitquan.network:8333
+
+# Testnet Seeds
+testnet-seed1.bitquan.network:18333
+testnet-seed2.bitquan.network:18333
+testnet-seed3.bitquan.network:18333
