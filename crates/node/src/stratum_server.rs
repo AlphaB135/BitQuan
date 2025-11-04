@@ -2,7 +2,7 @@
 //!
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
 
-use bitquan_consensus::pow::{PowAlgo, sha256d_pow_hash, target_from_bits, meets_target};
+use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, PowAlgo};
 use bitquan_types::{Block, NetworkId, Result};
 use dashmap::DashMap;
 use lru::LruCache;
@@ -18,10 +18,10 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[cfg(feature = "randomx")]
-use bitquan_consensus::pow::{RandomXEngine, RandomXConfig, RandomXMode, randomx_pow_hash};
+use bitquan_consensus::pow::{randomx_pow_hash, RandomXConfig, RandomXEngine, RandomXMode};
 
 use crate::block_submit::{BlockSubmitter, SubmitResult};
-use crate::pool_template::{PoolTemplateManager, BlockTemplate};
+use crate::pool_template::{BlockTemplate, PoolTemplateManager};
 use crate::vardiff::VarDiff;
 
 /// Stratum V1 mining server.
@@ -155,10 +155,10 @@ impl MinerSession {
         // Duplicate cache: keep last 4096 nonces
         let cache_size = NonZeroUsize::new(4096).unwrap();
         let duplicate_cache = Arc::new(Mutex::new(LruCache::new(cache_size)));
-        
+
         // Assign random extranonce1
         let extranonce1 = rand::random::<u32>();
-        
+
         Self {
             id: Uuid::new_v4(),
             algo,
@@ -218,7 +218,7 @@ impl MinerSession {
     pub fn get_shares_since_adjust(&self) -> u64 {
         self.shares_since_adjust.load(Ordering::Relaxed)
     }
-    
+
     /// Check if nonce is duplicate and mark it if not.
     pub async fn check_and_mark_duplicate(&self, nonce: u64) -> bool {
         let mut cache = self.duplicate_cache.lock().await;
@@ -229,13 +229,13 @@ impl MinerSession {
             false // New
         }
     }
-    
+
     /// Update current job_id.
     pub async fn set_job_id(&self, job_id: u64) {
         let mut current = self.current_job_id.write().await;
         *current = job_id;
     }
-    
+
     /// Get current job_id.
     pub async fn get_job_id(&self) -> u64 {
         *self.current_job_id.read().await
@@ -299,7 +299,8 @@ impl StratumMetrics {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        self.last_valid_share_timestamp.store(now, Ordering::Relaxed);
+        self.last_valid_share_timestamp
+            .store(now, Ordering::Relaxed);
     }
 
     /// Record rejected share with reason.
@@ -327,7 +328,7 @@ impl StratumMetrics {
             .map(|entry| entry.value().load(Ordering::Relaxed))
             .sum()
     }
-    
+
     /// Get rejected shares for specific reason.
     pub fn get_rejected_by_reason(&self, algo: PowAlgo, reason: RejectReason) -> u64 {
         let key = (algo, reason.as_str());
@@ -359,7 +360,8 @@ impl StratumMetrics {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        self.last_block_submit_timestamp.store(now, Ordering::Relaxed);
+        self.last_block_submit_timestamp
+            .store(now, Ordering::Relaxed);
     }
 
     /// Record block accepted by network.
@@ -422,35 +424,50 @@ impl StratumMetrics {
         output.push_str("# TYPE stratum_active_miners gauge\n");
         output.push_str(&format!("stratum_active_miners {}\n", active_miners));
 
-        output.push_str("# HELP stratum_last_valid_share_timestamp Last valid share timestamp (Unix epoch)\n");
+        output.push_str(
+            "# HELP stratum_last_valid_share_timestamp Last valid share timestamp (Unix epoch)\n",
+        );
         output.push_str("# TYPE stratum_last_valid_share_timestamp gauge\n");
-        output.push_str(&format!("stratum_last_valid_share_timestamp {}\n", 
-            self.get_last_valid_share_timestamp()));
+        output.push_str(&format!(
+            "stratum_last_valid_share_timestamp {}\n",
+            self.get_last_valid_share_timestamp()
+        ));
 
         output.push_str("# HELP stratum_vardiff_adjustments_total Total vardiff adjustments\n");
         output.push_str("# TYPE stratum_vardiff_adjustments_total counter\n");
-        output.push_str(&format!("stratum_vardiff_adjustments_total {}\n",
-            self.vardiff_adjustments.load(Ordering::Relaxed)));
+        output.push_str(&format!(
+            "stratum_vardiff_adjustments_total {}\n",
+            self.vardiff_adjustments.load(Ordering::Relaxed)
+        ));
 
-        output.push_str("# HELP stratum_blocks_submitted_total Total blocks submitted to network\n");
+        output
+            .push_str("# HELP stratum_blocks_submitted_total Total blocks submitted to network\n");
         output.push_str("# TYPE stratum_blocks_submitted_total counter\n");
-        output.push_str(&format!("stratum_blocks_submitted_total {}\n",
-            self.blocks_submitted_total.load(Ordering::Relaxed)));
+        output.push_str(&format!(
+            "stratum_blocks_submitted_total {}\n",
+            self.blocks_submitted_total.load(Ordering::Relaxed)
+        ));
 
         output.push_str("# HELP stratum_blocks_accepted_total Total blocks accepted by network\n");
         output.push_str("# TYPE stratum_blocks_accepted_total counter\n");
-        output.push_str(&format!("stratum_blocks_accepted_total {}\n",
-            self.blocks_accepted_total.load(Ordering::Relaxed)));
+        output.push_str(&format!(
+            "stratum_blocks_accepted_total {}\n",
+            self.blocks_accepted_total.load(Ordering::Relaxed)
+        ));
 
         output.push_str("# HELP stratum_blocks_rejected_total Total blocks rejected by network\n");
         output.push_str("# TYPE stratum_blocks_rejected_total counter\n");
-        output.push_str(&format!("stratum_blocks_rejected_total {}\n",
-            self.blocks_rejected_total.load(Ordering::Relaxed)));
+        output.push_str(&format!(
+            "stratum_blocks_rejected_total {}\n",
+            self.blocks_rejected_total.load(Ordering::Relaxed)
+        ));
 
         output.push_str("# HELP stratum_last_block_submit_timestamp Last block submission timestamp (Unix epoch)\n");
         output.push_str("# TYPE stratum_last_block_submit_timestamp gauge\n");
-        output.push_str(&format!("stratum_last_block_submit_timestamp {}\n",
-            self.last_block_submit_timestamp.load(Ordering::Relaxed)));
+        output.push_str(&format!(
+            "stratum_last_block_submit_timestamp {}\n",
+            self.last_block_submit_timestamp.load(Ordering::Relaxed)
+        ));
 
         output
     }
@@ -489,7 +506,10 @@ impl StratumServer {
     /// Create a new Stratum server with configuration.
     pub fn new(config: StratumConfig) -> Self {
         let vardiff = if config.enable_vardiff {
-            Some(VarDiff::new(config.vardiff_target_time, config.vardiff_adjust_rate))
+            Some(VarDiff::new(
+                config.vardiff_target_time,
+                config.vardiff_adjust_rate,
+            ))
         } else {
             None
         };
@@ -518,14 +538,8 @@ impl StratumServer {
                 bitquan_types::Error::Invalid(format!("failed to bind Stratum server: {}", e))
             })?;
 
-        println!(
-            "Stratum server listening on {}",
-            self.config.bind_addr
-        );
-        println!(
-            "  Default difficulty: {}",
-            self.config.default_difficulty
-        );
+        println!("Stratum server listening on {}", self.config.bind_addr);
+        println!("  Default difficulty: {}", self.config.default_difficulty);
         println!("  Network: {:?}", self.config.network);
 
         self.listener = Some(listener);
@@ -538,15 +552,15 @@ impl StratumServer {
             }
 
             let listener = self.listener.as_ref().unwrap();
-            let result = tokio::time::timeout(
-                std::time::Duration::from_secs(1),
-                listener.accept()
-            ).await;
+            let result =
+                tokio::time::timeout(std::time::Duration::from_secs(1), listener.accept()).await;
 
             match result {
                 Ok(Ok((stream, addr))) => {
-                    self.metrics.connections_total.fetch_add(1, Ordering::Relaxed);
-                    
+                    self.metrics
+                        .connections_total
+                        .fetch_add(1, Ordering::Relaxed);
+
                     let peers = Arc::clone(&self.peers);
                     let config = self.config.clone();
                     let metrics = Arc::clone(&self.metrics);
@@ -554,7 +568,17 @@ impl StratumServer {
                     let vardiff = self.vardiff.clone();
 
                     tokio::spawn(async move {
-                        if let Err(e) = handle_client(stream, addr, peers, config, metrics, template_manager, vardiff).await {
+                        if let Err(e) = handle_client(
+                            stream,
+                            addr,
+                            peers,
+                            config,
+                            metrics,
+                            template_manager,
+                            vardiff,
+                        )
+                        .await
+                        {
                             eprintln!("Stratum client error {}: {}", addr, e);
                         }
                     });
@@ -635,9 +659,18 @@ async fn handle_client(
                     }
                 };
 
-                let response = handle_request(request, &peer_key, &peers, &config, &metrics, &template_manager, &vardiff).await;
+                let response = handle_request(
+                    request,
+                    &peer_key,
+                    &peers,
+                    &config,
+                    &metrics,
+                    &template_manager,
+                    &vardiff,
+                )
+                .await;
                 let response_json = serde_json::to_string(&response).unwrap();
-                
+
                 writer
                     .write_all(response_json.as_bytes())
                     .await
@@ -708,7 +741,16 @@ async fn handle_request(
             // Extract submit parameters
             let params = request.params.as_ref();
             let result = if let Some(p) = params {
-                handle_submit(peer_key, p, peers, metrics, template_manager, config, vardiff).await
+                handle_submit(
+                    peer_key,
+                    p,
+                    peers,
+                    metrics,
+                    template_manager,
+                    config,
+                    vardiff,
+                )
+                .await
             } else {
                 false
             };
@@ -882,7 +924,7 @@ async fn handle_submit(
                 let shares_since = session.get_shares_since_adjust();
                 if vd.should_adjust(shares_since) {
                     let time_since = session.time_since_last_share().await;
-                    
+
                     // Need mutable access for set_difficulty
                     drop(session); // Release immutable borrow
                     if let Some(mut session) = peers.get_mut(peer_key) {
@@ -936,7 +978,7 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
     metrics.record_block_submitted();
 
     let submitter = BlockSubmitter::mock(network_id); // Use mock mode for now
-    
+
     match submitter.submit(&block, None).await {
         Ok(SubmitResult::Accepted { hash, height }) => {
             metrics.record_block_accepted();
@@ -948,17 +990,11 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
         }
         Ok(SubmitResult::Rejected { reason }) => {
             metrics.record_block_rejected();
-            eprintln!(
-                "[WARN] ❌ Block REJECTED by network: reason={}",
-                reason
-            );
+            eprintln!("[WARN] ❌ Block REJECTED by network: reason={}", reason);
         }
         Ok(SubmitResult::Error { message }) => {
             metrics.record_block_rejected();
-            eprintln!(
-                "[ERROR] Block submission ERROR: {}",
-                message
-            );
+            eprintln!("[ERROR] Block submission ERROR: {}", message);
         }
         Err(e) => {
             metrics.record_block_rejected();
@@ -1035,11 +1071,11 @@ mod tests {
     #[test]
     fn share_counters() {
         let session = MinerSession::new(PowAlgo::Sha256d, "test".to_string(), 1.0);
-        
+
         session.accept_share();
         session.accept_share();
         assert_eq!(session.get_accepted(), 2);
-        
+
         session.reject_share();
         assert_eq!(session.get_rejected(), 1);
     }
@@ -1055,13 +1091,16 @@ mod tests {
     #[test]
     fn metrics_recording() {
         let metrics = StratumMetrics::new();
-        
+
         metrics.record_share_accepted(PowAlgo::Sha256d);
         metrics.record_share_accepted(PowAlgo::Sha256d);
         assert_eq!(metrics.get_accepted(PowAlgo::Sha256d), 2);
-        
+
         metrics.record_share_rejected(PowAlgo::Sha256d, RejectReason::LowDifficulty);
         assert_eq!(metrics.get_rejected(PowAlgo::Sha256d), 1);
-        assert_eq!(metrics.get_rejected_by_reason(PowAlgo::Sha256d, RejectReason::LowDifficulty), 1);
+        assert_eq!(
+            metrics.get_rejected_by_reason(PowAlgo::Sha256d, RejectReason::LowDifficulty),
+            1
+        );
     }
 }

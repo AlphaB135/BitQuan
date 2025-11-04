@@ -2,17 +2,17 @@
 //!
 //! Tests share acceptance/rejection with actual hash computation and target comparison.
 
-use bitquan_consensus::pow::{PowAlgo, target_from_bits, sha256d_pow_hash, meets_target};
+use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, PowAlgo};
 use bitquan_node::{BlockTemplate, PoolTemplateManager};
 use bitquan_types::BlockHeader;
 
 #[tokio::test]
 async fn test_share_valid_sha256d_verification_logic() {
     use bitquan_consensus::pow::DEVNET_MAX_BITS;
-    
+
     // Test the verification logic itself, not finding a valid nonce
     // (finding valid nonce with real difficulty takes too long for tests)
-    
+
     let header = BlockHeader {
         version: 1,
         prev_block: [0u8; 32],
@@ -25,8 +25,11 @@ async fn test_share_valid_sha256d_verification_logic() {
     };
 
     let target = target_from_bits(header.bits).unwrap();
-    println!("Target (big-endian) from bits 0x{:08x}: {:02x?}", 
-        header.bits, &target[..8]);
+    println!(
+        "Target (big-endian) from bits 0x{:08x}: {:02x?}",
+        header.bits,
+        &target[..8]
+    );
 
     // Compute hash for this header
     let preimage = header.to_bytes();
@@ -40,11 +43,17 @@ async fn test_share_valid_sha256d_verification_logic() {
     // Create a fake "easy" hash that definitely meets target
     let mut easy_hash = [0u8; 32];
     easy_hash[0] = 0x01; // Much smaller than 0x7fffff
-    assert!(meets_target(&easy_hash, &target), "Easy hash should meet target");
+    assert!(
+        meets_target(&easy_hash, &target),
+        "Easy hash should meet target"
+    );
 
     // Create a fake "hard" hash that definitely doesn't meet target
     let hard_hash = [0xff; 32];
-    assert!(!meets_target(&hard_hash, &target), "Hard hash should NOT meet target");
+    assert!(
+        !meets_target(&hard_hash, &target),
+        "Hard hash should NOT meet target"
+    );
 
     // Verify template manager works
     let template = BlockTemplate {
@@ -57,7 +66,7 @@ async fn test_share_valid_sha256d_verification_logic() {
 
     let manager = PoolTemplateManager::new(30);
     manager.update_template(template.clone()).await;
-    
+
     let cached = manager.get_template().await;
     assert!(cached.is_some());
     assert_eq!(cached.unwrap().job_id, 1);
@@ -73,7 +82,7 @@ fn test_share_invalid_too_high_hash() {
         pqc_agg_hint: [0u8; 32],
         time: 1234567890,
         bits: 0x1d00ffff, // Hard difficulty
-        nonce: 1, // Unlikely to meet target
+        nonce: 1,         // Unlikely to meet target
         algo_id: 0,
     };
 
@@ -83,10 +92,14 @@ fn test_share_invalid_too_high_hash() {
 
     // With hard difficulty and low nonce, should NOT meet target
     let meets = meets_target(&hash, &target);
-    
+
     // This might occasionally pass, so we just verify the function works
-    println!("Hash meets target: {} (hash: {:?}, target: {:?})", 
-        meets, &hash[..4], &target[..4]);
+    println!(
+        "Hash meets target: {} (hash: {:?}, target: {:?})",
+        meets,
+        &hash[..4],
+        &target[..4]
+    );
 }
 
 #[tokio::test]
@@ -148,10 +161,10 @@ async fn test_share_stale_on_new_template() {
 #[tokio::test]
 async fn test_duplicate_detection_logic() {
     // This tests the duplicate detection data structure
-    use std::num::NonZeroUsize;
     use lru::LruCache;
-    use tokio::sync::Mutex;
+    use std::num::NonZeroUsize;
     use std::sync::Arc;
+    use tokio::sync::Mutex;
 
     let cache_size = NonZeroUsize::new(4096).unwrap();
     let cache = Arc::new(Mutex::new(LruCache::<u64, ()>::new(cache_size)));
@@ -172,7 +185,10 @@ async fn test_duplicate_detection_logic() {
     // Different nonce should be new
     {
         let c = cache.lock().await;
-        assert!(!c.contains(&54321), "New nonce should not be marked duplicate");
+        assert!(
+            !c.contains(&54321),
+            "New nonce should not be marked duplicate"
+        );
     }
 }
 
@@ -180,13 +196,13 @@ async fn test_duplicate_detection_logic() {
 fn test_target_from_bits_conversion() {
     // Test easy target (regtest style)
     let easy_target = target_from_bits(0x207fffff).unwrap();
-    
+
     // Test harder target
     let hard_target = target_from_bits(0x1d00ffff).unwrap();
-    
+
     // Harder target should be smaller (numerically)
     assert!(hard_target < easy_target, "Harder target should be smaller");
-    
+
     println!("Easy target: {:?}", &easy_target[..4]);
     println!("Hard target: {:?}", &hard_target[..4]);
 }
@@ -220,20 +236,27 @@ async fn test_share_valid_randomx_meets_target() {
         let hash = randomx_pow_hash(&preimage, &seed);
 
         if meets_target(&hash, &target) {
-            println!("RandomX: Found valid nonce: {} with hash: {:?}", nonce, &hash[..4]);
+            println!(
+                "RandomX: Found valid nonce: {} with hash: {:?}",
+                nonce,
+                &hash[..4]
+            );
             found = true;
             break;
         }
     }
 
-    assert!(found, "Should find at least one valid RandomX nonce with easy difficulty");
+    assert!(
+        found,
+        "Should find at least one valid RandomX nonce with easy difficulty"
+    );
 }
 
 #[test]
 fn test_algo_mismatch_detection() {
     // Template is for SHA-256d
     let template_algo = PowAlgo::Sha256d;
-    
+
     // But submission claims RandomX
     #[cfg(feature = "randomx")]
     let submit_algo = PowAlgo::RandomX;

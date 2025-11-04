@@ -29,23 +29,23 @@ impl SeenFilter {
     /// Check if a block hash was seen, and mark it if not.
     pub fn mark_block_seen(&self, hash: [u8; 32]) -> bool {
         let mut seen = self.seen_blocks.lock().unwrap();
-        
+
         // If at capacity, clear oldest (simple eviction)
         if seen.len() >= self.max_items {
             seen.clear();
         }
-        
+
         seen.insert(hash)
     }
 
     /// Check if a transaction hash was seen, and mark it if not.
     pub fn mark_tx_seen(&self, hash: [u8; 32]) -> bool {
         let mut seen = self.seen_txs.lock().unwrap();
-        
+
         if seen.len() >= self.max_items {
             seen.clear();
         }
-        
+
         seen.insert(hash)
     }
 
@@ -128,13 +128,13 @@ impl BlockPropagator {
     pub fn mark_block_received(&self, block_hash: [u8; 32]) -> bool {
         let is_new = self.seen_filter.mark_block_seen(block_hash);
         let mut stats = self.stats.lock().unwrap();
-        
+
         if is_new {
             stats.blocks_received += 1;
         } else {
             stats.blocks_rejected += 1;
         }
-        
+
         is_new
     }
 
@@ -149,11 +149,11 @@ impl BlockPropagator {
     pub fn mark_tx_received(&self, tx_hash: [u8; 32]) -> bool {
         let is_new = self.seen_filter.mark_tx_seen(tx_hash);
         let mut stats = self.stats.lock().unwrap();
-        
+
         if is_new {
             stats.txs_received += 1;
         }
-        
+
         is_new
     }
 
@@ -191,11 +191,11 @@ pub fn broadcast_block_inv(block_hash: [u8; 32], propagator: &BlockPropagator) -
 
     // Create inv message
     let _inv_msg = propagator.create_block_inv(block_hash);
-    
+
     // TODO: Send to all peers via network manager
     // For now, just mark as propagated
     propagator.mark_block_propagated(block_hash);
-    
+
     Ok(())
 }
 
@@ -207,10 +207,10 @@ mod tests {
     fn test_seen_filter_marks_new_blocks() {
         let filter = SeenFilter::new(100);
         let hash = [1u8; 32];
-        
+
         // First time should be new
         assert!(filter.mark_block_seen(hash));
-        
+
         // Second time should be seen
         assert!(!filter.mark_block_seen(hash));
     }
@@ -218,13 +218,13 @@ mod tests {
     #[test]
     fn test_seen_filter_capacity() {
         let filter = SeenFilter::new(10);
-        
+
         // Fill beyond capacity
         for i in 0..20u8 {
             let hash = [i; 32];
             filter.mark_block_seen(hash);
         }
-        
+
         // Should clear and accept new items
         let new_hash = [99u8; 32];
         assert!(filter.mark_block_seen(new_hash));
@@ -235,12 +235,12 @@ mod tests {
         let propagator = BlockPropagator::new();
         let hash1 = [1u8; 32];
         let hash2 = [2u8; 32];
-        
+
         // Mark blocks as received
         assert!(propagator.mark_block_received(hash1));
         assert!(propagator.mark_block_received(hash2));
         assert!(!propagator.mark_block_received(hash1)); // Duplicate
-        
+
         let stats = propagator.stats();
         assert_eq!(stats.blocks_received, 2);
         assert_eq!(stats.blocks_rejected, 1);
@@ -250,9 +250,9 @@ mod tests {
     fn test_create_block_inv() {
         let propagator = BlockPropagator::new();
         let hash = [42u8; 32];
-        
+
         let inv = propagator.create_block_inv(hash);
-        
+
         match inv {
             Message::Inv { inventory } => {
                 assert_eq!(inventory.len(), 1);
@@ -267,13 +267,13 @@ mod tests {
     fn test_should_propagate_only_new_blocks() {
         let propagator = BlockPropagator::new();
         let hash = [5u8; 32];
-        
+
         // Should propagate first time
         assert!(propagator.should_propagate_block(hash));
-        
+
         // Mark as propagated
         propagator.mark_block_propagated(hash);
-        
+
         // Should not propagate again
         assert!(!propagator.should_propagate_block(hash));
     }

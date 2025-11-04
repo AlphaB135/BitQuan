@@ -31,7 +31,7 @@ impl RewardEngine {
     pub fn new(db: PoolDatabase) -> Self {
         // Load total from database
         let total = db.total_rewards().unwrap_or(0);
-        
+
         Self {
             db,
             reward_rate: 1.0,
@@ -90,9 +90,10 @@ impl RewardEngine {
 
     /// Credit reward to miner account.
     pub fn credit_miner(&mut self, miner_id: &str, amount: u64) -> Result<()> {
-        self.db.update_miner_reward(miner_id, amount)
+        self.db
+            .update_miner_reward(miner_id, amount)
             .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?;
-        
+
         self.total_distributed.fetch_add(amount, Ordering::Relaxed);
         Ok(())
     }
@@ -118,7 +119,8 @@ impl RewardEngine {
         };
 
         // Persist block
-        self.db.insert_block(&record)
+        self.db
+            .insert_block(&record)
             .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?;
 
         // Credit miner
@@ -135,7 +137,12 @@ impl RewardEngine {
     }
 
     /// Record a payout transaction.
-    pub fn record_payout(&mut self, miner_id: &str, amount: u64, txid: Option<String>) -> Result<String> {
+    pub fn record_payout(
+        &mut self,
+        miner_id: &str,
+        amount: u64,
+        txid: Option<String>,
+    ) -> Result<String> {
         let payout_id = uuid::Uuid::new_v4().to_string();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -150,7 +157,8 @@ impl RewardEngine {
             created_at: now,
         };
 
-        self.db.insert_payout(&payout)
+        self.db
+            .insert_payout(&payout)
             .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?;
 
         Ok(payout_id)
@@ -163,13 +171,15 @@ impl RewardEngine {
 
     /// Get miner's total reward.
     pub fn get_miner_reward(&self, miner_id: &str) -> Result<u64> {
-        self.db.get_miner_reward(miner_id)
+        self.db
+            .get_miner_reward(miner_id)
             .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))
     }
 
     /// Get recent payouts.
     pub fn list_payouts(&self, limit: usize) -> Result<Vec<PayoutRecord>> {
-        self.db.list_payouts(limit)
+        self.db
+            .list_payouts(limit)
             .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))
     }
 
@@ -177,9 +187,13 @@ impl RewardEngine {
     pub fn get_pool_stats(&self) -> Result<PoolStats> {
         Ok(PoolStats {
             total_rewards: self.total_distributed(),
-            miner_count: self.db.miner_count()
+            miner_count: self
+                .db
+                .miner_count()
                 .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?,
-            block_count: self.db.block_count()
+            block_count: self
+                .db
+                .block_count()
                 .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?,
             pool_balance: self.calculate_pool_balance()?,
         })
@@ -216,7 +230,7 @@ pub struct PoolStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{BlockHeader, Transaction, NetworkId, SigAlgorithm, TxOut};
+    use bitquan_types::{BlockHeader, NetworkId, SigAlgorithm, Transaction, TxOut};
 
     fn dummy_block(height: u64) -> Block {
         Block {
@@ -317,7 +331,9 @@ mod tests {
         let db = PoolDatabase::memory().unwrap();
         let mut engine = RewardEngine::new(db);
 
-        let payout_id = engine.record_payout("miner1", 1000, Some("tx123".to_string())).unwrap();
+        let payout_id = engine
+            .record_payout("miner1", 1000, Some("tx123".to_string()))
+            .unwrap();
         assert!(!payout_id.is_empty());
 
         let payouts = engine.list_payouts(10).unwrap();

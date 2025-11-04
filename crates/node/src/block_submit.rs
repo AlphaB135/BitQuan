@@ -8,8 +8,8 @@ use bitquan_types::{Block, NetworkId, Result};
 use std::sync::Arc;
 
 use crate::chainstate::ChainState;
-use crate::reward_engine::RewardEngine;
 use crate::metrics::MiningMetrics;
+use crate::reward_engine::RewardEngine;
 
 /// Result of a block submission attempt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,8 +125,7 @@ impl BlockSubmitter {
             // Mock mode: just log what would be broadcast
             println!(
                 "[INFO] MOCK: Would broadcast block hash={} algo={} height=unknown",
-                hash_hex,
-                block.header.algo_id
+                hash_hex, block.header.algo_id
             );
 
             SubmitResult::Accepted {
@@ -140,15 +139,17 @@ impl BlockSubmitter {
 
         // 4. If accepted, persist and credit reward
         if let SubmitResult::Accepted { .. } = result {
-            if let (Some(chain_state), Some(reward_engine)) = (&self.chain_state, &self.reward_engine) {
+            if let (Some(chain_state), Some(reward_engine)) =
+                (&self.chain_state, &self.reward_engine)
+            {
                 // Append to chain
                 let height = chain_state.append_block(block, hash)?;
-                
+
                 // Record block and credit reward
                 let miner = miner_id.unwrap_or("unknown");
                 let mut engine = reward_engine.lock().unwrap();
                 let reward = engine.record_block(block, hash, height, miner)?;
-                
+
                 // Update metrics
                 if let Some(metrics) = &self.metrics {
                     metrics.record_block_persisted();
@@ -156,14 +157,14 @@ impl BlockSubmitter {
                     metrics.set_pool_balance(engine.total_distributed());
                     metrics.set_reward_per_block(reward);
                 }
-                
+
                 // Log success
                 let reward_bq = reward as f64 / 1_0000_0000.0;
                 println!(
                     "[INFO] Block accepted! height={}, miner={}, reward={:.2} BQ",
                     height, miner, reward_bq
                 );
-                
+
                 return Ok(SubmitResult::Accepted {
                     hash,
                     height: Some(height),

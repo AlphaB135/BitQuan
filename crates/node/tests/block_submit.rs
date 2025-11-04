@@ -1,12 +1,12 @@
 //! Integration tests for block submission and network propagation.
 
-use bitquan_consensus::pow::{target_from_bits, sha256d_pow_hash, meets_target};
+use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits};
 use bitquan_node::{BlockSubmitter, SubmitResult};
 use bitquan_types::{Block, BlockHeader, NetworkId, Transaction};
 
 fn dummy_transaction() -> Transaction {
     use bitquan_types::SigAlgorithm;
-    
+
     Transaction {
         version: 1,
         network: NetworkId::Testnet,
@@ -47,7 +47,11 @@ async fn test_block_submit_valid_mock() {
     match result {
         SubmitResult::Accepted { hash, height } => {
             assert_eq!(hash.len(), 32);
-            println!("Block accepted: hash={:?}, height={:?}", hex::encode(&hash[..8]), height);
+            println!(
+                "Block accepted: hash={:?}, height={:?}",
+                hex::encode(&hash[..8]),
+                height
+            );
         }
         _ => panic!("Expected acceptance in mock mode, got {:?}", result),
     }
@@ -72,7 +76,7 @@ async fn test_block_submit_reject_no_transactions() {
 #[tokio::test]
 async fn test_block_submit_invalid_pow() {
     let submitter = BlockSubmitter::mock(NetworkId::Testnet);
-    
+
     // Create block with hard difficulty but easy nonce (won't meet target)
     let mut block = create_test_block(1, 0x1d00ffff); // Hard difficulty
     block.transactions.push(dummy_transaction());
@@ -98,7 +102,7 @@ async fn test_block_submit_invalid_pow() {
 #[tokio::test]
 async fn test_block_submit_reject_invalid_header() {
     let submitter = BlockSubmitter::mock(NetworkId::Testnet);
-    
+
     // Create block with corrupted prev_hash
     let mut block = create_test_block(12345, 0x207fffff);
     block.header.prev_block = [0xFFu8; 32]; // Corrupt
@@ -118,7 +122,7 @@ async fn test_block_submit_reject_invalid_header() {
         Ok(SubmitResult::Error { .. }) => {
             println!("Block submission error");
         }
-        Err(_) => {},
+        Err(_) => {}
     }
 }
 
@@ -129,7 +133,7 @@ fn test_submit_result_types() {
         hash: [0u8; 32],
         height: Some(100),
     };
-    
+
     match accepted {
         SubmitResult::Accepted { hash, height } => {
             assert_eq!(hash, [0u8; 32]);
@@ -141,7 +145,7 @@ fn test_submit_result_types() {
     let rejected = SubmitResult::Rejected {
         reason: "test_reason".to_string(),
     };
-    
+
     match rejected {
         SubmitResult::Rejected { reason } => {
             assert_eq!(reason, "test_reason");
@@ -152,7 +156,7 @@ fn test_submit_result_types() {
     let error = SubmitResult::Error {
         message: "network_error".to_string(),
     };
-    
+
     match error {
         SubmitResult::Error { message } => {
             assert_eq!(message, "network_error");
@@ -181,7 +185,7 @@ async fn test_block_submit_with_valid_nonce() {
     // Try to find a nonce that meets easy target
     let bits = 0x207fffff; // Very easy
     let target = target_from_bits(bits).unwrap();
-    
+
     let mut found_valid = false;
     let mut valid_nonce = 0u64;
 
@@ -204,7 +208,11 @@ async fn test_block_submit_with_valid_nonce() {
         if meets_target(&hash, &target) {
             found_valid = true;
             valid_nonce = nonce;
-            println!("Found valid nonce: {} with hash: {:02x?}", nonce, &hash[..4]);
+            println!(
+                "Found valid nonce: {} with hash: {:02x?}",
+                nonce,
+                &hash[..4]
+            );
             break;
         }
     }
@@ -213,9 +221,9 @@ async fn test_block_submit_with_valid_nonce() {
         // Test submission with valid nonce
         let block = create_test_block(valid_nonce, bits);
         let submitter = BlockSubmitter::mock(NetworkId::Testnet);
-        
+
         let result = submitter.submit(&block).await.unwrap();
-        
+
         match result {
             SubmitResult::Accepted { .. } => {
                 println!("✅ Valid block accepted");
@@ -230,12 +238,12 @@ async fn test_block_submit_with_valid_nonce() {
 #[tokio::test]
 async fn test_multiple_submissions() {
     let submitter = BlockSubmitter::mock(NetworkId::Testnet);
-    
+
     // Submit multiple blocks
     for i in 0..5 {
         let block = create_test_block(1000 + i, 0x207fffff);
         let result = submitter.submit(&block).await.unwrap();
-        
+
         match result {
             SubmitResult::Accepted { .. } => {
                 println!("Block {} accepted", i);

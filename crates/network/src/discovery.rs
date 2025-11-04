@@ -14,10 +14,7 @@ pub const TESTNET_SEEDS: &[&str] = &[
 ];
 
 /// Bootstrap seed nodes for mainnet (placeholder).
-pub const MAINNET_SEEDS: &[&str] = &[
-    "seed.bitquan.net:8333",
-    "node1.bitquan.org:8333",
-];
+pub const MAINNET_SEEDS: &[&str] = &["seed.bitquan.net:8333", "node1.bitquan.org:8333"];
 
 /// Peer discovery timeout in seconds.
 pub const DISCOVERY_TIMEOUT_SECS: u64 = 10;
@@ -50,7 +47,7 @@ impl PersistentPeer {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
+
         Self {
             addr,
             last_seen: now,
@@ -85,9 +82,9 @@ impl PersistentPeer {
         if total == 0.0 {
             return 0.0;
         }
-        
+
         let success_rate = self.successful_connections as f64 / total;
-        
+
         // Age penalty (prefer recently seen peers)
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -95,7 +92,7 @@ impl PersistentPeer {
             .as_secs();
         let age_secs = now.saturating_sub(self.last_seen);
         let age_penalty = 1.0 / (1.0 + (age_secs as f64 / 3600.0)); // Decay over hours
-        
+
         success_rate * age_penalty
     }
 
@@ -105,7 +102,7 @@ impl PersistentPeer {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
+
         now.saturating_sub(self.last_seen) > timeout_secs
     }
 }
@@ -165,13 +162,19 @@ impl PeerBook {
 
     /// Get best peers sorted by score.
     pub fn best_peers(&self, limit: usize) -> Vec<String> {
-        let mut scored: Vec<_> = self.peers.values()
+        let mut scored: Vec<_> = self
+            .peers
+            .values()
             .filter(|p| !p.is_stale(PEER_TIMEOUT_SECS * 2))
             .map(|p| (p.addr.clone(), p.score()))
             .collect();
-        
+
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        scored.into_iter().take(limit).map(|(addr, _)| addr).collect()
+        scored
+            .into_iter()
+            .take(limit)
+            .map(|(addr, _)| addr)
+            .collect()
     }
 
     /// Remove stale peers.
@@ -186,7 +189,8 @@ impl PeerBook {
 
     /// Convert to PeerAddr list for network protocol.
     pub fn to_peer_addrs(&self) -> Vec<PeerAddr> {
-        self.peers.values()
+        self.peers
+            .values()
             .map(|p| PeerAddr {
                 timestamp: p.last_seen,
                 services: p.services,
@@ -200,7 +204,7 @@ impl PeerBook {
     pub fn import_peer_addrs(&mut self, addrs: Vec<PeerAddr>) {
         for addr in addrs {
             let addr_str = format!("{}:{}", addr.ip, addr.port);
-            
+
             if let Some(peer) = self.peers.get_mut(&addr_str) {
                 peer.last_seen = addr.timestamp;
                 peer.services = addr.services;
@@ -215,23 +219,21 @@ impl PeerBook {
 
     /// Load from JSON file.
     pub fn load_from_file(path: &str) -> Result<Self> {
-        let contents = std::fs::read_to_string(path)
-            .map_err(|e| bitquan_types::Error::Io(e))?;
-        
-        let book: PeerBook = serde_json::from_str(&contents)
-            .map_err(|e| bitquan_types::Error::Serde(e))?;
-        
+        let contents = std::fs::read_to_string(path).map_err(|e| bitquan_types::Error::Io(e))?;
+
+        let book: PeerBook =
+            serde_json::from_str(&contents).map_err(|e| bitquan_types::Error::Serde(e))?;
+
         Ok(book)
     }
 
     /// Save to JSON file.
     pub fn save_to_file(&self, path: &str) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|e| bitquan_types::Error::Serde(e))?;
-        
-        std::fs::write(path, json)
-            .map_err(|e| bitquan_types::Error::Io(e))?;
-        
+        let json =
+            serde_json::to_string_pretty(self).map_err(|e| bitquan_types::Error::Serde(e))?;
+
+        std::fs::write(path, json).map_err(|e| bitquan_types::Error::Io(e))?;
+
         Ok(())
     }
 }
@@ -255,17 +257,17 @@ pub fn discover_from_seeds(seeds: &[&str]) -> Result<Vec<String>> {
 /// Bootstrap the peer book with seed nodes.
 pub fn bootstrap_peers(is_testnet: bool) -> PeerBook {
     let mut book = PeerBook::new();
-    
+
     let seeds = if is_testnet {
         TESTNET_SEEDS
     } else {
         MAINNET_SEEDS
     };
-    
+
     for seed in seeds {
         book.add_peer(seed.to_string());
     }
-    
+
     book
 }
 
@@ -276,21 +278,21 @@ mod tests {
     #[test]
     fn test_persistent_peer_scoring() {
         let mut peer = PersistentPeer::new("127.0.0.1:18444".to_string());
-        
+
         // Initial score should be 0
         assert_eq!(peer.score(), 0.0);
-        
+
         // After some successes
         peer.mark_success();
         peer.mark_success();
         peer.mark_success();
-        
+
         // Score should be positive
         assert!(peer.score() > 0.0);
-        
+
         // After failure
         peer.mark_failure();
-        
+
         // Score should decrease
         let score_after_failure = peer.score();
         assert!(score_after_failure < 1.0);
@@ -299,19 +301,19 @@ mod tests {
     #[test]
     fn test_peer_book_best_peers() {
         let mut book = PeerBook::new();
-        
+
         book.add_peer("peer1:18444".to_string());
         book.add_peer("peer2:18444".to_string());
         book.add_peer("peer3:18444".to_string());
-        
+
         // Mark peer2 as successful multiple times
         book.mark_peer_success("peer2:18444");
         book.mark_peer_success("peer2:18444");
         book.mark_peer_success("peer2:18444");
-        
+
         // Mark peer1 as successful once
         book.mark_peer_success("peer1:18444");
-        
+
         // Best peers should include both peer2 and peer1
         let best = book.best_peers(3);
         assert!(best.len() >= 2);
@@ -324,18 +326,18 @@ mod tests {
         let mut book = PeerBook::new();
         book.add_peer("test:18444".to_string());
         book.mark_peer_success("test:18444");
-        
+
         let temp_file = "/tmp/bitquan_peers_test.json";
-        
+
         // Save
         book.save_to_file(temp_file).unwrap();
-        
+
         // Load
         let loaded = PeerBook::load_from_file(temp_file).unwrap();
-        
+
         assert_eq!(loaded.peer_count(), 1);
         assert!(loaded.get_peer("test:18444").is_some());
-        
+
         // Cleanup
         let _ = std::fs::remove_file(temp_file);
     }
@@ -349,7 +351,7 @@ mod tests {
     #[test]
     fn test_import_peer_addrs() {
         let mut book = PeerBook::new();
-        
+
         let addrs = vec![
             PeerAddr {
                 timestamp: 1234567890,
@@ -364,9 +366,9 @@ mod tests {
                 port: 18444,
             },
         ];
-        
+
         book.import_peer_addrs(addrs);
-        
+
         assert_eq!(book.peer_count(), 2);
         assert!(book.get_peer("192.168.1.1:18444").is_some());
     }

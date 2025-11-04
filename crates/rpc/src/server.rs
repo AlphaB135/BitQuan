@@ -861,7 +861,8 @@ fn respond_json(
     response: &JsonRpcResponse,
     config: &RpcConfig,
 ) -> std::io::Result<()> {
-    let response_body = serde_json::to_string(response).unwrap();
+    let response_body = serde_json::to_string(response)
+        .unwrap_or_else(|_| r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"internal serialization error"},"id":null}"#.to_string());
     let security_headers = build_security_headers(config);
     let http_response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
@@ -1352,7 +1353,7 @@ fn take_token(
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     config: &RpcConfig,
 ) -> std::result::Result<(), u64> {
-    let mut map = limiter.lock().unwrap();
+    let mut map = limiter.lock().expect("rate limiter lock poisoned");
     let bucket = map.entry(ip).or_insert_with(|| TokenBucket {
         tokens: config.rl_burst as f64,
         last: Instant::now(),
@@ -1420,7 +1421,7 @@ fn resolve_client_ip(peer_ip: IpAddr, headers: &[String], config: &RpcConfig) ->
 }
 
 fn apply_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
-    let mut map = backoff.lock().unwrap();
+    let mut map = backoff.lock().expect("auth backoff lock poisoned");
     let state = map.entry(ip).or_insert(BackoffState {
         fails: 0,
         last: Instant::now(),
@@ -1434,7 +1435,7 @@ fn apply_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffSta
 }
 
 fn reset_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
-    let mut map = backoff.lock().unwrap();
+    let mut map = backoff.lock().expect("auth backoff lock poisoned");
     map.remove(&ip);
 }
 
@@ -1742,7 +1743,10 @@ mod tests {
             })
         }
 
-        fn getminerstats(&self, miner_id: String) -> std::result::Result<crate::methods::MinerStatsResponse, RpcError> {
+        fn getminerstats(
+            &self,
+            miner_id: String,
+        ) -> std::result::Result<crate::methods::MinerStatsResponse, RpcError> {
             Ok(crate::methods::MinerStatsResponse {
                 miner_id,
                 total_reward: 50000,
@@ -1751,14 +1755,19 @@ mod tests {
             })
         }
 
-        fn createpayout(&self, _request: crate::methods::PayoutRequest) -> std::result::Result<crate::methods::PayoutResponse, RpcError> {
+        fn createpayout(
+            &self,
+            _request: crate::methods::PayoutRequest,
+        ) -> std::result::Result<crate::methods::PayoutResponse, RpcError> {
             Ok(crate::methods::PayoutResponse {
                 payout_id: "test123".to_string(),
                 txid: None,
             })
         }
 
-        fn getnetworkstatus(&self) -> std::result::Result<crate::methods::NetworkStatusResponse, RpcError> {
+        fn getnetworkstatus(
+            &self,
+        ) -> std::result::Result<crate::methods::NetworkStatusResponse, RpcError> {
             Ok(crate::methods::NetworkStatusResponse {
                 peers_connected: 3,
                 blocks_broadcast: 50,

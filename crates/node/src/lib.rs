@@ -2,8 +2,8 @@
 
 pub mod block_submit;
 pub mod chainstate;
-pub mod miner;
 pub mod metrics;
+pub mod miner;
 pub mod pool_db;
 pub mod pool_template;
 pub mod reward_engine;
@@ -14,11 +14,11 @@ pub mod ws_dashboard;
 // Re-export commonly used types
 pub use block_submit::{BlockSubmitter, SubmitResult};
 pub use chainstate::ChainState;
-pub use miner::{HybridMiner, MinerMetrics};
 pub use metrics::MiningMetrics;
+pub use miner::{HybridMiner, MinerMetrics};
 pub use pool_db::{BlockRecord, PayoutRecord, PoolDatabase};
 pub use pool_template::{BlockTemplate, PoolTemplateManager};
-pub use reward_engine::{RewardEngine, PoolStats};
-pub use stratum_server::{StratumServer, StratumConfig, StratumMetrics, MinerSession};
+pub use reward_engine::{PoolStats, RewardEngine};
+pub use stratum_server::{MinerSession, StratumConfig, StratumMetrics, StratumServer};
 pub use vardiff::VarDiff;
-pub use ws_dashboard::{WsDashboard, DashboardConfig, PoolStats as WsPoolStats, MinerInfo};
+pub use ws_dashboard::{DashboardConfig, MinerInfo, PoolStats as WsPoolStats, WsDashboard};

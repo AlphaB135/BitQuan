@@ -212,22 +212,50 @@ pub fn dispatch_call<T: RpcMethods>(
         },
 
         "getblockchaininfo" => match handler.getblockchaininfo() {
-            Ok(info) => JsonRpcResponse::success(id, serde_json::to_value(info).unwrap()),
+            Ok(info) => match serde_json::to_value(info) {
+                Ok(v) => JsonRpcResponse::success(id, v),
+                Err(e) => JsonRpcResponse::error(
+                    id,
+                    error_codes::INTERNAL_ERROR,
+                    format!("serialization error: {}", e),
+                ),
+            },
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
         "getmininginfo" => match handler.getmininginfo() {
-            Ok(info) => JsonRpcResponse::success(id, serde_json::to_value(info).unwrap()),
+            Ok(info) => match serde_json::to_value(info) {
+                Ok(v) => JsonRpcResponse::success(id, v),
+                Err(e) => JsonRpcResponse::error(
+                    id,
+                    error_codes::INTERNAL_ERROR,
+                    format!("serialization error: {}", e),
+                ),
+            },
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
         "getblocktemplate" => match handler.getblocktemplate() {
-            Ok(template) => JsonRpcResponse::success(id, serde_json::to_value(template).unwrap()),
+            Ok(template) => match serde_json::to_value(template) {
+                Ok(v) => JsonRpcResponse::success(id, v),
+                Err(e) => JsonRpcResponse::error(
+                    id,
+                    error_codes::INTERNAL_ERROR,
+                    format!("serialization error: {}", e),
+                ),
+            },
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
         "getwork" => match handler.getwork() {
-            Ok(work) => JsonRpcResponse::success(id, serde_json::to_value(work).unwrap()),
+            Ok(work) => match serde_json::to_value(work) {
+                Ok(v) => JsonRpcResponse::success(id, v),
+                Err(e) => JsonRpcResponse::error(
+                    id,
+                    error_codes::INTERNAL_ERROR,
+                    format!("serialization error: {}", e),
+                ),
+            },
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
@@ -280,7 +308,14 @@ pub fn dispatch_call<T: RpcMethods>(
                 .and_then(|v| v.as_str())
             {
                 match handler.gettransaction(txid.to_string()) {
-                    Ok(tx) => JsonRpcResponse::success(id, serde_json::to_value(tx).unwrap()),
+                    Ok(tx) => match serde_json::to_value(tx) {
+                        Ok(v) => JsonRpcResponse::success(id, v),
+                        Err(e) => JsonRpcResponse::error(
+                            id,
+                            error_codes::INTERNAL_ERROR,
+                            format!("serialization error: {}", e),
+                        ),
+                    },
                     Err(e) => {
                         JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
                     }
@@ -317,7 +352,14 @@ pub fn dispatch_call<T: RpcMethods>(
         }
 
         "getpoolstats" => match handler.getpoolstats() {
-            Ok(stats) => JsonRpcResponse::success(id, serde_json::to_value(stats).unwrap()),
+            Ok(stats) => match serde_json::to_value(stats) {
+                Ok(v) => JsonRpcResponse::success(id, v),
+                Err(e) => JsonRpcResponse::error(
+                    id,
+                    error_codes::INTERNAL_ERROR,
+                    format!("serialization error: {}", e),
+                ),
+            },
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
@@ -328,7 +370,14 @@ pub fn dispatch_call<T: RpcMethods>(
                 .and_then(|v| v.as_str())
             {
                 match handler.getminerstats(miner_id.to_string()) {
-                    Ok(stats) => JsonRpcResponse::success(id, serde_json::to_value(stats).unwrap()),
+                    Ok(stats) => match serde_json::to_value(stats) {
+                        Ok(v) => JsonRpcResponse::success(id, v),
+                        Err(e) => JsonRpcResponse::error(
+                            id,
+                            error_codes::INTERNAL_ERROR,
+                            format!("serialization error: {}", e),
+                        ),
+                    },
                     Err(e) => {
                         JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
                     }
@@ -353,7 +402,14 @@ pub fn dispatch_call<T: RpcMethods>(
                         amount,
                     };
                     match handler.createpayout(request) {
-                        Ok(response) => JsonRpcResponse::success(id, serde_json::to_value(response).unwrap()),
+                        Ok(response) => match serde_json::to_value(response) {
+                            Ok(v) => JsonRpcResponse::success(id, v),
+                            Err(e) => JsonRpcResponse::error(
+                                id,
+                                error_codes::INTERNAL_ERROR,
+                                format!("serialization error: {}", e),
+                            ),
+                        },
                         Err(e) => {
                             JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
                         }
@@ -375,7 +431,14 @@ pub fn dispatch_call<T: RpcMethods>(
         }
 
         "getnetworkstatus" => match handler.getnetworkstatus() {
-            Ok(status) => JsonRpcResponse::success(id, serde_json::to_value(status).unwrap()),
+            Ok(status) => match serde_json::to_value(status) {
+                Ok(v) => JsonRpcResponse::success(id, v),
+                Err(e) => JsonRpcResponse::error(
+                    id,
+                    error_codes::INTERNAL_ERROR,
+                    format!("serialization error: {}", e),
+                ),
+            },
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 

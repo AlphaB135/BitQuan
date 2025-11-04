@@ -128,7 +128,9 @@ impl PoolDatabase {
     /// Get a block by hash.
     pub fn get_block(&self, hash: &str) -> SqlResult<Option<BlockRecord>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT hash, height, miner_id, reward, timestamp FROM blocks WHERE hash = ?1")?;
+        let mut stmt = conn.prepare(
+            "SELECT hash, height, miner_id, reward, timestamp FROM blocks WHERE hash = ?1",
+        )?;
 
         let mut rows = stmt.query(params![hash])?;
         if let Some(row) = rows.next()? {
@@ -151,7 +153,7 @@ impl PoolDatabase {
             "SELECT hash, height, miner_id, reward, timestamp 
              FROM blocks 
              ORDER BY height DESC 
-             LIMIT 1"
+             LIMIT 1",
         )?;
 
         let mut rows = stmt.query([])?;
@@ -171,7 +173,7 @@ impl PoolDatabase {
     /// Update miner's total reward (adds to existing amount).
     pub fn update_miner_reward(&self, miner_id: &str, amount: u64) -> SqlResult<()> {
         let conn = self.conn.lock().unwrap();
-        
+
         // Insert or update miner
         conn.execute(
             "INSERT INTO miners (id, total_reward) VALUES (?1, ?2)
@@ -185,7 +187,7 @@ impl PoolDatabase {
     pub fn get_miner_reward(&self, miner_id: &str) -> SqlResult<u64> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT total_reward FROM miners WHERE id = ?1")?;
-        
+
         let mut rows = stmt.query(params![miner_id])?;
         if let Some(row) = rows.next()? {
             Ok(row.get(0)?)
@@ -202,7 +204,7 @@ impl PoolDatabase {
              FROM blocks 
              WHERE miner_id = ?1 
              ORDER BY height DESC 
-             LIMIT ?2"
+             LIMIT ?2",
         )?;
 
         let rows = stmt.query_map(params![miner_id, limit], |row| {
@@ -242,7 +244,7 @@ impl PoolDatabase {
             "SELECT id, miner_id, amount, txid, created_at 
              FROM payouts 
              ORDER BY created_at DESC 
-             LIMIT ?1"
+             LIMIT ?1",
         )?;
 
         let rows = stmt.query_map(params![limit], |row| {
@@ -262,7 +264,7 @@ impl PoolDatabase {
     pub fn total_rewards(&self) -> SqlResult<u64> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT COALESCE(SUM(total_reward), 0) FROM miners")?;
-        
+
         let total: i64 = stmt.query_row([], |row| row.get(0))?;
         Ok(total as u64)
     }
@@ -271,7 +273,7 @@ impl PoolDatabase {
     pub fn miner_count(&self) -> SqlResult<u64> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM miners WHERE total_reward > 0")?;
-        
+
         let count: i64 = stmt.query_row([], |row| row.get(0))?;
         Ok(count as u64)
     }
@@ -280,7 +282,7 @@ impl PoolDatabase {
     pub fn block_count(&self) -> SqlResult<u64> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM blocks")?;
-        
+
         let count: i64 = stmt.query_row([], |row| row.get(0))?;
         Ok(count as u64)
     }
@@ -299,7 +301,7 @@ mod tests {
     #[test]
     fn test_block_insertion_and_retrieval() {
         let db = PoolDatabase::memory().unwrap();
-        
+
         let block = BlockRecord {
             hash: "abc123".to_string(),
             height: 100,
@@ -309,7 +311,7 @@ mod tests {
         };
 
         db.insert_block(&block).unwrap();
-        
+
         let retrieved = db.get_block("abc123").unwrap().unwrap();
         assert_eq!(retrieved.height, 100);
         assert_eq!(retrieved.miner_id, "miner1");
@@ -318,10 +320,10 @@ mod tests {
     #[test]
     fn test_miner_reward_accumulation() {
         let db = PoolDatabase::memory().unwrap();
-        
+
         db.update_miner_reward("miner1", 1000).unwrap();
         db.update_miner_reward("miner1", 2000).unwrap();
-        
+
         let total = db.get_miner_reward("miner1").unwrap();
         assert_eq!(total, 3000);
     }
@@ -329,10 +331,10 @@ mod tests {
     #[test]
     fn test_total_rewards() {
         let db = PoolDatabase::memory().unwrap();
-        
+
         db.update_miner_reward("miner1", 1000).unwrap();
         db.update_miner_reward("miner2", 2000).unwrap();
-        
+
         let total = db.total_rewards().unwrap();
         assert_eq!(total, 3000);
     }

@@ -69,7 +69,7 @@ impl ChainSync {
     /// Update local chain height.
     pub fn set_local_height(&self, height: u64) {
         self.local_height.store(height, Ordering::Relaxed);
-        
+
         // If we caught up, mark as synced
         if height >= self.best_height() {
             self.set_status(SyncStatus::Synced);
@@ -103,12 +103,11 @@ impl ChainSync {
     /// Start sync process.
     pub fn start_sync(&self) -> bool {
         // Try to set syncing flag
-        if self.syncing.compare_exchange(
-            false,
-            true,
-            Ordering::Relaxed,
-            Ordering::Relaxed,
-        ).is_ok() {
+        if self
+            .syncing
+            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
             self.set_status(SyncStatus::Discovering);
             true
         } else {
@@ -133,7 +132,7 @@ impl ChainSync {
         if best == 0 {
             return 100.0;
         }
-        
+
         let local = self.local_height();
         (local as f64 / best as f64) * 100.0
     }
@@ -181,10 +180,7 @@ pub fn request_blocks(
 }
 
 /// Process received headers and update sync state.
-pub fn process_headers(
-    headers: Vec<BlockHeader>,
-    sync: &ChainSync,
-) -> Result<()> {
+pub fn process_headers(headers: Vec<BlockHeader>, sync: &ChainSync) -> Result<()> {
     if headers.is_empty() {
         return Ok(());
     }
@@ -192,7 +188,7 @@ pub fn process_headers(
     // Update local height based on received headers
     let last_height = sync.local_height() + headers.len() as u64;
     sync.set_local_height(last_height);
-    
+
     Ok(())
 }
 
@@ -203,7 +199,7 @@ mod tests {
     #[test]
     fn test_chain_sync_initialization() {
         let sync = ChainSync::new(100);
-        
+
         assert_eq!(sync.local_height(), 100);
         assert_eq!(sync.best_height(), 100);
         assert_eq!(sync.status(), SyncStatus::Idle);
@@ -213,13 +209,13 @@ mod tests {
     #[test]
     fn test_sync_needs_sync() {
         let sync = ChainSync::new(100);
-        
+
         // Initially no sync needed
         assert!(!sync.needs_sync());
-        
+
         // Update best height
         sync.set_best_height(150);
-        
+
         // Now sync is needed
         assert!(sync.needs_sync());
         assert_eq!(sync.blocks_behind(), 50);
@@ -229,15 +225,15 @@ mod tests {
     fn test_sync_start_and_complete() {
         let sync = ChainSync::new(100);
         sync.set_best_height(150);
-        
+
         // Start sync
         assert!(sync.start_sync());
         assert!(sync.is_syncing());
         assert_eq!(sync.status(), SyncStatus::Discovering);
-        
+
         // Cannot start again while syncing
         assert!(!sync.start_sync());
-        
+
         // Complete sync
         sync.complete_sync();
         assert!(!sync.is_syncing());
@@ -248,13 +244,13 @@ mod tests {
     fn test_sync_progress() {
         let sync = ChainSync::new(50);
         sync.set_best_height(100);
-        
+
         // 50% progress
         assert_eq!(sync.progress(), 50.0);
-        
+
         // Update local height
         sync.set_local_height(75);
-        
+
         // 75% progress
         assert_eq!(sync.progress(), 75.0);
     }
@@ -263,13 +259,13 @@ mod tests {
     fn test_auto_sync_completion() {
         let sync = ChainSync::new(90);
         sync.set_best_height(100);
-        
+
         sync.start_sync();
         assert!(sync.is_syncing());
-        
+
         // Catch up to best height
         sync.set_local_height(100);
-        
+
         // Should auto-complete
         assert!(!sync.is_syncing());
         assert_eq!(sync.status(), SyncStatus::Synced);
@@ -279,9 +275,9 @@ mod tests {
     fn test_sync_progress_struct() {
         let sync = ChainSync::new(75);
         sync.set_best_height(100);
-        
+
         let progress = SyncProgress::from(&sync);
-        
+
         assert_eq!(progress.local_height, 75);
         assert_eq!(progress.best_height, 100);
         assert_eq!(progress.blocks_behind, 25);

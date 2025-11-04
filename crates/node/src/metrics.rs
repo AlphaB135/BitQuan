@@ -36,6 +36,16 @@ pub struct MiningMetrics {
     network_blocks_received: Arc<AtomicU64>,
     /// Network sync active flag.
     network_sync_active: Arc<AtomicU64>,
+    /// Chain finalized height (mainnet).
+    chain_finalized_height: Arc<AtomicU64>,
+    /// Total mainnet peers (network-wide estimation).
+    network_peers_mainnet_total: Arc<AtomicU64>,
+    /// Pool mainnet rewards total.
+    pool_mainnet_rewards_total: Arc<AtomicU64>,
+    /// Orphan blocks count.
+    orphan_blocks_total: Arc<AtomicU64>,
+    /// Peer drops count.
+    peer_drops_total: Arc<AtomicU64>,
 }
 
 impl MiningMetrics {
@@ -66,6 +76,11 @@ impl MiningMetrics {
             network_blocks_broadcast: Arc::new(AtomicU64::new(0)),
             network_blocks_received: Arc::new(AtomicU64::new(0)),
             network_sync_active: Arc::new(AtomicU64::new(0)),
+            chain_finalized_height: Arc::new(AtomicU64::new(0)),
+            network_peers_mainnet_total: Arc::new(AtomicU64::new(0)),
+            pool_mainnet_rewards_total: Arc::new(AtomicU64::new(0)),
+            orphan_blocks_total: Arc::new(AtomicU64::new(0)),
+            peer_drops_total: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -77,12 +92,15 @@ impl MiningMetrics {
 
         let now = Instant::now();
         let mut last_times = self.last_block_time.write().unwrap();
-        
+
         if let Some(last_time) = last_times.get(&algo) {
             let duration = now.duration_since(*last_time);
             let mut durations = self.block_durations.write().unwrap();
-            durations.entry(algo).or_insert_with(Vec::new).push(duration);
-            
+            durations
+                .entry(algo)
+                .or_insert_with(Vec::new)
+                .push(duration);
+
             // Keep only last 100 durations
             if let Some(list) = durations.get_mut(&algo) {
                 if list.len() > 100 {
@@ -90,7 +108,7 @@ impl MiningMetrics {
                 }
             }
         }
-        
+
         last_times.insert(algo, now);
     }
 
@@ -209,7 +227,8 @@ impl MiningMetrics {
 
     /// Record network block broadcast.
     pub fn record_network_block_broadcast(&self) {
-        self.network_blocks_broadcast.fetch_add(1, Ordering::Relaxed);
+        self.network_blocks_broadcast
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Record network block received.
@@ -219,7 +238,8 @@ impl MiningMetrics {
 
     /// Set network sync active status.
     pub fn set_network_sync_active(&self, active: bool) {
-        self.network_sync_active.store(if active { 1 } else { 0 }, Ordering::Relaxed);
+        self.network_sync_active
+            .store(if active { 1 } else { 0 }, Ordering::Relaxed);
     }
 
     /// Get network peers count.
@@ -237,10 +257,37 @@ impl MiningMetrics {
         self.network_blocks_received.load(Ordering::Relaxed)
     }
 
+    /// Set chain finalized height (mainnet).
+    pub fn set_chain_finalized_height(&self, height: u64) {
+        self.chain_finalized_height.store(height, Ordering::Relaxed);
+    }
+
+    /// Set network peers mainnet total.
+    pub fn set_network_peers_mainnet_total(&self, count: u64) {
+        self.network_peers_mainnet_total
+            .store(count, Ordering::Relaxed);
+    }
+
+    /// Set pool mainnet rewards total.
+    pub fn set_pool_mainnet_rewards_total(&self, amount: u64) {
+        self.pool_mainnet_rewards_total
+            .store(amount, Ordering::Relaxed);
+    }
+
+    /// Record orphan block.
+    pub fn record_orphan_block(&self) {
+        self.orphan_blocks_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record peer drop.
+    pub fn record_peer_drop(&self) {
+        self.peer_drops_total.fetch_add(1, Ordering::Relaxed);
+    }
+
     /// Format metrics as Prometheus text format.
     pub fn format_prometheus(&self) -> String {
         let mut output = String::new();
-        
+
         output.push_str("# HELP pow_mined_blocks_total Total blocks mined per algorithm\n");
         output.push_str("# TYPE pow_mined_blocks_total counter\n");
         for (algo, counter) in &self.blocks_mined {
@@ -251,7 +298,7 @@ impl MiningMetrics {
                 value
             ));
         }
-        
+
         output.push_str("# HELP pow_hash_attempts_total Total hash attempts per algorithm\n");
         output.push_str("# TYPE pow_hash_attempts_total counter\n");
         for (algo, counter) in &self.hash_attempts {
@@ -262,7 +309,7 @@ impl MiningMetrics {
                 value
             ));
         }
-        
+
         output.push_str("# HELP pow_verify_failures_total Total PoW verification failures\n");
         output.push_str("# TYPE pow_verify_failures_total counter\n");
         for (algo, counter) in &self.verify_failures {
@@ -273,7 +320,7 @@ impl MiningMetrics {
                 value
             ));
         }
-        
+
         output.push_str("# HELP pow_hashrate_gauge Estimated hashrate per algorithm\n");
         output.push_str("# TYPE pow_hashrate_gauge gauge\n");
         for &algo in self.blocks_mined.keys() {
@@ -284,7 +331,7 @@ impl MiningMetrics {
                 hashrate
             ));
         }
-        
+
         output.push_str("# HELP pow_block_time_seconds Average block time per algorithm\n");
         output.push_str("# TYPE pow_block_time_seconds gauge\n");
         for &algo in self.blocks_mined.keys() {
@@ -296,43 +343,113 @@ impl MiningMetrics {
                 ));
             }
         }
-        
+
         output.push_str("# HELP stratum_blocks_persisted_total Total blocks persisted to chain\n");
         output.push_str("# TYPE stratum_blocks_persisted_total counter\n");
-        output.push_str(&format!("stratum_blocks_persisted_total {}\n", self.get_blocks_persisted()));
-        
-        output.push_str("# HELP stratum_total_rewards_distributed Total rewards distributed in satoshis\n");
+        output.push_str(&format!(
+            "stratum_blocks_persisted_total {}\n",
+            self.get_blocks_persisted()
+        ));
+
+        output.push_str(
+            "# HELP stratum_total_rewards_distributed Total rewards distributed in satoshis\n",
+        );
         output.push_str("# TYPE stratum_total_rewards_distributed counter\n");
-        output.push_str(&format!("stratum_total_rewards_distributed {}\n", self.get_total_rewards()));
-        
+        output.push_str(&format!(
+            "stratum_total_rewards_distributed {}\n",
+            self.get_total_rewards()
+        ));
+
         output.push_str("# HELP stratum_pool_balance_gauge Current pool balance in satoshis\n");
         output.push_str("# TYPE stratum_pool_balance_gauge gauge\n");
-        output.push_str(&format!("stratum_pool_balance_gauge {}\n", self.get_pool_balance()));
-        
+        output.push_str(&format!(
+            "stratum_pool_balance_gauge {}\n",
+            self.get_pool_balance()
+        ));
+
         output.push_str("# HELP stratum_payouts_total Total payouts completed\n");
         output.push_str("# TYPE stratum_payouts_total counter\n");
-        output.push_str(&format!("stratum_payouts_total {}\n", self.get_payouts_total()));
-        
+        output.push_str(&format!(
+            "stratum_payouts_total {}\n",
+            self.get_payouts_total()
+        ));
+
         output.push_str("# HELP reward_per_block_gauge Current reward per block in satoshis\n");
         output.push_str("# TYPE reward_per_block_gauge gauge\n");
-        output.push_str(&format!("reward_per_block_gauge {}\n", self.reward_per_block.load(Ordering::Relaxed)));
-        
+        output.push_str(&format!(
+            "reward_per_block_gauge {}\n",
+            self.reward_per_block.load(Ordering::Relaxed)
+        ));
+
         output.push_str("# HELP network_peers_connected Number of connected peers\n");
         output.push_str("# TYPE network_peers_connected gauge\n");
-        output.push_str(&format!("network_peers_connected {}\n", self.get_network_peers()));
-        
-        output.push_str("# HELP network_blocks_broadcast_total Total blocks broadcast to network\n");
+        output.push_str(&format!(
+            "network_peers_connected {}\n",
+            self.get_network_peers()
+        ));
+
+        output
+            .push_str("# HELP network_blocks_broadcast_total Total blocks broadcast to network\n");
         output.push_str("# TYPE network_blocks_broadcast_total counter\n");
-        output.push_str(&format!("network_blocks_broadcast_total {}\n", self.get_network_blocks_broadcast()));
-        
-        output.push_str("# HELP network_blocks_received_total Total blocks received from network\n");
+        output.push_str(&format!(
+            "network_blocks_broadcast_total {}\n",
+            self.get_network_blocks_broadcast()
+        ));
+
+        output
+            .push_str("# HELP network_blocks_received_total Total blocks received from network\n");
         output.push_str("# TYPE network_blocks_received_total counter\n");
-        output.push_str(&format!("network_blocks_received_total {}\n", self.get_network_blocks_received()));
-        
-        output.push_str("# HELP network_sync_active_gauge Network sync active status (0=idle, 1=syncing)\n");
+        output.push_str(&format!(
+            "network_blocks_received_total {}\n",
+            self.get_network_blocks_received()
+        ));
+
+        output.push_str(
+            "# HELP network_sync_active_gauge Network sync active status (0=idle, 1=syncing)\n",
+        );
         output.push_str("# TYPE network_sync_active_gauge gauge\n");
-        output.push_str(&format!("network_sync_active_gauge {}\n", self.network_sync_active.load(Ordering::Relaxed)));
-        
+        output.push_str(&format!(
+            "network_sync_active_gauge {}\n",
+            self.network_sync_active.load(Ordering::Relaxed)
+        ));
+
+        output.push_str("# HELP chain_finalized_height Finalized chain height (mainnet)\n");
+        output.push_str("# TYPE chain_finalized_height gauge\n");
+        output.push_str(&format!(
+            "chain_finalized_height {}\n",
+            self.chain_finalized_height.load(Ordering::Relaxed)
+        ));
+
+        output.push_str(
+            "# HELP network_peers_mainnet_total Total mainnet peers (network-wide estimate)\n",
+        );
+        output.push_str("# TYPE network_peers_mainnet_total gauge\n");
+        output.push_str(&format!(
+            "network_peers_mainnet_total {}\n",
+            self.network_peers_mainnet_total.load(Ordering::Relaxed)
+        ));
+
+        output.push_str("# HELP pool_mainnet_rewards_total Total mainnet rewards distributed\n");
+        output.push_str("# TYPE pool_mainnet_rewards_total counter\n");
+        output.push_str(&format!(
+            "pool_mainnet_rewards_total {}\n",
+            self.pool_mainnet_rewards_total.load(Ordering::Relaxed)
+        ));
+
+        output.push_str("# HELP orphan_blocks_total Total orphan blocks encountered\n");
+        output.push_str("# TYPE orphan_blocks_total counter\n");
+        output.push_str(&format!(
+            "orphan_blocks_total {}\n",
+            self.orphan_blocks_total.load(Ordering::Relaxed)
+        ));
+
+        output.push_str("# HELP peer_drops_total Total peer connection drops\n");
+        output.push_str("# TYPE peer_drops_total counter\n");
+        output.push_str(&format!(
+            "peer_drops_total {}\n",
+            self.peer_drops_total.load(Ordering::Relaxed)
+        ));
+
         output
     }
 
@@ -366,13 +483,13 @@ mod tests {
     #[test]
     fn metrics_basic_operations() {
         let metrics = MiningMetrics::new(&[PowAlgo::Sha256d]);
-        
+
         metrics.record_block_mined(PowAlgo::Sha256d);
         assert_eq!(metrics.get_blocks_mined(PowAlgo::Sha256d), 1);
-        
+
         metrics.record_hash_attempts(PowAlgo::Sha256d, 1000);
         assert_eq!(metrics.get_hash_attempts(PowAlgo::Sha256d), 1000);
-        
+
         metrics.record_verify_failure(PowAlgo::Sha256d);
         assert_eq!(metrics.get_verify_failures(PowAlgo::Sha256d), 1);
     }
@@ -381,7 +498,7 @@ mod tests {
     fn prometheus_format() {
         let metrics = MiningMetrics::new(&[PowAlgo::Sha256d]);
         metrics.record_block_mined(PowAlgo::Sha256d);
-        
+
         let output = metrics.format_prometheus();
         assert!(output.contains("pow_mined_blocks_total"));
         assert!(output.contains("sha256d"));

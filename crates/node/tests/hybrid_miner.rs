@@ -22,7 +22,7 @@ fn hybrid_miner_switches_algos() {
     }
 
     // With 1:2 ratio, RandomX should be selected more often
-    assert!(randomx_count > sha256d_count, 
+    assert!(randomx_count > sha256d_count,
         "RandomX (weight 2.0) should be selected more than SHA256d (weight 1.0). Got SHA256d: {}, RandomX: {}",
         sha256d_count, randomx_count);
 }
@@ -51,11 +51,17 @@ fn randomx_miner_produces_valid_block() {
 
     // Try mining with RandomX (should find solution quickly with easy target)
     let result = miner.mine_block_attempt(header, 1_000_000, PowAlgo::RandomX);
-    
+
     match result {
         Ok(Some(mined)) => {
-            assert_eq!(mined.algo_id, 1, "Algorithm ID should be set to RandomX (1)");
-            assert!(mined.nonce > 0 || mined.nonce == 0, "Should have a valid nonce");
+            assert_eq!(
+                mined.algo_id, 1,
+                "Algorithm ID should be set to RandomX (1)"
+            );
+            assert!(
+                mined.nonce > 0 || mined.nonce == 0,
+                "Should have a valid nonce"
+            );
         }
         Ok(None) => {
             // May not find solution in limited attempts with RandomX placeholder
@@ -109,7 +115,7 @@ fn sha256d_only_miner_works() {
 
     // Try mining with SHA256d (should find solution quickly)
     let result = miner.mine_block_attempt(header, 10_000_000, PowAlgo::Sha256d);
-    
+
     match result {
         Ok(Some(mined)) => {
             assert_eq!(mined.algo_id, 0, "Algorithm ID should be SHA256d (0)");
@@ -149,7 +155,7 @@ fn metrics_track_mining_activity() {
     // Check metrics
     let metrics = miner.metrics();
     let attempts = metrics.get_hash_attempts(PowAlgo::Sha256d);
-    
+
     assert!(attempts > 0, "Should have recorded hash attempts");
     println!("Recorded {} hash attempts", attempts);
 }

@@ -3,7 +3,7 @@
 //! Provides fresh templates for miners with automatic refresh mechanism.
 
 use bitquan_consensus::pow::PowAlgo;
-use bitquan_types::{BlockHeader, Transaction, Result};
+use bitquan_types::{BlockHeader, Result, Transaction};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -62,10 +62,10 @@ impl PoolTemplateManager {
         let mut job_id = self.next_job_id.write().await;
         template.job_id = *job_id;
         *job_id = job_id.wrapping_add(1);
-        
+
         let mut cache = self.cache.write().await;
         *cache = Some(template);
-        
+
         let mut last_refresh = self.last_refresh.write().await;
         *last_refresh = Instant::now();
     }
@@ -91,10 +91,10 @@ impl PoolTemplateManager {
                     Ok(template) => {
                         let mut cache_guard = cache.write().await;
                         *cache_guard = Some(template);
-                        
+
                         let mut refresh_guard = last_refresh.write().await;
                         *refresh_guard = Instant::now();
-                        
+
                         println!("PoolTemplate: Refreshed block template");
                     }
                     Err(e) => {
@@ -120,10 +120,10 @@ mod tests {
     #[tokio::test]
     async fn test_template_cache() {
         let manager = PoolTemplateManager::new(30);
-        
+
         // Initially empty
         assert!(manager.get_template().await.is_none());
-        
+
         // Update template
         let header = BlockHeader {
             version: 1,
@@ -142,9 +142,9 @@ mod tests {
             algo: PowAlgo::Sha256d,
             job_id: 0, // Will be auto-assigned
         };
-        
+
         manager.update_template(template.clone()).await;
-        
+
         // Should now be available
         let cached = manager.get_template().await;
         assert!(cached.is_some());

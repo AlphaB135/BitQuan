@@ -8,7 +8,8 @@ use bitquan_consensus::header_hash;
 use bitquan_rpc::{
     methods::{
         BlockTemplate, BlockchainInfo, MinerBlock, MinerStatsResponse, MiningInfo,
-        NetworkStatusResponse, PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods, TxInfo, WorkData,
+        NetworkStatusResponse, PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods,
+        TxInfo, WorkData,
     },
     RpcError,
 };

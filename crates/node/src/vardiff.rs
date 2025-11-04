@@ -39,12 +39,12 @@ impl VarDiff {
         // If ratio > 1.0, miner is too slow, decrease difficulty
         // If ratio < 1.0, miner is too fast, increase difficulty
         let ratio = actual_time / self.target_time;
-        
+
         // Apply adjustment: new_diff = current_diff * (1 + rate * (1 - ratio))
         // This makes diff inversely proportional to share rate
         let delta = 1.0 - ratio;
         let new_diff = current_diff * (1.0 + self.adjust_rate * delta);
-        
+
         // Clamp to reasonable bounds
         new_diff.clamp(0.01, 10000.0)
     }
@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn test_vardiff_increase() {
         let vd = VarDiff::new(15.0, 0.05);
-        
+
         // Miner submitting too fast (5s instead of 15s)
         // Difficulty should increase
         let new_diff = vd.adjust(5.0, 1.0);
@@ -80,7 +80,7 @@ mod tests {
     #[test]
     fn test_vardiff_decrease() {
         let vd = VarDiff::new(15.0, 0.05);
-        
+
         // Miner submitting too slow (30s instead of 15s)
         // Difficulty should decrease
         let new_diff = vd.adjust(30.0, 1.0);
@@ -90,11 +90,11 @@ mod tests {
     #[test]
     fn test_vardiff_bounds() {
         let vd = VarDiff::new(15.0, 0.5); // High adjustment rate
-        
+
         // Extreme fast case
         let new_diff = vd.adjust(0.1, 1.0);
         assert!(new_diff >= 0.01 && new_diff <= 10000.0);
-        
+
         // Extreme slow case
         let new_diff = vd.adjust(1000.0, 1.0);
         assert!(new_diff >= 0.01 && new_diff <= 10000.0);
@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn test_should_adjust() {
         let vd = VarDiff::default();
-        
+
         assert!(!vd.should_adjust(0));
         assert!(!vd.should_adjust(7));
         assert!(vd.should_adjust(8));

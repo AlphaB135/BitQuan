@@ -108,35 +108,38 @@ fn ensure_pow_allowed(pow_mode: PowMode, network: NetworkId) -> Result<()> {
 #[cfg(feature = "randomx")]
 fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowAlgo, f32)>> {
     use bitquan_consensus::pow::PowAlgo;
-    
+
     let mut weights = Vec::new();
     for part in s.split(',') {
-        let (key, value) = part
-            .split_once(':')
-            .ok_or_else(|| Error::Invalid(format!("invalid weight format: '{}', expected 'algo:weight'", part)))?;
-        
+        let (key, value) = part.split_once(':').ok_or_else(|| {
+            Error::Invalid(format!(
+                "invalid weight format: '{}', expected 'algo:weight'",
+                part
+            ))
+        })?;
+
         let algo = match key.trim() {
             "sha256d" => PowAlgo::Sha256d,
             "randomx" => PowAlgo::RandomX,
             other => return invalid(format!("unknown algorithm: '{}'", other)),
         };
-        
+
         let weight = value
             .trim()
             .parse::<f32>()
             .map_err(|e| Error::Invalid(format!("invalid weight value '{}': {}", value, e)))?;
-        
+
         if weight <= 0.0 {
             return invalid(format!("weight must be positive for {}", key));
         }
-        
+
         weights.push((algo, weight));
     }
-    
+
     if weights.is_empty() {
         return invalid("at least one algorithm weight required");
     }
-    
+
     Ok(weights)
 }
 
@@ -623,6 +626,15 @@ enum Commands {
         #[arg(long)]
         address: Option<String>,
     },
+    /// Verify genesis block hash and configuration
+    GenesisVerify {
+        /// Path to genesis JSON file
+        #[arg(long, default_value = "genesis/mainnet.json")]
+        genesis_file: String,
+        /// Network to verify against (mainnet|testnet|devnet)
+        #[arg(long, default_value = "mainnet")]
+        network: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -660,23 +672,23 @@ fn main() -> Result<()> {
             #[cfg(feature = "randomx")]
             hybrid_weights,
             #[cfg(feature = "randomx")]
-            randomx_mode: _randomx_mode,
+                randomx_mode: _randomx_mode,
             #[cfg(feature = "randomx")]
-            randomx_seed: _randomx_seed,
+                randomx_seed: _randomx_seed,
         } => {
             let network_id = parse_network_id(&network)?;
             let pow_mode = PowMode::parse(&pow)?;
             ensure_pow_allowed(pow_mode, network_id)?;
-            
+
             #[cfg(feature = "randomx")]
             let weights = if matches!(pow_mode, PowMode::Hybrid) {
                 Some(parse_hybrid_weights(
-                    hybrid_weights.as_deref().unwrap_or("sha256d:1,randomx:2")
+                    hybrid_weights.as_deref().unwrap_or("sha256d:1,randomx:2"),
                 )?)
             } else {
                 None
             };
-            
+
             mine_continuous(MiningOptions {
                 datadir: &datadir,
                 payout_script_hex: &payout_script_hex,
@@ -875,7 +887,7 @@ fn main() -> Result<()> {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect();
-            
+
             run_stratum_server(stratum_bind, allow_list, stratum_diff, network_id)
         }
         Commands::Balance {
@@ -901,6 +913,10 @@ fn main() -> Result<()> {
             backup_path,
             rebuild,
         } => verify_database(&path, backup, backup_path.as_deref(), rebuild),
+        Commands::GenesisVerify {
+            genesis_file,
+            network,
+        } => genesis_verify(&genesis_file, &network),
     }
 }
 
@@ -1381,7 +1397,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             DEVNET_MAX_BITS
         );
     }
-    
+
     // Initialize hybrid miner if applicable
     #[cfg(feature = "randomx")]
     let hybrid_miner = if matches!(pow_mode, PowMode::Hybrid | PowMode::RandomX) {
@@ -1393,14 +1409,14 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         } else {
             vec![(PowAlgo::Sha256d, 1.0), (PowAlgo::RandomX, 2.0)]
         };
-        
+
         println!("\n=== Hybrid Mining Enabled ===");
         println!("Algorithms:");
         for (algo, weight) in &weights {
             println!("  - {} (weight: {:.1})", algo.name(), weight);
         }
         println!("=============================\n");
-        
+
         let miner = miner::HybridMiner::new(&weights, threads, network)?;
         Some(miner)
     } else {
@@ -1536,31 +1552,36 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         // Mining loop
         found.store(false, Ordering::Relaxed);
         let start_time = std::time::Instant::now();
-        
+
         // Hybrid mining path
         #[cfg(feature = "randomx")]
         let (mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             use bitquan_consensus::pow::PowAlgo;
-            
+
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
             println!("Mining with algorithm: {}", algo.name());
-            
+
             match hybrid_miner.mine_block_attempt(header.clone(), max_nonce, algo)? {
                 Some(h) => (Some(h), Some(algo)),
                 None => {
-                    println!("No solution found in {} attempts with {}", max_nonce, algo.name());
+                    println!(
+                        "No solution found in {} attempts with {}",
+                        max_nonce,
+                        algo.name()
+                    );
                     continue;
                 }
             }
         } else {
             (None, None)
         };
-        
+
         // Standard SHA-256d mining path
         #[cfg(not(feature = "randomx"))]
-        let (mined_header, _algo_used): (Option<bitquan_types::BlockHeader>, Option<()>) = (None, None);
-        
+        let (mined_header, _algo_used): (Option<bitquan_types::BlockHeader>, Option<()>) =
+            (None, None);
+
         let (header, n) = if let Some(h) = mined_header {
             let nonce = h.nonce;
             (h, nonce)
@@ -1568,7 +1589,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             // Standard sequential mining
             let mut solution_found = false;
             let mut final_nonce = 0;
-            
+
             for n in 0..max_nonce {
                 header.nonce = n;
                 let pow_valid = if allow_mock {
@@ -1584,12 +1605,12 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                     break;
                 }
             }
-            
+
             if !solution_found {
                 println!("No solution found in {} attempts", max_nonce);
                 continue;
             }
-            
+
             (header, final_nonce)
         };
 
@@ -1599,13 +1620,18 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
 
         #[cfg(feature = "randomx")]
         if let Some(algo) = algo_used {
-            println!("\nFOUND! Block #{} | Algo: {} | Nonce: {}", height + 1, algo.name(), n);
+            println!(
+                "\nFOUND! Block #{} | Algo: {} | Nonce: {}",
+                height + 1,
+                algo.name(),
+                n
+            );
         } else {
             println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
         }
         #[cfg(not(feature = "randomx"))]
         println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
-        
+
         println!("Hash: {}", hex::encode(id));
         println!(
             "Time: {:.2}s | Hashrate: {:.2} H/s",
@@ -1657,8 +1683,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
 
         let height_delta = block_height as i64 - anchor.height as i64;
         let time_delta = block_time - anchor.timestamp;
-        let expected_time =
-            params.difficulty.target_block_time as f64 * height_delta.max(1) as f64;
+        let expected_time = params.difficulty.target_block_time as f64 * height_delta.max(1) as f64;
         let average = if height_delta > 0 {
             time_delta as f64 / height_delta as f64
         } else {
@@ -1678,8 +1703,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 .ok_or(Error::Overflow("guard count overflow"))?;
         }
 
-        let next_target =
-            asert_next_target(anchor.target, height_delta, time_delta, &params, None);
+        let next_target = asert_next_target(anchor.target, height_delta, time_delta, &params, None);
         let mut next_bits = target_to_compact(next_target);
         if next_bits == 0 {
             next_bits = block_bits;
@@ -1710,7 +1734,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 return Ok(());
             }
         }
-        
+
         if !found.load(Ordering::Relaxed) {
             println!(
                 "\nNo valid nonce in {} tries, adjusting difficulty...",
@@ -3275,7 +3299,7 @@ fn run_stratum_server(
 
     runtime.block_on(async {
         let mut server = StratumServer::new(config);
-        
+
         // Start server (blocks until shutdown)
         server.start().await
     })
@@ -3345,4 +3369,160 @@ mod overflow_tests {
 
         assert_eq!(count, 1000);
     }
+}
+
+/// Verify genesis block hash and configuration
+fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
+    use std::fs;
+
+    println!("🔍 Verifying genesis configuration...");
+    println!("Genesis file: {}", genesis_file);
+    println!("Network: {}", network);
+
+    // Read genesis file
+    let genesis_json = fs::read_to_string(genesis_file)
+        .map_err(|e| Error::Invalid(format!("failed to read genesis file: {}", e)))?;
+
+    // Parse genesis configuration
+    let genesis: serde_json::Value = serde_json::from_str(&genesis_json)
+        .map_err(|e| Error::Invalid(format!("failed to parse genesis JSON: {}", e)))?;
+
+    // Extract fields
+    let chain_id = genesis["chain_id"]
+        .as_str()
+        .ok_or_else(|| Error::Invalid("missing chain_id".into()))?;
+    let network_id = genesis["network_id"]
+        .as_str()
+        .ok_or_else(|| Error::Invalid("missing network_id".into()))?;
+    let genesis_hash = genesis["genesis_hash"]
+        .as_str()
+        .ok_or_else(|| Error::Invalid("missing genesis_hash".into()))?;
+    let timestamp = genesis["genesis_timestamp"]
+        .as_u64()
+        .ok_or_else(|| Error::Invalid("missing genesis_timestamp".into()))?;
+
+    // Verify network matches
+    if network_id != network {
+        return Err(Error::Invalid(format!(
+            "network mismatch: expected '{}', got '{}'",
+            network, network_id
+        )));
+    }
+
+    println!("\n✓ Chain ID: {}", chain_id);
+    println!("✓ Network: {}", network_id);
+    println!("✓ Genesis Hash: {}", genesis_hash);
+    println!(
+        "✓ Genesis Timestamp: {} ({})",
+        timestamp,
+        chrono::DateTime::from_timestamp(timestamp as i64, 0)
+            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+            .unwrap_or_else(|| "invalid".to_string())
+    );
+
+    // Extract consensus params
+    if let Some(params) = genesis["consensus_params"].as_object() {
+        println!("\n📋 Consensus Parameters:");
+        println!(
+            "   Target block time: {}s",
+            params
+                .get("target_block_time")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+        );
+        println!(
+            "   Max block size: {} bytes",
+            params
+                .get("max_block_size")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+        );
+        println!(
+            "   Coinbase maturity: {} blocks",
+            params
+                .get("coinbase_maturity")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+        );
+        println!(
+            "   Initial subsidy: {} satoshis",
+            params
+                .get("initial_subsidy")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+        );
+        println!(
+            "   PoW algorithm: {}",
+            params
+                .get("pow_algo")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+        );
+    }
+
+    // Extract DNS seeds
+    if let Some(seeds) = genesis["dns_seeds"].as_array() {
+        println!("\n🌐 DNS Seeds:");
+        for seed in seeds.iter().take(10) {
+            if let Some(s) = seed.as_str() {
+                println!("   {}", s);
+            }
+        }
+        if seeds.len() > 10 {
+            println!("   ... and {} more", seeds.len() - 10);
+        }
+    }
+
+    // Extract bootstrap peers
+    if let Some(peers) = genesis["bootstrap_peers"].as_array() {
+        println!("\n🔗 Bootstrap Peers:");
+        for peer in peers.iter().take(10) {
+            if let Some(p) = peer.as_str() {
+                println!("   {}", p);
+            }
+        }
+        if peers.len() > 10 {
+            println!("   ... and {} more", peers.len() - 10);
+        }
+    }
+
+    // Extract PQC signature info
+    if let Some(pqc) = genesis["pqc_signature"].as_object() {
+        println!("\n🔐 PQC Signature:");
+        println!(
+            "   Algorithm: {}",
+            pqc.get("algorithm")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+        );
+        if let Some(pubkey) = pqc.get("public_key").and_then(|v| v.as_str()) {
+            println!(
+                "   Public key: {}...",
+                &pubkey[..std::cmp::min(40, pubkey.len())]
+            );
+        }
+    }
+
+    // Extract checkpoint hashes
+    if let Some(checkpoints) = genesis["checkpoint_hashes"].as_array() {
+        if !checkpoints.is_empty() {
+            println!("\n🔒 Checkpoint Hashes:");
+            for checkpoint in checkpoints.iter().take(5) {
+                if let Some(cp) = checkpoint.as_object() {
+                    let height = cp.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let hash = cp.get("hash").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    println!("   Height {}: {}", height, hash);
+                }
+            }
+            if checkpoints.len() > 5 {
+                println!("   ... and {} more", checkpoints.len() - 5);
+            }
+        }
+    }
+
+    println!("\n✅ Genesis verification complete!");
+    println!("\n💡 Expected genesis hash for {} network:", network);
+    println!("   {}", genesis_hash);
+
+    Ok(())
 }

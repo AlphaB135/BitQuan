@@ -2,6 +2,7 @@
 #![warn(missing_docs)]
 
 pub mod discovery;
+pub mod dns_bootstrap;
 pub mod io;
 pub mod peer;
 pub mod propagation;
@@ -10,18 +11,19 @@ pub mod relay;
 pub mod sync;
 
 pub use discovery::{
-    bootstrap_peers, discover_from_seeds, PeerBook, PersistentPeer,
-    MAINNET_SEEDS, TESTNET_SEEDS, PEER_TIMEOUT_SECS, PING_INTERVAL_SECS,
+    bootstrap_peers, discover_from_seeds, PeerBook, PersistentPeer, MAINNET_SEEDS,
+    PEER_TIMEOUT_SECS, PING_INTERVAL_SECS, TESTNET_SEEDS,
 };
+pub use dns_bootstrap::{load_default_seeds, DnsBootstrap, DnsSeed};
 pub use peer::{
     handshake, read_frame, EclipseConfig, P2PListener, Peer, PeerManager, PeerState,
     HANDSHAKE_TIMEOUT_MS, MAX_MSG_BYTES,
 };
 pub use propagation::{
-    BlockPropagator, PropagationStats, SeenFilter, broadcast_block_inv, create_envelope,
+    broadcast_block_inv, create_envelope, BlockPropagator, PropagationStats, SeenFilter,
 };
 pub use relay::{create_block_inv, create_tx_inv, RelayManager, RelayPolicy};
-pub use sync::{ChainSync, SyncProgress, SyncStatus, process_headers, request_blocks};
+pub use sync::{process_headers, request_blocks, ChainSync, SyncProgress, SyncStatus};
 
 use bitquan_types::Block;
 use thiserror::Error;

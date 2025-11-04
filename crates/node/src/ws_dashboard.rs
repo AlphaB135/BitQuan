@@ -103,7 +103,10 @@ impl WsDashboard {
                 bitquan_types::Error::Invalid(format!("failed to bind dashboard: {}", e))
             })?;
 
-        println!("Dashboard: WebSocket server listening on {}", self.config.bind_addr);
+        println!(
+            "Dashboard: WebSocket server listening on {}",
+            self.config.bind_addr
+        );
 
         // Spawn stats broadcaster
         self.spawn_stats_broadcaster(Arc::clone(&peers), Arc::clone(&metrics));
@@ -115,7 +118,9 @@ impl WsDashboard {
                     let stats_rx = self.stats_tx.subscribe();
                     let miners_rx = self.miners_tx.subscribe();
                     tokio::spawn(async move {
-                        if let Err(e) = handle_ws_connection(stream, addr, stats_rx, miners_rx).await {
+                        if let Err(e) =
+                            handle_ws_connection(stream, addr, stats_rx, miners_rx).await
+                        {
                             eprintln!("Dashboard: WebSocket error {}: {}", addr, e);
                         }
                     });
@@ -149,7 +154,7 @@ impl WsDashboard {
                     .as_secs();
 
                 let active_miners = peers.len();
-                
+
                 let shares_ok_sha256d = metrics.get_accepted(PowAlgo::Sha256d);
                 let shares_rejected_sha256d = metrics.get_rejected(PowAlgo::Sha256d);
 
@@ -163,7 +168,7 @@ impl WsDashboard {
 
                 // Estimate hashrate (simplified)
                 let hashrate_sha256d = estimate_hashrate(&peers, PowAlgo::Sha256d);
-                
+
                 #[cfg(feature = "randomx")]
                 let hashrate_randomx = estimate_hashrate(&peers, PowAlgo::RandomX);
 
@@ -225,17 +230,18 @@ async fn handle_ws_connection(
 ) -> Result<()> {
     // Note: This is a simplified implementation that sends JSON over raw TCP
     // In production, use a proper WebSocket library like tokio-tungstenite
-    
+
     println!("Dashboard: New connection from {}", addr);
-    
+
     use tokio::io::AsyncWriteExt;
     let (_, mut writer) = stream.into_split();
 
     // Send initial HTTP response (simplified)
     let response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n";
-    writer.write_all(response.as_bytes()).await.map_err(|e| {
-        bitquan_types::Error::Invalid(format!("write error: {}", e))
-    })?;
+    writer
+        .write_all(response.as_bytes())
+        .await
+        .map_err(|e| bitquan_types::Error::Invalid(format!("write error: {}", e)))?;
 
     // Stream stats as newline-delimited JSON
     loop {

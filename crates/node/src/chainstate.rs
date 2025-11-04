@@ -36,7 +36,7 @@ impl ChainState {
             tip_hash: Arc::new(Mutex::new([0u8; 32])),
             db: Some(db),
         };
-        
+
         // Load from database
         state.load_from_db()?;
         Ok(state)
@@ -45,15 +45,16 @@ impl ChainState {
     /// Load chain state from database.
     fn load_from_db(&self) -> Result<()> {
         if let Some(ref db) = self.db {
-            if let Some(latest) = db.get_latest_block()
-                .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))? 
+            if let Some(latest) = db
+                .get_latest_block()
+                .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?
             {
                 self.height.store(latest.height, Ordering::SeqCst);
-                
+
                 // Parse hash from hex
                 let hash_bytes = hex::decode(&latest.hash)
                     .map_err(|e| bitquan_types::Error::Invalid(format!("Invalid hash: {}", e)))?;
-                
+
                 if hash_bytes.len() == 32 {
                     let mut hash = [0u8; 32];
                     hash.copy_from_slice(&hash_bytes);
@@ -68,10 +69,10 @@ impl ChainState {
     pub fn append_block(&self, block: &Block, block_hash: [u8; 32]) -> Result<u64> {
         // Increment height
         let new_height = self.height.fetch_add(1, Ordering::SeqCst) + 1;
-        
+
         // Update tip hash
         *self.tip_hash.lock().unwrap() = block_hash;
-        
+
         Ok(new_height)
     }
 
@@ -100,7 +101,7 @@ impl Default for ChainState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitquan_types::{BlockHeader, Transaction, NetworkId, SigAlgorithm};
+    use bitquan_types::{BlockHeader, NetworkId, SigAlgorithm, Transaction};
 
     fn dummy_block() -> Block {
         Block {
