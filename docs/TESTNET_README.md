@@ -1,250 +1,159 @@
-# BitQuan Public Testnet
+# BitQuan Testnet & Hybrid Mining Guide
 
-Welcome to the BitQuan public testnet! This network is designed for testing and development of the BitQuan blockchain.
+This document provides detailed instructions for running BitQuan testnet nodes with hybrid Proof-of-Work mining.
 
-## Network Information
+## ⚠️ Network Restrictions
 
-| Parameter | Value |
-|-----------|-------|
-| **Network ID** | testnet |
-| **P2P Port** | 18444 |
-| **RPC Port** | 18443 |
-| **Genesis Hash** | TBD (generated on first block) |
-| **Difficulty** | 0x1d00ffff (easier than mainnet) |
-| **Block Time** | 600 seconds (10 minutes) |
-| **Block Reward** | 50 BQ (halving every 210,000 blocks) |
+| Network  | SHA-256d | RandomX | Hybrid Mode |
+|----------|----------|---------|-------------|
+| Mainnet  | ✅ Always | ❌ Never  | ❌ Never     |
+| Testnet  | ✅ Yes    | ✅ Yes    | ✅ Yes       |
+| Devnet   | ✅ Yes    | ✅ Yes    | ✅ Yes       |
+| Regtest  | ✅ Yes    | ✅ Yes    | ✅ Yes       |
 
-## Quick Start
+**Mainnet uses SHA-256d exclusively.** RandomX is strictly forbidden at the consensus level for maximum security and ASIC compatibility.
 
-### Running a Testnet Node
+## Building with RandomX Support
 
 ```bash
-# Clone the repository
-git clone https://github.com/AlphaB135/BitQuan.git
-cd BitQuan
-
-# Build the node
+# Standard build (SHA-256d only)
 cargo build --release
 
-# Run testnet node
-./target/release/bitquan-node --network testnet --config config/testnet.toml
+# Build with RandomX support (adds ~50MB dependencies)
+cargo build --release --features randomx
+
+# Verify feature compilation
+cargo test --features randomx --test hybrid_miner
 ```
 
-### Connecting to Bootstrap Nodes
+## Hybrid Mining Modes
 
-The testnet has bootstrap nodes for peer discovery:
-- `node1.bitquan.dev:18444`
-- `node2.bitquan.dev:18444`
-
-### Getting Testnet Coins
-
-Visit the testnet faucet:
-**https://faucet.bitquan.dev**
-
-Provide your testnet address and receive testnet BQ for development.
-
-## Network Services
-
-### Block Explorer
-**URL**: https://explorer.bitquan.dev
-
-View blocks, transactions, and network statistics.
-
-### Faucet
-**URL**: https://faucet.bitquan.dev
-
-Get free testnet coins for development (rate limited).
-
-### RPC Endpoint
-**URL**: https://rpc.bitquan.dev:18443 (if public RPC is enabled)
-
-## Mining on Testnet
-
-Mining difficulty is lower than mainnet for easier testing:
+### 1. Pure SHA-256d (Default)
 
 ```bash
-# Start mining (requires node to be running)
-bitquan-node mine --address <your-testnet-address>
+./target/release/bitquan-node mine \
+  --network testnet \
+  --pow hashcash \
+  --threads 4 \
+  --datadir ./data/testnet
 ```
 
-**Note**: You can mine on testnet without connecting to peers (solo mining enabled).
-
-## Configuration
-
-Testnet configuration file: `config/testnet.toml`
-
-Key settings:
-- `p2p_port = 18444`
-- `rpc_port = 18443`
-- `difficulty_bits = "0x1d00ffff"`
-- `max_block_weight = 4000000`
-
-## Genesis Block
-
-Genesis block parameters in `data/testnet/genesis.json`:
-- **Timestamp**: November 4, 2024
-- **Initial Reward**: 50 BQ
-- **Coinbase Message**: "BitQuan Testnet Genesis - Nov 2024 - Quantum-Resistant Future"
-
-## Consensus Parameters
-
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
-| ASERT Half-Life | 2 days | Difficulty adjustment smoothing |
-| BurstGuard Threshold | 1.5x | Sudden hashrate spike protection |
-| Coinbase Maturity | 100 blocks | Blocks before mined coins spendable |
-| Max Block Weight | 4M WU | Maximum block size limit |
-
-## Wallet Operations
-
-### Create Wallet
-```bash
-bitquan-node wallet create --network testnet
-```
-
-### Get Address
-```bash
-bitquan-node wallet address
-```
-
-### Check Balance
-```bash
-bitquan-node wallet balance
-```
-
-### Send Transaction
-```bash
-bitquan-node wallet send --to <address> --amount <amount>
-```
-
-## RPC API
-
-Connect to testnet RPC:
+### 2. Pure RandomX
 
 ```bash
-curl -X POST http://localhost:18443 \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <jwt-token>" \
-  -d '{"method": "getblockcount", "params": []}'
+./target/release/bitquan-node mine \
+  --network testnet \
+  --pow randomx \
+  --randomx-mode fast \
+  --threads 8 \
+  --datadir ./data/testnet
 ```
 
-## Development Features
+**RandomX Memory Requirements:**
+- `--randomx-mode fast`: ~256-512MB per thread (faster init, lower perf)
+- `--randomx-mode full`: ~2GB per thread (slower init, optimal perf)
 
-### Fast Sync
-Enabled for quick testnet synchronization.
-
-### Mining Without Peers
-Solo mining allowed for development.
-
-### Lower Difficulty
-Easier mining for testing block generation.
-
-### Periodic Resets
-Testnet may be reset periodically (configurable).
-
-## Network Status
-
-Check network status:
+### 3. Hybrid Mode (Weighted Mix)
 
 ```bash
-# Get peer count
-bitquan-node getpeerinfo
-
-# Get blockchain info
-bitquan-node getblockchaininfo
-
-# Get mempool info
-bitquan-node getmempoolinfo
+./target/release/bitquan-node mine \
+  --network devnet \
+  --pow hybrid \
+  --hybrid-weights "sha256d:1,randomx:3" \
+  --threads 4 \
+  --limit-blocks 50
 ```
 
-## Testnet Characteristics
+**Weight Interpretation:**
+- `sha256d:1,randomx:3` → 25% SHA-256d, 75% RandomX
+- Algorithm selection uses weighted round-robin
+- Weights are floating-point (e.g., `sha256d:0.5,randomx:1.5`)
 
-### ✅ What Testnet Has
-- Post-quantum signatures (Dilithium3)
-- ASERT difficulty adjustment
-- BurstGuard protection
-- Full consensus rules
-- P2P networking
-- RPC interface
-- Wallet functionality
+## CLI Reference
 
-### ⚠️ What Testnet Differs From Mainnet
-- Lower mining difficulty
-- Faster block generation (for testing)
-- May be reset periodically
-- Free coins from faucet
-- Less security (for testing only)
+### Hybrid-Specific Flags
 
-## Security Notice
+| Flag | Description | Default | Example |
+|------|-------------|---------|---------|
+| `--pow` | PoW mode: `hashcash`, `randomx`, `hybrid`, `mock` | `hashcash` | `--pow hybrid` |
+| `--hybrid-weights` | Algorithm weights (comma-separated) | `sha256d:1,randomx:2` | `--hybrid-weights "sha256d:2,randomx:1"` |
+| `--randomx-mode` | RandomX cache mode: `fast` or `full` | `fast` | `--randomx-mode full` |
+| `--randomx-seed` | RandomX initialization seed (hex) | Genesis hash | `--randomx-seed deadbeef...` |
+| `--threads` | Mining threads (0 = CPU count) | `1` | `--threads 8` |
+| `--limit-blocks` | Stop after N blocks mined | None | `--limit-blocks 100` |
 
-**⚠️ TESTNET COINS HAVE NO VALUE**
+### General Mining Flags
 
-- Do not use testnet for production
-- Testnet may be reset without notice
-- Private keys may be compromised
-- Use mainnet for real value transfer
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--network` | Network: `mainnet`, `testnet`, `devnet`, `regtest` | `mainnet` |
+| `--datadir` | Blockchain storage directory | `./data/chainstate` |
+| `--payout-script-hex` | Coinbase payout script (hex) | `76a9140088ac` |
+| `--bits` | Override difficulty target (0 = auto) | `0` |
+| `--max-nonce` | Max nonce per block attempt | `100000000` |
 
-## Common Issues
+## Prometheus Metrics
 
-### Cannot Connect to Bootstrap Nodes
-Check your firewall settings and ensure port 18444 is open.
+Hybrid miner exposes detailed per-algorithm metrics:
 
-### RPC Connection Refused
-Ensure the node is running and RPC port 18443 is accessible.
+### Metrics Keys
 
-### Mining Not Working
-Check that mining address is valid and node is synced.
+```prometheus
+# Total blocks mined per algorithm
+pow_mined_blocks_total{algo="sha256d|randomx"}
 
-## Support
+# Total hash attempts per algorithm  
+pow_hash_attempts_total{algo="sha256d|randomx"}
 
-- **GitHub**: https://github.com/AlphaB135/BitQuan
-- **Documentation**: https://docs.bitquan.dev
-- **Issues**: https://github.com/AlphaB135/BitQuan/issues
-- **Discord**: https://discord.gg/bitquan (if available)
+# PoW verification failures (should be rare)
+pow_verify_failures_total{algo="sha256d|randomx"}
 
-## For Developers
+# Estimated hashrate (hashes/sec)
+pow_hashrate_gauge{algo="sha256d|randomx"}
 
-### Running Tests Against Testnet
+# Average block time (seconds)
+pow_block_time_seconds{algo="sha256d|randomx"}
+```
+
+### Example Queries
+
 ```bash
-# Integration tests
-cargo test --test integration_tests -- --test-threads=1
+# Get all metrics
+curl http://localhost:9090/metrics | grep pow_
 
-# Testnet smoke tests
-cargo test --test testnet_smoke
+# Blocks mined by RandomX
+curl -s http://localhost:9090/metrics | grep 'pow_mined_blocks_total{algo="randomx"}'
+
+# Compare hashrates
+curl -s http://localhost:9090/metrics | grep pow_hashrate_gauge
 ```
 
-### Debugging
+## Troubleshooting
+
+### Error: "RandomX disabled on mainnet"
+
+**Cause:** Attempted to use `--pow randomx` or `--pow hybrid` on mainnet.
+
+**Solution:** Mainnet only supports SHA-256d. Use testnet/devnet for hybrid mining.
+
 ```bash
-# Run with debug logging
-bitquan-node --network testnet --log-level debug
+# ❌ Wrong
+./bitquan-node mine --network mainnet --pow hybrid
+
+# ✅ Correct
+./bitquan-node mine --network testnet --pow hybrid
 ```
 
-### Reset Local Testnet Data
+### Error: "feature randomx is not enabled"
+
+**Cause:** Binary was built without RandomX support.
+
+**Solution:** Rebuild with feature flag:
+
 ```bash
-rm -rf data/testnet/chainstate
-rm -rf data/testnet/node.log
+cargo build --release --features randomx
 ```
-
-## Testnet Milestones
-
-- [x] Genesis block created
-- [x] Bootstrap nodes configured
-- [ ] Faucet deployed
-- [ ] Block explorer deployed
-- [ ] Public RPC endpoint enabled
-- [ ] 1000 blocks mined
-- [ ] 100 active nodes
-
-## Roadmap
-
-1. **Phase 1**: Internal testing (current)
-2. **Phase 2**: Limited public testing
-3. **Phase 3**: Full public testnet
-4. **Phase 4**: Stress testing and optimization
-5. **Phase 5**: Mainnet launch preparation
 
 ---
 
-**Join the testnet and help test BitQuan!**
-
-*Last Updated: November 4, 2024*
+**Remember**: Hybrid PoW is for testnet experimentation only. Mainnet remains SHA-256d to ensure maximum security, ASIC compatibility, and battle-tested consensus.

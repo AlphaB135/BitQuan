@@ -106,6 +106,45 @@ cargo test --all --locked
 ./target/debug/bitquan-node mine --network mainnet --pow mock
 ```
 
+### Hybrid Mining (Testnet Only)
+
+BitQuan supports hybrid Proof-of-Work with multiple algorithms on testnet/devnet. **Mainnet strictly uses SHA-256d only.**
+
+```bash
+# Build with RandomX support
+cargo build --release --features randomx
+
+# Hybrid mining with weighted algorithm selection
+./target/release/bitquan-node mine \
+  --network devnet \
+  --pow hybrid \
+  --hybrid-weights "sha256d:1,randomx:2" \
+  --threads 4 \
+  --limit-blocks 10
+
+# Pure RandomX mining (testnet/devnet)
+./target/release/bitquan-node mine \
+  --network testnet \
+  --pow randomx \
+  --threads 8
+
+# Mainnet rejects RandomX (security gate)
+./target/release/bitquan-node mine \
+  --network mainnet \
+  --pow hybrid  # ❌ Returns error: "RandomX disabled on mainnet"
+```
+
+**Hybrid Mining Features:**
+- ✅ Weighted round-robin algorithm selection
+- ✅ Per-algorithm difficulty tracking (ASERT)
+- ✅ Prometheus metrics (`pow_mined_blocks_total`, `pow_hashrate_gauge`)
+- ✅ Mainnet safety: RandomX consensus-level rejection
+- ✅ Feature-gated: no dependencies unless `--features randomx`
+
+See [docs/TESTNET_README.md](docs/TESTNET_README.md) for detailed hybrid mining instructions.
+
+```
+
 ## RPC Server with TLS + JWT Authentication
 
 BitQuan RPC server supports secure HTTPS with JWT authentication:
