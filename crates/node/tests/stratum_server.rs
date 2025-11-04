@@ -105,6 +105,9 @@ fn stratum_server_creation() {
         allow_list: vec!["127.0.0.1".to_string(), "192.168.1.0/24".to_string()],
         default_difficulty: 2.0,
         network: NetworkId::Testnet,
+        enable_vardiff: true,
+        vardiff_target_time: 15.0,
+        vardiff_adjust_rate: 0.05,
     };
     
     let server = StratumServer::new(config.clone());
@@ -121,6 +124,9 @@ async fn stratum_server_lifecycle() {
         allow_list: vec!["127.0.0.1".to_string()],
         default_difficulty: 1.0,
         network: NetworkId::Devnet,
+        enable_vardiff: true,
+        vardiff_target_time: 15.0,
+        vardiff_adjust_rate: 0.05,
     };
     
     let mut server = StratumServer::new(config);

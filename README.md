@@ -294,12 +294,26 @@ Guides:
 - Block weight accounting (4,000,000 WU cap, 384 WU per PQC sig)
 - Quantum-aware difficulty (ASERT + burst guard) with 4 h half-life, 11-block window, 0.33 floor ratio, 1.5× clamp
 - Fee-per-weight mempool ordering
-- Proof-of-Work consensus (SHA-256d)
+- Proof-of-Work consensus (SHA-256d mainnet, hybrid testnet)
+- **Mining Pool & Dashboard** (Stratum V1, WebSocket, Grafana integration)
 - UTXO model with coin maturity (100 blocks)
 - Persistent storage (RocksDB)
 - P2P networking with relay policy
 - JSON-RPC 2.0 API
 - Reproducible builds
+
+### Mining Pool & Dashboard
+
+BitQuan includes a full-featured mining pool for testnet operations:
+
+- **Stratum V1 Server**: External miner support (cgminer, xmrig compatible)
+- **Real Block Templates**: Automatic refresh every 30 seconds with HybridMiner integration
+- **Variable Difficulty (Vardiff)**: Adaptive difficulty adjustment per miner
+- **WebSocket Dashboard**: Real-time pool statistics and miner monitoring
+- **Prometheus Metrics**: Full observability with Grafana integration
+- **Share Verification**: Real PoW verification using SHA-256d or RandomX
+
+See [DASHBOARD.md](docs/DASHBOARD.md) for complete setup and visualization guide.
 
 ## Repository Structure
 

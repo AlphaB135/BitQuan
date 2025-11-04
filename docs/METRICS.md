@@ -449,12 +449,134 @@ lsof -i :9090
 - Monitor system CPU/memory usage
 - Use moving averages in dashboards
 
+## Stratum Pool Metrics
+
+### stratum_connections_total
+
+**Type:** Counter  
+**Description:** Total number of Stratum client connections received  
+**Labels:** None
+
+**Example:**
+```prometheus
+stratum_connections_total 347
+```
+
+**Use Cases:**
+- Track connection attempts over time
+- Detect connection spikes or DDoS attacks
+- Calculate average connections per hour
+
+---
+
+### stratum_active_miners
+
+**Type:** Gauge  
+**Description:** Current number of active miner connections  
+**Labels:** None
+
+**Example:**
+```prometheus
+stratum_active_miners 14
+```
+
+**Use Cases:**
+- Real-time pool participation monitoring
+- Capacity planning
+- Alert on zero miners
+
+---
+
+### stratum_shares_total
+
+**Type:** Counter  
+**Description:** Total shares submitted by miners  
+**Labels:**
+- `status`: Share status (`ok` for accepted, `reject` for rejected)
+- `algo`: Algorithm name (`sha256d`, `randomx`)
+
+**Example:**
+```prometheus
+stratum_shares_total{status="ok",algo="sha256d"} 2034
+stratum_shares_total{status="reject",algo="sha256d"} 57
+stratum_shares_total{status="ok",algo="randomx"} 891
+```
+
+**Use Cases:**
+- Calculate share acceptance rate
+- Track pool performance by algorithm
+- Monitor miner efficiency
+
+**PromQL Examples:**
+```promql
+# Acceptance rate
+sum(rate(stratum_shares_total{status="ok"}[5m]))
+/
+sum(rate(stratum_shares_total[5m])) * 100
+
+# Rejection rate by algorithm
+sum by (algo) (rate(stratum_shares_total{status="reject"}[5m]))
+/
+sum by (algo) (rate(stratum_shares_total[5m]))
+```
+
+---
+
+### stratum_last_valid_share_timestamp
+
+**Type:** Gauge  
+**Description:** Unix timestamp (seconds) of last accepted share  
+**Labels:** None
+
+**Example:**
+```prometheus
+stratum_last_valid_share_timestamp 1730501234
+```
+
+**Use Cases:**
+- Detect pool stalls or inactivity
+- Alert when no shares received
+- Track mining continuity
+
+**PromQL Example:**
+```promql
+# Seconds since last valid share
+time() - stratum_last_valid_share_timestamp
+```
+
+---
+
+### stratum_vardiff_adjustments_total
+
+**Type:** Counter  
+**Description:** Total number of variable difficulty adjustments performed  
+**Labels:** None
+
+**Example:**
+```prometheus
+stratum_vardiff_adjustments_total 128
+```
+
+**Use Cases:**
+- Monitor vardiff activity
+- Validate vardiff is functioning
+- Track adjustment frequency
+
+**PromQL Example:**
+```promql
+# Adjustments per 10 minutes
+rate(stratum_vardiff_adjustments_total[10m]) * 600
+```
+
+---
+
 ## References
 
 - [Prometheus Metric Types](https://prometheus.io/docs/concepts/metric_types/)
 - [Naming Best Practices](https://prometheus.io/docs/practices/naming/)
 - [BitQuan Testnet Guide](./TESTNET_README.md)
-- [Mining Architecture](./mining.md)
+- [Dashboard Guide](./DASHBOARD.md)
+- [Stratum Protocol](./STRATUM.md)
 
 ## Support
 

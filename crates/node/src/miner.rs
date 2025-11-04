@@ -116,7 +116,7 @@ impl HybridMiner {
 
         // Validate mainnet restriction
         if network == NetworkId::Mainnet {
-            for (algo, _) in weights {
+            for (_algo, _) in weights {
                 #[cfg(feature = "randomx")]
                 if *algo == PowAlgo::RandomX {
                     return Err(bitquan_types::Error::Invalid(

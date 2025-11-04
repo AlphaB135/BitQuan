@@ -5,12 +5,15 @@ mod keystore;
 mod metrics;
 mod miner;
 mod mnemonic;
+mod pool_template;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
 mod stratum_server;
 mod tx_builder;
 mod utxo;
+mod vardiff;
 mod wallet;
+mod ws_dashboard;
 
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
@@ -3251,6 +3254,9 @@ fn run_stratum_server(
         allow_list,
         default_difficulty,
         network,
+        enable_vardiff: true,
+        vardiff_target_time: 15.0,
+        vardiff_adjust_rate: 0.05,
     };
 
     println!("Starting BitQuan Stratum Mining Server");
