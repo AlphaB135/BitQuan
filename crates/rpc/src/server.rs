@@ -243,10 +243,22 @@ impl Write for RpcStream {
 
 fn upgrade_to_tls(stream: TcpStream, tls_config: &TlsConfig) -> std::io::Result<RpcStream> {
     let server_config = tls_config.server_config();
-    let connection = ServerConnection::new(server_config).map_err(std::io::Error::other)?;
+    let connection = match ServerConnection::new(server_config) {
+        Ok(conn) => {
+            METRICS.tls_handshake_ok.fetch_add(1, Ordering::Relaxed);
+            conn
+        }
+        Err(e) => {
+            METRICS.tls_handshake_fail.fetch_add(1, Ordering::Relaxed);
+            return Err(std::io::Error::other(e));
+        }
+    };
     let mut tls_stream = StreamOwned::new(connection, stream);
     while tls_stream.conn.is_handshaking() {
-        tls_stream.conn.complete_io(&mut tls_stream.sock)?;
+        if let Err(e) = tls_stream.conn.complete_io(&mut tls_stream.sock) {
+            METRICS.tls_handshake_fail.fetch_add(1, Ordering::Relaxed);
+            return Err(e);
+        }
     }
     Ok(RpcStream::Tls(Box::new(tls_stream)))
 }
@@ -817,6 +829,7 @@ fn is_authorized_new(request_headers: &[String], jwt_auth: &crate::jwt::JwtAuth)
         .find(|line| line.to_ascii_lowercase().starts_with("authorization:"));
 
     let Some(header) = header else {
+        METRICS.jwt_auth_fail.fetch_add(1, Ordering::Relaxed);
         return false;
     };
 
@@ -825,14 +838,19 @@ fn is_authorized_new(request_headers: &[String], jwt_auth: &crate::jwt::JwtAuth)
     let value = parts.next().map(str::trim).unwrap_or_default();
 
     if !value.to_ascii_lowercase().starts_with("bearer ") {
+        METRICS.jwt_auth_fail.fetch_add(1, Ordering::Relaxed);
         return false;
     }
 
     let token = value[7..].trim();
     match jwt_auth.verify_token(token) {
-        Ok(_claims) => true,
+        Ok(_claims) => {
+            METRICS.jwt_auth_ok.fetch_add(1, Ordering::Relaxed);
+            true
+        }
         Err(e) => {
             eprintln!("JWT verification failed: {}", e);
+            METRICS.jwt_auth_fail.fetch_add(1, Ordering::Relaxed);
             false
         }
     }
@@ -1444,6 +1462,10 @@ struct RpcMetrics {
     latency_bucket_500: AtomicU64,
     latency_bucket_1000: AtomicU64,
     latency_bucket_inf: AtomicU64,
+    tls_handshake_ok: AtomicU64,
+    tls_handshake_fail: AtomicU64,
+    jwt_auth_ok: AtomicU64,
+    jwt_auth_fail: AtomicU64,
 }
 
 impl Default for RpcMetrics {
@@ -1472,6 +1494,10 @@ impl Default for RpcMetrics {
             latency_bucket_500: AtomicU64::new(0),
             latency_bucket_1000: AtomicU64::new(0),
             latency_bucket_inf: AtomicU64::new(0),
+            tls_handshake_ok: AtomicU64::new(0),
+            tls_handshake_fail: AtomicU64::new(0),
+            jwt_auth_ok: AtomicU64::new(0),
+            jwt_auth_fail: AtomicU64::new(0),
         }
     }
 }
@@ -1544,7 +1570,7 @@ impl RpcMetrics {
             format!("rpc_requests_status_total{{code=\"{}\"}} {}\n", code, value)
         };
         let body = format!(
-            "rpc_requests_total {}\n{}{}{}{}{}{}{}{}{}rpc_rl_drops_total {}\nrpc_body_413_total {}\nrpc_body_timeout_total {}\nrpc_header_limit_total {}\nrpc_auth_401_total {}\nrpc_latency_ms_sum {}\nrpc_latency_ms_count {}\nrpc_latency_ms_bucket{{le=\"50\"}} {}\nrpc_latency_ms_bucket{{le=\"100\"}} {}\nrpc_latency_ms_bucket{{le=\"250\"}} {}\nrpc_latency_ms_bucket{{le=\"500\"}} {}\nrpc_latency_ms_bucket{{le=\"1000\"}} {}\nrpc_latency_ms_bucket{{le=\"+Inf\"}} {}\n",
+            "rpc_requests_total {}\n{}{}{}{}{}{}{}{}{}rpc_rl_drops_total {}\nrpc_body_413_total {}\nrpc_body_timeout_total {}\nrpc_header_limit_total {}\nrpc_auth_401_total {}\nrpc_latency_ms_sum {}\nrpc_latency_ms_count {}\nrpc_latency_ms_bucket{{le=\"50\"}} {}\nrpc_latency_ms_bucket{{le=\"100\"}} {}\nrpc_latency_ms_bucket{{le=\"250\"}} {}\nrpc_latency_ms_bucket{{le=\"500\"}} {}\nrpc_latency_ms_bucket{{le=\"1000\"}} {}\nrpc_latency_ms_bucket{{le=\"+Inf\"}} {}\nrpc_tls_handshake_total{{status=\"ok\"}} {}\nrpc_tls_handshake_total{{status=\"fail\"}} {}\nrpc_jwt_auth_total{{status=\"ok\"}} {}\nrpc_jwt_auth_total{{status=\"fail\"}} {}\n",
             total,
             status_line("200", self.status_200.load(Ordering::Relaxed)),
             status_line("400", self.status_400.load(Ordering::Relaxed)),
@@ -1568,6 +1594,10 @@ impl RpcMetrics {
             self.latency_bucket_500.load(Ordering::Relaxed),
             self.latency_bucket_1000.load(Ordering::Relaxed),
             self.latency_bucket_inf.load(Ordering::Relaxed),
+            self.tls_handshake_ok.load(Ordering::Relaxed),
+            self.tls_handshake_fail.load(Ordering::Relaxed),
+            self.jwt_auth_ok.load(Ordering::Relaxed),
+            self.jwt_auth_fail.load(Ordering::Relaxed),
         );
         body
     }

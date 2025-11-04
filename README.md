@@ -106,31 +106,97 @@ cargo test --all --locked
 ./target/debug/bitquan-node mine --network mainnet --pow mock
 ```
 
-## RPC Health & Testing
+## RPC Server with TLS + JWT Authentication
+
+BitQuan RPC server supports secure HTTPS with JWT authentication:
+
+### Start RPC Server
 
 ```bash
-# Health check (no auth required)
-curl -i http://127.0.0.1:8332/health
+# Production (mainnet) - requires CA-signed certificate
+bitquan-node p2p-server \
+  --datadir ./data/chainstate \
+  --rpc-listen 0.0.0.0:8332 \
+  --rpc-tls-cert /etc/letsencrypt/live/node.example.com/fullchain.pem \
+  --rpc-tls-key /etc/letsencrypt/live/node.example.com/privkey.pem \
+  --jwt-config jwt.toml
 
-# Unauthorized request (expects 401)
-curl -i \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}' \
-  http://127.0.0.1:8332/
-
-# Authorized request (replace user/pass accordingly)
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Basic $(printf "alice:secret" | base64)' \
-  -d '{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}' \
-  http://127.0.0.1:8332/
+# Development - generate and use self-signed certificate
+bitquan-node generate-cert --output ./certs
+bitquan-node p2p-server \
+  --datadir ./data/chainstate \
+  --rpc-listen 127.0.0.1:8332 \
+  --rpc-tls-cert ./certs/cert.pem \
+  --rpc-tls-key ./certs/key.pem \
+  --rpc-allow-insecure \
+  --jwt-secret "dev-secret-change-in-production"
 ```
 
-Tune behaviour with CLI flags (defaults shown):
+### JWT User Management
 
+```bash
+# Hash a password for jwt.toml
+bitquan-node hash-password
+
+# Add a user
+bitquan-node jwt-user-add --config jwt.toml --username alice --role admin
+
+# List all users
+bitquan-node jwt-user-list --config jwt.toml
+
+# Remove a user
+bitquan-node jwt-user-remove --config jwt.toml --username alice
+```
+
+### RPC Usage Examples
+
+```bash
+# 1. Health check (no auth required)
+curl -i https://127.0.0.1:8332/health -k
+
+# 2. Login to get JWT token
+curl -X POST https://127.0.0.1:8332/auth/login -k \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"yourpass"}'
+
+# Response: {"access_token":"eyJ...","token_type":"Bearer","expires_in":3600}
+
+# 3. Call RPC method with JWT token
+curl -X POST https://127.0.0.1:8332/rpc -k \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}'
+
+# 4. Refresh expired token
+curl -X POST https://127.0.0.1:8332/auth/refresh -k \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}'
+```
+
+### Configuration Options
+
+Tune RPC behavior with CLI flags (defaults shown):
+
+**Security**:
+- `--rpc-tls-cert=<path>` – TLS certificate file (PEM format)
+- `--rpc-tls-key=<path>` – TLS private key file (PEM format)
+- `--rpc-allow-insecure` – Allow HTTP or self-signed certs (dev only)
+- `--jwt-config=<path>` – JWT configuration file
+- `--jwt-secret=<secret>` – Alternative to jwt-config file
+
+**Rate Limiting**:
 - `--rpc-max-body=1048576` – maximum JSON-RPC request size (bytes)
-- `--rpc-rl-burst=20` / `--rpc-rl-refill-per-sec=10` – per-IP token bucket guard
+- `--rpc-rl-burst=20` – per-IP token bucket burst size
+- `--rpc-rl-refill-per-sec=10` – token refill rate per second
 - `--rpc-conn-cooldown-ms=10` – per-connection cooldown between requests
+
+**Security Headers**:
+- `--rpc-max-header=8192` – maximum HTTP header size (bytes)
+- `--rpc-header-timeout-ms=1000` – header read timeout
+
+**Proxy Support**:
+- `--rpc-trust-proxy` – trust X-Forwarded-For header
+- `--rpc-trusted-cidr=<cidrs>` – comma-separated trusted proxy CIDRs
 
 See [docs/command.md](docs/command.md) for the complete CLI reference.
 

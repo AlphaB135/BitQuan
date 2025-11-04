@@ -128,4 +128,173 @@ See `.github/workflows/audit.yml` for CI configuration.
 3. ✅ Post-quantum signatures (Dilithium3)
 4. ✅ Zero clippy warnings in production code
 5. ✅ Comprehensive error handling (no unwrap/expect in critical paths)
+6. ✅ TLS 1.3 encryption for all RPC communications
+7. ✅ JWT-based authentication with Argon2id password hashing
+
+## RPC Security Architecture
+
+### TLS/HTTPS Configuration
+
+BitQuan RPC server supports full TLS 1.3 encryption using `rustls`:
+
+**Production (Mainnet) Requirements**:
+- TLS is **mandatory** (`--rpc-tls-cert` and `--rpc-tls-key` required)
+- Self-signed certificates are **rejected** (must use CA-signed certificates)
+- HSTS enabled with 1-year max-age
+- HTTP/2 and HTTP/1.1 ALPN support
+
+**Development (Testnet/Devnet)**:
+- TLS is optional but recommended
+- Self-signed certificates allowed via `--rpc-allow-insecure`
+- Can generate dev certificates: `bitquan-node generate-cert --output ./certs`
+
+**Example Production Setup**:
+```bash
+# Mainnet with Let's Encrypt certificate
+bitquan-node p2p-server \
+  --rpc-listen 0.0.0.0:8332 \
+  --rpc-tls-cert /etc/letsencrypt/live/node.example.com/fullchain.pem \
+  --rpc-tls-key /etc/letsencrypt/live/node.example.com/privkey.pem \
+  --jwt-config jwt.toml
+```
+
+**Example Development Setup**:
+```bash
+# Generate self-signed certificate for development
+bitquan-node generate-cert --output ./certs
+
+# Start node with self-signed cert
+bitquan-node p2p-server \
+  --rpc-listen 127.0.0.1:8332 \
+  --rpc-tls-cert ./certs/cert.pem \
+  --rpc-tls-key ./certs/key.pem \
+  --rpc-allow-insecure \
+  --jwt-secret "dev-secret-change-in-production"
+```
+
+### JWT Authentication
+
+BitQuan uses **JWT (JSON Web Tokens)** for RPC authentication, replacing traditional Basic Auth:
+
+**Key Features**:
+- Argon2id password hashing (resistant to GPU cracking)
+- Access tokens (1 hour expiry) and refresh tokens (7 days)
+- Role-based access control (admin, miner, readonly)
+- No credentials sent with each request (token-based)
+
+**Configuration via jwt.toml**:
+```toml
+secret = "CHANGE_THIS_TO_A_STRONG_RANDOM_SECRET"
+
+[[users]]
+username = "admin"
+password_hash = "$argon2id$v=19$m=19456,t=2,p=1$..." # Use 'bitquan-node hash-password'
+role = "admin"
+
+[[users]]
+username = "miner"
+password_hash = "$argon2id$v=19$m=19456,t=2,p=1$..."
+role = "miner"
+```
+
+**User Management**:
+```bash
+# Hash a password
+bitquan-node hash-password
+
+# Add a user
+bitquan-node jwt-user-add --config jwt.toml --username alice --role admin
+
+# List users
+bitquan-node jwt-user-list --config jwt.toml
+
+# Remove a user
+bitquan-node jwt-user-remove --config jwt.toml --username alice
+```
+
+**Client Usage**:
+```bash
+# 1. Login to get JWT token
+curl -X POST https://node.example.com:8332/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"yourpass"}'
+
+# Response: {"access_token":"eyJ...","token_type":"Bearer","expires_in":3600}
+
+# 2. Use token for RPC calls
+curl -X POST https://node.example.com:8332/rpc \
+  -H "Authorization: Bearer eyJ..." \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}'
+
+# 3. Refresh token when it expires
+curl -X POST https://node.example.com:8332/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token":"eyJ..."}'
+```
+
+### Security Headers
+
+All RPC responses include hardened security headers:
+
+```
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'
+```
+
+### Additional RPC Security Features
+
+- **Rate Limiting**: Token bucket per IP (configurable via `--rpc-rl-burst` and `--rpc-rl-refill-per-sec`)
+- **DNS Rebinding Protection**: Host header validation (`--rpc-allowed-hosts`)
+- **CORS Protection**: Origin header validation (`--rpc-allowed-origins`)
+- **Request Size Limits**: Body (1 MiB default) and header (8 KiB default) size limits
+- **Connection Timeouts**: Header read, body read, and idle connection timeouts
+- **Proxy Support**: X-Forwarded-For with trusted proxy CIDRs
+
+### Testing
+
+Comprehensive test coverage for security features:
+
+```bash
+# Run all RPC tests
+cargo test -p bitquan-rpc
+
+# JWT authentication tests
+cargo test -p bitquan-rpc --test jwt_simple_test
+
+# TLS enforcement tests
+cargo test -p bitquan-rpc --test tls_enforcement_tests
+```
+
+### Security Metrics (Prometheus)
+
+RPC server exposes security metrics at `/metrics` (localhost only):
+
+```
+rpc_requests_total                # Total requests
+rpc_requests_status_total{code}   # HTTP status codes
+rpc_auth_401_total                # Failed authentication attempts
+rpc_rl_drops_total                # Rate limited requests
+rpc_latency_ms_bucket{le}         # Request latency histogram
+```
+
+### Audit Trail
+
+All security-relevant events are logged in JSON format:
+
+```json
+{
+  "event": "rpc_guard",
+  "reason": "auth_failure",
+  "status": 401,
+  "method": "POST",
+  "route": "/rpc",
+  "ip": "192.168.1.100",
+  "bytes": 256,
+  "latency_ms": 42
+}
+```
 
