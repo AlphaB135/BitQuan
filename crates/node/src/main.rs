@@ -2,6 +2,8 @@
 
 mod address;
 mod keystore;
+mod metrics;
+mod miner;
 mod mnemonic;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
@@ -49,6 +51,10 @@ fn invalid<T>(msg: impl Into<String>) -> Result<T> {
 enum PowMode {
     Hashcash,
     Mock,
+    #[cfg(feature = "randomx")]
+    RandomX,
+    #[cfg(feature = "randomx")]
+    Hybrid,
 }
 
 impl PowMode {
@@ -56,6 +62,10 @@ impl PowMode {
         match value.to_ascii_lowercase().as_str() {
             "hashcash" | "sha256d" | "real" => Ok(PowMode::Hashcash),
             "mock" | "dev-fast-pow" => Ok(PowMode::Mock),
+            #[cfg(feature = "randomx")]
+            "randomx" => Ok(PowMode::RandomX),
+            #[cfg(feature = "randomx")]
+            "hybrid" => Ok(PowMode::Hybrid),
             other => invalid(format!("unknown pow engine '{}'", other)),
         }
     }
@@ -75,7 +85,51 @@ fn ensure_pow_allowed(pow_mode: PowMode, network: NetworkId) -> Result<()> {
     if matches!(pow_mode, PowMode::Mock) && matches!(network, NetworkId::Mainnet) {
         return invalid("mock PoW is disabled on mainnet");
     }
+    #[cfg(feature = "randomx")]
+    {
+        if matches!(pow_mode, PowMode::RandomX | PowMode::Hybrid)
+            && matches!(network, NetworkId::Mainnet)
+        {
+            return invalid("RandomX and hybrid PoW are disabled on mainnet");
+        }
+    }
     Ok(())
+}
+
+/// Parse hybrid weights from CLI string format "sha256d:1,randomx:2".
+#[cfg(feature = "randomx")]
+fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowAlgo, f32)>> {
+    use bitquan_consensus::pow::PowAlgo;
+    
+    let mut weights = Vec::new();
+    for part in s.split(',') {
+        let (key, value) = part
+            .split_once(':')
+            .ok_or_else(|| Error::Invalid(format!("invalid weight format: '{}', expected 'algo:weight'", part)))?;
+        
+        let algo = match key.trim() {
+            "sha256d" => PowAlgo::Sha256d,
+            "randomx" => PowAlgo::RandomX,
+            other => return invalid(format!("unknown algorithm: '{}'", other)),
+        };
+        
+        let weight = value
+            .trim()
+            .parse::<f32>()
+            .map_err(|e| Error::Invalid(format!("invalid weight value '{}': {}", value, e)))?;
+        
+        if weight <= 0.0 {
+            return invalid(format!("weight must be positive for {}", key));
+        }
+        
+        weights.push((algo, weight));
+    }
+    
+    if weights.is_empty() {
+        return invalid("at least one algorithm weight required");
+    }
+    
+    Ok(weights)
 }
 
 #[derive(Parser)]
@@ -157,7 +211,7 @@ enum Commands {
         /// Network to target (mainnet|testnet|devnet|regtest).
         #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
         network: String,
-        /// Proof-of-Work engine (hashcash|mock).
+        /// Proof-of-Work engine (hashcash|mock|randomx|hybrid).
         #[arg(long, value_name = "POW", default_value = "hashcash")]
         pow: String,
         /// Number of threads for mining (0 = CPU count)
@@ -166,6 +220,18 @@ enum Commands {
         /// Optional limit on number of blocks to mine in this session.
         #[arg(long)]
         limit_blocks: Option<u64>,
+        /// Hybrid algorithm weights (e.g., "sha256d:1,randomx:2").
+        #[cfg(feature = "randomx")]
+        #[arg(long)]
+        hybrid_weights: Option<String>,
+        /// RandomX cache mode (fast|full).
+        #[cfg(feature = "randomx")]
+        #[arg(long, default_value = "fast")]
+        randomx_mode: String,
+        /// RandomX seed as hex (uses genesis hash if not provided).
+        #[cfg(feature = "randomx")]
+        #[arg(long)]
+        randomx_seed: Option<String>,
     },
     /// Generates a post-quantum keypair for wallet
     WalletGen {
@@ -568,10 +634,26 @@ fn main() -> Result<()> {
             pow,
             threads,
             limit_blocks,
+            #[cfg(feature = "randomx")]
+            hybrid_weights,
+            #[cfg(feature = "randomx")]
+            randomx_mode: _randomx_mode,
+            #[cfg(feature = "randomx")]
+            randomx_seed: _randomx_seed,
         } => {
             let network_id = parse_network_id(&network)?;
             let pow_mode = PowMode::parse(&pow)?;
             ensure_pow_allowed(pow_mode, network_id)?;
+            
+            #[cfg(feature = "randomx")]
+            let weights = if matches!(pow_mode, PowMode::Hybrid) {
+                Some(parse_hybrid_weights(
+                    hybrid_weights.as_deref().unwrap_or("sha256d:1,randomx:2")
+                )?)
+            } else {
+                None
+            };
+            
             mine_continuous(MiningOptions {
                 datadir: &datadir,
                 payout_script_hex: &payout_script_hex,
@@ -581,6 +663,8 @@ fn main() -> Result<()> {
                 limit_blocks,
                 network: network_id,
                 pow_mode,
+                #[cfg(feature = "randomx")]
+                hybrid_weights: weights,
             })
         }
         Commands::WalletGen {
@@ -1014,6 +1098,7 @@ fn load_block_placeholder() -> Result<Block> {
             time: 0,
             bits: 0,
             nonce: 0,
+            algo_id: 0,
         },
         transactions: Vec::new(),
     };
@@ -1114,6 +1199,7 @@ fn mine_once(
         time,
         bits,
         nonce: 0,
+        algo_id: 0,
     };
 
     if allow_mock {
@@ -1161,6 +1247,8 @@ struct MiningOptions<'a> {
     limit_blocks: Option<u64>,
     network: NetworkId,
     pow_mode: PowMode,
+    #[cfg(feature = "randomx")]
+    hybrid_weights: Option<Vec<(bitquan_consensus::pow::PowAlgo, f32)>>,
 }
 
 struct RpcServerOptions<'a> {
@@ -1207,6 +1295,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         limit_blocks,
         network,
         pow_mode,
+        #[cfg(feature = "randomx")]
+        hybrid_weights,
     } = options;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
@@ -1254,6 +1344,31 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             DEVNET_MAX_BITS
         );
     }
+    
+    // Initialize hybrid miner if applicable
+    #[cfg(feature = "randomx")]
+    let hybrid_miner = if matches!(pow_mode, PowMode::Hybrid | PowMode::RandomX) {
+        use bitquan_consensus::pow::PowAlgo;
+        let weights = if let Some(w) = hybrid_weights {
+            w
+        } else if matches!(pow_mode, PowMode::RandomX) {
+            vec![(PowAlgo::RandomX, 1.0)]
+        } else {
+            vec![(PowAlgo::Sha256d, 1.0), (PowAlgo::RandomX, 2.0)]
+        };
+        
+        println!("\n=== Hybrid Mining Enabled ===");
+        println!("Algorithms:");
+        for (algo, weight) in &weights {
+            println!("  - {} (weight: {:.1})", algo.name(), weight);
+        }
+        println!("=============================\n");
+        
+        let miner = miner::HybridMiner::new(&weights, threads, network)?;
+        Some(miner)
+    } else {
+        None
+    };
 
     {
         let s = store.lock().unwrap();
@@ -1374,6 +1489,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             time,
             bits,
             nonce: 0,
+            algo_id: 0,
         };
 
         println!("Mining block #{} ...", height + 1);
@@ -1383,143 +1499,181 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         // Mining loop
         found.store(false, Ordering::Relaxed);
         let start_time = std::time::Instant::now();
-
-        for n in 0..max_nonce {
-            header.nonce = n;
-            let pow_valid = if allow_mock {
-                header.nonce == 0 || header.bits >= DEVNET_MAX_BITS
-            } else {
-                check_header_pow(&header)
-                    .map_err(|e| Error::Invalid(format!("pow verification failed: {e}")))?
-            };
-
-            if pow_valid {
-                let id = header_hash(&header);
-                let elapsed = start_time.elapsed();
-                let hashrate = (n as f64) / elapsed.as_secs_f64();
-
-                println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
-                println!("Hash: {}", hex::encode(id));
-                println!(
-                    "Time: {:.2}s | Hashrate: {:.2} H/s",
-                    elapsed.as_secs_f64(),
-                    hashrate
-                );
-
-                let block = Block {
-                    header: header.clone(),
-                    transactions: vec![coinbase.clone()],
-                };
-
-                {
-                    let mut s = store.lock().unwrap();
-                    s.insert_block(block)
-                        .map_err(|e| Error::Invalid(format!("failed to insert block: {e}")))?;
+        
+        // Hybrid mining path
+        #[cfg(feature = "randomx")]
+        let (mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
+            use bitquan_consensus::pow::PowAlgo;
+            
+            // Select algorithm based on iteration
+            let algo = hybrid_miner.select_algorithm(height);
+            println!("Mining with algorithm: {}", algo.name());
+            
+            match hybrid_miner.mine_block_attempt(header.clone(), max_nonce, algo)? {
+                Some(h) => (Some(h), Some(algo)),
+                None => {
+                    println!("No solution found in {} attempts with {}", max_nonce, algo.name());
+                    continue;
                 }
-
-                let block_height = height + 1;
-                let block_time = header.time as i64;
-                let block_bits = header.bits;
-                let block_target = compact_to_target(block_bits);
-
-                if let Some(prev_ts) = last_timestamp {
-                    let interval = (block_time - prev_ts).max(0) as f64;
-                    total_intervals += interval;
-                    interval_count = interval_count
-                        .checked_add(1)
-                        .ok_or(Error::Overflow("interval count overflow"))?;
-                }
-                last_timestamp = Some(block_time);
-
-                history.push_back(BlockLog {
-                    height: block_height,
-                    timestamp: block_time,
-                    target: block_target,
-                });
-                if history.len() > window + 1 {
-                    history.pop_front();
-                }
-
-                let anchor = if block_height as usize > window && history.len() > window {
-                    history[history.len() - 1 - window]
-                } else {
-                    *history
-                        .front()
-                        .expect("history always contains at least the mined block")
-                };
-
-                let height_delta = block_height as i64 - anchor.height as i64;
-                let time_delta = block_time - anchor.timestamp;
-                let expected_time =
-                    params.difficulty.target_block_time as f64 * height_delta.max(1) as f64;
-                let average = if height_delta > 0 {
-                    time_delta as f64 / height_delta as f64
-                } else {
-                    params.difficulty.target_block_time as f64
-                };
-                let ratio = if expected_time > 0.0 {
-                    time_delta as f64 / expected_time
-                } else {
-                    1.0
-                };
-                let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
-                    && time_delta > 0
-                    && ratio < params.difficulty.burst_guard_floor_ratio;
-                if guard_triggered {
-                    guard_total = guard_total
-                        .checked_add(1)
-                        .ok_or(Error::Overflow("guard count overflow"))?;
-                }
-
-                let next_target =
-                    asert_next_target(anchor.target, height_delta, time_delta, &params, None);
-                let mut next_bits = target_to_compact(next_target);
-                if next_bits == 0 {
-                    next_bits = block_bits;
-                }
-                next_bits = clamp_bits_within_bounds(next_bits);
-
-                println!(
-                    "[ASERT] height={} guard={} window={} avg={:.2}s ratio={:.3} target=0x{:08x} next_bits=0x{:08x}",
-                    block_height,
-                    if guard_triggered { "ON " } else { "off" },
-                    height_delta,
-                    average,
-                    ratio,
-                    block_bits,
-                    next_bits
-                );
-
-                bits = next_bits;
-
-                let total = blocks_mined.fetch_add(1, Ordering::Relaxed) + 1;
-                println!("Saved to DB | Session total: {}", total);
-                found.store(true, Ordering::Relaxed);
-
-                if let Some(limit) = limit_blocks {
-                    if total >= limit {
-                        print_session_summary(interval_count, total_intervals, guard_total);
-                        println!("Reached block limit ({limit}). Session complete.");
-                        return Ok(());
-                    }
-                }
-
-                break;
             }
+        } else {
+            (None, None)
+        };
+        
+        // Standard SHA-256d mining path
+        #[cfg(not(feature = "randomx"))]
+        let (mined_header, _algo_used): (Option<bitquan_types::BlockHeader>, Option<()>) = (None, None);
+        
+        let (header, n) = if let Some(h) = mined_header {
+            let nonce = h.nonce;
+            (h, nonce)
+        } else {
+            // Standard sequential mining
+            let mut solution_found = false;
+            let mut final_nonce = 0;
+            
+            for n in 0..max_nonce {
+                header.nonce = n;
+                let pow_valid = if allow_mock {
+                    header.nonce == 0 || header.bits >= DEVNET_MAX_BITS
+                } else {
+                    check_header_pow(&header)
+                        .map_err(|e| Error::Invalid(format!("pow verification failed: {e}")))?
+                };
 
-            if n % 100_000 == 0 && n > 0 {
-                let elapsed = start_time.elapsed().as_secs_f64();
-                let hashrate = (n as f64) / elapsed;
-                let current_hash = header_hash(&header);
-                println!(
-                    "... tried {} nonces ({:.2} H/s), latest hash={}",
-                    n,
-                    hashrate,
-                    hex::encode(current_hash)
-                );
+                if pow_valid {
+                    solution_found = true;
+                    final_nonce = n;
+                    break;
+                }
             }
+            
+            if !solution_found {
+                println!("No solution found in {} attempts", max_nonce);
+                continue;
+            }
+            
+            (header, final_nonce)
+        };
+
+        let id = header_hash(&header);
+        let elapsed = start_time.elapsed();
+        let hashrate = (n as f64) / elapsed.as_secs_f64();
+
+        #[cfg(feature = "randomx")]
+        if let Some(algo) = algo_used {
+            println!("\nFOUND! Block #{} | Algo: {} | Nonce: {}", height + 1, algo.name(), n);
+        } else {
+            println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
+        }
+        #[cfg(not(feature = "randomx"))]
+        println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
+        
+        println!("Hash: {}", hex::encode(id));
+        println!(
+            "Time: {:.2}s | Hashrate: {:.2} H/s",
+            elapsed.as_secs_f64(),
+            hashrate
+        );
+
+        let block = Block {
+            header: header.clone(),
+            transactions: vec![coinbase.clone()],
+        };
+
+        {
+            let mut s = store.lock().unwrap();
+            s.insert_block(block)
+                .map_err(|e| Error::Invalid(format!("failed to insert block: {e}")))?;
         }
 
+        let block_height = height + 1;
+        let block_time = header.time as i64;
+        let block_bits = header.bits;
+        let block_target = compact_to_target(block_bits);
+
+        if let Some(prev_ts) = last_timestamp {
+            let interval = (block_time - prev_ts).max(0) as f64;
+            total_intervals += interval;
+            interval_count = interval_count
+                .checked_add(1)
+                .ok_or(Error::Overflow("interval count overflow"))?;
+        }
+        last_timestamp = Some(block_time);
+
+        history.push_back(BlockLog {
+            height: block_height,
+            timestamp: block_time,
+            target: block_target,
+        });
+        if history.len() > window + 1 {
+            history.pop_front();
+        }
+
+        let anchor = if block_height as usize > window && history.len() > window {
+            history[history.len() - 1 - window]
+        } else {
+            *history
+                .front()
+                .expect("history always contains at least the mined block")
+        };
+
+        let height_delta = block_height as i64 - anchor.height as i64;
+        let time_delta = block_time - anchor.timestamp;
+        let expected_time =
+            params.difficulty.target_block_time as f64 * height_delta.max(1) as f64;
+        let average = if height_delta > 0 {
+            time_delta as f64 / height_delta as f64
+        } else {
+            params.difficulty.target_block_time as f64
+        };
+        let ratio = if expected_time > 0.0 {
+            time_delta as f64 / expected_time
+        } else {
+            1.0
+        };
+        let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
+            && time_delta > 0
+            && ratio < params.difficulty.burst_guard_floor_ratio;
+        if guard_triggered {
+            guard_total = guard_total
+                .checked_add(1)
+                .ok_or(Error::Overflow("guard count overflow"))?;
+        }
+
+        let next_target =
+            asert_next_target(anchor.target, height_delta, time_delta, &params, None);
+        let mut next_bits = target_to_compact(next_target);
+        if next_bits == 0 {
+            next_bits = block_bits;
+        }
+        next_bits = clamp_bits_within_bounds(next_bits);
+
+        println!(
+            "[ASERT] height={} guard={} window={} avg={:.2}s ratio={:.3} target=0x{:08x} next_bits=0x{:08x}",
+            block_height,
+            if guard_triggered { "ON " } else { "off" },
+            height_delta,
+            average,
+            ratio,
+            block_bits,
+            next_bits
+        );
+
+        bits = next_bits;
+
+        let total = blocks_mined.fetch_add(1, Ordering::Relaxed) + 1;
+        println!("Saved to DB | Session total: {}", total);
+        found.store(true, Ordering::Relaxed);
+
+        if let Some(limit) = limit_blocks {
+            if total >= limit {
+                print_session_summary(interval_count, total_intervals, guard_total);
+                println!("Reached block limit ({limit}). Session complete.");
+                return Ok(());
+            }
+        }
+        
         if !found.load(Ordering::Relaxed) {
             println!(
                 "\nNo valid nonce in {} tries, adjusting difficulty...",

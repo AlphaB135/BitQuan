@@ -40,3 +40,4 @@ zeroize.workspace = true
 [features]
 default = ["rocksdb-backend"]
 rocksdb-backend = ["bitquan-storage/rocksdb-backend"]
+randomx = ["bitquan-consensus/randomx"]
