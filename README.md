@@ -76,6 +76,16 @@ See [SECURITY.md](SECURITY.md) for the vulnerability disclosure process.
 
 ## Quick Start
 
+### Mainnet
+
+For mainnet deployment, see **[MAINNET_ANNOUNCEMENT.md](./docs/MAINNET_ANNOUNCEMENT.md)** for:
+- Official release binaries and checksums
+- Network endpoints and DNS seeds
+- Mining pool configuration
+- Security best practices
+
+### Development Build
+
 ```bash
 # Build
 cargo build --release
