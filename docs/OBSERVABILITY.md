@@ -706,6 +706,35 @@ pub async fn validate_block(block: &Block) -> Result<(), Error> {
 
 ---
 
-**Document Version**: 1.0  
+## Mainnet Dashboards
+
+### Grafana Dashboard Configuration
+
+**Dashboard JSON:** `deploy/grafana-mainnet-dashboard.json` (to be created in deployment)
+
+**Key Panels:**
+1. **Chain Height Gap:** `bitquan_best_known_height - bitquan_chain_height`
+2. **Orphan Rate:** `rate(bitquan_orphan_blocks_total[30m])`
+3. **RPC p95 Latency:** `histogram_quantile(0.95, bitquan_rpc_duration_seconds)`
+4. **Pool Reject Rate:** Stratum share rejects / total shares
+5. **Active Miners:** `bitquan_stratum_active_miners`
+6. **Network Peers:** `bitquan_network_peers`
+
+**Access:**
+- Production: `https://metrics.bitquan.org`
+- Credentials: See `MAINTAINERS` file
+
+### Alert Rules Location
+
+Alert rules defined in: `alerts/mainnet-rules.yml`
+
+Validate with:
+```bash
+promtool check rules alerts/mainnet-rules.yml
+```
+
+---
+
+**Document Version**: 1.1  
 **Maintainer**: BitQuan DevOps Team  
-**Last Updated**: 2024-11-04
+**Last Updated**: 2025-11-06

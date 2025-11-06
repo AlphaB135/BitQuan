@@ -1,0 +1,104 @@
+groups:
+  - name: bitquan_mainnet_alerts
+    interval: 30s
+    rules:
+      - alert: HighRPCErrorRate
+        expr: |
+          (
+            rate(bitquan_rpc_errors_total[5m]) 
+            / 
+            rate(bitquan_rpc_requests_total[5m])
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: rpc
+        annotations:
+          summary: "RPC error rate above 1% for 5 minutes"
+          description: "Current RPC error rate is {{ $value | humanizePercentage }}. Check logs and client behavior."
+          runbook_url: "https://docs.bitquan.org/runbooks/rpc-errors"
+
+      - alert: BlockProductionStall
+        expr: |
+          (time() - bitquan_last_block_timestamp) > (600 * 3)
+        for: 10m
+        labels:
+          severity: critical
+          component: consensus
+        annotations:
+          summary: "No new block produced for 3× target interval (30 minutes)"
+          description: "Last block was {{ $value | humanizeDuration }} ago. Check miner connectivity and network status."
+          runbook_url: "https://docs.bitquan.org/runbooks/block-stall"
+
+      - alert: HeightLag
+        expr: |
+          bitquan_best_known_height - bitquan_chain_height > 2
+        for: 10m
+        labels:
+          severity: warning
+          component: sync
+        annotations:
+          summary: "Local chain height lags best known by >2 blocks"
+          description: "Height lag is {{ $value }} blocks. Node may be out of sync."
+          runbook_url: "https://docs.bitquan.org/runbooks/sync-lag"
+
+      - alert: HighRejectRate
+        expr: |
+          (
+            rate(bitquan_stratum_shares_rejected_total[10m])
+            /
+            (rate(bitquan_stratum_shares_rejected_total[10m]) + rate(bitquan_stratum_shares_accepted_total[10m]))
+          ) > 0.03
+        for: 10m
+        labels:
+          severity: warning
+          component: stratum
+        annotations:
+          summary: "Stratum share reject rate above 3% for 10 minutes"
+          description: "Current reject rate is {{ $value | humanizePercentage }}. Check difficulty and miner configs."
+          runbook_url: "https://docs.bitquan.org/runbooks/high-rejects"
+
+      - alert: LowPeerCount
+        expr: bitquan_network_peers < 5
+        for: 5m
+        labels:
+          severity: info
+          component: network
+        annotations:
+          summary: "Connected peer count below 5 for 5 minutes"
+          description: "Currently {{ $value }} peers connected. Check network connectivity and firewall rules."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes > 8589934592
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Node memory usage above 8GB"
+          description: "Current RSS: {{ $value | humanize1024 }}. Check for memory leaks."
+
+      - alert: DiskSpaceWarning
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/var/lib/bitquan"}
+            /
+            node_filesystem_size_bytes{mountpoint="/var/lib/bitquan"}
+          ) < 0.20
+        for: 5m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "Chain data disk space below 20%"
+          description: "Only {{ $value | humanizePercentage }} disk space remaining. Consider cleanup or expansion."
+
+      - alert: OrphanRateHigh
+        expr: rate(bitquan_orphan_blocks_total[30m]) > 0.01
+        for: 15m
+        labels:
+          severity: info
+          component: consensus
+        annotations:
+          summary: "Orphan block rate above 1% threshold"
+          description: "Current orphan rate: {{ $value | humanizePercentage }}. May indicate network propagation issues."
