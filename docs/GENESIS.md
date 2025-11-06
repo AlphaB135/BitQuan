@@ -100,6 +100,11 @@ Canonical DNS seed addresses for network bootstrap are maintained in [`genesis/d
 - testnet-seed2.bitquan.network:18333
 - testnet-seed3.bitquan.network:18333
 
+**Reachability Policy:**
+- Minimum threshold: ≥60% of seeds must be reachable
+- TCP probe timeout: 5 seconds
+- Validated via `bq-preflight dns-check --dns-seed-threshold 60`
+
 ## Validation Requirements
 
 Before mainnet v1.0.0 launch, the following must be verified:
@@ -107,7 +112,7 @@ Before mainnet v1.0.0 launch, the following must be verified:
 1. ✅ Genesis hash matches documented value exactly
 2. ✅ Consensus parameters are locked (no runtime modification)
 3. ✅ PoW algorithm is SHA-256d only (hybrid disabled)
-4. ✅ DNS seeds resolve and respond (≥60% threshold)
+4. ✅ DNS seeds resolve and respond (≥60% threshold, 5s TCP probe)
 5. ✅ Genesis file is byte-for-byte reproducible
 
 ## Post-Quantum Signature

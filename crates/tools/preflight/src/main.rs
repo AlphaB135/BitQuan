@@ -25,6 +25,9 @@ enum Commands {
 
         #[arg(long, default_value = "2")]
         timeout: u64,
+
+        #[arg(long, default_value = "60")]
+        dns_seed_threshold: u8,
     },
     /// Probe TCP connectivity
     TcpProbe {
@@ -62,8 +65,9 @@ async fn main() -> Result<()> {
         Commands::DnsCheck {
             network,
             timeout: timeout_secs,
+            dns_seed_threshold,
         } => {
-            dns_check(&network, timeout_secs).await?;
+            dns_check(&network, timeout_secs, dns_seed_threshold).await?;
         }
         Commands::TcpProbe {
             host,
@@ -77,7 +81,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn dns_check(network: &str, timeout_secs: u64) -> Result<()> {
+async fn dns_check(network: &str, timeout_secs: u64, threshold_pct: u8) -> Result<()> {
     let project_root = find_project_root()?;
     let seeds_file = project_root.join("genesis/dns_seeds.txt");
 
@@ -142,6 +146,15 @@ async fn dns_check(network: &str, timeout_secs: u64) -> Result<()> {
     };
 
     println!("{}", serde_json::to_string_pretty(&result)?);
+
+    // Check threshold
+    if percentage < threshold_pct as f64 {
+        anyhow::bail!(
+            "DNS seed reachability {}% below threshold {}%",
+            percentage,
+            threshold_pct
+        );
+    }
 
     Ok(())
 }
