@@ -96,10 +96,10 @@ impl DnsBootstrap {
     pub fn bootstrap(&self, max_peers: usize) -> Vec<SocketAddr> {
         let mut peers = self.resolve();
 
-        // Shuffle for randomness
+        // Shuffle for randomness using cryptographically secure RNG
         use rand::seq::SliceRandom;
-        let mut rng = rand::thread_rng();
-        peers.shuffle(&mut rng);
+        use rand::rngs::OsRng;
+        peers.shuffle(&mut OsRng);
 
         // Take only the requested number
         peers.truncate(max_peers);

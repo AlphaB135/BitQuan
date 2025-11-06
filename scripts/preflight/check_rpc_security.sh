@@ -6,7 +6,7 @@ set -euo pipefail
 NETWORK="${1:-mainnet}"
 RELEASE_TAG="${2:-unknown}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_ROOT/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 RPC_HOST="${RPC_HOST:-127.0.0.1}"
 RPC_PORT="${RPC_PORT:-8332}"

@@ -298,3 +298,52 @@ All security-relevant events are logged in JSON format:
 }
 ```
 
+## Pre-Launch Security Validation
+
+### TLS/JWT Preflight Checks
+
+Before mainnet launch, TLS and JWT configurations must pass automated preflight validation:
+
+**Validation Script**: `scripts/preflight/check_tls_jwt.sh`
+
+**Checks Performed**:
+1. **TLS Handshake**: Verify successful TLS 1.2+ connection
+2. **JWT Token Validation**: Ensure invalid tokens return 401
+3. **Metrics Tracking**: Confirm JWT validation events are counted
+4. **Security Headers**: Validate presence of required headers:
+   - `Strict-Transport-Security`
+   - `Content-Security-Policy`
+   - `X-Content-Type-Options`
+   - `X-Frame-Options`
+
+**Running Preflight**:
+```bash
+# Individual TLS/JWT check
+scripts/preflight/check_tls_jwt.sh mainnet v1.0.0
+
+# Full preflight validation
+scripts/preflight/preflight.sh --network mainnet --release-tag v1.0.0
+```
+
+**Pass Criteria**:
+- ✅ TLS handshake completes successfully
+- ✅ Invalid JWT tokens rejected (401)
+- ✅ Metrics counter increments for validation events
+- ✅ All required security headers present
+- ✅ HSTS max-age ≥ 31536000 (1 year)
+- ✅ CSP header restricts content sources
+
+**CI Integration**:
+Preflight validation runs automatically in `.github/workflows/preflight.yml` on:
+- Release tag pushes (`v*.*.*`)
+- Pull requests affecting RPC or security code
+- Manual workflow dispatch
+
+**Mock Mode**:
+For CI environments without actual TLS setup, preflight supports mock mode:
+```bash
+PREFLIGHT_MOCK=1 scripts/preflight/check_tls_jwt.sh mainnet v1.0.0
+```
+
+See [docs/PRELAUNCH_CHECKLIST.md](docs/PRELAUNCH_CHECKLIST.md) for complete validation requirements.
+

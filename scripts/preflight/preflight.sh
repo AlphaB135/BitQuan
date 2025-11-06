@@ -126,7 +126,7 @@ EOF
 
 # Add check results to table
 for i in "${!CHECKS[@]}"; do
-    local status_icon="❌"
+    status_icon="❌"
     if [[ "${RESULTS[$i]}" == "PASS" ]]; then
         status_icon="✅"
     fi

@@ -265,6 +265,29 @@ Tune RPC behavior with CLI flags (defaults shown):
 
 See [docs/command.md](docs/command.md) for the complete CLI reference.
 
+## Pre-Launch Validation
+
+BitQuan includes comprehensive preflight validation to ensure mainnet readiness:
+
+```bash
+# Run full preflight validation
+scripts/preflight/preflight.sh --network mainnet --release-tag v1.0.0-rc1
+
+# View validation report
+cat preflight_report.md
+```
+
+**Validation Checks:**
+- ✅ Genesis hash verification
+- ✅ DNS seeds reachability (≥60% threshold)
+- ✅ Build reproducibility
+- ✅ RPC security guards (401/408/429/431)
+- ✅ Metrics endpoint availability
+- ✅ PoW parameters locked for mainnet
+- ✅ TLS/JWT configuration
+
+See [docs/PRELAUNCH_CHECKLIST.md](docs/PRELAUNCH_CHECKLIST.md) for complete validation criteria.
+
 ## Documentation
 
 Core Documents:
@@ -274,6 +297,14 @@ Core Documents:
 - [Release Process](RELEASE.md)
 - [Reproducible Builds](REPRODUCIBILITY.md)
 - [Changelog](CHANGELOG.md)
+
+Launch & Operations:
+- [Pre-Launch Checklist](docs/PRELAUNCH_CHECKLIST.md)
+- [Genesis Documentation](docs/GENESIS.md)
+- [Pool Operations](docs/POOL_OPERATIONS.md)
+- [Metrics Guide](docs/METRICS.md)
+- [Observability](docs/OBSERVABILITY.md)
+- [Runbook](docs/RUNBOOK.md)
 
 Technical Specifications:
 - [Transaction Specification](docs/spec/transaction.md)

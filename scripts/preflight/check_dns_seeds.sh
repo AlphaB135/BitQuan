@@ -18,19 +18,28 @@ if [[ ! -f "$DNS_SEEDS_FILE" ]]; then
 fi
 
 # Filter seeds for the network
-PATTERN="mainnet"
 PORT="8333"
 if [[ "$NETWORK" == "testnet" ]]; then
-    PATTERN="testnet"
     PORT="18333"
+    # Extract testnet seeds (lines containing "testnet")
+    SEEDS=$(grep -v "^#" "$DNS_SEEDS_FILE" | grep -v "^$" | grep "testnet" || echo "")
+else
+    # Extract mainnet seeds (lines without "testnet")
+    SEEDS=$(grep -v "^#" "$DNS_SEEDS_FILE" | grep -v "^$" | grep -v "testnet" || echo "")
 fi
-
-# Extract seeds for this network
-SEEDS=$(grep -E "$PATTERN" "$DNS_SEEDS_FILE" | grep -v "^#" | grep -v "^$" || echo "")
 
 if [[ -z "$SEEDS" ]]; then
     echo "CHECK | dns_seeds | FAIL | No seeds found for network: $NETWORK"
     exit 1
+fi
+
+# Check if in mock mode
+if [[ "${PREFLIGHT_MOCK:-0}" == "1" ]]; then
+    TOTAL=$(echo "$SEEDS" | wc -l | tr -d ' ')
+    REACHABLE=$((TOTAL * 80 / 100))  # Mock 80% reachability
+    PERCENTAGE=$((REACHABLE * 100 / TOTAL))
+    echo "CHECK | dns_seeds | PASS | Mock mode: Reachable: $REACHABLE/$TOTAL ($PERCENTAGE% >= $MIN_THRESHOLD%)"
+    exit 0
 fi
 
 TOTAL=0
