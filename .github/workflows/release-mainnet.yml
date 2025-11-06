@@ -1,0 +1,137 @@
+name: Release Mainnet Build
+
+on:
+  push:
+    tags:
+      - 'v1.0.0*'
+      - 'v1.*.0'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: bitquan-node-linux-x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: bitquan-node-linux-aarch64
+            cross: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build release binary
+        run: |
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --release --locked --target ${{ matrix.target }} -p bitquan-node
+          else
+            cargo build --release --locked --target ${{ matrix.target }} -p bitquan-node
+          fi
+
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/bitquan-node dist/${{ matrix.artifact }}
+          chmod +x dist/${{ matrix.artifact }}
+
+      - name: Generate SHA256 checksum
+        run: |
+          cd dist
+          sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+          cat ${{ matrix.artifact }}.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/${{ matrix.artifact }}
+            dist/${{ matrix.artifact }}.sha256
+          retention-days: 90
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Collect binaries
+        run: |
+          mkdir -p release
+          find release-artifacts -type f -exec cp {} release/ \;
+          ls -lh release/
+
+      - name: Generate combined SHA256SUMS
+        run: |
+          cd release
+          cat *.sha256 > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: BitQuan ${{ github.ref_name || inputs.tag }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'rc') || contains(inputs.tag, 'rc') }}
+          files: |
+            release/*
+          body: |
+            ## BitQuan Release ${{ github.ref_name || inputs.tag }}
+
+            ### Artifacts
+
+            - `bitquan-node-linux-x86_64`: Linux x86_64 binary
+            - `bitquan-node-linux-aarch64`: Linux ARM64 binary
+            - `SHA256SUMS`: Combined checksums
+
+            ### Verification
+
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+
+            ### Documentation
+
+            - [MAINNET_ANNOUNCEMENT.md](./docs/MAINNET_ANNOUNCEMENT.md)
+            - [SECURITY.md](./SECURITY.md)
+
+            **Note:** Mainnet enforces SHA-256d PoW only. RandomX is testnet-only.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # TODO: Add cosign attestation (keyless OIDC or manual key)
+  # TODO: Generate SBOM with cargo-auditable or cargo-about
