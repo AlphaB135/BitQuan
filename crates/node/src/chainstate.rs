@@ -58,7 +58,7 @@ impl ChainState {
                 if hash_bytes.len() == 32 {
                     let mut hash = [0u8; 32];
                     hash.copy_from_slice(&hash_bytes);
-                    *self.tip_hash.lock().unwrap() = hash;
+                    *self.tip_hash.lock().expect("chainstate lock poisoned") = hash;
                 }
             }
         }
@@ -66,12 +66,12 @@ impl ChainState {
     }
 
     /// Append a new block to the chain.
-    pub fn append_block(&self, block: &Block, block_hash: [u8; 32]) -> Result<u64> {
+    pub fn append_block(&self, _block: &Block, block_hash: [u8; 32]) -> Result<u64> {
         // Increment height
         let new_height = self.height.fetch_add(1, Ordering::SeqCst) + 1;
 
         // Update tip hash
-        *self.tip_hash.lock().unwrap() = block_hash;
+        *self.tip_hash.lock().expect("chainstate lock poisoned") = block_hash;
 
         Ok(new_height)
     }
@@ -83,7 +83,7 @@ impl ChainState {
 
     /// Get current tip hash.
     pub fn get_tip(&self) -> [u8; 32] {
-        *self.tip_hash.lock().unwrap()
+        *self.tip_hash.lock().expect("chainstate lock poisoned")
     }
 
     /// Set height (for testing or initialization).

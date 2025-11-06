@@ -122,8 +122,8 @@ pub fn encrypt_keystore(
 
     let created = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+        .map(|d| d.as_secs())
+        .unwrap_or(0); // Fallback to epoch if clock is wrong
     KeystoreFile {
         magic: MAGIC.to_string(),
         version: CURRENT_VERSION,

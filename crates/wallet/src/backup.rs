@@ -144,8 +144,8 @@ impl WalletBackup {
 
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+            .map(|d| d.as_secs())
+            .unwrap_or(0); // Fallback to epoch if clock is wrong
 
         Ok(WalletBackup {
             version: Self::CURRENT_VERSION,

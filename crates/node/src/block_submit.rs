@@ -147,7 +147,8 @@ impl BlockSubmitter {
 
                 // Record block and credit reward
                 let miner = miner_id.unwrap_or("unknown");
-                let mut engine = reward_engine.lock().unwrap();
+                let mut engine = reward_engine.lock()
+                    .map_err(|e| bitquan_types::Error::Invalid(format!("reward engine lock poisoned: {}", e)))?;
                 let reward = engine.record_block(block, hash, height, miner)?;
 
                 // Update metrics

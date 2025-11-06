@@ -28,7 +28,7 @@ impl SeenFilter {
 
     /// Check if a block hash was seen, and mark it if not.
     pub fn mark_block_seen(&self, hash: [u8; 32]) -> bool {
-        let mut seen = self.seen_blocks.lock().unwrap();
+        let mut seen = self.seen_blocks.lock().expect("propagation lock poisoned");
 
         // If at capacity, clear oldest (simple eviction)
         if seen.len() >= self.max_items {
@@ -40,7 +40,7 @@ impl SeenFilter {
 
     /// Check if a transaction hash was seen, and mark it if not.
     pub fn mark_tx_seen(&self, hash: [u8; 32]) -> bool {
-        let mut seen = self.seen_txs.lock().unwrap();
+        let mut seen = self.seen_txs.lock().expect("propagation lock poisoned");
 
         if seen.len() >= self.max_items {
             seen.clear();
@@ -51,12 +51,12 @@ impl SeenFilter {
 
     /// Check if block was already seen (without marking).
     pub fn has_block(&self, hash: &[u8; 32]) -> bool {
-        self.seen_blocks.lock().unwrap().contains(hash)
+        self.seen_blocks.lock().expect("propagation lock poisoned").contains(hash)
     }
 
     /// Check if transaction was already seen (without marking).
     pub fn has_tx(&self, hash: &[u8; 32]) -> bool {
-        self.seen_txs.lock().unwrap().contains(hash)
+        self.seen_txs.lock().expect("propagation lock poisoned").contains(hash)
     }
 }
 
@@ -120,14 +120,14 @@ impl BlockPropagator {
     /// Mark block as propagated.
     pub fn mark_block_propagated(&self, block_hash: [u8; 32]) {
         self.seen_filter.mark_block_seen(block_hash);
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self.stats.lock().expect("propagation lock poisoned");
         stats.blocks_broadcast += 1;
     }
 
     /// Mark block as received.
     pub fn mark_block_received(&self, block_hash: [u8; 32]) -> bool {
         let is_new = self.seen_filter.mark_block_seen(block_hash);
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self.stats.lock().expect("propagation lock poisoned");
 
         if is_new {
             stats.blocks_received += 1;
@@ -141,14 +141,14 @@ impl BlockPropagator {
     /// Mark transaction as propagated.
     pub fn mark_tx_propagated(&self, tx_hash: [u8; 32]) {
         self.seen_filter.mark_tx_seen(tx_hash);
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self.stats.lock().expect("propagation lock poisoned");
         stats.txs_broadcast += 1;
     }
 
     /// Mark transaction as received.
     pub fn mark_tx_received(&self, tx_hash: [u8; 32]) -> bool {
         let is_new = self.seen_filter.mark_tx_seen(tx_hash);
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self.stats.lock().expect("propagation lock poisoned");
 
         if is_new {
             stats.txs_received += 1;
@@ -159,12 +159,12 @@ impl BlockPropagator {
 
     /// Get propagation statistics.
     pub fn stats(&self) -> PropagationStats {
-        self.stats.lock().unwrap().clone()
+        self.stats.lock().expect("propagation lock poisoned").clone()
     }
 
     /// Reset statistics.
     pub fn reset_stats(&self) {
-        *self.stats.lock().unwrap() = PropagationStats::default();
+        *self.stats.lock().expect("propagation lock poisoned") = PropagationStats::default();
     }
 }
 

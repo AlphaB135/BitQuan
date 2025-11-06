@@ -31,7 +31,7 @@ impl RelayManager {
 
     /// Records an inventory announcement
     pub fn announce(&self, inv: &InvVector) {
-        let mut announced = self.announced.lock().unwrap();
+        let mut announced = self.announced.lock().expect("relay lock poisoned");
 
         // Cleanup old entries if needed
         if announced.len() >= self.max_items {
@@ -44,25 +44,25 @@ impl RelayManager {
 
     /// Checks if we've recently announced this item
     pub fn has_announced(&self, hash: &[u8; 32]) -> bool {
-        let announced = self.announced.lock().unwrap();
+        let announced = self.announced.lock().expect("relay lock poisoned");
         announced.contains_key(hash)
     }
 
     /// Adds a pending request
     pub fn add_request(&self, hash: [u8; 32], peer_id: String) {
-        let mut requests = self.pending_requests.lock().unwrap();
+        let mut requests = self.pending_requests.lock().expect("relay lock poisoned");
         requests.entry(hash).or_default().insert(peer_id);
     }
 
     /// Removes a pending request
     pub fn remove_request(&self, hash: &[u8; 32]) {
-        let mut requests = self.pending_requests.lock().unwrap();
+        let mut requests = self.pending_requests.lock().expect("relay lock poisoned");
         requests.remove(hash);
     }
 
     /// Gets peers waiting for this item
     pub fn get_requesters(&self, hash: &[u8; 32]) -> Vec<String> {
-        let requests = self.pending_requests.lock().unwrap();
+        let requests = self.pending_requests.lock().expect("relay lock poisoned");
         requests
             .get(hash)
             .map(|s| s.iter().cloned().collect())
@@ -71,7 +71,7 @@ impl RelayManager {
 
     /// Marks an item as relayed
     pub fn mark_relayed(&self, hash: [u8; 32]) {
-        let mut relayed = self.relayed.lock().unwrap();
+        let mut relayed = self.relayed.lock().expect("relay lock poisoned");
 
         // Limit size
         if relayed.len() >= self.max_items {
@@ -83,7 +83,7 @@ impl RelayManager {
 
     /// Checks if we've already relayed this
     pub fn was_relayed(&self, hash: &[u8; 32]) -> bool {
-        let relayed = self.relayed.lock().unwrap();
+        let relayed = self.relayed.lock().expect("relay lock poisoned");
         relayed.contains(hash)
     }
 
@@ -91,7 +91,7 @@ impl RelayManager {
     pub fn cleanup(&self) {
         let cutoff = Instant::now() - Duration::from_secs(600);
 
-        let mut announced = self.announced.lock().unwrap();
+        let mut announced = self.announced.lock().expect("relay lock poisoned");
         announced.retain(|_, time| *time > cutoff);
     }
 }

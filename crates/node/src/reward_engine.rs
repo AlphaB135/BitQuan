@@ -65,7 +65,7 @@ impl RewardEngine {
 
     /// Calculate total transaction fees in block.
     fn calculate_fees(&self, block: &Block) -> u64 {
-        let mut total_in = 0u64;
+        let total_in = 0u64;
         let mut total_out = 0u64;
 
         for tx in &block.transactions {
