@@ -685,7 +685,7 @@ mod tests {
 
         let mut buf = Vec::new();
         header.encode(&mut buf).unwrap();
-        assert_eq!(buf.len(), 116); // Fixed header size
+        assert_eq!(buf.len(), 117); // Fixed header size (with algo_id)
 
         let decoded = BlockHeader::decode(&mut &buf[..]).unwrap();
         assert_eq!(decoded.version, header.version);

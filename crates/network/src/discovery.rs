@@ -229,8 +229,7 @@ impl PeerBook {
 
     /// Save to JSON file.
     pub fn save_to_file(&self, path: &str) -> Result<()> {
-        let json =
-            serde_json::to_string_pretty(self).map_err(bitquan_types::Error::Serde)?;
+        let json = serde_json::to_string_pretty(self).map_err(bitquan_types::Error::Serde)?;
 
         std::fs::write(path, json).map_err(bitquan_types::Error::Io)?;
 

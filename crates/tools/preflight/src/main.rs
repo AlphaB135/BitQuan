@@ -225,7 +225,8 @@ mod tests {
     async fn test_tcp_probe_localhost() {
         // This test would need a mock server in real scenarios
         // For now, testing unreachable addresses
-        let _reachable = check_tcp_reachability("localhost", 9999, Duration::from_millis(100)).await;
+        let _reachable =
+            check_tcp_reachability("localhost", 9999, Duration::from_millis(100)).await;
         // Non-deterministic, so we just verify it runs without panic
     }
 

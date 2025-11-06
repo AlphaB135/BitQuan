@@ -96,10 +96,7 @@ impl MiningMetrics {
         if let Some(last_time) = last_times.get(&algo) {
             let duration = now.duration_since(*last_time);
             let mut durations = self.block_durations.write().unwrap();
-            durations
-                .entry(algo)
-                .or_default()
-                .push(duration);
+            durations.entry(algo).or_default().push(duration);
 
             // Keep only last 100 durations
             if let Some(list) = durations.get_mut(&algo) {

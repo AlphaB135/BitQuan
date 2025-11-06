@@ -123,9 +123,7 @@ async fn rpc_hammer(url: &str, concurrency: usize, duration: u64, output: &str) 
     println!("  Concurrency: {}", concurrency);
     println!("  Duration: {}s", duration);
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()?;
+    let client = Client::builder().timeout(Duration::from_secs(10)).build()?;
 
     let stats = Arc::new(Mutex::new(TestStats::new()));
     let end_time = Instant::now() + Duration::from_secs(duration);
@@ -284,7 +282,10 @@ async fn pool_shares(
     println!("  Total Shares: {}", report.total_requests);
     println!("  Accepted: {}", report.successful);
     println!("  Rejected: {}", report.failed);
-    println!("  Reject Rate: {:.2}%", report.failed as f64 / report.total_requests as f64 * 100.0);
+    println!(
+        "  Reject Rate: {:.2}%",
+        report.failed as f64 / report.total_requests as f64 * 100.0
+    );
     println!("  p50 Latency: {:.2}ms", report.latency_p50_ms);
     println!("  p95 Latency: {:.2}ms", report.latency_p95_ms);
     println!("  Shares/sec: {:.2}", report.requests_per_sec);
@@ -353,7 +354,8 @@ fn save_report(report: &LoadReport, output: &str) -> Result<()> {
     }
 
     let json = serde_json::to_string_pretty(report)?;
-    std::fs::write(output, json).with_context(|| format!("Failed to write report to {}", output))?;
+    std::fs::write(output, json)
+        .with_context(|| format!("Failed to write report to {}", output))?;
 
     println!("\n✅ Report saved to: {}", output);
     Ok(())
