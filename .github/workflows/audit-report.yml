@@ -1,0 +1,159 @@
+name: Audit Report Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      status:
+        description: 'Audit status (pass/fail)'
+        required: true
+        type: choice
+        options:
+          - pass
+          - fail
+      tag:
+        description: 'Release tag audited (e.g., v1.0.0-rc1)'
+        required: true
+        type: string
+      report_url:
+        description: 'URL to auditor_report.json (optional for manual upload)'
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["Preflight Checks"]
+    types:
+      - completed
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  process-audit:
+    runs-on: ubuntu-latest
+    # Only run on successful preflight or manual dispatch
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Create badges directory
+        run: mkdir -p badges
+
+      - name: Download audit report (if URL provided)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.report_url != ''
+        run: |
+          curl -sSL "${{ github.event.inputs.report_url }}" -o auditor_report.json
+          echo "Downloaded audit report from URL"
+
+      - name: Validate audit report schema
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Basic JSON validation and required fields check
+          if [ -f auditor_report.json ]; then
+            python3 -c "
+          import json
+          import sys
+          
+          with open('auditor_report.json') as f:
+              data = json.load(f)
+          
+          required = ['status', 'findings', 'sha', 'tag', 'auditor', 'date']
+          for field in required:
+              if field not in data:
+                  print(f'Missing required field: {field}')
+                  sys.exit(1)
+          
+          if data['status'] not in ['pass', 'fail']:
+              print('Invalid status value')
+              sys.exit(1)
+          
+          print('Audit report schema valid')
+          "
+          else
+            echo "No audit report found, will generate badge from inputs"
+          fi
+
+      - name: Generate audit badge
+        run: |
+          STATUS="${{ github.event.inputs.status || 'pending' }}"
+          TAG="${{ github.event.inputs.tag || 'unknown' }}"
+          
+          if [ "$STATUS" = "pass" ]; then
+            COLOR="brightgreen"
+            LABEL="audit: passed"
+          elif [ "$STATUS" = "fail" ]; then
+            COLOR="red"
+            LABEL="audit: failed"
+          else
+            COLOR="yellow"
+            LABEL="audit: pending"
+          fi
+          
+          # Generate SVG badge using shields.io format
+          cat > badges/audit.svg <<EOF
+          <svg xmlns="http://www.w3.org/2000/svg" width="110" height="20">
+            <linearGradient id="b" x2="0" y2="100%">
+              <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+              <stop offset="1" stop-opacity=".1"/>
+            </linearGradient>
+            <mask id="a">
+              <rect width="110" height="20" rx="3" fill="#fff"/>
+            </mask>
+            <g mask="url(#a)">
+              <path fill="#555" d="M0 0h50v20H0z"/>
+              <path fill="$([ "$STATUS" = "pass" ] && echo "#4c1" || echo "#e05d44")" d="M50 0h60v20H50z"/>
+              <path fill="url(#b)" d="M0 0h110v20H0z"/>
+            </g>
+            <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+              <text x="25" y="15" fill="#010101" fill-opacity=".3">audit</text>
+              <text x="25" y="14">audit</text>
+              <text x="79" y="15" fill="#010101" fill-opacity=".3">$STATUS</text>
+              <text x="79" y="14">$STATUS</text>
+            </g>
+          </svg>
+          EOF
+          
+          echo "Generated audit badge with status: $STATUS"
+
+      - name: Commit badge to repository
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add badges/audit.svg
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci(audit): update audit badge to ${{ github.event.inputs.status }} for ${{ github.event.inputs.tag }}"
+            git push origin HEAD:main
+          fi
+
+      - name: Upload audit artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report-${{ github.event.inputs.tag }}
+          path: |
+            auditor_report.json
+            auditor_diff.md
+            attestation.sig
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Comment on related PR (if applicable)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.status == 'fail'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ github.event.inputs.tag }}';
+            console.log(`Audit failed for ${tag}. Manual review required.`);
+            // Could create an issue or comment on PR here

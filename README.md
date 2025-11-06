@@ -28,7 +28,13 @@ the limits of classical computation.
 <p align="center">
   <a href="https://github.com/AlphaB135/BitQuan/actions"><img alt="CI" src="https://github.com/AlphaB135/BitQuan/workflows/CI/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
+  <a href="./badges/audit.svg"><img alt="Audit Status" src="./badges/audit.svg"></a>
 </p>
+
+**Badge Legend:**
+- **CI**: Continuous Integration build status
+- **License**: Apache 2.0 open-source license
+- **Audit**: External security audit status (pass/fail/pending)
 
 
 ---
