@@ -1,6 +1,6 @@
 //! Integration tests for hybrid PoW validation.
 
-use bitquan_consensus::{pow::*, ConsensusParams, PowSetParams};
+use bitquan_consensus::{pow::*, PowSetParams};
 use bitquan_types::BlockHeader;
 
 fn dummy_header(algo_id: u8) -> BlockHeader {

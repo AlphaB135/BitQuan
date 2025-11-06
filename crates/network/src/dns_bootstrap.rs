@@ -97,8 +97,8 @@ impl DnsBootstrap {
         let mut peers = self.resolve();
 
         // Shuffle for randomness using cryptographically secure RNG
-        use rand::seq::SliceRandom;
         use rand::rngs::OsRng;
+        use rand::seq::SliceRandom;
         peers.shuffle(&mut OsRng);
 
         // Take only the requested number

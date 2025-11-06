@@ -49,6 +49,7 @@ fn test_reject_excessive_headers() {
             time: i as u32,
             bits: 0x1d00ffff,
             nonce: 0,
+            algo_id: 0,
         })
         .collect();
 

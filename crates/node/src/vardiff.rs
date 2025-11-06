@@ -93,11 +93,11 @@ mod tests {
 
         // Extreme fast case
         let new_diff = vd.adjust(0.1, 1.0);
-        assert!(new_diff >= 0.01 && new_diff <= 10000.0);
+        assert!((0.01..=10000.0).contains(&new_diff));
 
         // Extreme slow case
         let new_diff = vd.adjust(1000.0, 1.0);
-        assert!(new_diff >= 0.01 && new_diff <= 10000.0);
+        assert!((0.01..=10000.0).contains(&new_diff));
     }
 
     #[test]

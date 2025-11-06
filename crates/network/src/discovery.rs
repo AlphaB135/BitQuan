@@ -219,10 +219,10 @@ impl PeerBook {
 
     /// Load from JSON file.
     pub fn load_from_file(path: &str) -> Result<Self> {
-        let contents = std::fs::read_to_string(path).map_err(|e| bitquan_types::Error::Io(e))?;
+        let contents = std::fs::read_to_string(path).map_err(bitquan_types::Error::Io)?;
 
         let book: PeerBook =
-            serde_json::from_str(&contents).map_err(|e| bitquan_types::Error::Serde(e))?;
+            serde_json::from_str(&contents).map_err(bitquan_types::Error::Serde)?;
 
         Ok(book)
     }
@@ -230,9 +230,9 @@ impl PeerBook {
     /// Save to JSON file.
     pub fn save_to_file(&self, path: &str) -> Result<()> {
         let json =
-            serde_json::to_string_pretty(self).map_err(|e| bitquan_types::Error::Serde(e))?;
+            serde_json::to_string_pretty(self).map_err(bitquan_types::Error::Serde)?;
 
-        std::fs::write(path, json).map_err(|e| bitquan_types::Error::Io(e))?;
+        std::fs::write(path, json).map_err(bitquan_types::Error::Io)?;
 
         Ok(())
     }

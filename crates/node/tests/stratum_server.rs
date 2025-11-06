@@ -158,7 +158,7 @@ fn randomx_share_metrics() {
 
     assert_eq!(metrics.get_accepted(PowAlgo::RandomX), 3);
 
-    metrics.record_share_rejected(PowAlgo::RandomX);
+    metrics.record_share_rejected(PowAlgo::RandomX, bitquan_node::stratum_server::RejectReason::LowDifficulty);
     assert_eq!(metrics.get_rejected(PowAlgo::RandomX), 1);
 
     let output = metrics.format_prometheus(2);

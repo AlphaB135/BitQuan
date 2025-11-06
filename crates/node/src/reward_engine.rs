@@ -21,6 +21,7 @@ pub struct RewardEngine {
     /// Reward multiplier (default 1.0).
     reward_rate: f64,
     /// Block maturity for rewards (confirmations needed).
+    #[allow(dead_code)]
     maturity: u64,
     /// Total rewards distributed counter.
     total_distributed: Arc<AtomicU64>,
@@ -232,7 +233,7 @@ mod tests {
     use super::*;
     use bitquan_types::{BlockHeader, NetworkId, SigAlgorithm, Transaction, TxOut};
 
-    fn dummy_block(height: u64) -> Block {
+    fn dummy_block(_height: u64) -> Block {
         Block {
             header: BlockHeader {
                 version: 1,

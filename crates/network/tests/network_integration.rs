@@ -22,7 +22,7 @@ fn test_peer_book_management() {
 
     // Get best peers
     let best = book.best_peers(2);
-    assert!(best.len() >= 1);
+    assert!(!best.is_empty());
     assert_eq!(best[0], "peer1:18444");
 }
 

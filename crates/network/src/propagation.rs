@@ -51,12 +51,18 @@ impl SeenFilter {
 
     /// Check if block was already seen (without marking).
     pub fn has_block(&self, hash: &[u8; 32]) -> bool {
-        self.seen_blocks.lock().expect("propagation lock poisoned").contains(hash)
+        self.seen_blocks
+            .lock()
+            .expect("propagation lock poisoned")
+            .contains(hash)
     }
 
     /// Check if transaction was already seen (without marking).
     pub fn has_tx(&self, hash: &[u8; 32]) -> bool {
-        self.seen_txs.lock().expect("propagation lock poisoned").contains(hash)
+        self.seen_txs
+            .lock()
+            .expect("propagation lock poisoned")
+            .contains(hash)
     }
 }
 
@@ -159,7 +165,10 @@ impl BlockPropagator {
 
     /// Get propagation statistics.
     pub fn stats(&self) -> PropagationStats {
-        self.stats.lock().expect("propagation lock poisoned").clone()
+        self.stats
+            .lock()
+            .expect("propagation lock poisoned")
+            .clone()
     }
 
     /// Reset statistics.

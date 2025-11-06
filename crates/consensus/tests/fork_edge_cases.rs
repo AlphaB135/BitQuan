@@ -13,6 +13,7 @@ fn make_header(prev: [u8; 32], bits: u32, nonce: u64) -> BlockHeader {
         time: 0,
         bits,
         nonce,
+        algo_id: 0,
     }
 }
 

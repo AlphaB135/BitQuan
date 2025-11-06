@@ -1,8 +1,20 @@
 //! Integration tests for pool template manager and dashboard.
 
 use bitquan_consensus::pow::PowAlgo;
-use bitquan_node::{BlockTemplate, PoolStats, PoolTemplateManager, VarDiff};
+use bitquan_node::{BlockTemplate, PoolTemplateManager, VarDiff};
 use bitquan_types::BlockHeader;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PoolStats {
+    pub timestamp: u64,
+    pub active_miners: usize,
+    pub hashrate_sha256d: f64,
+    #[cfg(feature = "randomx")]
+    pub hashrate_randomx: f64,
+    pub shares_ok: u64,
+    pub shares_rejected: u64,
+}
 
 #[tokio::test]
 async fn test_block_template_refresh() {

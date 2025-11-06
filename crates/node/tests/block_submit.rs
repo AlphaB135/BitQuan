@@ -42,7 +42,7 @@ async fn test_block_submit_valid_mock() {
     let submitter = BlockSubmitter::mock(NetworkId::Testnet);
     let block = create_test_block(12345, 0x207fffff);
 
-    let result = submitter.submit(&block).await.unwrap();
+    let result = submitter.submit(&block, None).await.unwrap();
 
     match result {
         SubmitResult::Accepted { hash, height } => {
@@ -63,7 +63,7 @@ async fn test_block_submit_reject_no_transactions() {
     let mut block = create_test_block(12345, 0x207fffff);
     block.transactions.clear(); // Remove transactions
 
-    let result = submitter.submit(&block).await.unwrap();
+    let result = submitter.submit(&block, None).await.unwrap();
 
     match result {
         SubmitResult::Rejected { reason } => {
@@ -81,7 +81,7 @@ async fn test_block_submit_invalid_pow() {
     let mut block = create_test_block(1, 0x1d00ffff); // Hard difficulty
     block.transactions.push(dummy_transaction());
 
-    let result = submitter.submit(&block).await;
+    let result = submitter.submit(&block, None).await;
 
     // May reject due to PoW not meeting target
     match result {
@@ -109,7 +109,7 @@ async fn test_block_submit_reject_invalid_header() {
     block.transactions.push(dummy_transaction());
 
     // Should still pass PoW but might fail chain validation in production
-    let result = submitter.submit(&block).await;
+    let result = submitter.submit(&block, None).await;
 
     match result {
         Ok(SubmitResult::Accepted { .. }) => {
@@ -222,7 +222,7 @@ async fn test_block_submit_with_valid_nonce() {
         let block = create_test_block(valid_nonce, bits);
         let submitter = BlockSubmitter::mock(NetworkId::Testnet);
 
-        let result = submitter.submit(&block).await.unwrap();
+        let result = submitter.submit(&block, None).await.unwrap();
 
         match result {
             SubmitResult::Accepted { .. } => {
@@ -242,7 +242,7 @@ async fn test_multiple_submissions() {
     // Submit multiple blocks
     for i in 0..5 {
         let block = create_test_block(1000 + i, 0x207fffff);
-        let result = submitter.submit(&block).await.unwrap();
+        let result = submitter.submit(&block, None).await.unwrap();
 
         match result {
             SubmitResult::Accepted { .. } => {

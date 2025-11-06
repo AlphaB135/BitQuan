@@ -1,6 +1,6 @@
 //! Integration tests for reward engine and chain persistence.
 
-use bitquan_node::{BlockRecord, ChainState, MiningMetrics, PoolDatabase, RewardEngine};
+use bitquan_node::{ChainState, MiningMetrics, PoolDatabase, RewardEngine};
 use bitquan_types::{Block, BlockHeader, NetworkId, SigAlgorithm, Transaction, TxOut};
 
 fn dummy_block(height: u64) -> Block {
@@ -59,7 +59,7 @@ fn test_reward_halving_logic() {
 
 #[test]
 fn test_block_persistence_and_height_increment() {
-    let db = PoolDatabase::memory().unwrap();
+    let _db = PoolDatabase::memory().unwrap();
     let chain_state = ChainState::new();
 
     // Start at height 0

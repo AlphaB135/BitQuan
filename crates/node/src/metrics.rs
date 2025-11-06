@@ -98,7 +98,7 @@ impl MiningMetrics {
             let mut durations = self.block_durations.write().unwrap();
             durations
                 .entry(algo)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(duration);
 
             // Keep only last 100 durations

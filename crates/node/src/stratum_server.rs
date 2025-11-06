@@ -18,7 +18,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[cfg(feature = "randomx")]
-use bitquan_consensus::pow::{randomx_pow_hash, RandomXConfig, RandomXEngine, RandomXMode};
+use bitquan_consensus::pow::randomx_pow_hash;
 
 use crate::block_submit::{BlockSubmitter, SubmitResult};
 use crate::pool_template::{BlockTemplate, PoolTemplateManager};
@@ -722,7 +722,7 @@ async fn handle_request(
             let username = request
                 .params
                 .as_ref()
-                .and_then(|p| p.get(0))
+                .and_then(|p| p.first())
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
 
@@ -799,7 +799,7 @@ async fn handle_submit(
     vardiff: &Option<VarDiff>,
 ) -> bool {
     // Extract params: [worker_name, job_id, extranonce2, ntime, nonce]
-    let _worker = params.get(0).and_then(|v| v.as_str());
+    let _worker = params.first().and_then(|v| v.as_str());
     let job_id_str = params.get(1).and_then(|v| v.as_str());
     let _extranonce2 = params.get(2).and_then(|v| v.as_str());
     let _ntime = params.get(3).and_then(|v| v.as_str());
@@ -897,7 +897,7 @@ async fn handle_submit(
                         "🎉 NEW BLOCK FOUND by {} (algo={}, hash={})",
                         session.address,
                         session.algo.name(),
-                        hex::encode(&hash)
+                        hex::encode(hash)
                     );
 
                     // Build full block from template
@@ -982,7 +982,7 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
     match submitter.submit(&block, None).await {
         Ok(SubmitResult::Accepted { hash, height }) => {
             metrics.record_block_accepted();
-            let hash_hex = hex::encode(&hash);
+            let hash_hex = hex::encode(hash);
             println!(
                 "[INFO] ✅ Block ACCEPTED by network! hash={} height={:?}",
                 hash_hex, height

@@ -1556,7 +1556,6 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         // Hybrid mining path
         #[cfg(feature = "randomx")]
         let (mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
-            use bitquan_consensus::pow::PowAlgo;
 
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);

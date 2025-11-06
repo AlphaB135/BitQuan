@@ -159,9 +159,9 @@ impl WsDashboard {
                 let shares_rejected_sha256d = metrics.get_rejected(PowAlgo::Sha256d);
 
                 #[cfg(feature = "randomx")]
-                let shares_ok_randomx = metrics.get_accepted(PowAlgo::RandomX);
+                let _shares_ok_randomx = metrics.get_accepted(PowAlgo::RandomX);
                 #[cfg(feature = "randomx")]
-                let shares_rejected_randomx = metrics.get_rejected(PowAlgo::RandomX);
+                let _shares_rejected_randomx = metrics.get_rejected(PowAlgo::RandomX);
 
                 let shares_ok = shares_ok_sha256d;
                 let shares_rejected = shares_rejected_sha256d;

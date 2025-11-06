@@ -7,9 +7,8 @@ use std::sync::{Arc, Mutex};
 use bitquan_consensus::header_hash;
 use bitquan_rpc::{
     methods::{
-        BlockTemplate, BlockchainInfo, MinerStatsResponse, MiningInfo,
-        NetworkStatusResponse, PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods,
-        TxInfo, WorkData,
+        BlockTemplate, BlockchainInfo, MinerStatsResponse, MiningInfo, NetworkStatusResponse,
+        PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods, TxInfo, WorkData,
     },
     RpcError,
 };

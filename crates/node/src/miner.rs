@@ -116,7 +116,7 @@ impl HybridMiner {
 
         // Validate mainnet restriction
         if network == NetworkId::Mainnet {
-            for (_algo, _) in weights {
+            for (algo, _) in weights {
                 #[cfg(feature = "randomx")]
                 if *algo == PowAlgo::RandomX {
                     return Err(bitquan_types::Error::Invalid(
@@ -286,10 +286,9 @@ mod tests {
             let weights = vec![(PowAlgo::RandomX, 1.0)];
             let result = HybridMiner::new(&weights, 1, NetworkId::Mainnet);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("not allowed on mainnet"));
+            if let Err(e) = result {
+                assert!(e.to_string().contains("not allowed on mainnet"));
+            }
         }
     }
 

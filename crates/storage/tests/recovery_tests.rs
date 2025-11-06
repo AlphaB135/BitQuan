@@ -16,6 +16,7 @@ mod rocksdb_recovery_tests {
                 time: 1234567890 + height as u32,
                 bits: 0x1d00ffff,
                 nonce: height,
+                algo_id: 0,
             },
             transactions: vec![],
         }

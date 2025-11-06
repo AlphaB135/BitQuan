@@ -58,10 +58,7 @@ fn randomx_miner_produces_valid_block() {
                 mined.algo_id, 1,
                 "Algorithm ID should be set to RandomX (1)"
             );
-            assert!(
-                mined.nonce > 0 || mined.nonce == 0,
-                "Should have a valid nonce"
-            );
+            // nonce is always valid (u64 >= 0)
         }
         Ok(None) => {
             // May not find solution in limited attempts with RandomX placeholder
