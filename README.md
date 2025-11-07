@@ -405,11 +405,12 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 
 ## Development Status
 
-Current version: v0.0.1-alpha (devnet ready)
-Completion: 96%
-Tests: 129 passing
+Current version: v0.0.2-alpha (devnet ready)
+Completion: 98%
+Tests: 522 passing
 
 See [ROADMAP.md](ROADMAP.md) for detailed progress and milestones.
+See [Release Notes v0.0.2-alpha](docs/releases/RELEASE_NOTES_v0.0.2-alpha.md) for security hardening details.
 
 ## Building from Source
 
@@ -482,19 +483,22 @@ BitQuan is a spare-time solo project. If it helps your work or research, you can
 
 BitQuan testnet is now available for testing and development!
 
-**Quick Start:**
+**Quick Start (Public services: coming soon):**
 ```bash
 # Run testnet node
 ./target/release/bitquan-node --network testnet --config config/testnet.toml
 
-# Get testnet coins
-Visit: https://faucet.bitquan.dev
+# Get testnet coins (coming soon)
+# Visit: https://faucet.bitquan.dev
 ```
 
 **Network Details:**
 - Network: testnet
 - P2P Port: 18444
 - RPC Port: 18443
-- Block Explorer: https://explorer.bitquan.dev
+- Block Explorer: coming soon
+- Faucet: coming soon
+
+> Note: Testnet ports 18444/18443 match Bitcoin testnet defaults. If you also run Bitcoin testnet on the same host, change them in `config/testnet.toml` to avoid conflicts.
 
 For full testnet documentation, see [docs/TESTNET_README.md](docs/TESTNET_README.md)
