@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
 #[cfg(feature = "randomx")]
@@ -23,6 +23,34 @@ use bitquan_consensus::pow::randomx_pow_hash;
 use crate::block_submit::{BlockSubmitter, SubmitResult};
 use crate::pool_template::{BlockTemplate, PoolTemplateManager};
 use crate::vardiff::VarDiff;
+
+/// Bounded channel capacity for share verification queue.
+const STRATUM_QUEUE_CAP: usize = 1024;
+
+/// Share submission task for worker pool.
+#[derive(Debug, Clone)]
+struct ShareTask {
+    peer_key: String,
+    algo: PowAlgo,
+    nonce: u64,
+    template: BlockTemplate,
+}
+
+/// Share verification result from worker pool.
+#[derive(Debug, Clone)]
+struct ShareResult {
+    peer_key: String,
+    verdict: ShareVerdict,
+    nonce: u64,
+    is_block: bool,
+    block: Option<Block>,
+}
+
+/// Share verifier worker.
+struct ShareVerifier {
+    task_rx: Arc<tokio::sync::Mutex<mpsc::Receiver<ShareTask>>>,
+    result_tx: mpsc::Sender<ShareResult>,
+}
 
 /// Stratum V1 mining server.
 pub struct StratumServer {
@@ -40,6 +68,10 @@ pub struct StratumServer {
     template_manager: Option<Arc<PoolTemplateManager>>,
     /// Variable difficulty controller.
     vardiff: Option<VarDiff>,
+    /// Share task sender (for submitting shares to workers).
+    share_tx: Option<mpsc::Sender<ShareTask>>,
+    /// Share result receiver (for getting verification results).
+    result_rx: Option<mpsc::Receiver<ShareResult>>,
 }
 
 /// Stratum server configuration.
@@ -263,6 +295,8 @@ pub struct StratumMetrics {
     pub blocks_rejected_total: AtomicU64,
     /// Last block submission timestamp.
     pub last_block_submit_timestamp: AtomicU64,
+    /// Backpressure events (share queue full).
+    pub stratum_backpressure_total: AtomicU64,
 }
 
 impl StratumMetrics {
@@ -286,6 +320,7 @@ impl StratumMetrics {
             blocks_accepted_total: AtomicU64::new(0),
             blocks_rejected_total: AtomicU64::new(0),
             last_block_submit_timestamp: AtomicU64::new(0),
+            stratum_backpressure_total: AtomicU64::new(0),
         }
     }
 
@@ -522,6 +557,8 @@ impl StratumServer {
             metrics: Arc::new(StratumMetrics::new()),
             template_manager: None,
             vardiff,
+            share_tx: None,
+            result_rx: None,
         }
     }
 
@@ -543,6 +580,46 @@ impl StratumServer {
         println!("  Network: {:?}", self.config.network);
 
         self.listener = Some(listener);
+
+        // Create bounded channels for share verification
+        let (share_tx, share_rx) = mpsc::channel(STRATUM_QUEUE_CAP);
+        let (result_tx, result_rx) = mpsc::channel(STRATUM_QUEUE_CAP);
+
+        // Wrap share_rx in Arc<Mutex> for worker pool sharing
+        let share_rx = Arc::new(tokio::sync::Mutex::new(share_rx));
+
+        // Spawn ShareVerifier worker pool
+        let num_workers = std::cmp::max(2, num_cpus::get() / 2);
+        println!("  ShareVerifier workers: {}", num_workers);
+
+        for worker_id in 0..num_workers {
+            let share_rx = Arc::clone(&share_rx);
+            let result_tx = result_tx.clone();
+
+            tokio::spawn(async move {
+                let mut worker = ShareVerifier {
+                    task_rx: share_rx,
+                    result_tx,
+                };
+                worker.run(worker_id).await;
+            });
+        }
+
+        // Drop original sender to avoid holding extra ref
+        drop(result_tx);
+
+        self.share_tx = Some(share_tx);
+        self.result_rx = Some(result_rx);
+
+        // Spawn result processor task
+        let result_rx = self.result_rx.take().unwrap();
+        let peers_clone = Arc::clone(&self.peers);
+        let metrics_clone = Arc::clone(&self.metrics);
+        let config_clone = self.config.clone();
+
+        tokio::spawn(async move {
+            process_share_results(result_rx, peers_clone, metrics_clone, config_clone).await;
+        });
 
         // Accept loop
         loop {
@@ -566,6 +643,7 @@ impl StratumServer {
                     let metrics = Arc::clone(&self.metrics);
                     let template_manager = self.template_manager.clone();
                     let vardiff = self.vardiff.clone();
+                    let share_tx = self.share_tx.as_ref().unwrap().clone();
 
                     tokio::spawn(async move {
                         if let Err(e) = handle_client(
@@ -576,6 +654,7 @@ impl StratumServer {
                             metrics,
                             template_manager,
                             vardiff,
+                            share_tx,
                         )
                         .await
                         {
@@ -618,6 +697,8 @@ impl StratumServer {
 }
 
 /// Handle a single Stratum client connection.
+/// Handle an individual Stratum client connection.
+#[allow(clippy::too_many_arguments)]
 async fn handle_client(
     stream: TcpStream,
     addr: SocketAddr,
@@ -626,6 +707,7 @@ async fn handle_client(
     metrics: Arc<StratumMetrics>,
     template_manager: Option<Arc<PoolTemplateManager>>,
     vardiff: Option<VarDiff>,
+    share_tx: mpsc::Sender<ShareTask>,
 ) -> Result<()> {
     let peer_key = addr.to_string();
     let (reader, mut writer) = stream.into_split();
@@ -667,6 +749,7 @@ async fn handle_client(
                     &metrics,
                     &template_manager,
                     &vardiff,
+                    &share_tx,
                 )
                 .await;
                 let response_json = serde_json::to_string(&response).unwrap();
@@ -696,14 +779,16 @@ async fn handle_client(
 }
 
 /// Handle a JSON-RPC request from a miner.
+#[allow(clippy::too_many_arguments)]
 async fn handle_request(
     request: JsonRpcRequest,
     peer_key: &str,
     peers: &Arc<DashMap<String, MinerSession>>,
-    config: &StratumConfig,
+    _config: &StratumConfig,
     metrics: &Arc<StratumMetrics>,
     template_manager: &Option<Arc<PoolTemplateManager>>,
-    vardiff: &Option<VarDiff>,
+    _vardiff: &Option<VarDiff>,
+    share_tx: &mpsc::Sender<ShareTask>,
 ) -> JsonRpcResponse {
     match request.method.as_str() {
         "mining.subscribe" => {
@@ -740,38 +825,127 @@ async fn handle_request(
         "mining.submit" => {
             // Extract submit parameters
             let params = request.params.as_ref();
-            let result = if let Some(p) = params {
-                handle_submit(
-                    peer_key,
-                    p,
-                    peers,
-                    metrics,
-                    template_manager,
-                    config,
-                    vardiff,
-                )
-                .await
-            } else {
-                false
+
+            // Quick parameter extraction
+            let (nonce, algo) = match params {
+                Some(p) => {
+                    let nonce_str = p.get(4).and_then(|v| v.as_str());
+                    let nonce = match nonce_str.and_then(|s| u64::from_str_radix(s, 16).ok()) {
+                        Some(n) => n,
+                        None => {
+                            return JsonRpcResponse {
+                                id: request.id,
+                                result: Some(serde_json::json!(false)),
+                                error: Some(JsonRpcError {
+                                    code: 23,
+                                    message: "Invalid nonce".to_string(),
+                                }),
+                            };
+                        }
+                    };
+
+                    // Get session info
+                    let session = match peers.get(peer_key) {
+                        Some(s) => s,
+                        None => {
+                            return JsonRpcResponse {
+                                id: request.id,
+                                result: Some(serde_json::json!(false)),
+                                error: Some(JsonRpcError {
+                                    code: 25,
+                                    message: "No session".to_string(),
+                                }),
+                            };
+                        }
+                    };
+
+                    (nonce, session.algo)
+                }
+                None => {
+                    return JsonRpcResponse {
+                        id: request.id,
+                        result: Some(serde_json::json!(false)),
+                        error: Some(JsonRpcError {
+                            code: 23,
+                            message: "Missing params".to_string(),
+                        }),
+                    };
+                }
             };
 
-            if result {
-                println!("Stratum: Share accepted from {}", peer_key);
-            } else {
-                println!("Stratum: Share rejected from {}", peer_key);
-            }
-
-            JsonRpcResponse {
-                id: request.id,
-                result: Some(serde_json::json!(result)),
-                error: if !result {
-                    Some(JsonRpcError {
-                        code: 23,
-                        message: "Invalid share".to_string(),
-                    })
-                } else {
-                    None
+            // Get template
+            let template = match template_manager {
+                Some(tm) => match tm.get_template().await {
+                    Some(t) => t,
+                    None => {
+                        return JsonRpcResponse {
+                            id: request.id,
+                            result: Some(serde_json::json!(false)),
+                            error: Some(JsonRpcError {
+                                code: 24,
+                                message: "No template".to_string(),
+                            }),
+                        };
+                    }
                 },
+                None => {
+                    return JsonRpcResponse {
+                        id: request.id,
+                        result: Some(serde_json::json!(false)),
+                        error: Some(JsonRpcError {
+                            code: 24,
+                            message: "Template manager unavailable".to_string(),
+                        }),
+                    };
+                }
+            };
+
+            // Try to send to worker pool
+            let task = ShareTask {
+                peer_key: peer_key.to_string(),
+                algo,
+                nonce,
+                template,
+            };
+
+            match share_tx.try_send(task) {
+                Ok(_) => {
+                    // Queued successfully - respond with acceptance
+                    // Note: actual verification happens async in worker pool
+                    JsonRpcResponse {
+                        id: request.id,
+                        result: Some(serde_json::json!(true)),
+                        error: None,
+                    }
+                }
+                Err(mpsc::error::TrySendError::Full(_)) => {
+                    // Backpressure! Queue is full
+                    metrics
+                        .stratum_backpressure_total
+                        .fetch_add(1, Ordering::Relaxed);
+                    println!("Stratum: Backpressure - share queue full from {}", peer_key);
+
+                    JsonRpcResponse {
+                        id: request.id,
+                        result: Some(serde_json::json!(false)),
+                        error: Some(JsonRpcError {
+                            code: -20001,
+                            message: "Server busy - try again".to_string(),
+                        }),
+                    }
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => {
+                    // Channel closed - should not happen
+                    eprintln!("Stratum: Share channel closed!");
+                    JsonRpcResponse {
+                        id: request.id,
+                        result: Some(serde_json::json!(false)),
+                        error: Some(JsonRpcError {
+                            code: -20002,
+                            message: "Internal error".to_string(),
+                        }),
+                    }
+                }
             }
         }
         other => {
@@ -789,190 +963,6 @@ async fn handle_request(
 }
 
 /// Handle a share submission with REAL PoW verification.
-async fn handle_submit(
-    peer_key: &str,
-    params: &[Value],
-    peers: &Arc<DashMap<String, MinerSession>>,
-    metrics: &Arc<StratumMetrics>,
-    template_manager: &Option<Arc<PoolTemplateManager>>,
-    _config: &StratumConfig,
-    vardiff: &Option<VarDiff>,
-) -> bool {
-    // Extract params: [worker_name, job_id, extranonce2, ntime, nonce]
-    let _worker = params.first().and_then(|v| v.as_str());
-    let job_id_str = params.get(1).and_then(|v| v.as_str());
-    let _extranonce2 = params.get(2).and_then(|v| v.as_str());
-    let _ntime = params.get(3).and_then(|v| v.as_str());
-    let nonce_str = params.get(4).and_then(|v| v.as_str());
-
-    let nonce = match nonce_str.and_then(|s| u64::from_str_radix(s, 16).ok()) {
-        Some(n) => n,
-        None => {
-            if let Some(session) = peers.get(peer_key) {
-                session.reject_share();
-                metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
-            }
-            return false;
-        }
-    };
-
-    // Get session
-    let session = match peers.get(peer_key) {
-        Some(s) => s,
-        None => return false,
-    };
-
-    // Check for duplicate submission
-    if session.check_and_mark_duplicate(nonce).await {
-        session.reject_share();
-        metrics.record_share_rejected(session.algo, RejectReason::Duplicate);
-        eprintln!(
-            "Stratum: Share DUPLICATE from {} (algo={}, nonce={})",
-            session.address,
-            session.algo.name(),
-            nonce
-        );
-        return false;
-    }
-
-    // Get current template
-    let template = match template_manager {
-        Some(tm) => match tm.get_template().await {
-            Some(t) => t,
-            None => {
-                session.reject_share();
-                metrics.record_share_rejected(session.algo, RejectReason::Stale);
-                eprintln!("Stratum: No template available for {}", session.address);
-                return false;
-            }
-        },
-        None => {
-            session.reject_share();
-            metrics.record_share_rejected(session.algo, RejectReason::Stale);
-            return false;
-        }
-    };
-
-    // Check if job_id matches (stale detection)
-    if let Some(job_id) = job_id_str {
-        let current_job_id = session.get_job_id().await;
-        if let Ok(submit_job_id) = job_id.parse::<u64>() {
-            if submit_job_id != current_job_id {
-                session.reject_share();
-                metrics.record_share_rejected(session.algo, RejectReason::Stale);
-                eprintln!(
-                    "Stratum: Share STALE from {} (job {} != current {})",
-                    session.address, submit_job_id, current_job_id
-                );
-                return false;
-            }
-        }
-    }
-
-    // REAL PoW verification
-    match verify_share_pow(&template, nonce, session.algo) {
-        Ok(ShareVerdict::Accept { hash, target: _ }) => {
-            // Share accepted!
-            session.accept_share();
-            session.record_share_time().await;
-            metrics.record_share_accepted(session.algo);
-
-            // Log with hash prefix
-            let hash_hex = hex::encode(&hash[..4]);
-            println!(
-                "Stratum: Share ACCEPTED from {} (algo={}, diff={:.2}, nonce={}, hash={}…)",
-                session.address,
-                session.algo.name(),
-                session.difficulty,
-                nonce,
-                hash_hex
-            );
-
-            // Check if this share also meets BLOCK difficulty (consensus target)
-            // Block target is in template.header.bits (usually much harder than pool target)
-            if let Ok(block_target) = target_from_bits(template.header.bits) {
-                if meets_target(&hash, &block_target) {
-                    // This is a VALID BLOCK!
-                    println!(
-                        "🎉 NEW BLOCK FOUND by {} (algo={}, hash={})",
-                        session.address,
-                        session.algo.name(),
-                        hex::encode(hash)
-                    );
-
-                    // Build full block from template
-                    let mut block_header = template.header.clone();
-                    block_header.nonce = nonce;
-                    block_header.algo_id = session.algo.to_u8();
-
-                    let block = Block {
-                        header: block_header,
-                        transactions: template.txs.clone(),
-                    };
-
-                    // Submit to network (async, don't block share response)
-                    let metrics_clone = Arc::clone(metrics);
-                    let config_clone = _config.clone();
-                    tokio::spawn(async move {
-                        submit_block_async(block, metrics_clone, config_clone.network).await;
-                    });
-                }
-            }
-
-            // Apply vardiff adjustment if enabled
-            if let Some(vd) = vardiff {
-                let shares_since = session.get_shares_since_adjust();
-                if vd.should_adjust(shares_since) {
-                    let time_since = session.time_since_last_share().await;
-
-                    // Need mutable access for set_difficulty
-                    drop(session); // Release immutable borrow
-                    if let Some(mut session) = peers.get_mut(peer_key) {
-                        let new_diff = vd.adjust(time_since, session.difficulty);
-                        if (new_diff - session.difficulty).abs() > 0.01 {
-                            println!(
-                                "Stratum: Adjusting difficulty for {} from {:.2} to {:.2}",
-                                session.address, session.difficulty, new_diff
-                            );
-                            session.set_difficulty(new_diff);
-                            metrics.record_vardiff_adjustment();
-                        }
-                    }
-                }
-            }
-
-            true
-        }
-        Ok(ShareVerdict::Reject { reason }) => {
-            // Share rejected
-            session.reject_share();
-            metrics.record_share_rejected(session.algo, reason);
-
-            eprintln!(
-                "Stratum: Share REJECTED from {} (reason={}, algo={}, nonce={})",
-                session.address,
-                reason.as_str(),
-                session.algo.name(),
-                nonce
-            );
-
-            false
-        }
-        Err(e) => {
-            // Verification error
-            session.reject_share();
-            metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
-
-            eprintln!(
-                "Stratum: Share verification ERROR from {} ({})",
-                session.address, e
-            );
-
-            false
-        }
-    }
-}
-
 /// Submit a mined block to the network asynchronously.
 async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_id: NetworkId) {
     metrics.record_block_submitted();
@@ -1000,6 +990,169 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
             metrics.record_block_rejected();
             eprintln!("[ERROR] Block submission failed: {}", e);
         }
+    }
+}
+
+/// Process share verification results from workers.
+async fn process_share_results(
+    mut result_rx: mpsc::Receiver<ShareResult>,
+    peers: Arc<DashMap<String, MinerSession>>,
+    metrics: Arc<StratumMetrics>,
+    config: StratumConfig,
+) {
+    println!("[ResultProcessor] Started");
+
+    while let Some(result) = result_rx.recv().await {
+        let peer_key = &result.peer_key;
+
+        // Get session
+        let session = match peers.get(peer_key) {
+            Some(s) => s,
+            None => {
+                // Session disconnected, skip
+                continue;
+            }
+        };
+
+        match result.verdict {
+            ShareVerdict::Accept { hash, .. } => {
+                // Share accepted!
+                session.accept_share();
+                metrics.record_share_accepted(session.algo);
+
+                let hash_hex = hex::encode(&hash[..4]);
+                println!(
+                    "Stratum: Share ACCEPTED from {} (algo={}, nonce={}, hash={}…)",
+                    session.address,
+                    session.algo.name(),
+                    result.nonce,
+                    hash_hex
+                );
+
+                // Check if this is a block
+                if result.is_block {
+                    if let Some(block) = result.block {
+                        println!(
+                            "🎉 NEW BLOCK FOUND by {} (algo={}, hash={})",
+                            session.address,
+                            session.algo.name(),
+                            hex::encode(hash)
+                        );
+
+                        // Submit block async
+                        let metrics_clone = Arc::clone(&metrics);
+                        let network = config.network;
+                        tokio::spawn(async move {
+                            submit_block_async(block, metrics_clone, network).await;
+                        });
+                    }
+                }
+            }
+            ShareVerdict::Reject { reason } => {
+                // Share rejected
+                session.reject_share();
+                metrics.record_share_rejected(session.algo, reason);
+
+                eprintln!(
+                    "Stratum: Share REJECTED from {} (reason={}, algo={}, nonce={})",
+                    session.address,
+                    reason.as_str(),
+                    session.algo.name(),
+                    result.nonce
+                );
+            }
+        }
+    }
+
+    println!("[ResultProcessor] Stopped");
+}
+
+impl ShareVerifier {
+    /// Run the worker loop - receives tasks, verifies shares in spawn_blocking, sends results.
+    async fn run(&mut self, worker_id: usize) {
+        println!("[ShareVerifier-{}] Started", worker_id);
+
+        loop {
+            // Lock receiver and get next task
+            let task = {
+                let mut rx = self.task_rx.lock().await;
+                rx.recv().await
+            };
+
+            let task = match task {
+                Some(t) => t,
+                None => {
+                    println!("[ShareVerifier-{}] Channel closed", worker_id);
+                    break;
+                }
+            };
+
+            // Clone data needed for blocking task
+            let template = task.template.clone();
+            let nonce = task.nonce;
+            let algo = task.algo;
+
+            // Verify share in blocking task (CPU-heavy PoW hashing)
+            let verdict =
+                tokio::task::spawn_blocking(move || verify_share_pow(&template, nonce, algo)).await;
+
+            let verdict = match verdict {
+                Ok(Ok(v)) => v,
+                Ok(Err(e)) => {
+                    eprintln!("[ShareVerifier-{}] Verification error: {}", worker_id, e);
+                    ShareVerdict::Reject {
+                        reason: RejectReason::InvalidHeader,
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[ShareVerifier-{}] Spawn error: {}", worker_id, e);
+                    ShareVerdict::Reject {
+                        reason: RejectReason::InvalidHeader,
+                    }
+                }
+            };
+
+            // Check if share is also a valid block
+            let (is_block, block_opt) = match &verdict {
+                ShareVerdict::Accept { hash, .. } => {
+                    // Check against block target
+                    let block_target = target_from_bits(task.template.header.bits);
+                    let is_block = block_target.is_ok_and(|target| meets_target(hash, &target));
+
+                    let block_opt = if is_block {
+                        let mut header = task.template.header.clone();
+                        header.nonce = task.nonce;
+                        header.algo_id = task.algo.to_u8();
+
+                        Some(Block {
+                            header,
+                            transactions: task.template.txs.clone(),
+                        })
+                    } else {
+                        None
+                    };
+
+                    (is_block, block_opt)
+                }
+                _ => (false, None),
+            };
+
+            // Send result
+            let result = ShareResult {
+                peer_key: task.peer_key,
+                verdict,
+                nonce: task.nonce,
+                is_block,
+                block: block_opt,
+            };
+
+            if let Err(e) = self.result_tx.send(result).await {
+                eprintln!("[ShareVerifier-{}] Failed to send result: {}", worker_id, e);
+                break;
+            }
+        }
+
+        println!("[ShareVerifier-{}] Stopped", worker_id);
     }
 }
 
