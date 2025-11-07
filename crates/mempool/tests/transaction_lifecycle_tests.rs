@@ -103,8 +103,8 @@ fn test_mempool_size_limit() {
     use bitquan_consensus::MempoolPolicy;
 
     let policy = MempoolPolicy::standard();
-    // Create small mempool with 500 byte limit
-    let mut mempool = Mempool::with_limits(policy, 500).expect("mempool creation");
+    // Create small mempool with 10KB limit (enough for ~2 Dilithium transactions)
+    let mut mempool = Mempool::with_limits(policy, 10_000).expect("mempool creation");
 
     let tx = create_test_transaction(20);
 
@@ -122,7 +122,7 @@ fn test_mempool_size_limit() {
         }
     }
 
-    // Should have some limit enforcement
+    // Should have some limit enforcement (10KB allows ~2 transactions)
     assert!(
         inserted_count < 9,
         "size limit should prevent all insertions"

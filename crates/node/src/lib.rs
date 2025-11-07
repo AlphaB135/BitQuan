@@ -1,5 +1,7 @@
 //! BitQuan node library - exposes modules for integration testing.
 
+#![allow(dead_code)] // Many builder/infra APIs are not yet used but will be in production
+
 pub mod block_submit;
 pub mod chainstate;
 pub mod metrics;

@@ -3303,71 +3303,6 @@ fn run_stratum_server(
     })
 }
 
-#[cfg(test)]
-mod overflow_tests {
-    #[test]
-    fn test_balance_overflow_protection() {
-        // This test verifies that checked_add is in place for balance calculation
-        // In production code, we cannot easily trigger overflow without mocking,
-        // but this test documents the expected behavior
-
-        let max_balance = u64::MAX - 1000;
-        let additional_value = 2000u64;
-
-        // Simulate the checked_add operation
-        let result = max_balance.checked_add(additional_value);
-        assert!(result.is_none(), "Balance should overflow");
-    }
-
-    #[test]
-    fn test_utxo_count_overflow_protection() {
-        // Verify that UTXO count uses checked arithmetic
-        let max_count = u64::MAX;
-        let result = max_count.checked_add(1);
-        assert!(result.is_none(), "UTXO count should overflow");
-    }
-
-    #[test]
-    fn test_interval_count_overflow_protection() {
-        // Verify that interval count uses checked arithmetic
-        let max_count = u64::MAX;
-        let result = max_count.checked_add(1);
-        assert!(result.is_none(), "Interval count should overflow");
-    }
-
-    #[test]
-    fn test_guard_count_overflow_protection() {
-        // Verify that guard count uses checked arithmetic
-        let max_count = u64::MAX;
-        let result = max_count.checked_add(1);
-        assert!(result.is_none(), "Guard count should overflow");
-    }
-
-    #[test]
-    fn test_balance_calculation_normal() {
-        // Verify normal balance calculation works correctly
-        let mut balance = 0u64;
-        let values = vec![1000u64, 2000, 3000, 4000, 5000];
-
-        for value in values {
-            balance = balance.checked_add(value).expect("should not overflow");
-        }
-
-        assert_eq!(balance, 15000);
-    }
-
-    #[test]
-    fn test_utxo_count_normal() {
-        // Verify normal UTXO counting works correctly
-        let mut count = 0u64;
-
-        for _ in 0..1000 {
-            count = count.checked_add(1).expect("should not overflow");
-        }
-
-        assert_eq!(count, 1000);
-    }
-}
 
 /// Verify genesis block hash and configuration
 fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
@@ -3523,4 +3458,70 @@ fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
     println!("   {}", genesis_hash);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod overflow_tests {
+    #[test]
+    fn test_balance_overflow_protection() {
+        // This test verifies that checked_add is in place for balance calculation
+        // In production code, we cannot easily trigger overflow without mocking,
+        // but this test documents the expected behavior
+
+        let max_balance = u64::MAX - 1000;
+        let additional_value = 2000u64;
+
+        // Simulate the checked_add operation
+        let result = max_balance.checked_add(additional_value);
+        assert!(result.is_none(), "Balance should overflow");
+    }
+
+    #[test]
+    fn test_utxo_count_overflow_protection() {
+        // Verify that UTXO count uses checked arithmetic
+        let max_count = u64::MAX;
+        let result = max_count.checked_add(1);
+        assert!(result.is_none(), "UTXO count should overflow");
+    }
+
+    #[test]
+    fn test_interval_count_overflow_protection() {
+        // Verify that interval count uses checked arithmetic
+        let max_count = u64::MAX;
+        let result = max_count.checked_add(1);
+        assert!(result.is_none(), "Interval count should overflow");
+    }
+
+    #[test]
+    fn test_guard_count_overflow_protection() {
+        // Verify that guard count uses checked arithmetic
+        let max_count = u64::MAX;
+        let result = max_count.checked_add(1);
+        assert!(result.is_none(), "Guard count should overflow");
+    }
+
+    #[test]
+    fn test_balance_calculation_normal() {
+        // Verify normal balance calculation works correctly
+        let mut balance = 0u64;
+        let values = vec![1000u64, 2000, 3000, 4000, 5000];
+
+        for value in values {
+            balance = balance.checked_add(value).expect("should not overflow");
+        }
+
+        assert_eq!(balance, 15000);
+    }
+
+    #[test]
+    fn test_utxo_count_normal() {
+        // Verify normal UTXO counting works correctly
+        let mut count = 0u64;
+
+        for _ in 0..1000 {
+            count = count.checked_add(1).expect("should not overflow");
+        }
+
+        assert_eq!(count, 1000);
+    }
 }
