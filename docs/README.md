@@ -15,10 +15,10 @@ This directory contains the complete technical documentation for BitQuan.
 
 ## Specifications
 
-- [BQIP-0001](spec/BQIP-0001.md) - PQC Transaction Format
-- [BQIP-0002](spec/BQIP-0002.md) - Block Weight System
-- [BQIP-0003](spec/BQIP-0003.md) - Wallet and SDK Standards
-- [BQIP-0004](spec/BQIP-0004.md) - Witness Commitment
+- [BQIP-0001](bqip/BQIP-0001.md) - PQC Transaction Format
+- [BQIP-0002](bqip/BQIP-0002.md) - Block Weight System
+- [BQIP-0003](bqip/BQIP-0003.md) - Wallet and SDK Standards
+- [BQIP-0004](bqip/BQIP-0004.md) - Witness Commitment
 - [Consensus Economics](spec/consensus_economics.md) - Reward schedule and difficulty
 - [Transactions and Blocks](spec/transactions_blocks.md) - Data structures
 - [Test Vectors](spec/test-vectors.md) - Validation test cases

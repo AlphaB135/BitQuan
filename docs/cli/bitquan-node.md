@@ -19,7 +19,7 @@ Run `bitquan-node help <COMMAND>` for detailed flags on any subcommand.
 | `script-from-address` | Generate scriptPubKey (hex) from Bech32m address | `bitquan-node script-from-address --address bq1... > script.hex` |
 | `validateaddress` | Verify address checksum/HRP and show metadata | `bitquan-node validateaddress --address bq1...` |
 
-See also: [Address and Script Guide](../concepts/address-and-script.md)
+See also: [Address and Script Guide](../address-and-script.md)
 
 ## Wallet & Signing
 

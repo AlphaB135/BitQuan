@@ -136,7 +136,7 @@ bitquan-wallet multisig sign \
 bitquan-wallet broadcast --tx final.tx
 ```
 
-See also: [Multi-Signature Guide](../guides/MULTISIG_GUIDE.md)
+See also: [Multi-Signature Guide](../MULTISIG_GUIDE.md)
 
 ## Backup & Recovery
 

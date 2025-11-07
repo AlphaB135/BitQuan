@@ -7,10 +7,10 @@ This document provides external auditors with a structured entry point and artif
 Auditors must review the following documents in priority order:
 
 1. **[SECURITY.md](../SECURITY.md)** - Security policy, threat model, and reporting procedures
-2. **[docs/PRELAUNCH_CHECKLIST.md](./PRELAUNCH_CHECKLIST.md)** - Pre-launch validation gates
+2. **[docs/PRELAUNCH_CHECKLIST.md](../ops/PRELAUNCH_CHECKLIST.md)** - Pre-launch validation gates
 3. **[docs/ENTROPY_AUDIT.md](./ENTROPY_AUDIT.md)** - Cryptographic entropy sources and RNG analysis
 4. **[docs/CONSENSUS_ECON.md](./CONSENSUS_ECON.md)** - Economic security model and incentive analysis
-5. **[docs/TESTNET_README.md](./TESTNET_README.md)** - Testnet results and stress test metrics
+5. **[docs/TESTNET_README.md](../testnet/README.md)** - Testnet results and stress test metrics
 6. **[SECURITY_AUDIT_REPORT.md](../SECURITY_AUDIT_REPORT.md)** - Previous audit findings (if applicable)
 
 ## Codebase Focus Areas

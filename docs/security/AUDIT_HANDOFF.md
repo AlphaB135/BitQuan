@@ -140,7 +140,7 @@ BitQuan is a post-quantum resistant blockchain implementation combining Bitcoin'
    - [`docs/fuzzing/FUZZING_STATUS.md`](./fuzzing/FUZZING_STATUS.md) - Fuzzing roadmap
 
 4. **Network Configuration**
-   - [`docs/TESTNET_README.md`](./TESTNET_README.md) - Testnet deployment
+   - [`docs/TESTNET_README.md`](../testnet/README.md) - Testnet deployment
    - [`config/testnet.toml`](../config/testnet.toml) - Network parameters
 
 ### Audit Logs

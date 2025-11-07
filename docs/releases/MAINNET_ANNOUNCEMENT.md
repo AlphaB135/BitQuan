@@ -226,7 +226,7 @@ Testnet allows:
 2. **Verify binaries:** Always check SHA256 checksums before running.
 3. **Backup keys:** Store wallet seeds in secure, offline locations.
 4. **Use JWT auth:** Enable JWT authentication for RPC endpoints.
-5. **Monitor logs:** Watch for unusual activity (see [OBSERVABILITY.md](./OBSERVABILITY.md)).
+5. **Monitor logs:** Watch for unusual activity (see [OBSERVABILITY.md](../ops/OBSERVABILITY.md)).
 
 ### Upgrade Path
 
