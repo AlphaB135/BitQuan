@@ -12,17 +12,53 @@ use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
 #[cfg(feature = "randomx")]
 use bitquan_consensus::pow::randomx_pow_hash;
 
-use crate::block_submit::{BlockSubmitter, SubmitResult};
+use crate::block_submit::{BlockSubmitter, SubmitResult as BlockSubmitResult};
 use crate::pool_template::{BlockTemplate, PoolTemplateManager};
 use crate::vardiff::VarDiff;
+
+/// Share queue capacity (bounded channel size).
+const STRATUM_QUEUE_CAP: usize = 1024;
+
+/// Share verification job sent to worker pool.
+#[derive(Debug, Clone)]
+struct ShareJob {
+    session_id: Uuid,
+    peer_key: String,
+    algo: PowAlgo,
+    template: BlockTemplate,
+    nonce: u64,
+    submitted_at: Instant,
+}
+
+/// Share verification result from worker pool.
+#[derive(Debug, Clone)]
+struct ShareResult {
+    session_id: Uuid,
+    peer_key: String,
+    verdict: ShareVerdict,
+    template: BlockTemplate,
+    nonce: u64,
+}
+
+/// Submit result for immediate response to miner.
+#[derive(Debug)]
+enum ShareSubmitResult {
+    /// Share enqueued for verification.
+    Accepted,
+    /// Queue full, backpressure applied.
+    QueueFull,
+    /// Immediate error (bad params, duplicate, etc).
+    Error(i32, String),
+}
 
 /// Stratum V1 mining server.
 pub struct StratumServer {
@@ -40,6 +76,10 @@ pub struct StratumServer {
     template_manager: Option<Arc<PoolTemplateManager>>,
     /// Variable difficulty controller.
     vardiff: Option<VarDiff>,
+    /// Share job sender (bounded queue).
+    share_tx: Option<mpsc::Sender<ShareJob>>,
+    /// Share result receiver (from verifier pool).
+    share_result_rx: Option<mpsc::Receiver<ShareResult>>,
 }
 
 /// Stratum server configuration.
@@ -263,6 +303,10 @@ pub struct StratumMetrics {
     pub blocks_rejected_total: AtomicU64,
     /// Last block submission timestamp.
     pub last_block_submit_timestamp: AtomicU64,
+    /// Backpressure events (queue full).
+    pub backpressure_total: AtomicU64,
+    /// Share queue depth gauge.
+    pub share_queue_depth: AtomicU64,
 }
 
 impl StratumMetrics {
@@ -286,6 +330,8 @@ impl StratumMetrics {
             blocks_accepted_total: AtomicU64::new(0),
             blocks_rejected_total: AtomicU64::new(0),
             last_block_submit_timestamp: AtomicU64::new(0),
+            backpressure_total: AtomicU64::new(0),
+            share_queue_depth: AtomicU64::new(0),
         }
     }
 
@@ -522,6 +568,8 @@ impl StratumServer {
             metrics: Arc::new(StratumMetrics::new()),
             template_manager: None,
             vardiff,
+            share_tx: None,
+            share_result_rx: None,
         }
     }
 
@@ -532,6 +580,99 @@ impl StratumServer {
 
     /// Start the Stratum server.
     pub async fn start(&mut self) -> Result<()> {
+        // Create bounded channels for share verification queue
+        let (share_tx, share_rx) = mpsc::channel::<ShareJob>(STRATUM_QUEUE_CAP);
+        let (result_tx, result_rx) = mpsc::channel::<ShareResult>(STRATUM_QUEUE_CAP);
+
+        self.share_tx = Some(share_tx.clone());
+        self.share_result_rx = Some(result_rx);
+
+        // Spawn ShareVerifier worker pool
+        let worker_count = std::cmp::max(2, num_cpus::get() / 2);
+        println!("Starting {} ShareVerifier workers...", worker_count);
+
+        // Wrap receiver in Arc<Mutex> for sharing among workers
+        let share_rx = Arc::new(Mutex::new(share_rx));
+
+        for worker_id in 0..worker_count {
+            let rx = Arc::clone(&share_rx);
+            let tx = result_tx.clone();
+
+            tokio::spawn(async move {
+                loop {
+                    let job = {
+                        let mut rx_lock = rx.lock().await;
+                        match rx_lock.recv().await {
+                            Some(j) => j,
+                            None => {
+                                println!("ShareVerifier worker {}: job channel closed, exiting", worker_id);
+                                break;
+                            }
+                        }
+                    };
+
+                    // Extract fields before moving into spawn_blocking
+                    let session_id = job.session_id;
+                    let peer_key = job.peer_key.clone();
+                    let template = job.template.clone();
+                    let nonce = job.nonce;
+                    let algo = job.algo;
+
+                    // Perform CPU-heavy PoW verification in spawn_blocking
+                    let result = tokio::task::spawn_blocking(move || {
+                        verify_share_pow_sync(&job.template, job.nonce, job.algo)
+                    })
+                    .await;
+
+                    match result {
+                        Ok(Ok(verdict)) => {
+                            let share_result = ShareResult {
+                                session_id,
+                                peer_key,
+                                verdict,
+                                template,
+                                nonce,
+                            };
+                            // Send result back; if channel closed, worker exits
+                            if tx.send(share_result).await.is_err() {
+                                eprintln!("ShareVerifier worker {}: result channel closed", worker_id);
+                                break;
+                            }
+                        }
+                        Ok(Err(e)) => {
+                            eprintln!("ShareVerifier worker {}: verification error: {}", worker_id, e);
+                        }
+                        Err(e) => {
+                            eprintln!("ShareVerifier worker {}: spawn_blocking join error: {}", worker_id, e);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Spawn result handler task
+        let peers = Arc::clone(&self.peers);
+        let metrics = Arc::clone(&self.metrics);
+        let template_manager = self.template_manager.clone();
+        let config = self.config.clone();
+        let vardiff = self.vardiff.clone();
+        let mut result_rx_handle = self.share_result_rx.take().unwrap();
+
+        tokio::spawn(async move {
+            while let Some(result) = result_rx_handle.recv().await {
+                handle_share_result(
+                    result,
+                    &peers,
+                    &metrics,
+                    &template_manager,
+                    &config,
+                    &vardiff,
+                )
+                .await;
+            }
+            println!("ShareResult handler: result channel closed, exiting");
+        });
+
         let listener = TcpListener::bind(&self.config.bind_addr)
             .await
             .map_err(|e| {
@@ -566,6 +707,7 @@ impl StratumServer {
                     let metrics = Arc::clone(&self.metrics);
                     let template_manager = self.template_manager.clone();
                     let vardiff = self.vardiff.clone();
+                    let share_tx = self.share_tx.clone();
 
                     tokio::spawn(async move {
                         if let Err(e) = handle_client(
@@ -576,6 +718,7 @@ impl StratumServer {
                             metrics,
                             template_manager,
                             vardiff,
+                            share_tx,
                         )
                         .await
                         {
@@ -626,6 +769,7 @@ async fn handle_client(
     metrics: Arc<StratumMetrics>,
     template_manager: Option<Arc<PoolTemplateManager>>,
     vardiff: Option<VarDiff>,
+    share_tx: Option<mpsc::Sender<ShareJob>>,
 ) -> Result<()> {
     let peer_key = addr.to_string();
     let (reader, mut writer) = stream.into_split();
@@ -667,6 +811,7 @@ async fn handle_client(
                     &metrics,
                     &template_manager,
                     &vardiff,
+                    &share_tx,
                 )
                 .await;
                 let response_json = serde_json::to_string(&response).unwrap();
@@ -704,6 +849,7 @@ async fn handle_request(
     metrics: &Arc<StratumMetrics>,
     template_manager: &Option<Arc<PoolTemplateManager>>,
     vardiff: &Option<VarDiff>,
+    share_tx: &Option<mpsc::Sender<ShareJob>>,
 ) -> JsonRpcResponse {
     match request.method.as_str() {
         "mining.subscribe" => {
@@ -749,29 +895,44 @@ async fn handle_request(
                     template_manager,
                     config,
                     vardiff,
+                    share_tx,
                 )
                 .await
             } else {
-                false
+                ShareSubmitResult::Error(-20003, "missing parameters".to_string())
             };
 
-            if result {
-                println!("Stratum: Share accepted from {}", peer_key);
-            } else {
-                println!("Stratum: Share rejected from {}", peer_key);
-            }
-
-            JsonRpcResponse {
-                id: request.id,
-                result: Some(serde_json::json!(result)),
-                error: if !result {
-                    Some(JsonRpcError {
-                        code: 23,
-                        message: "Invalid share".to_string(),
-                    })
-                } else {
-                    None
-                },
+            match result {
+                ShareSubmitResult::Accepted => {
+                    println!("Stratum: Share enqueued from {}", peer_key);
+                    JsonRpcResponse {
+                        id: request.id,
+                        result: Some(serde_json::json!({"accepted_for_verification": true})),
+                        error: None,
+                    }
+                }
+                ShareSubmitResult::QueueFull => {
+                    println!("Stratum: Share rejected (queue full) from {}", peer_key);
+                    JsonRpcResponse {
+                        id: request.id,
+                        result: Some(serde_json::json!(false)),
+                        error: Some(JsonRpcError {
+                            code: -20001,
+                            message: "share queue full".to_string(),
+                        }),
+                    }
+                }
+                ShareSubmitResult::Error(code, msg) => {
+                    println!("Stratum: Share rejected ({}) from {}", msg, peer_key);
+                    JsonRpcResponse {
+                        id: request.id,
+                        result: Some(serde_json::json!(false)),
+                        error: Some(JsonRpcError {
+                            code,
+                            message: msg,
+                        }),
+                    }
+                }
             }
         }
         other => {
@@ -796,8 +957,9 @@ async fn handle_submit(
     metrics: &Arc<StratumMetrics>,
     template_manager: &Option<Arc<PoolTemplateManager>>,
     _config: &StratumConfig,
-    vardiff: &Option<VarDiff>,
-) -> bool {
+    _vardiff: &Option<VarDiff>,
+    share_tx: &Option<mpsc::Sender<ShareJob>>,
+) -> ShareSubmitResult {
     // Extract params: [worker_name, job_id, extranonce2, ntime, nonce]
     let _worker = params.first().and_then(|v| v.as_str());
     let job_id_str = params.get(1).and_then(|v| v.as_str());
@@ -812,14 +974,14 @@ async fn handle_submit(
                 session.reject_share();
                 metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
             }
-            return false;
+            return ShareSubmitResult::Error(-20002, "invalid nonce".to_string());
         }
     };
 
     // Get session
     let session = match peers.get(peer_key) {
         Some(s) => s,
-        None => return false,
+        None => return ShareSubmitResult::Error(-20004, "session not found".to_string()),
     };
 
     // Check for duplicate submission
@@ -832,7 +994,7 @@ async fn handle_submit(
             session.algo.name(),
             nonce
         );
-        return false;
+        return ShareSubmitResult::Error(23, "duplicate share".to_string());
     }
 
     // Get current template
@@ -843,13 +1005,13 @@ async fn handle_submit(
                 session.reject_share();
                 metrics.record_share_rejected(session.algo, RejectReason::Stale);
                 eprintln!("Stratum: No template available for {}", session.address);
-                return false;
+                return ShareSubmitResult::Error(21, "no template".to_string());
             }
         },
         None => {
             session.reject_share();
             metrics.record_share_rejected(session.algo, RejectReason::Stale);
-            return false;
+            return ShareSubmitResult::Error(21, "no template manager".to_string());
         }
     };
 
@@ -864,14 +1026,72 @@ async fn handle_submit(
                     "Stratum: Share STALE from {} (job {} != current {})",
                     session.address, submit_job_id, current_job_id
                 );
-                return false;
+                return ShareSubmitResult::Error(21, "stale job".to_string());
             }
         }
     }
 
-    // REAL PoW verification
-    match verify_share_pow(&template, nonce, session.algo) {
-        Ok(ShareVerdict::Accept { hash, target: _ }) => {
+    // Enqueue share for verification in worker pool
+    let share_job = ShareJob {
+        session_id: session.id,
+        peer_key: peer_key.to_string(),
+        algo: session.algo,
+        template,
+        nonce,
+        submitted_at: Instant::now(),
+    };
+
+    let tx = match share_tx {
+        Some(t) => t,
+        None => return ShareSubmitResult::Error(-20002, "share queue unavailable".to_string()),
+    };
+
+    match tx.try_send(share_job) {
+        Ok(_) => {
+            // Update queue depth metric
+            metrics.share_queue_depth.fetch_add(1, Ordering::Relaxed);
+            ShareSubmitResult::Accepted
+        }
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            // Backpressure: queue full
+            metrics.backpressure_total.fetch_add(1, Ordering::Relaxed);
+            session.reject_share();
+            metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
+            eprintln!(
+                "Stratum: Share queue FULL, rejecting from {} (backpressure applied)",
+                session.address
+            );
+            ShareSubmitResult::QueueFull
+        }
+        Err(mpsc::error::TrySendError::Closed(_)) => {
+            // Channel closed
+            ShareSubmitResult::Error(-20002, "share queue closed".to_string())
+        }
+    }
+}
+
+/// Handle verification result from worker pool.
+async fn handle_share_result(
+    result: ShareResult,
+    peers: &Arc<DashMap<String, MinerSession>>,
+    metrics: &Arc<StratumMetrics>,
+    _template_manager: &Option<Arc<PoolTemplateManager>>,
+    config: &StratumConfig,
+    vardiff: &Option<VarDiff>,
+) {
+    // Update queue depth metric (share consumed from queue)
+    metrics.share_queue_depth.fetch_sub(1, Ordering::Relaxed);
+
+    let session = match peers.get(&result.peer_key) {
+        Some(s) => s,
+        None => {
+            eprintln!("ShareResult handler: session {} not found", result.peer_key);
+            return;
+        }
+    };
+
+    match result.verdict {
+        ShareVerdict::Accept { hash, target: _ } => {
             // Share accepted!
             session.accept_share();
             session.record_share_time().await;
@@ -880,17 +1100,16 @@ async fn handle_submit(
             // Log with hash prefix
             let hash_hex = hex::encode(&hash[..4]);
             println!(
-                "Stratum: Share ACCEPTED from {} (algo={}, diff={:.2}, nonce={}, hash={}…)",
+                "Stratum: Share VERIFIED & ACCEPTED from {} (algo={}, diff={:.2}, nonce={}, hash={}…)",
                 session.address,
                 session.algo.name(),
                 session.difficulty,
-                nonce,
+                result.nonce,
                 hash_hex
             );
 
             // Check if this share also meets BLOCK difficulty (consensus target)
-            // Block target is in template.header.bits (usually much harder than pool target)
-            if let Ok(block_target) = target_from_bits(template.header.bits) {
+            if let Ok(block_target) = target_from_bits(result.template.header.bits) {
                 if meets_target(&hash, &block_target) {
                     // This is a VALID BLOCK!
                     println!(
@@ -901,20 +1120,20 @@ async fn handle_submit(
                     );
 
                     // Build full block from template
-                    let mut block_header = template.header.clone();
-                    block_header.nonce = nonce;
+                    let mut block_header = result.template.header.clone();
+                    block_header.nonce = result.nonce;
                     block_header.algo_id = session.algo.to_u8();
 
                     let block = Block {
                         header: block_header,
-                        transactions: template.txs.clone(),
+                        transactions: result.template.txs.clone(),
                     };
 
-                    // Submit to network (async, don't block share response)
+                    // Submit to network (async, don't block share processing)
                     let metrics_clone = Arc::clone(metrics);
-                    let config_clone = _config.clone();
+                    let network = config.network;
                     tokio::spawn(async move {
-                        submit_block_async(block, metrics_clone, config_clone.network).await;
+                        submit_block_async(block, metrics_clone, network).await;
                     });
                 }
             }
@@ -927,7 +1146,7 @@ async fn handle_submit(
 
                     // Need mutable access for set_difficulty
                     drop(session); // Release immutable borrow
-                    if let Some(mut session) = peers.get_mut(peer_key) {
+                    if let Some(mut session) = peers.get_mut(&result.peer_key) {
                         let new_diff = vd.adjust(time_since, session.difficulty);
                         if (new_diff - session.difficulty).abs() > 0.01 {
                             println!(
@@ -940,10 +1159,8 @@ async fn handle_submit(
                     }
                 }
             }
-
-            true
         }
-        Ok(ShareVerdict::Reject { reason }) => {
+        ShareVerdict::Reject { reason } => {
             // Share rejected
             session.reject_share();
             metrics.record_share_rejected(session.algo, reason);
@@ -953,22 +1170,8 @@ async fn handle_submit(
                 session.address,
                 reason.as_str(),
                 session.algo.name(),
-                nonce
+                result.nonce
             );
-
-            false
-        }
-        Err(e) => {
-            // Verification error
-            session.reject_share();
-            metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
-
-            eprintln!(
-                "Stratum: Share verification ERROR from {} ({})",
-                session.address, e
-            );
-
-            false
         }
     }
 }
@@ -980,7 +1183,7 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
     let submitter = BlockSubmitter::mock(network_id); // Use mock mode for now
 
     match submitter.submit(&block, None).await {
-        Ok(SubmitResult::Accepted { hash, height }) => {
+        Ok(BlockSubmitResult::Accepted { hash, height }) => {
             metrics.record_block_accepted();
             let hash_hex = hex::encode(hash);
             println!(
@@ -988,11 +1191,11 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
                 hash_hex, height
             );
         }
-        Ok(SubmitResult::Rejected { reason }) => {
+        Ok(BlockSubmitResult::Rejected { reason }) => {
             metrics.record_block_rejected();
             eprintln!("[WARN] ❌ Block REJECTED by network: reason={}", reason);
         }
-        Ok(SubmitResult::Error { message }) => {
+        Ok(BlockSubmitResult::Error { message }) => {
             metrics.record_block_rejected();
             eprintln!("[ERROR] Block submission ERROR: {}", message);
         }
@@ -1003,10 +1206,10 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
     }
 }
 
-/// Verify a share against a block template using REAL PoW verification.
+/// Verify a share against a block template using REAL PoW verification (sync function for spawn_blocking).
 ///
 /// Returns ShareVerdict with accept/reject and reason.
-fn verify_share_pow(
+fn verify_share_pow_sync(
     tpl: &BlockTemplate,
     nonce: u64,
     algo: PowAlgo,
