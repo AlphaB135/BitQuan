@@ -10,6 +10,7 @@ use std::sync::Arc;
 use bitquan_consensus::pow::RandomXEngine;
 
 /// Hybrid miner capable of mining multiple PoW algorithms concurrently.
+#[allow(dead_code)] // Active component; unused fields reserved for Phase 8
 pub struct HybridMiner {
     /// Available PoW engines.
     engines: Vec<Arc<dyn PowEngine + Send + Sync>>,
@@ -25,6 +26,7 @@ pub struct HybridMiner {
 
 /// Mining metrics for observability.
 #[derive(Clone)]
+#[allow(dead_code)] // Active component; unused fields reserved for Phase 8
 pub struct MinerMetrics {
     /// Total blocks mined per algorithm.
     pub blocks_mined: HashMap<PowAlgo, Arc<AtomicU64>>,
@@ -69,6 +71,7 @@ impl MinerMetrics {
     }
 
     /// Increment verify failure counter for algorithm.
+    #[allow(dead_code)] // Reserved for Phase 8 metrics
     pub fn record_verify_failure(&self, algo: PowAlgo) {
         if let Some(counter) = self.verify_failures.get(&algo) {
             counter.fetch_add(1, Ordering::Relaxed);
@@ -76,6 +79,7 @@ impl MinerMetrics {
     }
 
     /// Get total blocks mined for algorithm.
+    #[allow(dead_code)] // Reserved for Phase 8 metrics API
     pub fn get_blocks_mined(&self, algo: PowAlgo) -> u64 {
         self.blocks_mined
             .get(&algo)
@@ -84,6 +88,7 @@ impl MinerMetrics {
     }
 
     /// Get total hash attempts for algorithm.
+    #[allow(dead_code)] // Reserved for Phase 8 metrics API
     pub fn get_hash_attempts(&self, algo: PowAlgo) -> u64 {
         self.hash_attempts
             .get(&algo)
@@ -92,6 +97,7 @@ impl MinerMetrics {
     }
 
     /// Get verify failures for algorithm.
+    #[allow(dead_code)] // Reserved for Phase 8 metrics API
     pub fn get_verify_failures(&self, algo: PowAlgo) -> u64 {
         self.verify_failures
             .get(&algo)
@@ -173,11 +179,13 @@ impl HybridMiner {
     }
 
     /// Get reference to metrics.
+    #[allow(dead_code)] // Reserved for Phase 8 metrics export
     pub fn metrics(&self) -> &MinerMetrics {
         &self.metrics
     }
 
     /// Signal miner to stop gracefully.
+    #[allow(dead_code)] // Reserved for graceful shutdown
     pub fn stop(&self) {
         self.stop_flag.store(true, Ordering::Relaxed);
     }
@@ -257,11 +265,13 @@ impl HybridMiner {
     }
 
     /// Get thread count.
+    #[allow(dead_code)] // Reserved for status API
     pub fn thread_count(&self) -> usize {
         self.threads
     }
 
     /// Get algorithm weights.
+    #[allow(dead_code)] // Reserved for tuning API
     pub fn weights(&self) -> &HashMap<PowAlgo, f32> {
         &self.weights
     }

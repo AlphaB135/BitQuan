@@ -28,6 +28,7 @@ pub struct RewardEngine {
     total_distributed: Arc<AtomicU64>,
 }
 
+#[allow(dead_code)] // Phase 8 pool payout integration
 impl RewardEngine {
     /// Create a new reward engine.
     pub fn new(db: PoolDatabase) -> Self {
@@ -222,6 +223,7 @@ impl RewardEngine {
 
 /// Pool statistics snapshot.
 #[derive(Debug, Clone, serde::Serialize)]
+#[allow(dead_code)] // Phase 8 pool API
 pub struct PoolStats {
     pub total_rewards: u64,
     pub miner_count: u64,

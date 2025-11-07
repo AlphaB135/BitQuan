@@ -49,6 +49,7 @@ pub struct MiningMetrics {
     peer_drops_total: Arc<AtomicU64>,
 }
 
+#[allow(dead_code)] // Reserved for Prometheus /metrics endpoint (Phase 8)
 impl MiningMetrics {
     /// Create new metrics collector.
     pub fn new(algos: &[PowAlgo]) -> Self {

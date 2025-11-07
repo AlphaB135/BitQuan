@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 
 /// Record of a persisted block.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 8 pool integration
 pub struct BlockRecord {
     pub hash: String,
     pub height: u64,
@@ -20,6 +21,7 @@ pub struct BlockRecord {
 
 /// Record of a payout transaction.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Phase 8 pool integration
 pub struct PayoutRecord {
     pub id: String,
     pub miner_id: String,
@@ -35,6 +37,7 @@ pub struct PoolDatabase {
     conn: Arc<Mutex<Connection>>,
 }
 
+#[allow(dead_code)] // Phase 8 pool integration
 impl PoolDatabase {
     /// Create or open a pool database at the given path.
     pub fn open(path: &str) -> SqlResult<Self> {

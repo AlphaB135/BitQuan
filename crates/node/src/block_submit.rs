@@ -49,6 +49,7 @@ pub struct BlockSubmitter {
     pub metrics: Option<Arc<MiningMetrics>>,
 }
 
+#[allow(dead_code)] // Phase 8 pool integration
 impl BlockSubmitter {
     /// Create a new block submitter.
     pub fn new(network_id: NetworkId) -> Self {

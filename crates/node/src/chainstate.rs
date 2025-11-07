@@ -20,6 +20,7 @@ pub struct ChainState {
     db: Option<PoolDatabase>,
 }
 
+#[allow(dead_code)] // Phase 8 pool/RPC metrics integration
 impl ChainState {
     /// Create a new chain state starting at genesis.
     pub fn new() -> Self {

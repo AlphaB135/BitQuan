@@ -86,6 +86,7 @@ pub struct StratumServer {
 
 /// Stratum server configuration.
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // All fields reserved for Phase 8
 pub struct StratumConfig {
     /// Bind address (e.g., "0.0.0.0:3333").
     pub bind_addr: String,
@@ -119,6 +120,7 @@ impl Default for StratumConfig {
 
 /// Share verification result.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // All variants reserved for Phase 8
 pub enum ShareVerdict {
     /// Share accepted - meets difficulty.
     Accept {
@@ -164,6 +166,7 @@ impl RejectReason {
 
 /// Active miner session.
 #[derive(Debug)]
+#[allow(dead_code)] // Active component; some fields reserved for Phase 8
 pub struct MinerSession {
     /// Unique session ID.
     pub id: Uuid,
@@ -379,6 +382,7 @@ impl StratumMetrics {
     }
 
     /// Get rejected shares for specific reason.
+    #[allow(dead_code)] // Reserved for metrics API
     pub fn get_rejected_by_reason(&self, algo: PowAlgo, reason: RejectReason) -> u64 {
         let key = (algo, reason.as_str());
         self.shares_rejected
@@ -582,6 +586,7 @@ impl StratumServer {
     }
 
     /// Set the pool template manager for real block template generation.
+    #[allow(dead_code)] // Reserved for Phase 8 pool integration
     pub fn set_template_manager(&mut self, manager: Arc<PoolTemplateManager>) {
         self.template_manager = Some(manager);
     }
@@ -760,21 +765,25 @@ impl StratumServer {
     }
 
     /// Stop the server.
+    #[allow(dead_code)] // Reserved for graceful shutdown
     pub fn stop(&self) {
         self.stop_flag.store(true, Ordering::Relaxed);
     }
 
     /// Get active miner count.
+    #[allow(dead_code)] // Reserved for status API
     pub fn active_miners(&self) -> usize {
         self.peers.len()
     }
 
     /// Get metrics reference.
+    #[allow(dead_code)] // Reserved for metrics export
     pub fn metrics(&self) -> &Arc<StratumMetrics> {
         &self.metrics
     }
 
     /// Get peers reference.
+    #[allow(dead_code)] // Reserved for admin API
     pub fn peers(&self) -> &Arc<DashMap<String, MinerSession>> {
         &self.peers
     }
