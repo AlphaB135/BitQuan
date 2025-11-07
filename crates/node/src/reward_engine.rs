@@ -15,6 +15,7 @@ const INITIAL_REWARD: u64 = 50_0000_0000;
 const HALVING_INTERVAL: u64 = 210_000;
 
 /// Reward engine for calculating and distributing mining rewards.
+#[allow(dead_code)] // Reserved for Phase 8 pool payout integration
 pub struct RewardEngine {
     /// Pool database for persistence.
     db: PoolDatabase,

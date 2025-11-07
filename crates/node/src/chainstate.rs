@@ -10,6 +10,7 @@ use crate::pool_db::PoolDatabase;
 
 /// Chain state tracker.
 #[derive(Clone)]
+#[allow(dead_code)] // Reserved for Phase 8 pool/RPC metrics integration
 pub struct ChainState {
     /// Current chain height.
     height: Arc<AtomicU64>,

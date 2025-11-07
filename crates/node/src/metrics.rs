@@ -7,6 +7,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 /// Global mining metrics collector.
+#[allow(dead_code)] // Reserved for Prometheus /metrics endpoint integration (Phase 8)
 pub struct MiningMetrics {
     /// Blocks mined per algorithm.
     blocks_mined: HashMap<PowAlgo, Arc<AtomicU64>>,

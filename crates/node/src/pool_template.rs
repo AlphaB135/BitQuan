@@ -1,6 +1,10 @@
 //! Block template generation for mining pool operations.
 //!
 //! Provides fresh templates for miners with automatic refresh mechanism.
+//!
+//! Reserved for Phase 8 pool integration.
+
+#![allow(dead_code)]
 
 use bitquan_consensus::pow::PowAlgo;
 use bitquan_types::{BlockHeader, Result, Transaction};

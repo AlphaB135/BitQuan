@@ -30,6 +30,7 @@ pub struct PayoutRecord {
 
 /// Thread-safe SQLite database for pool operations.
 #[derive(Clone)]
+#[allow(dead_code)] // Reserved for Phase 8 pool integration
 pub struct PoolDatabase {
     conn: Arc<Mutex<Connection>>,
 }

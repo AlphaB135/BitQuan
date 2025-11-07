@@ -13,6 +13,7 @@ use crate::reward_engine::RewardEngine;
 
 /// Result of a block submission attempt.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)] // Reserved for Phase 8 pool integration
 pub enum SubmitResult {
     /// Block was accepted and broadcast.
     Accepted {
@@ -34,6 +35,7 @@ pub enum SubmitResult {
 }
 
 /// Block submission handler.
+#[allow(dead_code)] // Reserved for Phase 8 pool integration
 pub struct BlockSubmitter {
     /// Network ID for validation.
     pub network_id: NetworkId,

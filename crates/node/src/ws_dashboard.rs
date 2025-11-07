@@ -1,6 +1,10 @@
 //! WebSocket realtime dashboard for mining pool stats.
 //!
 //! Streams live metrics to connected clients for visualization.
+//!
+//! Reserved for Phase 8 pool dashboard integration.
+
+#![allow(dead_code)]
 
 use bitquan_consensus::pow::PowAlgo;
 use bitquan_types::Result;

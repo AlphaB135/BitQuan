@@ -1,6 +1,10 @@
 //! Variable difficulty adjustment engine for mining pool.
 //!
 //! Automatically adjusts miner difficulty based on share submission rate.
+//!
+//! Reserved for Phase 8 pool vardiff integration.
+
+#![allow(dead_code)]
 
 /// Variable difficulty controller.
 #[derive(Clone, Debug)]

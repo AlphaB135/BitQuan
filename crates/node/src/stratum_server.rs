@@ -273,6 +273,7 @@ impl MinerSession {
     }
 
     /// Update current job_id.
+    #[allow(dead_code)] // Reserved for job template rotation (Phase 8)
     pub async fn set_job_id(&self, job_id: u64) {
         let mut current = self.current_job_id.write().await;
         *current = job_id;
@@ -397,6 +398,7 @@ impl StratumMetrics {
     }
 
     /// Get last valid share timestamp.
+    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_last_valid_share_timestamp(&self) -> u64 {
         self.last_valid_share_timestamp.load(Ordering::Relaxed)
     }
@@ -423,21 +425,25 @@ impl StratumMetrics {
     }
 
     /// Get total blocks submitted.
+    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_submitted(&self) -> u64 {
         self.blocks_submitted_total.load(Ordering::Relaxed)
     }
 
     /// Get total blocks accepted.
+    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_accepted(&self) -> u64 {
         self.blocks_accepted_total.load(Ordering::Relaxed)
     }
 
     /// Get total blocks rejected.
+    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_rejected(&self) -> u64 {
         self.blocks_rejected_total.load(Ordering::Relaxed)
     }
 
     /// Format metrics as Prometheus text format.
+    #[allow(dead_code)] // Reserved for /metrics endpoint (Phase 8)
     pub fn format_prometheus(&self, active_miners: usize) -> String {
         let mut output = String::new();
 
