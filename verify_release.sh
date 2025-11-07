@@ -124,7 +124,9 @@ fi
 
 # 23) Ports in testnet.toml
 if [[ -f config/testnet.toml ]]; then
-  if grep -Eq "(^|[^0-9])18444([^0-9]|$)" config/testnet.toml && grep -Eq "(^|[^0-9])18443([^0-9]|$)" config/testnet.toml; then
+  # Exclude comments when checking for port numbers
+  if grep -v "^#" config/testnet.toml | grep -Eq "(^|[^0-9])18444([^0-9]|$)" && \
+     grep -v "^#" config/testnet.toml | grep -Eq "(^|[^0-9])18443([^0-9]|$)"; then
     warn "พอร์ต testnet ตั้งเป็น 18444/18443 ซึ่งชนกับ Bitcoin testnet—พิจารณาเปลี่ยนหรือเตือนใน README"
   else
     pass "testnet ports ไม่ชน Bitcoin testnet"
