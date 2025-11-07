@@ -157,7 +157,7 @@ cargo build --release --features randomx
 - ✅ Mainnet safety: RandomX consensus-level rejection
 - ✅ Feature-gated: no dependencies unless `--features randomx`
 
-See [docs/TESTNET_README.md](docs/TESTNET_README.md) for detailed hybrid mining instructions.
+See [docs/testnet/README.md](docs/testnet/README.md) for detailed hybrid mining instructions.
 
 ### Stratum Mining Server (Pool Mode)
 
@@ -279,7 +279,7 @@ Tune RPC behavior with CLI flags (defaults shown):
 - `--rpc-trust-proxy` – trust X-Forwarded-For header
 - `--rpc-trusted-cidr=<cidrs>` – comma-separated trusted proxy CIDRs
 
-See [docs/command.md](docs/command.md) for the complete CLI reference.
+See [docs/cli/](docs/cli/) for the complete CLI reference.
 
 ## Pre-Launch Validation
 
@@ -302,37 +302,24 @@ cat preflight_report.md
 - ✅ PoW parameters locked for mainnet
 - ✅ TLS/JWT configuration
 
-See [docs/PRELAUNCH_CHECKLIST.md](docs/PRELAUNCH_CHECKLIST.md) for complete validation criteria.
+See [docs/ops/PRELAUNCH_CHECKLIST.md](docs/ops/PRELAUNCH_CHECKLIST.md) for complete validation criteria.
 
 ## Documentation
+
+📚 **[Complete Documentation Index](docs/INDEX.md)** - Central hub for all documentation
+
+Quick Links:
+- **[CLI Reference](docs/cli/)** - Command-line tools (node, wallet, stress, preflight)
+- **[Operations Guide](docs/ops/)** - Deployment, monitoring, runbooks
+- **[Security](docs/security/)** - Audits, bug bounty, disclosure policy
+- **[Testnet](docs/testnet/)** - Testnet setup and configuration
+- **[Developer Guide](docs/dev/)** - Build, test, contribute
 
 Core Documents:
 - [Security Policy](SECURITY.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Release Process](RELEASE.md)
-- [Reproducible Builds](REPRODUCIBILITY.md)
 - [Changelog](CHANGELOG.md)
-
-Launch & Operations:
-- [Pre-Launch Checklist](docs/PRELAUNCH_CHECKLIST.md)
-- [Genesis Documentation](docs/GENESIS.md)
-- [Pool Operations](docs/POOL_OPERATIONS.md)
-- [Metrics Guide](docs/METRICS.md)
-- [Observability](docs/OBSERVABILITY.md)
-- [Runbook](docs/RUNBOOK.md)
-
-Technical Specifications:
-- [Transaction Specification](docs/spec/transaction.md)
-- [Block Specification](docs/spec/block.md)
-- [Block Weight & Fee Market](docs/spec/block-weight.md)
-- [BQIP Proposals](docs/bqip/)
-
-Guides:
-- [Address ↔︎ Script Guide](docs/address-and-script.md)
-- [RPC Testing Guide](docs/rpc/testing.md)
-- [Command Reference](docs/command.md)
-- [Roadmap](ROADMAP.md)
 
 ## Features
 
