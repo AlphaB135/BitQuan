@@ -304,18 +304,27 @@ cat preflight_report.md
 
 See [docs/ops/PRELAUNCH_CHECKLIST.md](docs/ops/PRELAUNCH_CHECKLIST.md) for complete validation criteria.
 
-## Documentation
+---
+
+## 📚 Documentation
+
+**[📖 Full Documentation Site →](https://alphab135.github.io/BitQuan/)**
+
+Browse complete documentation with search, navigation, and mobile support.
+
+### Quick Links
 
 📚 **[Complete Documentation Index](docs/INDEX.md)** - Central hub for all documentation
 
-Quick Links:
-- **[CLI Reference](docs/cli/)** - Command-line tools (node, wallet, stress, preflight)
-- **[Operations Guide](docs/ops/)** - Deployment, monitoring, runbooks
-- **[Security](docs/security/)** - Audits, bug bounty, disclosure policy
-- **[Testnet](docs/testnet/)** - Testnet setup and configuration
-- **[Developer Guide](docs/dev/)** - Build, test, contribute
+**Essential Guides:**
+- **[🚀 Getting Started](docs/getting-started/)** - Installation and first steps
+- **[⚙️ CLI Reference](docs/cli/)** - Command-line tools (node, wallet, stress, preflight)
+- **[🛠️ Development](docs/dev/)** - Build, test, contribute
+- **[🖥️ Operations](docs/ops/)** - Deployment, monitoring, runbooks
+- **[🔒 Security](docs/security/)** - Audits, bug bounty, disclosure policy
+- **[🌐 Testnet](docs/testnet/)** - Testnet setup and configuration
 
-Core Documents:
+**Core Documents:**
 - [Security Policy](SECURITY.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)

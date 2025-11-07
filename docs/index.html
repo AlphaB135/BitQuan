@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BitQuan Documentation</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="BitQuan - Post-Quantum Cryptocurrency Documentation">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  
+  <!-- Theme -->
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  
+  <!-- Custom styles -->
+  <style>
+    :root {
+      --theme-color: #0066cc;
+      --theme-color-dark: #004499;
+    }
+    
+    .app-name-link img {
+      width: 40px;
+      margin-right: 10px;
+    }
+    
+    .sidebar-nav > ul > li > a {
+      font-weight: 600;
+    }
+    
+    .markdown-section code {
+      border-radius: 2px;
+      color: #e96900;
+      font-size: 0.85em;
+      margin: 0 2px;
+      padding: 3px 5px;
+      white-space: pre-wrap;
+    }
+    
+    .markdown-section pre > code {
+      color: inherit;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">Loading documentation...</div>
+  
+  <script>
+    window.$docsify = {
+      name: 'BitQuan',
+      repo: 'https://github.com/AlphaB135/BitQuan',
+      logo: '/docs/img/BitQuan.png',
+      loadSidebar: true,
+      loadNavbar: false,
+      subMaxLevel: 3,
+      auto2top: true,
+      homepage: 'INDEX.md',
+      
+      // Search
+      search: {
+        maxAge: 86400000,
+        paths: 'auto',
+        placeholder: 'Search documentation...',
+        noData: 'No results found.',
+        depth: 6,
+        hideOtherSidebarContent: false
+      },
+      
+      // Pagination
+      pagination: {
+        previousText: 'Previous',
+        nextText: 'Next',
+        crossChapter: true,
+        crossChapterText: true,
+      },
+      
+      // Copy code
+      copyCode: {
+        buttonText: 'Copy',
+        errorText: 'Error',
+        successText: 'Copied!'
+      },
+      
+      // Tabs
+      tabs: {
+        persist: true,
+        sync: true,
+        theme: 'classic',
+        tabComments: true,
+        tabHeadings: true
+      },
+      
+      // External link target
+      externalLinkTarget: '_blank',
+      
+      // Alias
+      alias: {
+        '/.*/_sidebar.md': '/_sidebar.md',
+      },
+      
+      // 404
+      notFoundPage: true,
+      
+      // Format updated date
+      formatUpdated: '{YYYY}-{MM}-{DD}',
+      
+      // Plugins
+      plugins: [
+        function(hook, vm) {
+          // Footer
+          hook.beforeEach(function(html) {
+            return html;
+          });
+          
+          hook.afterEach(function(html, next) {
+            const footer = [
+              '<hr/>',
+              '<footer style="text-align: center; padding: 20px 0;">',
+              '<p>BitQuan - Post-Quantum Cryptocurrency</p>',
+              '<p>',
+              '<a href="https://github.com/AlphaB135/BitQuan" target="_blank">GitHub</a> | ',
+              '<a href="/#/SECURITY">Security</a> | ',
+              '<a href="/#/CONTRIBUTING">Contributing</a>',
+              '</p>',
+              '<p style="font-size: 0.9em; color: #888;">',
+              'Last updated: {docsify-updated}',
+              '</p>',
+              '</footer>'
+            ].join('');
+            
+            next(html + footer);
+          });
+          
+          // Edit on GitHub link
+          hook.beforeEach(function(html) {
+            const url = 'https://github.com/AlphaB135/BitQuan/blob/main/docs/' + vm.route.file;
+            const editHtml = [
+              '<div style="text-align: right; padding: 10px 0;">',
+              '<a href="' + url + '" target="_blank" style="font-size: 0.9em;">',
+              '📝 Edit on GitHub',
+              '</a>',
+              '</div>'
+            ].join('');
+            
+            return editHtml + html;
+          });
+        }
+      ]
+    };
+  </script>
+  
+  <!-- Docsify core -->
+  <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+  
+  <!-- Search plugin -->
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+  
+  <!-- Copy code plugin -->
+  <script src="//cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  
+  <!-- Pagination plugin -->
+  <script src="//cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
+  
+  <!-- Tabs plugin -->
+  <script src="//cdn.jsdelivr.net/npm/docsify-tabs@1"></script>
+  
+  <!-- Syntax highlighting -->
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-rust.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-toml.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-markdown.min.js"></script>
+  
+  <!-- Zoom image -->
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
+  
+  <!-- External script -->
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/external-script.min.js"></script>
+</body>
+</html>
