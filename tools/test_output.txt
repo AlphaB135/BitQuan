@@ -1,0 +1,894 @@
+   Compiling bitquan-node v0.1.0 (/Users/alphab/BitQuan/crates/node)
+warning: associated items `new`, `record_block`, and `record_hash_attempt` are never used
+  --> crates/node/src/miner.rs:41:12
+   |
+39 | impl MinerMetrics {
+   | ----------------- associated items in this implementation
+40 |     /// Create new metrics for given algorithms.
+41 |     pub fn new(algos: &[PowAlgo]) -> Self {
+   |            ^^^
+...
+60 |     pub fn record_block(&self, algo: PowAlgo) {
+   |            ^^^^^^^^^^^^
+...
+67 |     pub fn record_hash_attempt(&self, algo: PowAlgo) {
+   |            ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: associated items `new`, `should_stop`, `select_algorithm`, `get_engine`, and `mine_block_attempt` are never used
+   --> crates/node/src/miner.rs:116:12
+    |
+109 | impl HybridMiner {
+    | ---------------- associated items in this implementation
+...
+116 |     pub fn new(weights: &[(PowAlgo, f32)], threads: usize, network: NetworkId) -> Result<Self> {
+    |            ^^^
+...
+194 |     pub fn should_stop(&self) -> bool {
+    |            ^^^^^^^^^^^
+...
+199 |     pub fn select_algorithm(&self, iteration: u64) -> PowAlgo {
+    |            ^^^^^^^^^^^^^^^^
+...
+217 |     pub fn get_engine(&self, algo: PowAlgo) -> Option<Arc<dyn PowEngine + Send + Sync>> {
+    |            ^^^^^^^^^^
+...
+227 |     pub fn mine_block_attempt(
+    |            ^^^^^^^^^^^^^^^^^^
+
+warning: methods `record_block` and `record_hash_attempt` are never used
+  --> crates/node/src/miner.rs:60:12
+   |
+39 | impl MinerMetrics {
+   | ----------------- methods in this implementation
+...
+60 |     pub fn record_block(&self, algo: PowAlgo) {
+   |            ^^^^^^^^^^^^
+...
+67 |     pub fn record_hash_attempt(&self, algo: PowAlgo) {
+   |            ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: methods `should_stop`, `get_engine`, and `mine_block_attempt` are never used
+   --> crates/node/src/miner.rs:194:12
+    |
+109 | impl HybridMiner {
+    | ---------------- methods in this implementation
+...
+194 |     pub fn should_stop(&self) -> bool {
+    |            ^^^^^^^^^^^
+...
+217 |     pub fn get_engine(&self, algo: PowAlgo) -> Option<Arc<dyn PowEngine + Send + Sync>> {
+    |            ^^^^^^^^^^
+...
+227 |     pub fn mine_block_attempt(
+    |            ^^^^^^^^^^^^^^^^^^
+
+warning: `bitquan-node` (bin "bitquan-node" test) generated 2 warnings
+warning: `bitquan-node` (bin "bitquan-node") generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.77s
+     Running unittests src/lib.rs (target/debug/deps/bitquan_consensus-8f2029bbd8b83b5d)
+
+running 91 tests
+test asert::tests::clamps_to_min_target ... ok
+test asert::tests::clamps_to_max_target ... ok
+test asert::tests::asert_no_overflow_on_extremes ... ok
+test asert::tests::burst_guard_triggers_for_fast_blocks ... ok
+test asert::tests::burst_guard_ignores_small_window ... ok
+test asert::tests::decreases_when_blocks_fast ... ok
+test asert::tests::deterministic_same_inputs ... ok
+test asert::tests::guard_cooldown_blocks_respected ... ok
+test asert::tests::guard_does_not_trigger_on_boundary ... ok
+test asert::tests::guard_ignores_single_outlier ... ok
+test asert::tests::guard_no_flap_on_boundary ... ok
+test asert::tests::guard_post_reorg_consistency ... ok
+test asert::tests::guard_triggers_on_fast_streak_exact_window ... ok
+test asert::tests::increases_when_blocks_slow ... ok
+test asert::tests::monotonic_with_increasing_time ... ok
+test asert::tests::timestamp_attack_resilience ... ok
+test asert::tests::unchanged_when_on_time ... ok
+test difficulty::tests::conversion_round_trip_reasonable ... ok
+test asert::tests::guard_long_run_stability ... ok
+test difficulty::tests::guard_active_at_activation_height ... ok
+test difficulty::tests::guard_inactive_before_activation_height ... ok
+test difficulty::tests::state_updates_anchor ... ok
+test fork::tests::reject_orphan_blocks ... ok
+test fork::tests::reject_duplicate_blocks ... ok
+test fork::tests::fork_choice_basic ... ok
+test pow::tests::header_carries_algo_id ... ok
+test fork::tests::fork_choice_reorg ... ok
+test pow::tests::header_hash_changes_with_nonce ... ok
+test fork::tests::reorg_with_equal_height_chooses_first ... ok
+test fork::tests::deep_reorg_5_blocks ... ok
+test fork::tests::multiple_reorgs_same_chain ... ok
+test pow::tests::sha256d_engine_basic ... ok
+test pow::tests::pow_algo_conversion ... ok
+test pow::tests::target_bytes_monotonic_with_bits ... ok
+test fork::tests::respect_max_reorg_depth ... ok
+test pow::tests::target_clamped_at_bounds ... ok
+test script::tests::script_dup ... ok
+test script::tests::script_push_and_verify_true ... ok
+test script::tests::script_push_false ... ok
+test script::tests::script_hash256 ... ok
+test script::tests::script_too_large ... ok
+test script::tests::script_too_many_ops ... ok
+test sighash::tests::cross_network_replay_rejected ... ok
+test sighash::tests::digest_changes_with_lock_time ... ok
+test script::tests::stack_overflow ... ok
+test sighash::tests::digest_changes_with_witness ... ok
+test sighash::tests::digest_deterministic_same_network ... ok
+test sighash::tests::digest_changes_with_network_id ... ok
+test sighash::tests::regression_test_sighash_stability ... ok
+test sighash::tests::golden_vectors_network_isolation ... ok
+test sighash::tests::test_different_context_different_hash ... ok
+test sighash::tests::test_context_with_magic_bytes ... ok
+test sighash::tests::test_network_mismatch_error ... ok
+test sighash::tests::test_domain_separator_included ... ok
+test sighash::tests::test_genesis_mismatch_error ... ok
+test tests::difficultystate_with_mtp_anchor_chain ... ok
+test tests::difficultystate_with_chainstore_mtp_anchor ... ok
+test tests::subsidy_initial_and_halving ... ok
+test tests::subsidy_tail_emission_after_seven_halvings ... ok
+test tests::test_block_weight_calculation ... ok
+test tests::test_calculate_tx_weight_bqip0002 ... ok
+test asert::property_tests::asert_always_positive ... ok
+test asert::property_tests::asert_bounded_by_max_target ... ok
+test asert::property_tests::asert_deterministic ... ok
+test asert::property_tests::asert_monotonic_increasing_time ... ok
+test tests::test_signature_weight_scaling ... ok
+test tests::test_validate_transaction_signatures_genesis_mismatch ... ok
+test tests::property_tests::weight_calculation_deterministic ... ok
+test tests::test_validate_transaction_signatures_with_valid_context ... ok
+test utxo::tests::calculate_fee_correctly ... ok
+test utxo::tests::coinbase_maturity ... ok
+test tests::test_transaction_and_block_hash_determinism ... ok
+test tests::test_validate_transaction_signatures_network_mismatch ... ok
+test utxo::tests::reject_outputs_exceeding_inputs ... ok
+test utxo::tests::detect_double_spend ... ok
+test utxo::tests::test_input_value_overflow_detection ... ok
+test utxo::tests::test_output_value_overflow_detection ... ok
+test utxo::tests::test_total_value_overflow_protection ... ok
+test utxo::tests::test_utxo_count_overflow_protection ... ok
+test utxo::tests::test_fee_calculation_with_checked_sub ... ok
+test utxo::tests::test_total_value_underflow_protection ... ok
+test utxo::tests::test_utxo_count_underflow_protection ... ok
+test tests::property_tests::signature_weight_linear ... ok
+test utxo::tests::test_validate_transaction_overflow ... ok
+test utxo::tests::utxo_set_basic_operations ... ok
+test tests::property_tests::block_weight_is_sum_of_txs ... ok
+test tests::test_block_weight_overflow_protection ... ok
+test tests::test_tx_weight_overflow_protection ... ok
+test tests::test_validate_block_weight_overflow ... ok
+test tests::test_block_weight_exceeds_limit ... ok
+test tests::test_signature_count_overflow ... ok
+
+test result: ok. 91 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running unittests src/bin/devnet_sim.rs (target/debug/deps/devnet_sim-4af668cf9c3aa8ae)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/simple_miner.rs (target/debug/deps/simple_miner-eba9137295bfb80d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fork_edge_cases.rs (target/debug/deps/fork_edge_cases-43cf4124190620e1)
+
+running 5 tests
+test test_invalid_block_marking ... ok
+test test_tie_breaking_by_timestamp ... ok
+test test_reorg_depth_tracking ... ok
+test test_deep_reorg_rejected ... ok
+test test_reorg_over_100_blocks ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/hybrid_validation.rs (target/debug/deps/hybrid_validation-83790a0e97c0e63d)
+
+running 3 tests
+test mainnet_rejects_randomx ... ok
+test algo_id_affects_serialization ... ok
+test sha256d_header_validation ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay_protection.rs (target/debug/deps/replay_protection-e3452f66389c460d)
+
+running 3 tests
+test test_different_networks_have_different_markers ... ok
+test test_transaction_includes_genesis_hash ... ok
+test test_transaction_includes_network_marker ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/bitquan_mempool-e358e68df68c665b)
+
+running 19 tests
+test tests::rejects_tx_exceeding_sigops ... ok
+test tests::test_fee_per_weight_checked_division ... ok
+test tests::test_len_overflow_protection ... ok
+test tests::rejects_tx_exceeding_inputs ... ok
+test tests::test_calculate_tx_weight ... ok
+test tests::rejects_tx_exceeding_scriptsize ... ok
+test tests::test_mempool_insert ... ok
+test tests::test_fee_per_weight_ordering ... ok
+test tests::test_mempool_eviction ... ok
+test tests::test_protected_fee_rate ... ignored
+test tests::test_mempool_min_fee_rate ... ok
+test tests::test_overflow_in_freed_bytes ... ok
+test tests::test_overflow_in_size_bytes ... ok
+test tests::test_zero_weight_rejected ... ok
+test tests::weight_overflow_detection ... ok
+test tests::test_weight_limit_enforcement ... ok
+test tests::test_select_for_block_overflow_protection ... ok
+test tests::test_select_for_block ... ok
+test tests::test_massive_signature_count_overflow ... ok
+
+test result: ok. 18 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/transaction_lifecycle_tests.rs (target/debug/deps/transaction_lifecycle_tests-b2fb3b2a1cb8bd16)
+
+running 7 tests
+test test_mempool_empty_state ... ok
+test test_transaction_add_success ... ok
+test test_multiple_transactions ... ok
+test test_mempool_fee_rate_policy ... ok
+test test_low_fee_rejection ... ok
+test test_mempool_size_tracking ... ok
+test test_mempool_size_limit ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/bitquan_network-c2a9308e98fe2eea)
+
+running 36 tests
+test discovery::tests::test_persistent_peer_scoring ... ok
+test io::tests::rejects_oversized_length_prefix ... ok
+test discovery::tests::test_bootstrap_peers ... ok
+test dns_bootstrap::tests::test_dns_seed_parse_invalid ... ok
+test dns_bootstrap::tests::test_load_default_seeds ... ok
+test dns_bootstrap::tests::test_dns_seed_parse ... ok
+test discovery::tests::test_import_peer_addrs ... ok
+test peer::tests::test_peer_manager_creation ... ok
+test discovery::tests::test_peer_book_best_peers ... ok
+test peer::tests::test_peer_manager_height_update ... ok
+test peer::tests::test_peer_state_transitions ... ok
+test dns_bootstrap::tests::test_from_seed_file ... ok
+test peer::tests::test_ban_score_threshold ... ok
+test propagation::tests::test_create_block_inv ... ok
+test propagation::tests::test_propagator_tracks_stats ... ok
+test propagation::tests::test_seen_filter_capacity ... ok
+test propagation::tests::test_should_propagate_only_new_blocks ... ok
+test propagation::tests::test_seen_filter_marks_new_blocks ... ok
+test protocol::tests::peer_manager_basic ... ok
+test protocol::tests::peer_manager_max_peers ... ok
+test protocol::tests::reject_duplicate_peer ... ok
+test protocol::tests::test_all_network_magics_unique ... ok
+test protocol::tests::test_network_magic_function ... ok
+test discovery::tests::test_peer_book_persistence ... ok
+test protocol::tests::test_network_magic_values ... ok
+test protocol::tests::message_serialization_roundtrip ... ok
+test relay::tests::test_create_inv_messages ... ok
+test relay::tests::test_relay_policy ... ok
+test relay::tests::test_relay_manager ... ok
+test sync::tests::test_auto_sync_completion ... ok
+test sync::tests::test_sync_needs_sync ... ok
+test sync::tests::test_chain_sync_initialization ... ok
+test sync::tests::test_sync_progress ... ok
+test sync::tests::test_sync_progress_struct ... ok
+test sync::tests::test_sync_start_and_complete ... ok
+test protocol::tests::reject_oversized_message ... ok
+
+test result: ok. 36 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/eclipse_tests.rs (target/debug/deps/eclipse_tests-5404b591840723bf)
+
+running 4 tests
+test test_subnet_diversity_enforcement ... ok
+test test_subnet_stats_empty ... ok
+test test_anchor_peers_config ... ok
+test test_evict_no_peers ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/memory_exhaustion_tests.rs (target/debug/deps/memory_exhaustion_tests-8a434c121e995561)
+
+running 4 tests
+test test_accept_normal_inv_items ... ok
+test test_reject_excessive_headers ... ok
+test test_reject_excessive_addresses ... ok
+test test_reject_excessive_inv_items ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/network_integration.rs (target/debug/deps/network_integration-7513ff11864bbe17)
+
+running 14 tests
+test test_message_envelope_creation ... ok
+test test_concurrent_sync_prevention ... ok
+test test_create_block_inv_message ... ok
+test test_chain_sync_to_higher_height ... ok
+test test_duplicate_block_filtering ... ok
+test test_broadcast_block_to_peers ... ok
+test test_bootstrap_peers_mainnet ... ok
+test test_peer_book_management ... ok
+test test_bootstrap_peers_testnet ... ok
+test test_metrics_update_on_block_event ... ok
+test test_peer_scoring ... ok
+test test_sync_status_transitions ... ok
+test test_propagation_stats_reset ... ok
+test test_peer_book_persistence ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/peer_tests.rs (target/debug/deps/peer_tests-55d6eb4063e17787)
+
+running 3 tests
+test empty_message_rejected ... ok
+test oversized_message_rejected_without_panic ... ok
+test handshake_times_out ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s
+
+     Running unittests src/lib.rs (target/debug/deps/bitquan_node-cc903e0d202a8d31)
+
+running 31 tests
+test block_submit::tests::test_submit_result_equality ... ok
+test chainstate::tests::test_chainstate_initialization ... ok
+test chainstate::tests::test_multiple_block_appends ... ok
+test chainstate::tests::test_append_block_increments_height ... ok
+test miner::tests::mainnet_rejects_randomx ... ok
+test metrics::tests::metrics_basic_operations ... ok
+test miner::tests::hybrid_miner_creation_sha256d ... ok
+test miner::tests::weighted_selection ... ok
+test metrics::tests::prometheus_format ... ok
+test pool_template::tests::test_template_cache ... ok
+test block_submit::tests::test_submit_reject_no_transactions ... ok
+test block_submit::tests::test_submit_mock_mode ... ok
+test stratum_server::tests::metrics_initialization ... ok
+test stratum_server::tests::metrics_recording ... ok
+test stratum_server::tests::miner_session_creation ... ok
+test stratum_server::tests::share_counters ... ok
+test vardiff::tests::test_should_adjust ... ok
+test vardiff::tests::test_vardiff_bounds ... ok
+test vardiff::tests::test_vardiff_decrease ... ok
+test vardiff::tests::test_vardiff_increase ... ok
+test ws_dashboard::tests::test_miner_info_serialization ... ok
+test ws_dashboard::tests::test_pool_stats_serialization ... ok
+test reward_engine::tests::test_pool_balance_metrics ... ok
+test reward_engine::tests::test_reward_halving_logic ... ok
+test reward_engine::tests::test_record_payout ... ok
+test pool_db::tests::test_total_rewards ... ok
+test pool_db::tests::test_block_insertion_and_retrieval ... ok
+test pool_db::tests::test_miner_reward_accumulation ... ok
+test reward_engine::tests::test_credit_and_settle_rewards ... ok
+test pool_db::tests::test_database_creation ... ok
+test reward_engine::tests::test_record_block ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/debug/deps/bitquan_node-1c98115bce5a8537)
+
+running 85 tests
+test address::tests::test_script_from_pubkey_hash_layout ... ok
+test address::tests::test_encode_decode_roundtrip ... ok
+test address::tests::test_inspect_valid_address ... ok
+test address::tests::test_inspect_legacy_q_address ... ok
+test address::tests::test_inspect_rejects_wrong_hrp ... ok
+test block_submit::tests::test_submit_result_equality ... ok
+test chainstate::tests::test_chainstate_initialization ... ok
+test chainstate::tests::test_append_block_increments_height ... ok
+test chainstate::tests::test_multiple_block_appends ... ok
+test metrics::tests::metrics_basic_operations ... ok
+test miner::tests::hybrid_miner_creation_sha256d ... ok
+test metrics::tests::prometheus_format ... ok
+test miner::tests::mainnet_rejects_randomx ... ok
+test block_submit::tests::test_submit_reject_no_transactions ... ok
+test miner::tests::weighted_selection ... ok
+test block_submit::tests::test_submit_mock_mode ... ok
+test mnemonic::tests::test_generate_mnemonic_24_words ... ok
+test mnemonic::tests::test_generate_mnemonic_12_words ... ok
+test mnemonic::tests::parse_mnemonic_invalid_returns_error ... ok
+test mnemonic::tests::test_known_mnemonic ... ok
+test mnemonic::tests::test_word_list ... ok
+test overflow_tests::test_balance_overflow_protection ... ok
+test overflow_tests::test_balance_calculation_normal ... ok
+test overflow_tests::test_guard_count_overflow_protection ... ok
+test overflow_tests::test_interval_count_overflow_protection ... ok
+test overflow_tests::test_utxo_count_normal ... ok
+test overflow_tests::test_utxo_count_overflow_protection ... ok
+test pool_db::tests::test_block_insertion_and_retrieval ... ok
+test mnemonic::tests::test_validate_mnemonic ... ok
+test pool_db::tests::test_database_creation ... ok
+test pool_template::tests::test_template_cache ... ok
+test reward_engine::tests::test_credit_and_settle_rewards ... ok
+test pool_db::tests::test_total_rewards ... ok
+test mnemonic::tests::test_different_indices_produce_different_keys ... ok
+test pool_db::tests::test_miner_reward_accumulation ... ok
+test reward_engine::tests::test_reward_halving_logic ... ok
+test reward_engine::tests::test_pool_balance_metrics ... ok
+test stratum_server::tests::metrics_initialization ... ok
+test reward_engine::tests::test_record_block ... ok
+test stratum_server::tests::metrics_recording ... ok
+test tx_builder::overflow_tests::test_extreme_fee_rate ... ok
+test reward_engine::tests::test_record_payout ... ok
+test stratum_server::tests::miner_session_creation ... ok
+test stratum_server::tests::share_counters ... ok
+test tx_builder::overflow_tests::test_extreme_value_utxos ... ok
+test tx_builder::tests::build_simple_tx_insufficient_amount_errs ... ok
+test tx_builder::tests::build_simple_tx_no_inputs_errs ... ok
+test mnemonic::tests::test_same_index_produces_same_key_deterministically ... ok
+test tx_builder::tests::build_simple_tx_success ... ok
+test tx_builder::tests::test_builder_with_context ... ok
+test tx_builder::tests::test_coin_selection ... ok
+test tx_builder::tests::test_coin_selection_insufficient ... ok
+test tx_builder::tests::test_context_mismatch_detection ... ok
+test tx_builder::tests::test_compute_sighash ... ok
+test tx_builder::tests::test_transaction_builder ... ok
+test tx_builder::tests::test_different_genesis_different_sighash ... ok
+test tx_builder::overflow_tests::test_many_small_utxos ... ok
+test tx_builder::tests::test_different_networks_different_sighash ... ok
+test utxo::tests::test_apply_transaction ... ok
+test utxo::tests::test_utxo_set_basic ... ok
+test utxo::tests::test_balance_calculation ... ok
+test utxo::tests::test_coinbase_maturity ... ok
+test utxo::tests::test_utxo_set_remove ... ok
+test vardiff::tests::test_should_adjust ... ok
+test vardiff::tests::test_vardiff_decrease ... ok
+test utxo::tests::test_validate_transaction ... ok
+test vardiff::tests::test_vardiff_bounds ... ok
+test vardiff::tests::test_vardiff_increase ... ok
+test wallet::tests::test_bech32m_checksum ... ok
+test wallet::tests::serializable_contains_hex_keys ... ok
+test wallet::tests::test_address_validation ... ok
+test wallet::tests::test_address_encoding ... ok
+test wallet::tests::test_keypair_generation ... ok
+test wallet::tests::test_public_key_hash ... ok
+test wallet::tests::test_testnet_addresses ... ok
+test ws_dashboard::tests::test_miner_info_serialization ... ok
+test ws_dashboard::tests::test_pool_stats_serialization ... ok
+test mnemonic::tests::test_passphrase_changes_derived_keys ... ok
+test wallet::tests::test_sign_verify ... ok
+test mnemonic::tests::test_mnemonic_roundtrip ... ok
+test mnemonic::tests::test_mnemonic_to_keypair_deterministic ... ok
+test wallet::tests::test_public_key_verify ... ok
+test mnemonic::tests::test_passphrase_changes_seed ... ok
+test mnemonic::tests::test_known_mnemonic_produces_consistent_key ... ok
+test wallet::tests::dilithium_key_entropy ... ok
+
+test result: ok. 85 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/block_submit.rs (target/debug/deps/block_submit-3529bd8bcb5b7d74)
+
+running 8 tests
+test test_block_submitter_creation ... ok
+test test_submit_result_types ... ok
+test test_block_submit_reject_no_transactions ... ok
+test test_block_submit_invalid_pow ... ok
+test test_block_submit_reject_invalid_header ... ok
+test test_block_submit_valid_mock ... ok
+test test_block_submit_with_valid_nonce ... ok
+test test_multiple_submissions ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hybrid_miner.rs (target/debug/deps/hybrid_miner-a85b19ab8fbd459d)
+
+running 3 tests
+test mainnet_rejects_hybrid_mode ... ok
+test metrics_track_mining_activity ... ok
+test sha256d_only_miner_works ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/overflow_protection_tests.rs (target/debug/deps/overflow_protection_tests-cadf1877d621566c)
+
+running 1 test
+test overflow_protection_documented ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pool_dashboard.rs (target/debug/deps/pool_dashboard-f0d99dd28f4902af)
+
+running 7 tests
+test test_share_verification_reject ... ok
+test test_share_verification_valid ... ok
+test test_vardiff_bounds ... ok
+test test_vardiff_adjustment_logic ... ok
+test test_ws_broadcast_format ... ok
+test test_metrics_update_after_share ... ok
+test test_block_template_refresh ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/reward_engine.rs (target/debug/deps/reward_engine-9692c41c584b103d)
+
+running 10 tests
+test test_pool_balance_metrics ... ok
+test test_edge_cases ... ok
+test test_payout_recording ... ok
+test test_reward_halving_logic ... ok
+test test_block_persistence_and_height_increment ... ok
+test test_credit_and_settle_rewards ... ok
+test test_metrics_integration ... ok
+test test_miner_reward_accumulation ... ok
+test test_multiple_miners ... ok
+test test_database_persistence ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/stratum_pow_verify.rs (target/debug/deps/stratum_pow_verify-9cc45b7a4c0e62b4)
+
+running 6 tests
+test test_algo_mismatch_detection ... ok
+test test_target_from_bits_conversion ... ok
+test test_share_invalid_too_high_hash ... ok
+test test_share_valid_sha256d_verification_logic ... ok
+test test_share_stale_on_new_template ... ok
+test test_duplicate_detection_logic ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/stratum_server.rs (target/debug/deps/stratum_server-9d3bab861cc41f7c)
+
+running 9 tests
+test stratum_metrics_initialization ... ok
+test stratum_config_defaults ... ok
+test stratum_metrics_recording ... ok
+test stratum_prometheus_format ... ok
+test stratum_server_creation ... ok
+test multiple_miners_tracking ... ok
+test miner_session_lifecycle ... ok
+test metrics_concurrent_updates ... ok
+test stratum_server_lifecycle ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running unittests src/lib.rs (target/debug/deps/bitquan_rpc-d7d80970b093569f)
+
+running 24 tests
+test jwt::config::tests::test_default_config ... ok
+test methods::tests::test_dispatch_unknown_method ... ok
+test jwt::claims::tests::test_claims_creation ... ok
+test methods::tests::test_dispatch_getblockcount ... ok
+test server::dns_rebinding_tests::test_validate_host_allowed ... ok
+test server::dns_rebinding_tests::test_validate_origin ... ok
+test server::dns_rebinding_tests::test_validate_host_rejected ... ok
+test jwt::token::tests::test_token_roundtrip ... ok
+test server::tests::rpc_max_body_returns_413 ... ok
+test server::tests::health_requires_no_auth_and_closes ... ok
+test server::tests::health_not_rate_limited_under_load ... ok
+test server::tests::rpc_body_within_limit_allows_200 ... ok
+test server::tests::rpc_header_flood_returns_431_or_400 ... ok
+test server::tests::rpc_concurrency_smoke ... ok
+test tests::test_error_response ... ok
+test tests::test_response_serialization ... ok
+test tests::test_request_deserialization ... ok
+test server::tests::rpc_rate_limit_sets_retry_after_header ... ok
+test server::tests::rpc_without_auth_passes ... ok
+test jwt::auth::tests::test_jwt_login ... ok
+test server::tests::rpc_rate_limit_429_when_exceeded ... ok
+test server::tests::rpc_rate_limit_recovers_after_time ... ok
+test server::tests::rpc_slow_body_times_out_with_408 ... ok
+test server::tests::test_server_creation ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.98s
+
+     Running tests/jwt_simple_test.rs (target/debug/deps/jwt_simple_test-f7ecfcd6f13da575)
+
+running 12 tests
+test test_jwt_config_default ... ok
+test test_jwt_from_config ... ok
+test test_jwt_auth_invalid_user ... ok
+test test_jwt_refresh_token ... ok
+test test_jwt_refresh_with_access_token_fails ... ok
+test test_jwt_token_claims_structure ... ok
+test test_jwt_auth_add_user ... ok
+test test_jwt_auth_creation ... ok
+test test_jwt_admin_role_check ... ok
+test test_jwt_refresh_token_expiration ... ok
+test test_jwt_auth_invalid_password ... ok
+test test_jwt_token_verification_fails_with_wrong_secret ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.12s
+
+     Running tests/tls_enforcement_tests.rs (target/debug/deps/tls_enforcement_tests-2f36342a2c15e60b)
+
+running 3 tests
+test test_mainnet_config_requires_tls ... ok
+test test_devnet_config_allows_self_signed ... ok
+test test_default_config ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/bitquan_storage-4c00ee72e046ee19)
+
+running 2 tests
+test rocksdb_store::tests::test_utxo_operations ... ok
+test rocksdb_store::tests::test_rocksdb_store_basic ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/recovery_tests.rs (target/debug/deps/recovery_tests-26031a86f0543405)
+
+running 3 tests
+test rocksdb_recovery_tests::test_verify_empty_database ... ok
+test rocksdb_recovery_tests::test_basic_open_and_verify ... ok
+test rocksdb_recovery_tests::test_auto_backup ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/debug/deps/bitquan_types-610c75e75352dcfe)
+
+running 34 tests
+test context::tests::test_network_magic_bytes ... ok
+test context::tests::test_different_networks_different_context ... ok
+test context::tests::test_context_helpers ... ok
+test context::tests::test_different_genesis_different_context ... ok
+test context::tests::test_default_context ... ok
+test context::tests::test_network_names ... ok
+test context::tests::test_tx_context_to_bytes ... ok
+test context::tests::test_tx_context_creation ... ok
+test entropy::tests::test_fill_secure_different_calls ... ok
+test entropy::tests::test_fill_secure ... ok
+test entropy::tests::test_secure_bytes_correct_length ... ok
+test entropy::tests::test_secure_bytes_different_outputs ... ok
+test entropy::tests::test_secure_bytes_not_all_zeros ... ok
+test entropy::tests::test_secure_u64_different_values ... ok
+test entropy::tests::test_secure_u64_nonzero ... ok
+test genesis::tests::test_genesis_block_creation ... ok
+test genesis::tests::test_genesis_coinbase ... ok
+test genesis::tests::test_merkle_root_single ... ok
+test tests::compact_uint_encoded_length_matches_reference_values ... ok
+test genesis::tests::test_genesis_hash_matches_constant ... ok
+test genesis::tests::test_merkle_root_pair ... ok
+test genesis::tests::test_genesis_validation ... ok
+test tests::test_normal_tx_size_calculations_still_work ... ok
+test time::tests::unix_timestamp_is_monotonic_or_zero ... ok
+test validation::tests::rejects_empty_inputs ... ok
+test validation::tests::rejects_duplicate_inputs ... ok
+test validation::tests::rejects_empty_outputs ... ok
+test wire::tests::rejects_non_canonical_compact_uint ... ok
+test wire::tests::test_block_header_roundtrip ... ok
+test wire::tests::test_block_roundtrip ... ok
+test wire::tests::test_transaction_roundtrip ... ok
+test wire::tests::test_compact_uint_roundtrip ... ok
+test tests::test_tx_size_overflow_protection ... ok
+test tests::test_signature_count_overflow ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/serialization_tests.rs (target/debug/deps/serialization_tests-9878f8f82ced477d)
+
+running 2 tests
+test test_transaction_serialization_roundtrip ... ok
+test test_network_id_values ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/bq_crypto-68172134fcdf3398)
+
+running 16 tests
+test tests::test_empty_registry ... ok
+test tests::test_not_implemented_algorithm ... ok
+test tests::test_verify_transaction_with_digest ... ok
+test tests::test_provider_lookup ... ok
+test tests::test_registry_creation ... ok
+test rng::rng_impl::tests::not_all_zero ... ok
+test rng::rng_impl::tests::substream_differs ... ok
+test wallet::secure_types::tests::secure_private_key_exposes_bytes ... ok
+test wallet::secure_types::tests::secure_string_access ... ok
+test rng::rng_impl::tests::unique_16b ... ok
+test wallet::kdf::tests::different_salts_produce_different_keys ... ok
+test wallet::encryption::tests::encrypt_decrypt_roundtrip ... ok
+test wallet::kdf::tests::derive_key_is_deterministic ... ok
+test wallet::encryption::tests::decrypt_with_wrong_password_fails ... ok
+test wallet::keystore::tests::wrong_password_fails ... ok
+test wallet::keystore::tests::keystore_roundtrip ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.78s
+
+     Running tests/entropy_sanity.rs (target/debug/deps/entropy_sanity-cb37c648543edf7e)
+
+running 10 tests
+test test_fill_secure_changes_buffer ... ok
+test test_secure_bytes_not_all_same ... ok
+test test_secure_bytes_not_all_zeros ... ok
+test test_entropy_independence ... ok
+test test_entropy_quality_basic_stats ... ok
+test test_fill_secure_different_calls ... ok
+test test_entropy_is_random ... ok
+test test_secure_u64_different_values ... ok
+test test_secure_bytes_various_lengths ... ok
+test test_secure_u64_nonzero ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/keygen_sign_verify_tests.rs (target/debug/deps/keygen_sign_verify_tests-cc35569054b38a66)
+
+running 8 tests
+test test_deterministic_hashing ... ok
+test test_hash_different_inputs ... ok
+test test_keypair_size_constants ... ok
+test test_verify_wrong_public_key_fails ... ok
+test test_verify_wrong_signature_fails ... ok
+test test_keygen_sign_verify_roundtrip ... ok
+test test_verify_wrong_message_fails ... ok
+test test_multiple_messages_different_signatures ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/main.rs (target/debug/deps/bq_preflight-a8fb1435d4c27d04)
+
+running 2 tests
+test tests::test_find_project_root ... ok
+test tests::test_tcp_probe_localhost ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/bq_stress-4679d2943a68dd1b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/pqc_dilithium_seeded-76bd58857dc177f3)
+
+running 8 tests
+test randombytes::tests::test_randombytes_produces_different_output ... ok
+test randombytes::tests::test_randombytes_fills_correct_length ... ok
+test randombytes::tests::test_randombytes_not_all_zero ... ok
+test ntt::tests::ntt ... ok
+test randombytes::tests::test_randombytes_not_all_same ... ok
+test randombytes::tests::test_deterministic_helper_same_seed_same_output ... ok
+test ntt::tests::invntt_tomont ... ok
+test randombytes::tests::test_deterministic_helper_different_seed_different_output ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/integration.rs (target/debug/deps/integration-ee657c1696a63b5f)
+
+running 2 tests
+test sign_then_verify_valid ... ok
+test sign_then_verify_invalid ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/kat.rs (target/debug/deps/kat-d0c4c2cfb6e1bc62)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/wallet-38f4921eb86aa710)
+
+running 33 tests
+test keystore::tests::invalid_magic_rejected ... ok
+test keystore::tests::kdf_profile_params ... ok
+test keystore::tests::future_version_rejected ... ok
+test keystore::corrupted_file_handling ... ok
+test keystore::decrypt_corrupted_fields ... ok
+test keystore::tests::large_secret_roundtrip ... ok
+test keystore::tests::tamper_cipher_rejected ... ok
+test keystore::tests::rotate_password ... ok
+test multisig::tests::test_add_signature ... ok
+test multisig::tests::test_already_complete_error ... ok
+test multisig::tests::test_create_pending_tx ... ok
+test multisig::tests::test_duplicate_signature_rejected ... ok
+test multisig::tests::test_finalize_insufficient_signatures ... ok
+test multisig::tests::test_finalize_transaction ... ok
+test multisig::tests::test_is_signer ... ok
+test multisig::tests::test_manager_pending_txs ... ok
+test multisig::tests::test_multisig_address_generation ... ok
+test multisig::tests::test_multisig_config_creation ... ok
+test multisig::tests::test_multisig_config_validation ... ok
+test multisig::tests::test_pending_signers ... ok
+test multisig::tests::test_progress_percentage ... ok
+test multisig::tests::test_signatures_needed ... ok
+test multisig::tests::test_unknown_signer_rejected ... ok
+test multisig::tests::test_wallet_manager ... ok
+test backup::tests::test_version_check ... ok
+test backup::tests::test_metadata_preserved ... ok
+test backup::tests::test_tamper_detection ... ok
+test backup::tests::test_file_save_load ... ok
+test backup::tests::test_backup_restore_roundtrip ... ok
+test backup::tests::test_wrong_password_fails ... ok
+test keystore::tests::roundtrip_encrypt_decrypt ... ok
+test keystore::tests::write_and_read_atomic_file ... ok
+test keystore::tests::wrong_password_fails ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.29s
+
+     Running tests/backup_restore_tests.rs (target/debug/deps/backup_restore_tests-22ad45ffee6e3a86)
+
+running 4 tests
+test test_backup_wrong_password_fails ... ok
+test test_backup_save_and_load ... ok
+test test_backup_and_restore_roundtrip ... ok
+test test_backup_network_preservation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.05s
+
+     Running tests/password_rotation_tests.rs (target/debug/deps/password_rotation_tests-3cbc349ac8119795)
+
+running 4 tests
+test test_password_rotation_wrong_old_password ... ok
+test test_password_rotation_persists ... ok
+test test_password_rotation_roundtrip ... ok
+test test_multiple_password_rotations ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.44s
+
+   Doc-tests bitquan_consensus
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests bitquan_mempool
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests bitquan_network
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests bitquan_node
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests bitquan_rpc
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests bitquan_storage
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests bitquan_types
+
+running 3 tests
+test crates/types/src/entropy.rs - entropy::secure_bytes (line 19) ... ok
+test crates/types/src/entropy.rs - entropy::fill_secure (line 34) ... ok
+test crates/types/src/entropy.rs - entropy::secure_u64 (line 50) ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.08s
+
+   Doc-tests bq_crypto
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests pqc_dilithium_seeded
+
+running 4 tests
+test crates/pqc-dilithium-seeded/src/api.rs - api::Keypair::expose_secret (line 24) ... ok
+test crates/pqc-dilithium-seeded/src/api.rs - api::Keypair::sign (line 53) ... ok
+test crates/pqc-dilithium-seeded/src/api.rs - api::Keypair::generate (line 37) ... ok
+test crates/pqc-dilithium-seeded/src/api.rs - api::verify (line 70) ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.60s
+
+   Doc-tests wallet
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

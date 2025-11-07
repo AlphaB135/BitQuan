@@ -3,6 +3,7 @@
 ./.github/PULL_REQUEST_TEMPLATE.md
 ./bindings/ts/README.md
 ./CHANGELOG.md
+./CODE_AUDIT_REPORT.md
 ./CODE_OF_CONDUCT.md
 ./CONTRIBUTING.md
 ./crates/pqc-dilithium-seeded/benches/README.md
@@ -112,6 +113,7 @@
 ./forks/pqc_dilithium/RELEASE.md
 ./forks/pqc_dilithium/www/readme.md
 ./fuzz/README.md
+./MD_CLEANUP_PLAN.md
 ./P2_COMMIT2_SUMMARY.md
 ./PHASE6_COMPLETE.md
 ./PHASE6.5_COMPLETE.md
