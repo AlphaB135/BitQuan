@@ -494,11 +494,11 @@ BitQuan testnet is now available for testing and development!
 
 **Network Details:**
 - Network: testnet
-- P2P Port: 18444
-- RPC Port: 18443
+- P2P Port: 19444
+- RPC Port: 19443
 - Block Explorer: coming soon
 - Faucet: coming soon
 
-> Note: Testnet ports 18444/18443 match Bitcoin testnet defaults. If you also run Bitcoin testnet on the same host, change them in `config/testnet.toml` to avoid conflicts.
+> Note: These ports are offset from Bitcoin testnet defaults (18444/18443) to avoid conflicts when running both on the same host.
 
 For full testnet documentation, see [docs/TESTNET_README.md](docs/TESTNET_README.md)
