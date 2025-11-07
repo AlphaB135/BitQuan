@@ -23,6 +23,9 @@ See also [`docs/address-and-script.md`](./address-and-script.md) for a walkthrou
 | Command | Purpose |
 |---------|---------|
 | `wallet-gen` | Create a Dilithium3 keypair and encrypted keystore. |
+| `wallet-gen-mnemonic` | Generate a BIP39 mnemonic phrase for wallet recovery. |
+| `wallet-from-mnemonic` | Restore a wallet from a BIP39 mnemonic phrase. |
+| `wallet-restore` | Restore a wallet keystore from backup. |
 | `wallet-address` | Show the Bech32m address and pubkey hash from a keystore. |
 | `wallet-sign` | Produce a Dilithium signature over a hex-encoded message. |
 | `wallet-verify` | Verify a signature against a public key (placeholder implementation). |
@@ -31,7 +34,14 @@ See also [`docs/address-and-script.md`](./address-and-script.md) for a walkthrou
 Combined example:
 
 ```bash
+# Generate new wallet
 ./target/release/bitquan-node wallet-gen --output wallet.keystore
+
+# Or generate from BIP39 mnemonic
+./target/release/bitquan-node wallet-gen-mnemonic
+./target/release/bitquan-node wallet-from-mnemonic --phrase "your twelve word mnemonic phrase here..."
+
+# Get address and sign
 ./target/release/bitquan-node wallet-address --keystore wallet.keystore
 ./target/release/bitquan-node wallet-sign --keystore wallet.keystore --message deadbeef
 ```
@@ -58,8 +68,35 @@ SCRIPT_HEX=$(./target/release/bitquan-node script-from-address --address bq1...)
 |---------|---------|
 | `balance` | Scan the local chainstate to sum UTXOs for a script or address. |
 | `check-block` | Validate a serialized block from disk (placeholder). |
+| `verify-db` | Verify RocksDB integrity and optionally create a backup. |
 | `rng` | Display random bytes derived from the consensus RNG (debug). |
 | `build-tx` | Generate a JSON template for a simple 1-in/1-out transaction. |
+
+### Database Verification
+
+The `verify-db` command helps ensure database integrity:
+
+```bash
+# Basic verification
+./target/release/bitquan-node verify-db --path data/chaindata
+
+# Verify with backup
+./target/release/bitquan-node verify-db \
+  --path data/chaindata \
+  --backup \
+  --backup-path backups/$(date +%Y%m%d-%H%M%S)
+
+# Verify and rebuild indices if corruption detected
+./target/release/bitquan-node verify-db \
+  --path data/chaindata \
+  --rebuild
+```
+
+**Options:**
+- `--path` (string, default: `data/chaindata`) – database directory
+- `--backup` (flag) – create backup before verification
+- `--backup-path` (string) – backup directory (required if `--backup`)
+- `--rebuild` (flag) – rebuild indices if corruption is detected
 
 ## Networking & P2P
 
@@ -68,6 +105,22 @@ SCRIPT_HEX=$(./target/release/bitquan-node script-from-address --address bq1...)
 | `p2p-demo` | Local handshake demo running client/server in a single process. |
 | `p2p-server` | Bind a listening node for inbound peers (optionally with RPC when built). |
 | `p2p-connect` | Dial a remote peer and perform a basic handshake. |
+| `rpc-serve` | Start the JSON-RPC server with TLS and JWT authentication. |
+| `jwt-keygen` | Generate a JWT secret key for RPC authentication. |
+
+### RPC Server Setup
+
+```bash
+# Generate JWT secret
+./target/release/bitquan-node jwt-keygen --output data/jwt.secret
+
+# Start RPC server
+./target/release/bitquan-node rpc-serve \
+  --bind 127.0.0.1:28332 \
+  --jwt-secret data/jwt.secret \
+  --tls-cert certs/server.crt \
+  --tls-key certs/server.key
+```
 
 ## Getting Help
 

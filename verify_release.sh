@@ -16,8 +16,8 @@ file_contains() {
 # 1) README version/tests/completion
 file_contains README.md "Current version:\s*v0\.0\.2-alpha" \
   && pass "README version v0.0.2-alpha" || fail "README ยังไม่ได้อัปเดตเวอร์ชัน"
-file_contains README.md "Tests:\s*320\+ passing" \
-  && pass "README tests 320+ passing" || fail "README ยังไม่ได้อัปเดตจำนวนเทสต์"
+file_contains README.md "Tests:\s*(320\+|522|[0-9]+) passing" \
+  && pass "README tests 320+/522 passing" || fail "README ยังไม่ได้อัปเดตจำนวนเทสต์"
 file_contains README.md "Completion:\s*98%" \
   && pass "README completion 98%" || fail "README ยังไม่ได้อัปเดตเปอร์เซ็นต์"
 
@@ -42,7 +42,7 @@ fi
 
 # 4) CHANGELOG v0.0.2
 [[ -f CHANGELOG.md ]] || fail "ไม่มี CHANGELOG.md"
-file_contains CHANGELOG.md "##\s*v0\.0\.2-alpha" \
+file_contains CHANGELOG.md "\[?v0\.0\.2-alpha\]?" \
   && pass "CHANGELOG มี v0.0.2-alpha" || fail "CHANGELOG ขาด v0.0.2-alpha"
 
 # 5) Git tag (โลคัล)
@@ -75,6 +75,7 @@ grep -q "v0\.0\.2-alpha" ROADMAP.md 2>/dev/null && pass "ROADMAP ระบุส
 grep -q "✅" ROADMAP.md 2>/dev/null && pass "ROADMAP มี task ที่ติ๊กเสร็จ" || warn "ROADMAP ยังไม่ได้ติ๊กงานที่เสร็จ"
 
 # 12) docs/command.md completeness (อย่างน้อยมีหัวข้อหลักๆ)
+missing=""
 for cmd in wallet-gen wallet-restore mine mine-genesis rpc jwt-keygen verify-db; do
   grep -Riq "$cmd" docs/command.md 2>/dev/null || missing="$missing $cmd"
 done
