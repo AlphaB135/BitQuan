@@ -271,7 +271,7 @@ Hooks check:
 
 ## 🚀 Release Process
 
-See [RELEASE.md](../../RELEASE.md) for complete release procedures.
+See [RELEASE.md](../guides/RELEASE.md) for complete release procedures.
 
 ### Version Bumping
 
@@ -294,7 +294,7 @@ git push origin main --tags
 
 ### Reproducible Builds
 
-See [REPRODUCIBILITY.md](../../REPRODUCIBILITY.md)
+See [REPRODUCIBILITY.md](../security/REPRODUCIBILITY.md)
 
 ```bash
 # Build reproducibly
@@ -306,7 +306,7 @@ See [REPRODUCIBILITY.md](../../REPRODUCIBILITY.md)
 
 ## 🤝 Contributing
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines.
+See [CONTRIBUTING.md](../guides/CONTRIBUTING.md) for contribution guidelines.
 
 ### Quick Checklist
 

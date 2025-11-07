@@ -128,19 +128,19 @@ BitQuan is a post-quantum resistant blockchain implementation combining Bitcoin'
    - [`docs/AUDIT_SUMMARY.md`](./AUDIT_SUMMARY.md) - Complete audit results
    - [`docs/ENTROPY_AUDIT.md`](./ENTROPY_AUDIT.md) - RNG security verification
    - [`docs/SECURITY.md`](../SECURITY.md) - Security policies
-   - [`docs/PANIC_SAFETY.md`](./PANIC_SAFETY.md) - Error handling strategy
+   - [`docs/PANIC_SAFETY.md`](../dev/PANIC_SAFETY.md) - Error handling strategy
 
 2. **Technical Specifications**
-   - [`docs/CONSENSUS_ECON.md`](./CONSENSUS_ECON.md) - Consensus and economics
+   - [`docs/CONSENSUS_ECON.md`](../concepts/CONSENSUS_ECON.md) - Consensus and economics
    - [`docs/spec/`](./spec/) - Protocol specifications
-   - [`docs/MULTISIG_GUIDE.md`](./MULTISIG_GUIDE.md) - Multi-signature implementation
+   - [`docs/MULTISIG_GUIDE.md`](../MULTISIG_GUIDE.md) - Multi-signature implementation
 
 3. **Testing & Quality**
-   - [`docs/COVERAGE.md`](./COVERAGE.md) - Test coverage report
-   - [`docs/fuzzing/FUZZING_STATUS.md`](./fuzzing/FUZZING_STATUS.md) - Fuzzing roadmap
+   - [`docs/COVERAGE.md`](../dev/COVERAGE.md) - Test coverage report
+   - [`docs/fuzzing/FUZZING_STATUS.md`](../fuzzing/FUZZING_STATUS.md) - Fuzzing roadmap
 
 4. **Network Configuration**
-   - [`docs/TESTNET_README.md`](../testnet/README.md) - Testnet deployment
+   - [`docs/TESTNET_README.md`](../README.md) - Testnet deployment
    - [`config/testnet.toml`](../config/testnet.toml) - Network parameters
 
 ### Audit Logs

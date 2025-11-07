@@ -209,7 +209,7 @@ gap_limit = 20
 ## See Also
 
 - [bitquan-node](./bitquan-node.md) - Full node operations
-- [Multi-Signature Guide](../guides/MULTISIG_GUIDE.md)
+- [Multi-Signature Guide](../MULTISIG_GUIDE.md)
 - [Security Policy](../security/SECURITY.md)
 
 ---

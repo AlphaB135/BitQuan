@@ -393,6 +393,6 @@ let expected_reward = 50_0000_0000 >> halvings;
 ---
 
 For more information, see:
-- [API Reference](../rpc/API_REFERENCE.md)
+- [API Reference](rpc/API_REFERENCE.md)
 - [Metrics Guide](METRICS.md)
 - [Security Policy](../SECURITY.md)

@@ -156,4 +156,4 @@ cargo build --release --features rocksdb-backend -j $(nproc)
 
 - [Quick Start Guide](QUICKSTART.md) - Start using BitQuan
 - [Architecture Overview](../architecture/overview.md) - Understand the system
-- [Contributing Guide](../../CONTRIBUTING.md) - Contribute to development
+- [Contributing Guide](CONTRIBUTING.md) - Contribute to development

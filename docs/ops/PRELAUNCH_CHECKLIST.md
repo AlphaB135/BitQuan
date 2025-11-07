@@ -356,12 +356,12 @@ curl -v http://localhost:8545/rpc  # Should get 401
 
 ## References
 
-- [Genesis Documentation](GENESIS.md)
+- [Genesis Documentation](../concepts/GENESIS.md)
 - [Security Policy](../SECURITY.md)
-- [Metrics Guide](METRICS.md)
+- [Metrics Guide](../METRICS.md)
 - [Observability](OBSERVABILITY.md)
 - [Runbook](RUNBOOK.md)
-- [Audit Summary](AUDIT_SUMMARY.md)
+- [Audit Summary](../security/AUDIT_SUMMARY.md)
 
 ## Contact
 

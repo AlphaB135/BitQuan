@@ -94,6 +94,6 @@
 
 ---
 ## 🗒️ บันทึกอ้างอิง
-- Release: [v0.0.2-alpha](RELEASE_NOTES_v0.0.2-alpha.md)
-- Entropy Audit: [docs/ENTROPY_AUDIT.md](docs/ENTROPY_AUDIT.md)
+- Release: [v0.0.2-alpha](../releases/RELEASE_NOTES_v0.0.2-alpha.md)
+- Entropy Audit: [docs/ENTROPY_AUDIT.md](../security/ENTROPY_AUDIT.md)
 - Security Status: README.md (ส่วน Security Status)

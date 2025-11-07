@@ -244,7 +244,7 @@ bq-stress --max-bandwidth 100Mbps tx-spam --tps 200
 
 - [Load Testing Guide](../testnet/LOAD_TESTING.md)
 - [Operations Runbook](../ops/RUNBOOK.md)
-- [Testnet Setup](../testnet/README.md)
+- [Testnet Setup](../README.md)
 
 ---
 

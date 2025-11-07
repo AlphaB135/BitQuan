@@ -536,9 +536,9 @@ nginx:
 
 ## References
 
-- [Stratum Protocol Documentation](../guides/STRATUM.md)
+- [Stratum Protocol Documentation](guides/STRATUM.md)
 - [Metrics Reference](./METRICS.md)
-- [Testnet Guide](../testnet/README.md)
+- [Testnet Guide](README.md)
 - [Grafana Documentation](https://grafana.com/docs/)
 - [Prometheus Querying](https://prometheus.io/docs/prometheus/latest/querying/basics/)
 

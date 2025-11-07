@@ -126,8 +126,8 @@ The genesis block includes a post-quantum signature using Dilithium3 to prove au
 ## References
 
 - [Consensus Economics](CONSENSUS_ECON.md)
-- [Pre-Launch Checklist](PRELAUNCH_CHECKLIST.md)
-- [Network Specification](spec/network.md)
+- [Pre-Launch Checklist](../ops/PRELAUNCH_CHECKLIST.md)
+- [Network Specification](network.md)
 - [Security Policy](../SECURITY.md)
 
 ---

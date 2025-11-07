@@ -369,7 +369,7 @@ RUST_LOG=bitquan_node=info ./target/release/bitquan-node pool
 - Track share acceptance rates
 - Monitor per-miner statistics
 
-See [DASHBOARD.md](./DASHBOARD.md) for complete Grafana setup instructions.
+See [DASHBOARD.md](../DASHBOARD.md) for complete Grafana setup instructions.
 
 ---
 

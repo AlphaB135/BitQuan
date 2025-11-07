@@ -237,7 +237,7 @@ cargo test -- --nocapture
 
 ## Next Steps
 
-1. Read the [Architecture Documentation](docs/architecture.md)
+1. Read the [Architecture Documentation](architecture.md)
 2. Review [BQIP Proposals](docs/bqips/)
 3. Check [Contributing Guidelines](CONTRIBUTING.md)
 4. Join the community (Discord/Telegram)

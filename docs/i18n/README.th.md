@@ -18,10 +18,10 @@ cargo test -p bq-crypto
 ```
 
 ## เอกสาร
-- [ภาพรวมสถาปัตย์](docs/architecture/overview.md)
-- [การกำกับดูแลโครงการ](docs/GOVERNANCE.md)
+- [ภาพรวมสถาปัตย์](../architecture/overview.md)
+- [การกำกับดูแลโครงการ](../governance/GOVERNANCE.md)
 - [นโยบายความปลอดภัย](SECURITY.md)
-- [กระบวนการออกเวอร์ชัน](RELEASE.md)
+- [กระบวนการออกเวอร์ชัน](../guides/RELEASE.md)
 
 ---
 
