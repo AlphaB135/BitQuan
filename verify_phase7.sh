@@ -45,7 +45,7 @@ fi
 
 # 4) CHANGELOG v0.0.2
 [[ -f CHANGELOG.md ]] || fail "Missing CHANGELOG.md"
-file_contains CHANGELOG.md "##\s*\[*v0\.0\.2-alpha|\[0\.0\.2\])" \
+file_contains CHANGELOG.md "##\s*\[*v0\.0\.2-alpha" \
   && pass "CHANGELOG has v0.0.2-alpha" || fail "CHANGELOG missing v0.0.2-alpha"
 
 # 5) Git tag (local)
@@ -82,12 +82,12 @@ fi
 # 12) Config
 [[ -f config/testnet.toml ]] && pass "config/testnet.toml exists" || warn "Missing config/testnet.toml"
 
-# 13) Port conflict check
+# 13) Port conflict check (check actual port assignments, not comments)
 if [[ -f config/testnet.toml ]]; then
-  if grep -Eq "(^|[^0-9])18444([^0-9]|$)" config/testnet.toml && grep -Eq "(^|[^0-9])18443([^0-9]|$)" config/testnet.toml; then
-    warn "Testnet ports 18444/18443 conflict with Bitcoin testnet—consider changing or warning in README"
+  if grep "^p2p_port\|^rpc_port" config/testnet.toml | grep -Eq "18444|18443"; then
+    warn "Testnet uses Bitcoin default ports (18444/18443)—may conflict if both running"
   else
-    pass "Testnet ports do not conflict with Bitcoin testnet"
+    pass "Testnet ports configured to avoid Bitcoin testnet conflicts"
   fi
 fi
 
