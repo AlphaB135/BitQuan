@@ -36,12 +36,14 @@ struct ShareJob {
     algo: PowAlgo,
     template: BlockTemplate,
     nonce: u64,
+    #[allow(dead_code)]
     submitted_at: Instant,
 }
 
 /// Share verification result from worker pool.
 #[derive(Debug, Clone)]
 struct ShareResult {
+    #[allow(dead_code)]
     session_id: Uuid,
     peer_key: String,
     verdict: ShareVerdict,
@@ -605,7 +607,10 @@ impl StratumServer {
                         match rx_lock.recv().await {
                             Some(j) => j,
                             None => {
-                                println!("ShareVerifier worker {}: job channel closed, exiting", worker_id);
+                                println!(
+                                    "ShareVerifier worker {}: job channel closed, exiting",
+                                    worker_id
+                                );
                                 break;
                             }
                         }
@@ -616,7 +621,7 @@ impl StratumServer {
                     let peer_key = job.peer_key.clone();
                     let template = job.template.clone();
                     let nonce = job.nonce;
-                    let algo = job.algo;
+                    let _algo = job.algo; // Used in spawn_blocking closure
 
                     // Perform CPU-heavy PoW verification in spawn_blocking
                     let result = tokio::task::spawn_blocking(move || {
@@ -635,15 +640,24 @@ impl StratumServer {
                             };
                             // Send result back; if channel closed, worker exits
                             if tx.send(share_result).await.is_err() {
-                                eprintln!("ShareVerifier worker {}: result channel closed", worker_id);
+                                eprintln!(
+                                    "ShareVerifier worker {}: result channel closed",
+                                    worker_id
+                                );
                                 break;
                             }
                         }
                         Ok(Err(e)) => {
-                            eprintln!("ShareVerifier worker {}: verification error: {}", worker_id, e);
+                            eprintln!(
+                                "ShareVerifier worker {}: verification error: {}",
+                                worker_id, e
+                            );
                         }
                         Err(e) => {
-                            eprintln!("ShareVerifier worker {}: spawn_blocking join error: {}", worker_id, e);
+                            eprintln!(
+                                "ShareVerifier worker {}: spawn_blocking join error: {}",
+                                worker_id, e
+                            );
                         }
                     }
                 }
@@ -761,6 +775,7 @@ impl StratumServer {
 }
 
 /// Handle a single Stratum client connection.
+#[allow(clippy::too_many_arguments)]
 async fn handle_client(
     stream: TcpStream,
     addr: SocketAddr,
@@ -841,6 +856,7 @@ async fn handle_client(
 }
 
 /// Handle a JSON-RPC request from a miner.
+#[allow(clippy::too_many_arguments)]
 async fn handle_request(
     request: JsonRpcRequest,
     peer_key: &str,
@@ -927,10 +943,7 @@ async fn handle_request(
                     JsonRpcResponse {
                         id: request.id,
                         result: Some(serde_json::json!(false)),
-                        error: Some(JsonRpcError {
-                            code,
-                            message: msg,
-                        }),
+                        error: Some(JsonRpcError { code, message: msg }),
                     }
                 }
             }
@@ -950,6 +963,7 @@ async fn handle_request(
 }
 
 /// Handle a share submission with REAL PoW verification.
+#[allow(clippy::too_many_arguments)]
 async fn handle_submit(
     peer_key: &str,
     params: &[Value],
