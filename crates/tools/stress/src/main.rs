@@ -232,7 +232,7 @@ async fn pool_shares(
     let mut handles = vec![];
 
     for miner_id in 0..miners {
-        let host = host.to_string();
+        let _host = host.to_string();
         let stats = Arc::clone(&stats);
 
         let handle = tokio::spawn(async move {
