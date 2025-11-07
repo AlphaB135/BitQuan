@@ -3303,7 +3303,6 @@ fn run_stratum_server(
     })
 }
 
-
 /// Verify genesis block hash and configuration
 fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
     use std::fs;
