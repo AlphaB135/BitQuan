@@ -204,7 +204,8 @@ impl MinerSession {
 
         // Assign cryptographically secure extranonce1
         let mut extranonce1_bytes = [0u8; 4];
-        getrandom::getrandom(&mut extranonce1_bytes).expect("Failed to generate secure extranonce1");
+        getrandom::getrandom(&mut extranonce1_bytes)
+            .expect("Failed to generate secure extranonce1");
         let extranonce1 = u32::from_le_bytes(extranonce1_bytes);
 
         Self {

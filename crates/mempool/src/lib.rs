@@ -355,7 +355,10 @@ impl Default for Mempool {
         Self::new().unwrap_or_else(|e| {
             // FATAL: RNG failure at this point indicates system-level issues
             // In production, this should never happen, but we provide a fallback
-            eprintln!("WARNING: RNG initialization failed during Mempool::default(): {}", e);
+            eprintln!(
+                "WARNING: RNG initialization failed during Mempool::default(): {}",
+                e
+            );
             // Create a minimal mempool without RNG for graceful degradation
             // Use deterministic seed for fallback to avoid panic
             let rng = RngService::new().unwrap_or_else(|_| {
@@ -371,7 +374,7 @@ impl Default for Mempool {
                 // Derive a stream for mempool use
                 temp_service.derive_stream("mempool_fallback")
             });
-            
+
             Self {
                 entries: BTreeMap::new(),
                 rng,
@@ -767,8 +770,8 @@ mod tests {
             Err(e) => {
                 // Log unexpected error type for debugging
                 eprintln!("Unexpected error type in test: {:?}", e);
-                // Return a more descriptive error instead of panicking
-                bitquan_types::Error::Invalid(format!("Unexpected error type: {:?}", e))
+                // Panic with descriptive error for test failure
+                panic!("Unexpected error type: {:?}", e);
             }
         }
     }

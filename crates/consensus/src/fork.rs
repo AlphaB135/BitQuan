@@ -402,7 +402,7 @@ impl ReorgInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     // Allow unwrap/expect in test code for simplicity
     #[allow(clippy::unwrap_used)]
     #[allow(clippy::expect_used)]
@@ -425,7 +425,8 @@ mod tests {
 
         // Add genesis
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).expect("genesis should be valid");
+        fc.add_genesis(genesis.clone())
+            .expect("genesis should be valid");
 
         assert_eq!(fc.height(), 0);
 

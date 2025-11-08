@@ -62,9 +62,10 @@ impl PoolDatabase {
     /// Helper to acquire mutex lock with proper error handling.
     fn lock_conn(&self) -> SqlResult<std::sync::MutexGuard<'_, Connection>> {
         self.conn.lock().map_err(|e| {
-            SqlError::ToSqlConversionFailure(Box::new(std::io::Error::other(
-                format!("database mutex poisoned: {}", e),
-            )))
+            SqlError::ToSqlConversionFailure(Box::new(std::io::Error::other(format!(
+                "database mutex poisoned: {}",
+                e
+            ))))
         })
     }
 

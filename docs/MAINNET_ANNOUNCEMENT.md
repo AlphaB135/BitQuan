@@ -1,8 +1,8 @@
-# 🚀 BitQuan v1.0.0 Mainnet Launch Announcement
+# BitQuan v1.0.0 Mainnet Launch Announcement
 
-**Launch Date**: TBD  
-**Version**: v1.0.0  
-**Network**: Mainnet (Magic: `0xe8f3e1e3`)
+**Release Date:** TBD  
+**Version:** v1.0.0  
+**Network:** Mainnet
 
 ---
 

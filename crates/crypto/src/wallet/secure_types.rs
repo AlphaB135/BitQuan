@@ -87,14 +87,14 @@ impl SecurePrivateKey {
             #[cfg(all(unix, feature = "memory-locking"))]
             memory_size: 0,
         };
-        
+
         #[cfg(all(unix, feature = "memory-locking"))]
         {
             secure.lock_memory().unwrap_or_else(|e| {
                 eprintln!("Warning: Failed to lock memory: {}", e);
             });
         }
-        
+
         secure
     }
 
