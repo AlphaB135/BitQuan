@@ -1,30 +1,121 @@
-# BitQuan Testnet Configuration Example
-# Faster blocks, lower difficulty for testing
+# BitQuan Public Testnet Configuration
+# Network: testnet
+# Purpose: Public testing and development
 
 [network]
+# Network identifier
 id = "testnet"
-listen_addr = "0.0.0.0:18333"
-rpc_addr = "127.0.0.1:18332"
 
-[rpc]
-require_tls = false
-max_connections = 100
-max_connections_per_ip = 5
+# Genesis block hash (auto-generated from genesis.json)
+# This uniquely identifies the testnet chain
+genesis_hash = "0000000000000000000000000000000000000000000000000000000000000000"
 
-[rpc.jwt]
-secret_file = "./testnet-jwt.secret"
-algorithm = "HS256"
-expiration_seconds = 7200
+# Network ports
+# Note: Changed from 18444/18443 to avoid conflict with Bitcoin testnet
+# If you need to run both on the same machine, keep these custom ports
+p2p_port = 19444
+rpc_port = 19443
+
+# Bootstrap nodes for initial peer discovery
+bootstrap_nodes = [
+    "node1.bitquan.dev:19444",
+    "node2.bitquan.dev:19444",
+]
+
+# Initial difficulty (easier than mainnet for testing)
+difficulty_bits = "0x1d00ffff"
+
+# Block target time (600 seconds = 10 minutes)
+block_interval_seconds = 600
+
+[consensus]
+# ASERT difficulty adjustment parameters
+asert_half_life = 172800  # 2 days in seconds
+
+# BurstGuard parameters
+burst_guard_enabled = true
+burst_guard_threshold = 1.5  # Trigger at 150% of normal rate
+
+# Maximum block size (in weight units)
+max_block_weight = 4000000
 
 [mempool]
-max_weight = 100_000_000
-min_relay_fee_rate = 1
+# Maximum mempool size in bytes (100 MB for testnet)
+max_size_bytes = 104857600
 
-[p2p]
-max_peers = 50
-handshake_timeout = 10
+# Minimum relay fee (qbits per weight unit)
+min_relay_fee_per_wu = 1
+
+# Maximum transaction size
+max_tx_size = 100000
+
+[rpc]
+# RPC server bind address
+bind = "127.0.0.1:19443"
+
+# Enable RPC authentication
+auth_enabled = true
+
+# JWT secret (should be generated per-node)
+jwt_secret_file = "data/testnet/jwt.secret"
 
 [mining]
-enabled = true
-# Lower difficulty for testnet
-target_block_time = 60  # 1 minute instead of 10
+# Coinbase maturity (blocks before coinbase can be spent)
+coinbase_maturity = 100
+
+# Block reward (in satoshis / qbits)
+initial_block_reward = 5000000000  # 50 BQ
+
+# Halving interval (blocks)
+halving_interval = 210000
+
+[wallet]
+# Default keystore encryption
+keystore_kdf_mem_kib = 65536
+keystore_kdf_time_cost = 3
+keystore_kdf_parallelism = 1
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Log to file
+log_file = "data/testnet/node.log"
+
+# Log rotation
+max_log_size_mb = 100
+max_log_files = 10
+
+[storage]
+# Database path
+db_path = "data/testnet/chainstate"
+
+# Cache size in MB
+cache_size_mb = 512
+
+[network.limits]
+# Connection limits
+max_inbound_peers = 125
+max_outbound_peers = 8
+
+# Message size limits
+max_message_size = 33554432  # 32 MB
+
+# Bandwidth limits (bytes per second)
+max_upload_bytes_per_sec = 1048576    # 1 MB/s
+max_download_bytes_per_sec = 5242880  # 5 MB/s
+
+[testnet]
+# Testnet-specific features
+allow_mining_without_peers = true
+fast_sync_enabled = true
+checkpoint_enabled = false
+
+# Faucet integration
+faucet_url = "https://faucet.bitquan.dev"
+
+# Explorer integration
+explorer_url = "https://explorer.bitquan.dev"
+
+# Reset testnet periodically (optional)
+reset_interval_blocks = 0  # 0 = never reset

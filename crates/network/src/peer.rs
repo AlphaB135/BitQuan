@@ -368,16 +368,16 @@ impl PeerManager {
 
     /// Helper to lock peers mutex.
     fn lock_peers(&self) -> Result<std::sync::MutexGuard<Vec<Peer>>, P2pError> {
-        self.peers.lock().map_err(|_| {
-            P2pError::ConnectionError("peer list mutex poisoned".to_string())
-        })
+        self.peers
+            .lock()
+            .map_err(|_| P2pError::ConnectionError("peer list mutex poisoned".to_string()))
     }
 
     /// Helper to lock height mutex.
     fn lock_height(&self) -> Result<std::sync::MutexGuard<u64>, P2pError> {
-        self.current_height.lock().map_err(|_| {
-            P2pError::ConnectionError("height mutex poisoned".to_string())
-        })
+        self.current_height
+            .lock()
+            .map_err(|_| P2pError::ConnectionError("height mutex poisoned".to_string()))
     }
 
     /// Updates the current blockchain height.

@@ -1,0 +1,85 @@
+# Security
+- name: security
+  color: d73a4a
+  description: Security vulnerability or concern
+
+- name: security-audit
+  color: ff6b6b
+  description: Security audit finding
+
+# Type
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+
+- name: feature
+  color: a2eeef
+  description: New feature or enhancement
+
+- name: documentation
+  color: 0075ca
+  description: Documentation only changes
+
+# Priority
+- name: critical
+  color: b60205
+  description: Production breaking issue
+
+- name: high
+  color: d93f0b
+  description: High priority
+
+- name: medium
+  color: fbca04
+  description: Medium priority
+
+- name: low
+  color: 0e8a16
+  description: Low priority
+
+# Status
+- name: needs-triage
+  color: ededed
+  description: New issue needing review
+
+- name: in-progress
+  color: c2e0c6
+  description: Work in progress
+
+- name: blocked
+  color: e99695
+  description: Blocked by another issue
+
+# Area
+- name: consensus
+  color: 1d76db
+  description: Consensus rules
+
+- name: crypto
+  color: 5319e7
+  description: Cryptography
+
+- name: network
+  color: 0052cc
+  description: P2P networking
+
+- name: rpc
+  color: 006b75
+  description: JSON-RPC API
+
+- name: wallet
+  color: c5def5
+  description: Wallet functionality
+
+# Meta
+- name: good-first-issue
+  color: 7057ff
+  description: Good for newcomers
+
+- name: help-wanted
+  color: 008672
+  description: Extra attention needed
+
+- name: breaking-change
+  color: ff0000
+  description: Breaking API change

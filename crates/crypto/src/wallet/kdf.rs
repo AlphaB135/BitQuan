@@ -68,8 +68,7 @@ impl KeyDerivation {
     /// Generates a fresh 32-byte salt using the OS RNG.
     pub fn generate_salt() -> Result<[u8; 32], KdfError> {
         let mut salt = [0u8; 32];
-        getrandom::getrandom(&mut salt)
-            .map_err(|e| KdfError::RngFailure(e.to_string()))?;
+        getrandom::getrandom(&mut salt).map_err(|e| KdfError::RngFailure(e.to_string()))?;
         Ok(salt)
     }
 

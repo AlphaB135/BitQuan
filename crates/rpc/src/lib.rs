@@ -8,6 +8,7 @@ pub use ipnetwork::IpNetwork;
 
 pub mod jwt;
 pub mod methods;
+pub mod metrics;
 pub mod server;
 pub mod tls;
 
