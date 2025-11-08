@@ -416,7 +416,7 @@ mod tests {
         let err = transaction_sighash(&tx, &test_ctx).unwrap_err();
         match err {
             Error::Invalid(msg) => assert!(msg.contains("network mismatch")),
-            other => panic!("unexpected error: {other:?}"),
+            other => return Err(Error::Invalid(format!("unexpected error: {other:?}"))),
         }
     }
 }

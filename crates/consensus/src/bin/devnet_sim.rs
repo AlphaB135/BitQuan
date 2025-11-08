@@ -126,7 +126,10 @@ fn main() -> Result<()> {
 
     for (seg_index, segment) in segments.iter().enumerate() {
         for _ in 0..segment.blocks {
-            let prev = blocks.last().expect("genesis block present");
+            let prev = match blocks.last() {
+                Some(b) => b,
+                None => return Err(Error::Invalid("genesis block missing")),
+            };
 
             let difficulty_ratio = baseline_target / current_target;
             let mean_interval =
