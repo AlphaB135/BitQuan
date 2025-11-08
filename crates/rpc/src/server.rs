@@ -1359,7 +1359,7 @@ fn take_token(
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     config: &RpcConfig,
 ) -> std::result::Result<(), u64> {
-    let mut map = limiter.lock().map_err(|_| 0)?;
+    let mut map = limiter.lock().map_err(|_| 0u64)?;
     let bucket = map.entry(ip).or_insert_with(|| TokenBucket {
         tokens: config.rl_burst as f64,
         last: Instant::now(),

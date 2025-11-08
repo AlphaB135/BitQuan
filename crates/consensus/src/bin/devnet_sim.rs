@@ -128,7 +128,7 @@ fn main() -> Result<()> {
         for _ in 0..segment.blocks {
             let prev = match blocks.last() {
                 Some(b) => b,
-                None => return Err(Error::Invalid("genesis block missing")),
+                None => return Err(Error::Invalid("genesis block missing".into())),
             };
 
             let difficulty_ratio = baseline_target / current_target;
