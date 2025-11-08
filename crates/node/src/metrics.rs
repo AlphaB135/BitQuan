@@ -93,11 +93,15 @@ impl MiningMetrics {
         }
 
         let now = Instant::now();
-        let mut last_times = self.last_block_time.write().unwrap();
+        let Ok(mut last_times) = self.last_block_time.write() else {
+            return; // Lock poisoned, skip metrics update
+        };
 
         if let Some(last_time) = last_times.get(&algo) {
             let duration = now.duration_since(*last_time);
-            let mut durations = self.block_durations.write().unwrap();
+            let Ok(mut durations) = self.block_durations.write() else {
+                return; // Lock poisoned, skip metrics update
+            };
             durations.entry(algo).or_default().push(duration);
 
             // Keep only last 100 durations
@@ -151,7 +155,7 @@ impl MiningMetrics {
 
     /// Get average block time for algorithm in seconds.
     pub fn get_avg_block_time(&self, algo: PowAlgo) -> Option<f64> {
-        let durations = self.block_durations.read().unwrap();
+        let durations = self.block_durations.read().ok()?;
         if let Some(list) = durations.get(&algo) {
             if list.is_empty() {
                 return None;

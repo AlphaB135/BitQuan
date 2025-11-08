@@ -45,7 +45,7 @@ impl PersistentPeer {
     pub fn new(addr: String) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         Self {
@@ -61,7 +61,7 @@ impl PersistentPeer {
     pub fn mark_seen(&mut self) {
         self.last_seen = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
     }
 
@@ -88,7 +88,7 @@ impl PersistentPeer {
         // Age penalty (prefer recently seen peers)
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
         let age_secs = now.saturating_sub(self.last_seen);
         let age_penalty = 1.0 / (1.0 + (age_secs as f64 / 3600.0)); // Decay over hours
@@ -100,7 +100,7 @@ impl PersistentPeer {
     pub fn is_stale(&self, timeout_secs: u64) -> bool {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         now.saturating_sub(self.last_seen) > timeout_secs
@@ -169,7 +169,7 @@ impl PeerBook {
             .map(|p| (p.addr.clone(), p.score()))
             .collect();
 
-        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         scored
             .into_iter()
             .take(limit)

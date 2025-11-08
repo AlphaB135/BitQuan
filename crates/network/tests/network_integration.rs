@@ -35,13 +35,13 @@ fn test_broadcast_block_to_peers() {
     assert!(propagator.should_propagate_block(block_hash));
 
     // Mark as propagated
-    propagator.mark_block_propagated(block_hash);
+    propagator.mark_block_propagated(block_hash).unwrap();
 
     // Should not propagate again
     assert!(!propagator.should_propagate_block(block_hash));
 
     // Check stats
-    let stats = propagator.stats();
+    let stats = propagator.stats().unwrap();
     assert_eq!(stats.blocks_broadcast, 1);
 }
 
@@ -52,16 +52,16 @@ fn test_duplicate_block_filtering() {
     let hash2 = [2u8; 32];
 
     // Receive first block
-    assert!(propagator.mark_block_received(hash1));
+    assert!(propagator.mark_block_received(hash1).unwrap());
 
     // Receive second block
-    assert!(propagator.mark_block_received(hash2));
+    assert!(propagator.mark_block_received(hash2).unwrap());
 
     // Try to receive hash1 again (duplicate)
-    assert!(!propagator.mark_block_received(hash1));
+    assert!(!propagator.mark_block_received(hash1).unwrap());
 
     // Check stats
-    let stats = propagator.stats();
+    let stats = propagator.stats().unwrap();
     assert_eq!(stats.blocks_received, 2);
     assert_eq!(stats.blocks_rejected, 1);
 }
@@ -106,21 +106,21 @@ fn test_metrics_update_on_block_event() {
     // Simulate receiving blocks
     for i in 0..10u8 {
         let hash = [i; 32];
-        propagator.mark_block_received(hash);
+        let _ = propagator.mark_block_received(hash);
     }
 
     // Check metrics
-    let stats = propagator.stats();
+    let stats = propagator.stats().unwrap();
     assert_eq!(stats.blocks_received, 10);
     assert_eq!(stats.blocks_rejected, 0);
 
     // Simulate broadcasting blocks
     for i in 0..5u8 {
         let hash = [i + 100; 32];
-        propagator.mark_block_propagated(hash);
+        let _ = propagator.mark_block_propagated(hash);
     }
 
-    let stats = propagator.stats();
+    let stats = propagator.stats().unwrap();
     assert_eq!(stats.blocks_broadcast, 5);
 }
 
@@ -258,15 +258,15 @@ fn test_propagation_stats_reset() {
 
     // Generate some stats
     for i in 0..5u8 {
-        propagator.mark_block_received([i; 32]);
+        let _ = propagator.mark_block_received([i; 32]);
     }
 
-    let stats = propagator.stats();
+    let stats = propagator.stats().unwrap();
     assert_eq!(stats.blocks_received, 5);
 
     // Reset
-    propagator.reset_stats();
+    propagator.reset_stats().unwrap();
 
-    let stats = propagator.stats();
+    let stats = propagator.stats().unwrap();
     assert_eq!(stats.blocks_received, 0);
 }

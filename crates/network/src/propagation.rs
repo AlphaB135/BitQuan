@@ -1,7 +1,6 @@
 //! Block and transaction propagation across the P2P network.
 
-use crate::protocol::{InvType, InvVector, Message, MessageEnvelope};
-use bitquan_types::Result;
+use crate::{protocol::{InvType, InvVector, Message, MessageEnvelope}, NetworkError, Result};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
@@ -27,42 +26,42 @@ impl SeenFilter {
     }
 
     /// Check if a block hash was seen, and mark it if not.
-    pub fn mark_block_seen(&self, hash: [u8; 32]) -> bool {
-        let mut seen = self.seen_blocks.lock().expect("propagation lock poisoned");
+    pub fn mark_block_seen(&self, hash: [u8; 32]) -> Result<bool> {
+        let mut seen = self.seen_blocks.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("seen_blocks: {}", e)))?;
 
         // If at capacity, clear oldest (simple eviction)
         if seen.len() >= self.max_items {
             seen.clear();
         }
 
-        seen.insert(hash)
+        Ok(seen.insert(hash))
     }
 
     /// Check if a transaction hash was seen, and mark it if not.
-    pub fn mark_tx_seen(&self, hash: [u8; 32]) -> bool {
-        let mut seen = self.seen_txs.lock().expect("propagation lock poisoned");
+    pub fn mark_tx_seen(&self, hash: [u8; 32]) -> Result<bool> {
+        let mut seen = self.seen_txs.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("seen_txs: {}", e)))?;
 
         if seen.len() >= self.max_items {
             seen.clear();
         }
 
-        seen.insert(hash)
+        Ok(seen.insert(hash))
     }
 
     /// Check if block was already seen (without marking).
-    pub fn has_block(&self, hash: &[u8; 32]) -> bool {
-        self.seen_blocks
-            .lock()
-            .expect("propagation lock poisoned")
-            .contains(hash)
+    pub fn has_block(&self, hash: &[u8; 32]) -> Result<bool> {
+        let seen = self.seen_blocks.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("seen_blocks: {}", e)))?;
+        Ok(seen.contains(hash))
     }
 
     /// Check if transaction was already seen (without marking).
-    pub fn has_tx(&self, hash: &[u8; 32]) -> bool {
-        self.seen_txs
-            .lock()
-            .expect("propagation lock poisoned")
-            .contains(hash)
+    pub fn has_tx(&self, hash: &[u8; 32]) -> Result<bool> {
+        let seen = self.seen_txs.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("seen_txs: {}", e)))?;
+        Ok(seen.contains(hash))
     }
 }
 
@@ -120,20 +119,23 @@ impl BlockPropagator {
 
     /// Check if we should propagate this block (not seen before).
     pub fn should_propagate_block(&self, block_hash: [u8; 32]) -> bool {
-        !self.seen_filter.has_block(&block_hash)
+        !self.seen_filter.has_block(&block_hash).unwrap_or(false)
     }
 
     /// Mark block as propagated.
-    pub fn mark_block_propagated(&self, block_hash: [u8; 32]) {
-        self.seen_filter.mark_block_seen(block_hash);
-        let mut stats = self.stats.lock().expect("propagation lock poisoned");
+    pub fn mark_block_propagated(&self, block_hash: [u8; 32]) -> Result<()> {
+        let _ = self.seen_filter.mark_block_seen(block_hash)?;
+        let mut stats = self.stats.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
         stats.blocks_broadcast += 1;
+        Ok(())
     }
 
     /// Mark block as received.
-    pub fn mark_block_received(&self, block_hash: [u8; 32]) -> bool {
-        let is_new = self.seen_filter.mark_block_seen(block_hash);
-        let mut stats = self.stats.lock().expect("propagation lock poisoned");
+    pub fn mark_block_received(&self, block_hash: [u8; 32]) -> Result<bool> {
+        let is_new = self.seen_filter.mark_block_seen(block_hash)?;
+        let mut stats = self.stats.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
 
         if is_new {
             stats.blocks_received += 1;
@@ -141,39 +143,44 @@ impl BlockPropagator {
             stats.blocks_rejected += 1;
         }
 
-        is_new
+        Ok(is_new)
     }
 
     /// Mark transaction as propagated.
-    pub fn mark_tx_propagated(&self, tx_hash: [u8; 32]) {
-        self.seen_filter.mark_tx_seen(tx_hash);
-        let mut stats = self.stats.lock().expect("propagation lock poisoned");
+    pub fn mark_tx_propagated(&self, tx_hash: [u8; 32]) -> Result<()> {
+        let _ = self.seen_filter.mark_tx_seen(tx_hash)?;
+        let mut stats = self.stats.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
         stats.txs_broadcast += 1;
+        Ok(())
     }
 
     /// Mark transaction as received.
-    pub fn mark_tx_received(&self, tx_hash: [u8; 32]) -> bool {
-        let is_new = self.seen_filter.mark_tx_seen(tx_hash);
-        let mut stats = self.stats.lock().expect("propagation lock poisoned");
+    pub fn mark_tx_received(&self, tx_hash: [u8; 32]) -> Result<bool> {
+        let is_new = self.seen_filter.mark_tx_seen(tx_hash)?;
+        let mut stats = self.stats.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
 
         if is_new {
             stats.txs_received += 1;
         }
 
-        is_new
+        Ok(is_new)
     }
 
     /// Get propagation statistics.
-    pub fn stats(&self) -> PropagationStats {
-        self.stats
-            .lock()
-            .expect("propagation lock poisoned")
-            .clone()
+    pub fn stats(&self) -> Result<PropagationStats> {
+        let stats = self.stats.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
+        Ok(stats.clone())
     }
 
     /// Reset statistics.
-    pub fn reset_stats(&self) {
-        *self.stats.lock().expect("propagation lock poisoned") = PropagationStats::default();
+    pub fn reset_stats(&self) -> Result<()> {
+        let mut stats = self.stats.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
+        *stats = PropagationStats::default();
+        Ok(())
     }
 }
 
@@ -203,7 +210,7 @@ pub fn broadcast_block_inv(block_hash: [u8; 32], propagator: &BlockPropagator) -
 
     // TODO: Send to all peers via network manager
     // For now, just mark as propagated
-    propagator.mark_block_propagated(block_hash);
+    propagator.mark_block_propagated(block_hash)?;
 
     Ok(())
 }
@@ -218,10 +225,10 @@ mod tests {
         let hash = [1u8; 32];
 
         // First time should be new
-        assert!(filter.mark_block_seen(hash));
+        assert!(filter.mark_block_seen(hash).unwrap());
 
         // Second time should be seen
-        assert!(!filter.mark_block_seen(hash));
+        assert!(!filter.mark_block_seen(hash).unwrap());
     }
 
     #[test]
@@ -231,12 +238,12 @@ mod tests {
         // Fill beyond capacity
         for i in 0..20u8 {
             let hash = [i; 32];
-            filter.mark_block_seen(hash);
+            let _ = filter.mark_block_seen(hash);
         }
 
         // Should clear and accept new items
         let new_hash = [99u8; 32];
-        assert!(filter.mark_block_seen(new_hash));
+        assert!(filter.mark_block_seen(new_hash).unwrap());
     }
 
     #[test]
@@ -246,11 +253,11 @@ mod tests {
         let hash2 = [2u8; 32];
 
         // Mark blocks as received
-        assert!(propagator.mark_block_received(hash1));
-        assert!(propagator.mark_block_received(hash2));
-        assert!(!propagator.mark_block_received(hash1)); // Duplicate
+        assert!(propagator.mark_block_received(hash1).unwrap());
+        assert!(propagator.mark_block_received(hash2).unwrap());
+        assert!(!propagator.mark_block_received(hash1).unwrap()); // Duplicate
 
-        let stats = propagator.stats();
+        let stats = propagator.stats().unwrap();
         assert_eq!(stats.blocks_received, 2);
         assert_eq!(stats.blocks_rejected, 1);
     }

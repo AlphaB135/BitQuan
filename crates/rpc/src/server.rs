@@ -1031,6 +1031,7 @@ fn handle_login_endpoint(
                 error: "invalid_request".to_string(),
                 message: format!("Invalid JSON: {}", e),
             };
+            // SAFETY: ErrorResponse contains only Strings which always serialize to valid JSON
             let error_json = serde_json::to_string(&error).unwrap();
             let response = format!(
                 "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -1067,6 +1068,7 @@ fn handle_login_endpoint(
                 token_type: "Bearer".to_string(),
                 expires_in: 3600,
             };
+            // SAFETY: LoginResponse contains only String/u64 fields which always serialize to valid JSON
             let response_json = serde_json::to_string(&response_data).unwrap();
             let security_headers = build_security_headers(config);
             let response = format!(
@@ -1103,6 +1105,7 @@ fn handle_login_endpoint(
                 error: "invalid_credentials".to_string(),
                 message: e,
             };
+            // SAFETY: ErrorResponse contains only Strings which always serialize to valid JSON
             let error_json = serde_json::to_string(&error).unwrap();
             let response = format!(
                 "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -1179,6 +1182,7 @@ fn handle_refresh_endpoint(
                 error: "invalid_request".to_string(),
                 message: format!("Invalid JSON: {}", e),
             };
+            // SAFETY: ErrorResponse contains only Strings which always serialize to valid JSON
             let error_json = serde_json::to_string(&error).unwrap();
             let response = format!(
                 "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -1215,6 +1219,7 @@ fn handle_refresh_endpoint(
                 token_type: "Bearer".to_string(),
                 expires_in: 3600,
             };
+            // SAFETY: RefreshResponse contains only String/u64 fields which always serialize to valid JSON
             let response_json = serde_json::to_string(&response_data).unwrap();
             let security_headers = build_security_headers(config);
             let response = format!(
@@ -1251,6 +1256,7 @@ fn handle_refresh_endpoint(
                 error: "invalid_token".to_string(),
                 message: e,
             };
+            // SAFETY: ErrorResponse contains only Strings which always serialize to valid JSON
             let error_json = serde_json::to_string(&error).unwrap();
             let response = format!(
                 "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",

@@ -7,7 +7,7 @@
 #![allow(dead_code)]
 
 use bitquan_consensus::pow::PowAlgo;
-use bitquan_types::Result;
+use bitquan_types::{Error, Result};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -154,7 +154,7 @@ impl WsDashboard {
                 // Collect pool stats
                 let timestamp = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_secs();
 
                 let active_miners = peers.len();
@@ -251,14 +251,18 @@ async fn handle_ws_connection(
     loop {
         tokio::select! {
             Ok(stats) = stats_rx.recv() => {
-                let json = serde_json::to_string(&stats).unwrap();
+                let Ok(json) = serde_json::to_string(&stats) else {
+                    continue; // Skip if serialization fails
+                };
                 let line = format!("{{\"type\":\"stats\",\"data\":{}}}\n", json);
                 if writer.write_all(line.as_bytes()).await.is_err() {
                     break;
                 }
             }
             Ok(miners) = miners_rx.recv() => {
-                let json = serde_json::to_string(&miners).unwrap();
+                let Ok(json) = serde_json::to_string(&miners) else {
+                    continue; // Skip if serialization fails
+                };
                 let line = format!("{{\"type\":\"miners\",\"data\":{}}}\n", json);
                 if writer.write_all(line.as_bytes()).await.is_err() {
                     break;

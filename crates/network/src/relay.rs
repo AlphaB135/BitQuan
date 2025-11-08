@@ -1,6 +1,6 @@
 //! Transaction and block relay logic for P2P network.
 
-use crate::protocol::{InvType, InvVector, Message};
+use crate::{protocol::{InvType, InvVector, Message}, NetworkError, Result};
 use bitquan_types::Transaction;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -30,8 +30,9 @@ impl RelayManager {
     }
 
     /// Records an inventory announcement
-    pub fn announce(&self, inv: &InvVector) {
-        let mut announced = self.announced.lock().expect("relay lock poisoned");
+    pub fn announce(&self, inv: &InvVector) -> Result<()> {
+        let mut announced = self.announced.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("announced: {}", e)))?;
 
         // Cleanup old entries if needed
         if announced.len() >= self.max_items {
@@ -40,38 +41,46 @@ impl RelayManager {
         }
 
         announced.insert(inv.hash, Instant::now());
+        Ok(())
     }
 
     /// Checks if we've recently announced this item
-    pub fn has_announced(&self, hash: &[u8; 32]) -> bool {
-        let announced = self.announced.lock().expect("relay lock poisoned");
-        announced.contains_key(hash)
+    pub fn has_announced(&self, hash: &[u8; 32]) -> Result<bool> {
+        let announced = self.announced.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("announced: {}", e)))?;
+        Ok(announced.contains_key(hash))
     }
 
     /// Adds a pending request
-    pub fn add_request(&self, hash: [u8; 32], peer_id: String) {
-        let mut requests = self.pending_requests.lock().expect("relay lock poisoned");
+    pub fn add_request(&self, hash: [u8; 32], peer_id: String) -> Result<()> {
+        let mut requests = self.pending_requests.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("pending_requests: {}", e)))?;
         requests.entry(hash).or_default().insert(peer_id);
+        Ok(())
     }
 
     /// Removes a pending request
-    pub fn remove_request(&self, hash: &[u8; 32]) {
-        let mut requests = self.pending_requests.lock().expect("relay lock poisoned");
+    pub fn remove_request(&self, hash: &[u8; 32]) -> Result<()> {
+        let mut requests = self.pending_requests.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("pending_requests: {}", e)))?;
         requests.remove(hash);
+        Ok(())
     }
 
     /// Gets peers waiting for this item
-    pub fn get_requesters(&self, hash: &[u8; 32]) -> Vec<String> {
-        let requests = self.pending_requests.lock().expect("relay lock poisoned");
-        requests
+    pub fn get_requesters(&self, hash: &[u8; 32]) -> Result<Vec<String>> {
+        let requests = self.pending_requests.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("pending_requests: {}", e)))?;
+        Ok(requests
             .get(hash)
             .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default()
+            .unwrap_or_default())
     }
 
     /// Marks an item as relayed
-    pub fn mark_relayed(&self, hash: [u8; 32]) {
-        let mut relayed = self.relayed.lock().expect("relay lock poisoned");
+    pub fn mark_relayed(&self, hash: [u8; 32]) -> Result<()> {
+        let mut relayed = self.relayed.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("relayed: {}", e)))?;
 
         // Limit size
         if relayed.len() >= self.max_items {
@@ -79,20 +88,24 @@ impl RelayManager {
         }
 
         relayed.insert(hash);
+        Ok(())
     }
 
     /// Checks if we've already relayed this
-    pub fn was_relayed(&self, hash: &[u8; 32]) -> bool {
-        let relayed = self.relayed.lock().expect("relay lock poisoned");
-        relayed.contains(hash)
+    pub fn was_relayed(&self, hash: &[u8; 32]) -> Result<bool> {
+        let relayed = self.relayed.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("relayed: {}", e)))?;
+        Ok(relayed.contains(hash))
     }
 
     /// Cleans up old data
-    pub fn cleanup(&self) {
+    pub fn cleanup(&self) -> Result<()> {
         let cutoff = Instant::now() - Duration::from_secs(600);
 
-        let mut announced = self.announced.lock().expect("relay lock poisoned");
+        let mut announced = self.announced.lock()
+            .map_err(|e| NetworkError::LockPoisoned(format!("announced: {}", e)))?;
         announced.retain(|_, time| *time > cutoff);
+        Ok(())
     }
 }
 
@@ -212,11 +225,11 @@ mod tests {
             hash,
         };
 
-        manager.announce(&inv);
-        assert!(manager.has_announced(&hash));
+        manager.announce(&inv).unwrap();
+        assert!(manager.has_announced(&hash).unwrap());
 
-        manager.mark_relayed(hash);
-        assert!(manager.was_relayed(&hash));
+        manager.mark_relayed(hash).unwrap();
+        assert!(manager.was_relayed(&hash).unwrap());
     }
 
     #[test]
@@ -248,7 +261,10 @@ mod tests {
                 assert_eq!(inventory.len(), 1);
                 assert_eq!(inventory[0].inv_type, InvType::Tx);
             }
-            _ => panic!("Wrong message type"),
+            _ => {
+                // Test code: panic is OK
+                panic!("Expected Inv message for TX");
+            }
         }
 
         let block_inv = create_block_inv(hash);
@@ -257,7 +273,10 @@ mod tests {
                 assert_eq!(inventory.len(), 1);
                 assert_eq!(inventory[0].inv_type, InvType::Block);
             }
-            _ => panic!("Wrong message type"),
+            _ => {
+                // Test code: panic is OK
+                panic!("Expected Inv message for Block");
+            }
         }
     }
 }

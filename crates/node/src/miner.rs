@@ -210,6 +210,7 @@ impl HybridMiner {
         }
 
         // Fallback to first algorithm
+        // SAFETY: weights is guaranteed non-empty (validated in new())
         *self.weights.keys().next().unwrap()
     }
 

@@ -1,17 +1,25 @@
+//! Prometheus-compatible metrics collection and export
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// System-wide metrics collector
 #[derive(Clone)]
 pub struct Metrics {
+    /// Total number of blocks processed
     pub blocks_total: Arc<AtomicU64>,
+    /// Total number of transactions processed
     pub transactions_total: Arc<AtomicU64>,
+    /// Current number of transactions in mempool
     pub mempool_size: Arc<AtomicU64>,
+    /// Current number of connected peers
     pub peers_connected: Arc<AtomicU64>,
+    /// Current blockchain synchronization height
     pub sync_height: Arc<AtomicU64>,
 }
 
 impl Metrics {
+    /// Creates a new metrics collector with all counters initialized to zero.
     pub fn new() -> Self {
         Self {
             blocks_total: Arc::new(AtomicU64::new(0)),
@@ -22,22 +30,27 @@ impl Metrics {
         }
     }
 
+    /// Increments the total block count by 1.
     pub fn increment_blocks(&self) {
         self.blocks_total.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the total transaction count by the specified amount.
     pub fn increment_transactions(&self, count: u64) {
         self.transactions_total.fetch_add(count, Ordering::Relaxed);
     }
 
+    /// Sets the current mempool size (number of pending transactions).
     pub fn set_mempool_size(&self, size: u64) {
         self.mempool_size.store(size, Ordering::Relaxed);
     }
 
+    /// Sets the current number of connected peers.
     pub fn set_peers_connected(&self, count: u64) {
         self.peers_connected.store(count, Ordering::Relaxed);
     }
 
+    /// Sets the current blockchain synchronization height.
     pub fn set_sync_height(&self, height: u64) {
         self.sync_height.store(height, Ordering::Relaxed);
     }

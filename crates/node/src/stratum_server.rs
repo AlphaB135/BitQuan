@@ -3,7 +3,7 @@
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
 
 use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, PowAlgo};
-use bitquan_types::{Block, NetworkId, Result};
+use bitquan_types::{Block, Error, NetworkId, Result};
 use dashmap::DashMap;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -198,6 +198,7 @@ impl MinerSession {
     /// Create a new miner session.
     pub fn new(algo: PowAlgo, address: String, difficulty: f64) -> Self {
         // Duplicate cache: keep last 4096 nonces
+        // SAFETY: 4096 is a non-zero constant
         let cache_size = NonZeroUsize::new(4096).unwrap();
         let duplicate_cache = Arc::new(Mutex::new(LruCache::new(cache_size)));
 
@@ -349,7 +350,7 @@ impl StratumMetrics {
         // Update last valid share timestamp
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
         self.last_valid_share_timestamp
             .store(now, Ordering::Relaxed);
@@ -412,7 +413,7 @@ impl StratumMetrics {
         self.blocks_submitted_total.fetch_add(1, Ordering::Relaxed);
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
         self.last_block_submit_timestamp
             .store(now, Ordering::Relaxed);
@@ -681,7 +682,10 @@ impl StratumServer {
         let template_manager = self.template_manager.clone();
         let config = self.config.clone();
         let vardiff = self.vardiff.clone();
-        let mut result_rx_handle = self.share_result_rx.take().unwrap();
+        let mut result_rx_handle = self
+            .share_result_rx
+            .take()
+            .ok_or_else(|| Error::Invalid("share_result_rx already consumed".to_string()))?;
 
         tokio::spawn(async move {
             while let Some(result) = result_rx_handle.recv().await {
@@ -717,7 +721,10 @@ impl StratumServer {
                 break;
             }
 
-            let listener = self.listener.as_ref().unwrap();
+            let listener = self
+                .listener
+                .as_ref()
+                .ok_or_else(|| Error::Invalid("listener not initialized".to_string()))?;
             let result =
                 tokio::time::timeout(std::time::Duration::from_secs(1), listener.accept()).await;
 

@@ -31,6 +31,9 @@ use thiserror::Error;
 /// Logical peer identifier.
 pub type PeerId = String;
 
+/// Result type for network operations.
+pub type Result<T> = std::result::Result<T, NetworkError>;
+
 /// Configuration values for the networking layer.
 #[derive(Clone, Debug)]
 pub struct NetworkConfig {
@@ -67,6 +70,12 @@ pub enum NetworkError {
     /// Attempted operation requires at least one connected peer.
     #[error("no peers connected")]
     NotConnected,
+    /// Lock poisoned error
+    #[error("lock poisoned: {0}")]
+    LockPoisoned(String),
+    /// Invalid message type
+    #[error("invalid message type: expected {expected}, got {got}")]
+    InvalidMessageType { expected: String, got: String },
 }
 
 /// High-level façade for managing peer connections.
@@ -102,7 +111,7 @@ impl NetworkService {
     }
 
     /// Broadcasts a block to connected peers (no-op placeholder for Phase 3).
-    pub fn broadcast_block(&self, _block: &Block) -> Result<(), NetworkError> {
+    pub fn broadcast_block(&self, _block: &Block) -> Result<()> {
         if self.peers.is_empty() {
             return Err(NetworkError::NotConnected);
         }

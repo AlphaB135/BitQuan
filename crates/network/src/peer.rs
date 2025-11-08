@@ -367,14 +367,14 @@ impl PeerManager {
     }
 
     /// Helper to lock peers mutex.
-    fn lock_peers(&self) -> Result<std::sync::MutexGuard<Vec<Peer>>, P2pError> {
+    fn lock_peers(&self) -> Result<std::sync::MutexGuard<'_, Vec<Peer>>, P2pError> {
         self.peers
             .lock()
             .map_err(|_| P2pError::ConnectionError("peer list mutex poisoned".to_string()))
     }
 
     /// Helper to lock height mutex.
-    fn lock_height(&self) -> Result<std::sync::MutexGuard<u64>, P2pError> {
+    fn lock_height(&self) -> Result<std::sync::MutexGuard<'_, u64>, P2pError> {
         self.current_height
             .lock()
             .map_err(|_| P2pError::ConnectionError("height mutex poisoned".to_string()))
@@ -491,7 +491,7 @@ impl PeerManager {
 
         // Track announcement if relay manager exists
         if let Some(relay) = &self.relay_manager {
-            relay.announce(&inv);
+            let _ = relay.announce(&inv);
         }
 
         let msg = Message::Inv {
@@ -512,8 +512,10 @@ impl PeerManager {
         if let Some(relay) = &self.relay_manager {
             for inv in inventory {
                 // Only request if we haven't seen it
-                if !relay.has_announced(&inv.hash) && !relay.was_relayed(&inv.hash) {
-                    relay.add_request(inv.hash, peer_id.to_string());
+                let announced = relay.has_announced(&inv.hash).unwrap_or(false);
+                let relayed = relay.was_relayed(&inv.hash).unwrap_or(false);
+                if !announced && !relayed {
+                    let _ = relay.add_request(inv.hash, peer_id.to_string());
                     needed.push(inv);
                 }
             }
@@ -528,7 +530,7 @@ impl PeerManager {
     /// Marks data as relayed.
     pub fn mark_relayed(&self, hash: [u8; 32]) {
         if let Some(relay) = &self.relay_manager {
-            relay.mark_relayed(hash);
+            let _ = relay.mark_relayed(hash);
         }
     }
 
@@ -548,10 +550,14 @@ impl PeerManager {
     pub fn ready_peer_count(&self) -> usize {
         self.peers
             .lock()
-            .unwrap()
-            .iter()
-            .filter(|p| p.state == PeerState::Ready)
-            .count()
+            .ok()
+            .map(|peers| {
+                peers
+                    .iter()
+                    .filter(|p| p.state == PeerState::Ready)
+                    .count()
+            })
+            .unwrap_or(0)
     }
 
     /// Get subnet diversity statistics

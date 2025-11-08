@@ -1424,7 +1424,9 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
     };
 
     {
-        let s = store.lock().unwrap();
+        let s = store
+            .lock()
+            .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
         let current_height = s
             .height()
             .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?;
@@ -1468,7 +1470,9 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
 
     loop {
         let height = {
-            let s = store.lock().unwrap();
+            let s = store
+                .lock()
+                .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
             s.height()
                 .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?
         };
@@ -1489,7 +1493,9 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
 
         let mut time = now;
         {
-            let s = store.lock().unwrap();
+            let s = store
+                .lock()
+                .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
             if let Ok(Some(tip)) = s.tip() {
                 time = time.max(tip.time.saturating_add(1));
             }
@@ -1528,7 +1534,9 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         // Determine prev_block
         let mut prev = [0u8; 32];
         {
-            let s = store.lock().unwrap();
+            let s = store
+                .lock()
+                .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
             if let Ok(Some(tip)) = s.tip() {
                 prev = header_hash(&tip);
             }
@@ -1643,7 +1651,9 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         };
 
         {
-            let mut s = store.lock().unwrap();
+            let mut s = store
+                .lock()
+                .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
             s.insert_block(block)
                 .map_err(|e| Error::Invalid(format!("failed to insert block: {e}")))?;
         }
@@ -2418,7 +2428,9 @@ fn p2p_server(
     if let Some(s) = &store {
         if height > 0 {
             use bitquan_consensus::header_hash;
-            let store_locked = s.lock().unwrap();
+            let store_locked = s
+                .lock()
+                .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
             if let Ok(Some(tip)) = store_locked.tip() {
                 let tip_hash = header_hash(&tip);
                 drop(store_locked);
@@ -2443,7 +2455,9 @@ fn p2p_server(
                     if height > 0 {
                         use bitquan_consensus::header_hash;
 
-                        let store_locked = s.lock().unwrap();
+                        let store_locked = s
+                            .lock()
+                            .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
                         if let Ok(Some(tip)) = store_locked.tip() {
                             let tip_hash = header_hash(&tip);
                             drop(store_locked);
