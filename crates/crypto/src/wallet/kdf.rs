@@ -17,6 +17,9 @@ pub enum KdfError {
     /// Password hashing failed.
     #[error("failed to hash password: {0}")]
     HashFailure(String),
+    /// OS RNG failure during salt generation.
+    #[error("OS RNG failure: {0}")]
+    RngFailure(String),
 }
 
 /// Wrapper for Argon2id parameter selection and key derivation.
@@ -63,10 +66,11 @@ impl KeyDerivation {
     }
 
     /// Generates a fresh 32-byte salt using the OS RNG.
-    pub fn generate_salt() -> [u8; 32] {
+    pub fn generate_salt() -> Result<[u8; 32], KdfError> {
         let mut salt = [0u8; 32];
-        getrandom::getrandom(&mut salt).expect("OS RNG failure");
-        salt
+        getrandom::getrandom(&mut salt)
+            .map_err(|e| KdfError::RngFailure(e.to_string()))?;
+        Ok(salt)
     }
 
     /// Derives a 32-byte encryption key from the supplied password + salt.

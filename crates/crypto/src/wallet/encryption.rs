@@ -84,7 +84,7 @@ impl Encryptor {
         password: &SecureString,
     ) -> Result<EncryptedData, EncryptionError> {
         // Derive symmetric key
-        let salt = KeyDerivation::generate_salt();
+        let salt = KeyDerivation::generate_salt()?;
         let mut key_bytes = self.kdf.derive_key(password, &salt)?;
 
         // Initialise cipher
