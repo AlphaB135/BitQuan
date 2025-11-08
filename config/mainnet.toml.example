@@ -1,0 +1,30 @@
+# BitQuan Mainnet Configuration Example
+# Copy to mainnet.toml and customize
+
+[network]
+id = "mainnet"
+listen_addr = "0.0.0.0:8333"
+rpc_addr = "127.0.0.1:8332"
+
+[rpc]
+require_tls = true
+max_connections = 1000
+max_connections_per_ip = 10
+
+[rpc.jwt]
+# CHANGE THIS: Generate with: openssl rand -hex 32
+secret_file = "/etc/bitquan/jwt.secret"
+algorithm = "HS256"
+expiration_seconds = 3600
+
+[mempool]
+max_weight = 300_000_000
+min_relay_fee_rate = 1
+
+[p2p]
+max_peers = 125
+handshake_timeout = 30
+
+[mining]
+enabled = false
+# mining_address = "your_address_here"

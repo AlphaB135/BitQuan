@@ -1,0 +1,30 @@
+# BitQuan Testnet Configuration Example
+# Faster blocks, lower difficulty for testing
+
+[network]
+id = "testnet"
+listen_addr = "0.0.0.0:18333"
+rpc_addr = "127.0.0.1:18332"
+
+[rpc]
+require_tls = false
+max_connections = 100
+max_connections_per_ip = 5
+
+[rpc.jwt]
+secret_file = "./testnet-jwt.secret"
+algorithm = "HS256"
+expiration_seconds = 7200
+
+[mempool]
+max_weight = 100_000_000
+min_relay_fee_rate = 1
+
+[p2p]
+max_peers = 50
+handshake_timeout = 10
+
+[mining]
+enabled = true
+# Lower difficulty for testnet
+target_block_time = 60  # 1 minute instead of 10
