@@ -56,10 +56,38 @@ BitQuan is a cryptocurrency designed for 50+ year security resilience against qu
 
 ## Security Status
 
-**Last Security Audit:** November 2025 (Self-audit + AI-assisted)  
-**Status:** ✅ Hardened (Tasks I, J, K complete)
+**⚠️ ALPHA SOFTWARE - NOT PRODUCTION READY**
 
-### Recent Security Improvements
+**Last Security Audit:** November 8, 2025  
+**Compliance Score:** 65/100 (Grade: D)  
+**Status:** ⚠️ Development Only - See [Security Audit Report](SECURITY_AUDIT_2025-11-08.md)
+
+### ⚠️ Known Security Issues
+
+**Critical (v0.0.2-alpha):**
+- 430 unwrap/expect calls without safety justification (panic risk)
+- Missing constant-time comparison for signatures (timing attack risk)
+
+**See:** [SECURITY_AUDIT_2025-11-08.md](SECURITY_AUDIT_2025-11-08.md) for full details.
+
+### Security Roadmap
+
+**v0.0.3-alpha (2 weeks):**
+- Fix 50% of unwrap calls (430 → <100)
+- Add constant-time signature verification
+- Target compliance: 80/100
+
+**v0.1.0 (1 month):**
+- Full unwrap audit (<10 with SAFETY comments)
+- Comprehensive security tests
+- Target compliance: 95/100
+
+**v1.0.0 (Mainnet):**
+- External security audit required
+- 100% compliance verification
+- Production-ready security
+
+### Recent Security Improvements (November 2025)
 - ✅ Integer overflow protection (Nov 2025)
 - ✅ Replay attack prevention (Nov 2025)
 - ✅ Entropy audit complete (Nov 2025)
