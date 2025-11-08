@@ -166,8 +166,12 @@ impl MultisigWallet {
     }
 
     /// Creates a new pending transaction for signing.
+    ///
+    /// # Fallback
+    /// If system clock is unavailable, uses timestamp 0 (epoch).
     pub fn create_pending_tx(&self, tx_data: &[u8]) -> PendingMultisigTx {
         let tx_id = self.compute_tx_id(tx_data);
+        // FALLBACK: Use epoch if clock unavailable (non-critical timestamp)
         let created_at = unix_timestamp().unwrap_or(0);
 
         PendingMultisigTx {
