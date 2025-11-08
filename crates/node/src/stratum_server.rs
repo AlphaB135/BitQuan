@@ -851,7 +851,8 @@ async fn handle_client(
                     &share_tx,
                 )
                 .await;
-                let response_json = serde_json::to_string(&response).unwrap();
+                let response_json = serde_json::to_string(&response)
+                    .map_err(|e| bitquan_types::Error::Invalid(format!("JSON serialize failed: {}", e)))?;
 
                 writer
                     .write_all(response_json.as_bytes())

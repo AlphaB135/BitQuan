@@ -1,5 +1,7 @@
 //! JSON-RPC interface for BitQuan node operations.
 #![warn(missing_docs)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

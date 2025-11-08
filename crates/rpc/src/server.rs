@@ -1359,7 +1359,7 @@ fn take_token(
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     config: &RpcConfig,
 ) -> std::result::Result<(), u64> {
-    let mut map = limiter.lock().expect("rate limiter lock poisoned");
+    let mut map = limiter.lock().map_err(|_| 0)?;
     let bucket = map.entry(ip).or_insert_with(|| TokenBucket {
         tokens: config.rl_burst as f64,
         last: Instant::now(),
@@ -1427,22 +1427,24 @@ fn resolve_client_ip(peer_ip: IpAddr, headers: &[String], config: &RpcConfig) ->
 }
 
 fn apply_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
-    let mut map = backoff.lock().expect("auth backoff lock poisoned");
-    let state = map.entry(ip).or_insert(BackoffState {
-        fails: 0,
-        last: Instant::now(),
-    });
-    state.fails = state.fails.saturating_add(1);
-    state.last = Instant::now();
-    let exponent = (state.fails - 1).min(4);
-    let delay_ms = 100u64.saturating_mul(1u64 << exponent);
-    drop(map);
-    std::thread::sleep(Duration::from_millis(delay_ms));
+    if let Ok(mut map) = backoff.lock() {
+        let state = map.entry(ip).or_insert(BackoffState {
+            fails: 0,
+            last: Instant::now(),
+        });
+        state.fails = state.fails.saturating_add(1);
+        state.last = Instant::now();
+        let exponent = (state.fails - 1).min(4);
+        let delay_ms = 100u64.saturating_mul(1u64 << exponent);
+        drop(map);
+        std::thread::sleep(Duration::from_millis(delay_ms));
+    }
 }
 
 fn reset_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
-    let mut map = backoff.lock().expect("auth backoff lock poisoned");
-    map.remove(&ip);
+    if let Ok(mut map) = backoff.lock() {
+        map.remove(&ip);
+    }
 }
 
 struct RpcMetrics {

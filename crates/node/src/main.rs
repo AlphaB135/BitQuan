@@ -1,4 +1,6 @@
 //! BitQuan reference node entrypoint.
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
 
 mod address;
 mod block_submit;
@@ -1043,7 +1045,9 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             println!();
 
             // Validate genesis
-            assert!(is_valid_genesis(&genesis), "Invalid genesis block");
+            if !is_valid_genesis(&genesis) {
+                return Err(bitquan_types::Error::Invalid("Invalid genesis block".into()));
+            }
 
             // Save to JSON
             let json = serde_json::to_string_pretty(&genesis)?;
@@ -1684,6 +1688,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let anchor = if block_height as usize > window && history.len() > window {
             history[history.len() - 1 - window]
         } else {
+            // SAFETY: history always contains at least the mined block (pushed above on line 1677)
             *history
                 .front()
                 .expect("history always contains at least the mined block")
