@@ -8,6 +8,14 @@ use std::sync::Arc;
 
 use crate::pool_db::{BlockRecord, PayoutRecord, PoolDatabase};
 
+/// Helper to get current Unix timestamp (fallback to 0 if clock unavailable).
+fn unix_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 /// Initial block reward in satoshis (50 BQ).
 const INITIAL_REWARD: u64 = 50_0000_0000;
 
@@ -147,10 +155,7 @@ impl RewardEngine {
         txid: Option<String>,
     ) -> Result<String> {
         let payout_id = uuid::Uuid::new_v4().to_string();
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = unix_timestamp();
 
         let payout = PayoutRecord {
             id: payout_id.clone(),

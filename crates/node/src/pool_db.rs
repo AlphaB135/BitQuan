@@ -5,8 +5,8 @@
 //! - Block history
 //! - Payout records
 
-use rusqlite::{params, Connection, Result as SqlResult};
-use std::sync::{Arc, Mutex};
+use rusqlite::{params, Connection, Error as SqlError, Result as SqlResult};
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// Record of a persisted block.
 #[derive(Debug, Clone)]
@@ -59,9 +59,19 @@ impl PoolDatabase {
         Ok(db)
     }
 
+    /// Helper to acquire mutex lock with proper error handling.
+    fn lock_conn(&self) -> SqlResult<std::sync::MutexGuard<Connection>> {
+        self.conn.lock().map_err(|e| {
+            SqlError::ToSqlConversionFailure(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("database mutex poisoned: {}", e),
+            )))
+        })
+    }
+
     /// Initialize database schema.
     fn init_schema(&self) -> SqlResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS miners (
@@ -114,7 +124,7 @@ impl PoolDatabase {
 
     /// Insert a new block record.
     pub fn insert_block(&self, block: &BlockRecord) -> SqlResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         conn.execute(
             "INSERT INTO blocks (hash, height, miner_id, reward, timestamp)
              VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -131,7 +141,7 @@ impl PoolDatabase {
 
     /// Get a block by hash.
     pub fn get_block(&self, hash: &str) -> SqlResult<Option<BlockRecord>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT hash, height, miner_id, reward, timestamp FROM blocks WHERE hash = ?1",
         )?;
@@ -152,7 +162,7 @@ impl PoolDatabase {
 
     /// Get the latest block (highest height).
     pub fn get_latest_block(&self) -> SqlResult<Option<BlockRecord>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT hash, height, miner_id, reward, timestamp 
              FROM blocks 
@@ -176,7 +186,7 @@ impl PoolDatabase {
 
     /// Update miner's total reward (adds to existing amount).
     pub fn update_miner_reward(&self, miner_id: &str, amount: u64) -> SqlResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
 
         // Insert or update miner
         conn.execute(
@@ -189,7 +199,7 @@ impl PoolDatabase {
 
     /// Get miner's total reward.
     pub fn get_miner_reward(&self, miner_id: &str) -> SqlResult<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT total_reward FROM miners WHERE id = ?1")?;
 
         let mut rows = stmt.query(params![miner_id])?;
@@ -202,7 +212,7 @@ impl PoolDatabase {
 
     /// Get blocks mined by a specific miner.
     pub fn get_miner_blocks(&self, miner_id: &str, limit: usize) -> SqlResult<Vec<BlockRecord>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT hash, height, miner_id, reward, timestamp 
              FROM blocks 
@@ -226,7 +236,7 @@ impl PoolDatabase {
 
     /// Insert a payout record.
     pub fn insert_payout(&self, payout: &PayoutRecord) -> SqlResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         conn.execute(
             "INSERT INTO payouts (id, miner_id, amount, txid, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -243,7 +253,7 @@ impl PoolDatabase {
 
     /// List recent payouts.
     pub fn list_payouts(&self, limit: usize) -> SqlResult<Vec<PayoutRecord>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT id, miner_id, amount, txid, created_at 
              FROM payouts 
@@ -266,7 +276,7 @@ impl PoolDatabase {
 
     /// Get total rewards distributed.
     pub fn total_rewards(&self) -> SqlResult<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT COALESCE(SUM(total_reward), 0) FROM miners")?;
 
         let total: i64 = stmt.query_row([], |row| row.get(0))?;
@@ -275,7 +285,7 @@ impl PoolDatabase {
 
     /// Get total number of miners.
     pub fn miner_count(&self) -> SqlResult<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM miners WHERE total_reward > 0")?;
 
         let count: i64 = stmt.query_row([], |row| row.get(0))?;
@@ -284,7 +294,7 @@ impl PoolDatabase {
 
     /// Get total number of blocks.
     pub fn block_count(&self) -> SqlResult<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM blocks")?;
 
         let count: i64 = stmt.query_row([], |row| row.get(0))?;

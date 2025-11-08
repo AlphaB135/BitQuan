@@ -8,6 +8,15 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+/// Helper to get current Unix timestamp.
+/// Returns 0 if system clock is before epoch (extremely unlikely).
+fn unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 /// Maximum frame size accepted by low-level peer helpers (2 MiB).
 pub const MAX_MSG_BYTES: usize = 2 * 1024 * 1024;
 /// Handshake timeout in milliseconds.
@@ -177,10 +186,7 @@ impl Peer {
         let version_msg = Message::Version {
             version: PROTOCOL_VERSION,
             services: 1, // NODE_NETWORK
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            timestamp: unix_timestamp(),
             user_agent: "BitQuan/0.1.0".to_string(),
             start_height: our_height,
         };
@@ -248,10 +254,7 @@ impl Peer {
         let version_msg = Message::Version {
             version: PROTOCOL_VERSION,
             services: 1,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            timestamp: unix_timestamp(),
             user_agent: "BitQuan/0.1.0".to_string(),
             start_height: our_height,
         };
@@ -363,9 +366,25 @@ impl PeerManager {
         }
     }
 
+    /// Helper to lock peers mutex.
+    fn lock_peers(&self) -> Result<std::sync::MutexGuard<Vec<Peer>>, P2pError> {
+        self.peers.lock().map_err(|_| {
+            P2pError::ConnectionError("peer list mutex poisoned".to_string())
+        })
+    }
+
+    /// Helper to lock height mutex.
+    fn lock_height(&self) -> Result<std::sync::MutexGuard<u64>, P2pError> {
+        self.current_height.lock().map_err(|_| {
+            P2pError::ConnectionError("height mutex poisoned".to_string())
+        })
+    }
+
     /// Updates the current blockchain height.
     pub fn update_height(&self, height: u64) {
-        *self.current_height.lock().unwrap() = height;
+        if let Ok(mut h) = self.lock_height() {
+            *h = height;
+        }
     }
 
     /// Extract /24 subnet from IP address
@@ -404,7 +423,7 @@ impl PeerManager {
 
     /// Adds a new peer connection (inbound).
     pub fn add_peer_inbound(&self, stream: TcpStream, addr: SocketAddr) -> Result<(), P2pError> {
-        let mut peers = self.peers.lock().unwrap();
+        let mut peers = self.lock_peers()?;
 
         if peers.len() >= self.max_peers {
             return Err(P2pError::ConnectionError("max peers reached".into()));
@@ -424,7 +443,7 @@ impl PeerManager {
         }
 
         let mut peer = Peer::new(stream, addr)?;
-        let height = *self.current_height.lock().unwrap();
+        let height = *self.lock_height()?;
         peer.handshake_inbound(height)?;
 
         peers.push(peer);
@@ -433,7 +452,7 @@ impl PeerManager {
 
     /// Connects to a new peer (outbound).
     pub fn connect_peer(&self, addr: SocketAddr) -> Result<(), P2pError> {
-        let mut peers = self.peers.lock().unwrap();
+        let mut peers = self.lock_peers()?;
 
         if peers.len() >= self.max_peers {
             return Err(P2pError::ConnectionError("max peers reached".into()));
@@ -443,7 +462,7 @@ impl PeerManager {
             TcpStream::connect(addr).map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
         let mut peer = Peer::new(stream, addr)?;
-        let height = *self.current_height.lock().unwrap();
+        let height = *self.lock_height()?;
         peer.handshake_outbound(height)?;
 
         peers.push(peer);
@@ -452,7 +471,7 @@ impl PeerManager {
 
     /// Broadcasts a message to all ready peers.
     pub fn broadcast(&self, msg: Message) -> Result<usize, P2pError> {
-        let mut peers = self.peers.lock().unwrap();
+        let mut peers = self.lock_peers()?;
         let mut sent_count = 0;
 
         for peer in peers.iter_mut() {
@@ -515,13 +534,14 @@ impl PeerManager {
 
     /// Removes disconnected peers.
     pub fn cleanup_peers(&self) {
-        let mut peers = self.peers.lock().unwrap();
-        peers.retain(|p| p.is_alive() && p.state != PeerState::Disconnected);
+        if let Ok(mut peers) = self.lock_peers() {
+            peers.retain(|p| p.is_alive() && p.state != PeerState::Disconnected);
+        }
     }
 
     /// Returns the current number of peers.
     pub fn peer_count(&self) -> usize {
-        self.peers.lock().unwrap().len()
+        self.lock_peers().map(|p| p.len()).unwrap_or(0)
     }
 
     /// Returns the number of ready peers.
@@ -536,7 +556,9 @@ impl PeerManager {
 
     /// Get subnet diversity statistics
     pub fn get_subnet_stats(&self) -> std::collections::HashMap<[u8; 3], usize> {
-        let peers = self.peers.lock().unwrap();
+        let Ok(peers) = self.lock_peers() else {
+            return std::collections::HashMap::new();
+        };
         let mut subnet_counts = std::collections::HashMap::new();
 
         for peer in peers.iter() {
@@ -550,7 +572,9 @@ impl PeerManager {
 
     /// Evict lowest-reputation non-anchor peer
     pub fn evict_lowest_reputation_peer(&self) -> Option<SocketAddr> {
-        let mut peers = self.peers.lock().unwrap();
+        let Ok(mut peers) = self.lock_peers() else {
+            return None;
+        };
 
         let result = peers
             .iter()
