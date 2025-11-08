@@ -182,6 +182,6 @@ Integrate load tests into CI/CD:
 
 ## Related Documentation
 
-- [PRELAUNCH_CHECKLIST.md](./PRELAUNCH_CHECKLIST.md) - Pre-mainnet validation gates
-- [OBSERVABILITY.md](./OBSERVABILITY.md) - Metrics and dashboards
-- [MAINNET_ANNOUNCEMENT.md](./MAINNET_ANNOUNCEMENT.md) - Launch procedures
+- [PRELAUNCH_CHECKLIST.md](../ops/PRELAUNCH_CHECKLIST.md) - Pre-mainnet validation gates
+- [OBSERVABILITY.md](../ops/OBSERVABILITY.md) - Metrics and dashboards
+- [MAINNET_ANNOUNCEMENT.md](../releases/MAINNET_ANNOUNCEMENT.md) - Launch procedures

@@ -1,0 +1,3 @@
+# .nojekyll
+
+This file tells GitHub Pages to skip Jekyll processing and serve files directly.

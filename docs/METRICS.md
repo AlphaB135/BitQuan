@@ -727,9 +727,9 @@ reward_per_block_gauge / 100000000
 
 - [Prometheus Metric Types](https://prometheus.io/docs/concepts/metric_types/)
 - [Naming Best Practices](https://prometheus.io/docs/practices/naming/)
-- [BitQuan Testnet Guide](./TESTNET_README.md)
+- [BitQuan Testnet Guide](README.md)
 - [Dashboard Guide](./DASHBOARD.md)
-- [Stratum Protocol](./STRATUM.md)
+- [Stratum Protocol](guides/STRATUM.md)
 
 ## Support
 

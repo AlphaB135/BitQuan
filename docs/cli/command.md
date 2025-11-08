@@ -16,7 +16,7 @@ Run `bitquan-node help <COMMAND>` to inspect flags for a specific subcommand.
 | `script-from-address` | Emits the scriptPubKey (hex) for a Bech32m address. Writes metadata to `stderr` so pipelines can safely consume stdout. | `./target/release/bitquan-node script-from-address --address bq1... > script.hex` |
 | `validateaddress` | Verifies checksum/HRP, prints normalized form, public-key hash, and derived script. | `./target/release/bitquan-node validateaddress --address bq1...` |
 
-See also [`docs/address-and-script.md`](./address-and-script.md) for a walkthrough that pairs these commands.
+See also [`docs/address-and-script.md`](../address-and-script.md) for a walkthrough that pairs these commands.
 
 ## Wallet & Signing
 

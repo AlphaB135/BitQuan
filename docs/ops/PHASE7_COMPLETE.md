@@ -187,9 +187,9 @@ promtool check rules alerts/mainnet-rules.yml
 
 - [PHASE7_LAUNCH_READY.md](./PHASE7_LAUNCH_READY.md) — final pre-launch checklist
 - [PHASE7_QUICKREF.md](./PHASE7_QUICKREF.md) — quick reference card for workflows
-- [MAINNET_ANNOUNCEMENT.md](./MAINNET_ANNOUNCEMENT.md) — public launch announcement
-- [AUDIT_HANDOFF_CHECKLIST.md](./AUDIT_HANDOFF_CHECKLIST.md) — auditor handoff materials
-- [LOAD_TESTING.md](./LOAD_TESTING.md) — stress testing guide and SLOs
+- [MAINNET_ANNOUNCEMENT.md](../releases/MAINNET_ANNOUNCEMENT.md) — public launch announcement
+- [AUDIT_HANDOFF_CHECKLIST.md](../security/AUDIT_HANDOFF_CHECKLIST.md) — auditor handoff materials
+- [LOAD_TESTING.md](../testnet/LOAD_TESTING.md) — stress testing guide and SLOs
 - [OBSERVABILITY.md](./OBSERVABILITY.md) — monitoring and alerting setup
 
 ---

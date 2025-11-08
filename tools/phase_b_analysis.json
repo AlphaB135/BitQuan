@@ -1,0 +1,599 @@
+{
+  "total_files": 99,
+  "duplicate_groups": 1,
+  "broken_links": 72,
+  "duplicates": [
+    {
+      "normalized_name": "readme",
+      "count": 10,
+      "files": [
+        {
+          "path": "README.md",
+          "size": 1804,
+          "h1": "BitQuan Documentation",
+          "h2_count": 7,
+          "words": 206,
+          "lines": 50
+        },
+        {
+          "path": "testnet/README.md",
+          "size": 10155,
+          "h1": "BitQuan Testnet & Hybrid Mining Guide",
+          "h2_count": 8,
+          "words": 1237,
+          "lines": 377
+        },
+        {
+          "path": "security/README.md",
+          "size": 2945,
+          "h1": "Security Documentation",
+          "h2_count": 8,
+          "words": 343,
+          "lines": 108
+        },
+        {
+          "path": "security/attestations/README.md",
+          "size": 1484,
+          "h1": "Build Attestations",
+          "h2_count": 5,
+          "words": 209,
+          "lines": 63
+        },
+        {
+          "path": "security/audits/README.md",
+          "size": 2077,
+          "h1": "Security Audits",
+          "h2_count": 7,
+          "words": 258,
+          "lines": 75
+        },
+        {
+          "path": "security/keys/maintainers/README.md",
+          "size": 1255,
+          "h1": "BitQuan Maintainer GPG Keys",
+          "h2_count": 5,
+          "words": 168,
+          "lines": 62
+        },
+        {
+          "path": "cli/README.md",
+          "size": 1445,
+          "h1": "BitQuan CLI Reference",
+          "h2_count": 4,
+          "words": 180,
+          "lines": 55
+        },
+        {
+          "path": "wallet/README.md",
+          "size": 74,
+          "h1": "Wallet Documentation",
+          "h2_count": 0,
+          "words": 10,
+          "lines": 5
+        },
+        {
+          "path": "dev/README.md",
+          "size": 6391,
+          "h1": "Development Documentation",
+          "h2_count": 9,
+          "words": 765,
+          "lines": 330
+        },
+        {
+          "path": "ops/README.md",
+          "size": 3580,
+          "h1": "Operations Documentation",
+          "h2_count": 7,
+          "words": 422,
+          "lines": 135
+        }
+      ]
+    }
+  ],
+  "broken": [
+    {
+      "file": "releases/MAINNET_ANNOUNCEMENT.md",
+      "link": "../ops/OBSERVABILITY.md",
+      "text": "OBSERVABILITY.md",
+      "line": 229,
+      "attempted_target": "ops/OBSERVABILITY.md"
+    },
+    {
+      "file": "testnet/LOAD_TESTING.md",
+      "link": "../ops/PRELAUNCH_CHECKLIST.md",
+      "text": "PRELAUNCH_CHECKLIST.md",
+      "line": 185,
+      "attempted_target": "ops/PRELAUNCH_CHECKLIST.md"
+    },
+    {
+      "file": "testnet/LOAD_TESTING.md",
+      "link": "../ops/OBSERVABILITY.md",
+      "text": "OBSERVABILITY.md",
+      "line": 186,
+      "attempted_target": "ops/OBSERVABILITY.md"
+    },
+    {
+      "file": "testnet/LOAD_TESTING.md",
+      "link": "../releases/MAINNET_ANNOUNCEMENT.md",
+      "text": "MAINNET_ANNOUNCEMENT.md",
+      "line": 187,
+      "attempted_target": "releases/MAINNET_ANNOUNCEMENT.md"
+    },
+    {
+      "file": "testnet/README.md",
+      "link": "../DASHBOARD.md",
+      "text": "DASHBOARD.md",
+      "line": 372,
+      "attempted_target": "DASHBOARD.md"
+    },
+    {
+      "file": "security/AUDIT_HANDOFF_CHECKLIST.md",
+      "link": "../ops/PRELAUNCH_CHECKLIST.md",
+      "text": "docs/PRELAUNCH_CHECKLIST.md",
+      "line": 10,
+      "attempted_target": "ops/PRELAUNCH_CHECKLIST.md"
+    },
+    {
+      "file": "security/AUDIT_HANDOFF_CHECKLIST.md",
+      "link": "../concepts/CONSENSUS_ECON.md",
+      "text": "docs/CONSENSUS_ECON.md",
+      "line": 12,
+      "attempted_target": "concepts/CONSENSUS_ECON.md"
+    },
+    {
+      "file": "security/AUDIT_HANDOFF.md",
+      "link": "../dev/PANIC_SAFETY.md",
+      "text": "`docs/PANIC_SAFETY.md`",
+      "line": 131,
+      "attempted_target": "dev/PANIC_SAFETY.md"
+    },
+    {
+      "file": "security/AUDIT_HANDOFF.md",
+      "link": "../concepts/CONSENSUS_ECON.md",
+      "text": "`docs/CONSENSUS_ECON.md`",
+      "line": 134,
+      "attempted_target": "concepts/CONSENSUS_ECON.md"
+    },
+    {
+      "file": "security/AUDIT_HANDOFF.md",
+      "link": "./spec/",
+      "text": "`docs/spec/`",
+      "line": 135,
+      "attempted_target": "docs/security/spec"
+    },
+    {
+      "file": "security/AUDIT_HANDOFF.md",
+      "link": "../MULTISIG_GUIDE.md",
+      "text": "`docs/MULTISIG_GUIDE.md`",
+      "line": 136,
+      "attempted_target": "MULTISIG_GUIDE.md"
+    },
+    {
+      "file": "security/AUDIT_HANDOFF.md",
+      "link": "../dev/COVERAGE.md",
+      "text": "`docs/COVERAGE.md`",
+      "line": 139,
+      "attempted_target": "dev/COVERAGE.md"
+    },
+    {
+      "file": "security/AUDIT_HANDOFF.md",
+      "link": "../fuzzing/FUZZING_STATUS.md",
+      "text": "`docs/fuzzing/FUZZING_STATUS.md`",
+      "line": 140,
+      "attempted_target": "fuzzing/FUZZING_STATUS.md"
+    },
+    {
+      "file": "security/README.md",
+      "link": "../../SECURITY.md",
+      "text": "Main Security Policy",
+      "line": 9,
+      "attempted_target": "../SECURITY.md"
+    },
+    {
+      "file": "security/README.md",
+      "link": "../ops/",
+      "text": "Operations Guide",
+      "line": 101,
+      "attempted_target": "ops"
+    },
+    {
+      "file": "security/README.md",
+      "link": "../dev/",
+      "text": "Development Guide",
+      "line": 102,
+      "attempted_target": "dev"
+    },
+    {
+      "file": "security/README.md",
+      "link": "../../SECURITY.md",
+      "text": "Main Security Policy",
+      "line": 9,
+      "attempted_target": "../SECURITY.md"
+    },
+    {
+      "file": "spec/consensus_economics.md",
+      "link": "../../ROADMAP.md#q1-2025",
+      "text": "ROADMAP.md",
+      "line": 54,
+      "attempted_target": "../ROADMAP.md#q1-2025"
+    },
+    {
+      "file": "planning/todo.md",
+      "link": "../releases/RELEASE_NOTES_v0.0.2-alpha.md",
+      "text": "v0.0.2-alpha",
+      "line": 97,
+      "attempted_target": "releases/RELEASE_NOTES_v0.0.2-alpha.md"
+    },
+    {
+      "file": "planning/todo.md",
+      "link": "../security/ENTROPY_AUDIT.md",
+      "text": "docs/ENTROPY_AUDIT.md",
+      "line": 98,
+      "attempted_target": "security/ENTROPY_AUDIT.md"
+    },
+    {
+      "file": "cli/bitquan-node.md",
+      "link": "../address-and-script.md",
+      "text": "Address and Script Guide",
+      "line": 22,
+      "attempted_target": "address-and-script.md"
+    },
+    {
+      "file": "cli/bitquan-node.md",
+      "link": "../ops/RUNBOOK.md",
+      "text": "Operations Guide",
+      "line": 130,
+      "attempted_target": "ops/RUNBOOK.md"
+    },
+    {
+      "file": "cli/bitquan-node.md",
+      "link": "../rpc/",
+      "text": "RPC API",
+      "line": 131,
+      "attempted_target": "rpc"
+    },
+    {
+      "file": "cli/bq-stress.md",
+      "link": "../testnet/LOAD_TESTING.md",
+      "text": "Load Testing Guide",
+      "line": 245,
+      "attempted_target": "testnet/LOAD_TESTING.md"
+    },
+    {
+      "file": "cli/bq-stress.md",
+      "link": "../ops/RUNBOOK.md",
+      "text": "Operations Runbook",
+      "line": 246,
+      "attempted_target": "ops/RUNBOOK.md"
+    },
+    {
+      "file": "cli/README.md",
+      "link": "../dev/",
+      "text": "Development Guide",
+      "line": 49,
+      "attempted_target": "dev"
+    },
+    {
+      "file": "cli/README.md",
+      "link": "../ops/",
+      "text": "Operations Guide",
+      "line": 50,
+      "attempted_target": "ops"
+    },
+    {
+      "file": "cli/command.md",
+      "link": "../address-and-script.md",
+      "text": "`docs/address-and-script.md`",
+      "line": 19,
+      "attempted_target": "address-and-script.md"
+    },
+    {
+      "file": "cli/bitquan-wallet.md",
+      "link": "../MULTISIG_GUIDE.md",
+      "text": "Multi-Signature Guide",
+      "line": 139,
+      "attempted_target": "MULTISIG_GUIDE.md"
+    },
+    {
+      "file": "cli/bitquan-wallet.md",
+      "link": "../MULTISIG_GUIDE.md",
+      "text": "Multi-Signature Guide",
+      "line": 139,
+      "attempted_target": "MULTISIG_GUIDE.md"
+    },
+    {
+      "file": "cli/bitquan-wallet.md",
+      "link": "../security/SECURITY.md",
+      "text": "Security Policy",
+      "line": 213,
+      "attempted_target": "security/SECURITY.md"
+    },
+    {
+      "file": "cli/bq-preflight.md",
+      "link": "../ops/RUNBOOK.md",
+      "text": "Operations Runbook",
+      "line": 262,
+      "attempted_target": "ops/RUNBOOK.md"
+    },
+    {
+      "file": "cli/bq-preflight.md",
+      "link": "../ops/PRELAUNCH_CHECKLIST.md",
+      "text": "Pre-Launch Checklist",
+      "line": 263,
+      "attempted_target": "ops/PRELAUNCH_CHECKLIST.md"
+    },
+    {
+      "file": "cli/bq-preflight.md",
+      "link": "../ops/",
+      "text": "Deployment Guide",
+      "line": 264,
+      "attempted_target": "ops"
+    },
+    {
+      "file": "guides/architecture.md",
+      "link": "../architecture/overview.md",
+      "text": "architecture/overview.md",
+      "line": 7,
+      "attempted_target": "architecture/overview.md"
+    },
+    {
+      "file": "guides/architecture.md",
+      "link": "../architecture/overview.md",
+      "text": "Detailed Architecture",
+      "line": 38,
+      "attempted_target": "architecture/overview.md"
+    },
+    {
+      "file": "guides/architecture.md",
+      "link": "../architecture/system-overview.md",
+      "text": "System Overview",
+      "line": 39,
+      "attempted_target": "architecture/system-overview.md"
+    },
+    {
+      "file": "guides/architecture.md",
+      "link": "../architecture/data-structures.md",
+      "text": "Data Structures",
+      "line": 40,
+      "attempted_target": "architecture/data-structures.md"
+    },
+    {
+      "file": "guides/QUICKSTART.md",
+      "link": "docs/bqips/",
+      "text": "BQIP Proposals",
+      "line": 241,
+      "attempted_target": "docs/guides/docs/bqips"
+    },
+    {
+      "file": "guides/INSTALL.md",
+      "link": "../architecture/overview.md",
+      "text": "Architecture Overview",
+      "line": 158,
+      "attempted_target": "architecture/overview.md"
+    },
+    {
+      "file": "guides/STRATUM.md",
+      "link": "../POOL_OPERATIONS.md",
+      "text": "Pool Operations",
+      "line": 176,
+      "attempted_target": "POOL_OPERATIONS.md"
+    },
+    {
+      "file": "guides/STRATUM.md",
+      "link": "../DASHBOARD.md",
+      "text": "Dashboard",
+      "line": 178,
+      "attempted_target": "DASHBOARD.md"
+    },
+    {
+      "file": "concepts/GENESIS.md",
+      "link": "../ops/PRELAUNCH_CHECKLIST.md",
+      "text": "Pre-Launch Checklist",
+      "line": 129,
+      "attempted_target": "ops/PRELAUNCH_CHECKLIST.md"
+    },
+    {
+      "file": "concepts/CONSENSUS_ECON.md",
+      "link": "../specs/BQIP-0003-ASERT.md",
+      "text": "BQIP-0003",
+      "line": 206,
+      "attempted_target": "specs/BQIP-0003-ASERT.md"
+    },
+    {
+      "file": "concepts/CONSENSUS_ECON.md",
+      "link": "../specs/BQIP-0004-BurstGuard.md",
+      "text": "BQIP-0004",
+      "line": 207,
+      "attempted_target": "specs/BQIP-0004-BurstGuard.md"
+    },
+    {
+      "file": "wallet/mnemonic.md",
+      "link": "../cli/bitquan-wallet.md",
+      "text": "CLI Reference",
+      "line": 140,
+      "attempted_target": "cli/bitquan-wallet.md"
+    },
+    {
+      "file": "wallet/multisig.md",
+      "link": "../MULTISIG_GUIDE.md",
+      "text": "Full Multisig Guide",
+      "line": 207,
+      "attempted_target": "MULTISIG_GUIDE.md"
+    },
+    {
+      "file": "wallet/multisig.md",
+      "link": "../cli/bitquan-wallet.md",
+      "text": "CLI Reference",
+      "line": 210,
+      "attempted_target": "cli/bitquan-wallet.md"
+    },
+    {
+      "file": "dev/README.md",
+      "link": "../../fuzz/",
+      "text": "../fuzz/",
+      "line": 90,
+      "attempted_target": "../fuzz"
+    },
+    {
+      "file": "dev/README.md",
+      "link": "../guides/RELEASE.md",
+      "text": "RELEASE.md",
+      "line": 274,
+      "attempted_target": "guides/RELEASE.md"
+    },
+    {
+      "file": "dev/README.md",
+      "link": "../security/REPRODUCIBILITY.md",
+      "text": "REPRODUCIBILITY.md",
+      "line": 297,
+      "attempted_target": "security/REPRODUCIBILITY.md"
+    },
+    {
+      "file": "dev/README.md",
+      "link": "../guides/CONTRIBUTING.md",
+      "text": "CONTRIBUTING.md",
+      "line": 309,
+      "attempted_target": "guides/CONTRIBUTING.md"
+    },
+    {
+      "file": "dev/README.md",
+      "link": "../cli/",
+      "text": "CLI Tools",
+      "line": 323,
+      "attempted_target": "cli"
+    },
+    {
+      "file": "dev/README.md",
+      "link": "../ops/",
+      "text": "Operations",
+      "line": 324,
+      "attempted_target": "ops"
+    },
+    {
+      "file": "ops/PHASE7_COMPLETE.md",
+      "link": "../releases/MAINNET_ANNOUNCEMENT.md",
+      "text": "MAINNET_ANNOUNCEMENT.md",
+      "line": 190,
+      "attempted_target": "releases/MAINNET_ANNOUNCEMENT.md"
+    },
+    {
+      "file": "ops/PHASE7_COMPLETE.md",
+      "link": "../security/AUDIT_HANDOFF_CHECKLIST.md",
+      "text": "AUDIT_HANDOFF_CHECKLIST.md",
+      "line": 191,
+      "attempted_target": "security/AUDIT_HANDOFF_CHECKLIST.md"
+    },
+    {
+      "file": "ops/PHASE7_COMPLETE.md",
+      "link": "../testnet/LOAD_TESTING.md",
+      "text": "LOAD_TESTING.md",
+      "line": 192,
+      "attempted_target": "testnet/LOAD_TESTING.md"
+    },
+    {
+      "file": "ops/README.md",
+      "link": "../testnet/",
+      "text": "DNS Seeds",
+      "line": 18,
+      "attempted_target": "testnet"
+    },
+    {
+      "file": "ops/README.md",
+      "link": "../cli/",
+      "text": "CLI Tools",
+      "line": 128,
+      "attempted_target": "cli"
+    },
+    {
+      "file": "ops/README.md",
+      "link": "../testnet/",
+      "text": "Testnet Guide",
+      "line": 129,
+      "attempted_target": "testnet"
+    },
+    {
+      "file": "ops/README.md",
+      "link": "../dev/",
+      "text": "Development",
+      "line": 130,
+      "attempted_target": "dev"
+    },
+    {
+      "file": "ops/PRELAUNCH_CHECKLIST.md",
+      "link": "../concepts/GENESIS.md",
+      "text": "Genesis Documentation",
+      "line": 359,
+      "attempted_target": "concepts/GENESIS.md"
+    },
+    {
+      "file": "ops/PRELAUNCH_CHECKLIST.md",
+      "link": "../METRICS.md",
+      "text": "Metrics Guide",
+      "line": 361,
+      "attempted_target": "METRICS.md"
+    },
+    {
+      "file": "ops/PRELAUNCH_CHECKLIST.md",
+      "link": "../security/AUDIT_SUMMARY.md",
+      "text": "Audit Summary",
+      "line": 364,
+      "attempted_target": "security/AUDIT_SUMMARY.md"
+    },
+    {
+      "file": "i18n/README.th.md",
+      "link": "../architecture/overview.md",
+      "text": "\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e2a\u0e16\u0e32\u0e1b\u0e31\u0e15\u0e22\u0e4c",
+      "line": 21,
+      "attempted_target": "architecture/overview.md"
+    },
+    {
+      "file": "i18n/README.th.md",
+      "link": "../governance/GOVERNANCE.md",
+      "text": "\u0e01\u0e32\u0e23\u0e01\u0e33\u0e01\u0e31\u0e1a\u0e14\u0e39\u0e41\u0e25\u0e42\u0e04\u0e23\u0e07\u0e01\u0e32\u0e23",
+      "line": 22,
+      "attempted_target": "governance/GOVERNANCE.md"
+    },
+    {
+      "file": "i18n/README.th.md",
+      "link": "SECURITY.md",
+      "text": "\u0e19\u0e42\u0e22\u0e1a\u0e32\u0e22\u0e04\u0e27\u0e32\u0e21\u0e1b\u0e25\u0e2d\u0e14\u0e20\u0e31\u0e22",
+      "line": 23,
+      "attempted_target": "docs/i18n/SECURITY.md"
+    },
+    {
+      "file": "i18n/README.th.md",
+      "link": "../guides/RELEASE.md",
+      "text": "\u0e01\u0e23\u0e30\u0e1a\u0e27\u0e19\u0e01\u0e32\u0e23\u0e2d\u0e2d\u0e01\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19",
+      "line": 24,
+      "attempted_target": "guides/RELEASE.md"
+    },
+    {
+      "file": "rpc/API_REFERENCE.md",
+      "link": "../guides/JWT_QUICK_START.md",
+      "text": "JWT Quick Start",
+      "line": 13,
+      "attempted_target": "guides/JWT_QUICK_START.md"
+    },
+    {
+      "file": "rpc/API_REFERENCE.md",
+      "link": "../cli/bitquan-node.md",
+      "text": "CLI Reference",
+      "line": 166,
+      "attempted_target": "cli/bitquan-node.md"
+    },
+    {
+      "file": "rpc/API_REFERENCE.md",
+      "link": "../guides/JWT_QUICK_START.md",
+      "text": "JWT Setup",
+      "line": 167,
+      "attempted_target": "guides/JWT_QUICK_START.md"
+    },
+    {
+      "file": "rpc/API_REFERENCE.md",
+      "link": "../ops/",
+      "text": "Operations",
+      "line": 168,
+      "attempted_target": "ops"
+    }
+  ]
+}
