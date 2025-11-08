@@ -62,6 +62,16 @@ BitQuan is a cryptocurrency designed for 50+ year security resilience against qu
 **Compliance Score:** 65/100 (Grade: D)  
 **Status:** ⚠️ Development Only - See [Security Audit Report](SECURITY_AUDIT_2025-11-08.md)
 
+### 📊 Security Compliance
+
+| หมวด | คะแนน | สถานะ |
+|------|-------|-------|
+| **Error Handling** | 10/30 | ❌ Critical (430 unwraps) |
+| **Arithmetic** | 20/25 | ⚠️ Good (91 checked_*) |
+| **Crypto Ops** | 20/25 | ⚠️ Partial (RNG perfect) |
+| **Input Validation** | 15/20 | ⚠️ Good start |
+| **รวม** | **65/100** | **D** ⚠️ |
+
 ### ⚠️ Known Security Issues
 
 **Critical (v0.0.2-alpha):**
