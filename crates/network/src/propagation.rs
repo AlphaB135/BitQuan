@@ -1,6 +1,9 @@
 //! Block and transaction propagation across the P2P network.
 
-use crate::{protocol::{InvType, InvVector, Message, MessageEnvelope}, NetworkError, Result};
+use crate::{
+    protocol::{InvType, InvVector, Message, MessageEnvelope},
+    NetworkError, Result,
+};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
@@ -27,7 +30,9 @@ impl SeenFilter {
 
     /// Check if a block hash was seen, and mark it if not.
     pub fn mark_block_seen(&self, hash: [u8; 32]) -> Result<bool> {
-        let mut seen = self.seen_blocks.lock()
+        let mut seen = self
+            .seen_blocks
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("seen_blocks: {}", e)))?;
 
         // If at capacity, clear oldest (simple eviction)
@@ -40,7 +45,9 @@ impl SeenFilter {
 
     /// Check if a transaction hash was seen, and mark it if not.
     pub fn mark_tx_seen(&self, hash: [u8; 32]) -> Result<bool> {
-        let mut seen = self.seen_txs.lock()
+        let mut seen = self
+            .seen_txs
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("seen_txs: {}", e)))?;
 
         if seen.len() >= self.max_items {
@@ -52,14 +59,18 @@ impl SeenFilter {
 
     /// Check if block was already seen (without marking).
     pub fn has_block(&self, hash: &[u8; 32]) -> Result<bool> {
-        let seen = self.seen_blocks.lock()
+        let seen = self
+            .seen_blocks
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("seen_blocks: {}", e)))?;
         Ok(seen.contains(hash))
     }
 
     /// Check if transaction was already seen (without marking).
     pub fn has_tx(&self, hash: &[u8; 32]) -> Result<bool> {
-        let seen = self.seen_txs.lock()
+        let seen = self
+            .seen_txs
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("seen_txs: {}", e)))?;
         Ok(seen.contains(hash))
     }
@@ -125,7 +136,9 @@ impl BlockPropagator {
     /// Mark block as propagated.
     pub fn mark_block_propagated(&self, block_hash: [u8; 32]) -> Result<()> {
         let _ = self.seen_filter.mark_block_seen(block_hash)?;
-        let mut stats = self.stats.lock()
+        let mut stats = self
+            .stats
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
         stats.blocks_broadcast += 1;
         Ok(())
@@ -134,7 +147,9 @@ impl BlockPropagator {
     /// Mark block as received.
     pub fn mark_block_received(&self, block_hash: [u8; 32]) -> Result<bool> {
         let is_new = self.seen_filter.mark_block_seen(block_hash)?;
-        let mut stats = self.stats.lock()
+        let mut stats = self
+            .stats
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
 
         if is_new {
@@ -149,7 +164,9 @@ impl BlockPropagator {
     /// Mark transaction as propagated.
     pub fn mark_tx_propagated(&self, tx_hash: [u8; 32]) -> Result<()> {
         let _ = self.seen_filter.mark_tx_seen(tx_hash)?;
-        let mut stats = self.stats.lock()
+        let mut stats = self
+            .stats
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
         stats.txs_broadcast += 1;
         Ok(())
@@ -158,7 +175,9 @@ impl BlockPropagator {
     /// Mark transaction as received.
     pub fn mark_tx_received(&self, tx_hash: [u8; 32]) -> Result<bool> {
         let is_new = self.seen_filter.mark_tx_seen(tx_hash)?;
-        let mut stats = self.stats.lock()
+        let mut stats = self
+            .stats
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
 
         if is_new {
@@ -170,14 +189,18 @@ impl BlockPropagator {
 
     /// Get propagation statistics.
     pub fn stats(&self) -> Result<PropagationStats> {
-        let stats = self.stats.lock()
+        let stats = self
+            .stats
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
         Ok(stats.clone())
     }
 
     /// Reset statistics.
     pub fn reset_stats(&self) -> Result<()> {
-        let mut stats = self.stats.lock()
+        let mut stats = self
+            .stats
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("stats: {}", e)))?;
         *stats = PropagationStats::default();
         Ok(())
@@ -288,7 +311,7 @@ mod tests {
         assert!(propagator.should_propagate_block(hash));
 
         // Mark as propagated
-        propagator.mark_block_propagated(hash);
+        let _ = propagator.mark_block_propagated(hash);
 
         // Should not propagate again
         assert!(!propagator.should_propagate_block(hash));

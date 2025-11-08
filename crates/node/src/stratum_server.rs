@@ -202,8 +202,10 @@ impl MinerSession {
         let cache_size = NonZeroUsize::new(4096).unwrap();
         let duplicate_cache = Arc::new(Mutex::new(LruCache::new(cache_size)));
 
-        // Assign random extranonce1
-        let extranonce1 = rand::random::<u32>();
+        // Assign cryptographically secure extranonce1
+        let mut extranonce1_bytes = [0u8; 4];
+        getrandom::getrandom(&mut extranonce1_bytes).expect("Failed to generate secure extranonce1");
+        let extranonce1 = u32::from_le_bytes(extranonce1_bytes);
 
         Self {
             id: Uuid::new_v4(),
@@ -851,8 +853,9 @@ async fn handle_client(
                     &share_tx,
                 )
                 .await;
-                let response_json = serde_json::to_string(&response)
-                    .map_err(|e| bitquan_types::Error::Invalid(format!("JSON serialize failed: {}", e)))?;
+                let response_json = serde_json::to_string(&response).map_err(|e| {
+                    bitquan_types::Error::Invalid(format!("JSON serialize failed: {}", e))
+                })?;
 
                 writer
                     .write_all(response_json.as_bytes())
@@ -1271,8 +1274,9 @@ fn verify_share_pow_sync(
         PowAlgo::Sha256d => sha256d_pow_hash(&preimage),
         #[cfg(feature = "randomx")]
         PowAlgo::RandomX => {
-            // Use seed from genesis hash (same as HybridMiner)
-            let seed = [0u8; 32]; // TODO: get from consensus or config
+            // Use cryptographically secure seed derived from genesis hash
+            let mut seed = [0u8; 32];
+            seed.copy_from_slice(&tpl.header.prev_block); // Use previous block hash as seed
             randomx_pow_hash(&preimage, &seed)
         }
     };

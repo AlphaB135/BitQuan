@@ -50,3 +50,24 @@ path = "fuzz_targets/fuzz_mempool.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_network"
+path = "fuzz_targets/fuzz_network.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_crypto"
+path = "fuzz_targets/fuzz_crypto.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_wire"
+path = "fuzz_targets/fuzz_wire.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,7 @@
+error: unexpected argument '--output-json' found
+
+  tip: to pass '--output-json' as a value, use '-- --output-json'
+
+Usage: cargo-deny check --disable-fetch <WHICH>...
+
+For more information, try '--help'.

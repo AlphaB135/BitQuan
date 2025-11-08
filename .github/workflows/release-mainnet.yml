@@ -15,9 +15,75 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
 jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      - name: Run security audit
+        run: cargo audit
+
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+      - name: Run dependency check
+        run: cargo deny check
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Run clippy
+        run: cargo clippy --all-targets -D warnings
+
+  test:
+    name: Test Suite
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run tests
+        run: cargo test --all --locked
+
+  fuzzing:
+    name: Fuzzing Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Run fuzzing
+        run: |
+          cd fuzz
+          cargo fuzz run consensus_fuzz -- -max_total_time=300
+          cargo fuzz run crypto_fuzz -- -max_total_time=300
   build-release:
     name: Build ${{ matrix.target }}
+    needs: [security-audit, dependency-check, code-quality, test, fuzzing]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -29,6 +95,15 @@ jobs:
             os: ubuntu-latest
             artifact: bitquan-node-linux-aarch64
             cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: bitquan-node-macos-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: bitquan-node-macos-aarch64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact: bitquan-node-windows-x86_64.exe
 
     steps:
       - name: Checkout repository
@@ -57,8 +132,12 @@ jobs:
       - name: Package binary
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/bitquan-node dist/${{ matrix.artifact }}
-          chmod +x dist/${{ matrix.artifact }}
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/bitquan-node.exe dist/${{ matrix.artifact }}
+          else
+            cp target/${{ matrix.target }}/release/bitquan-node dist/${{ matrix.artifact }}
+            chmod +x dist/${{ matrix.artifact }}
+          fi
 
       - name: Generate SHA256 checksum
         run: |

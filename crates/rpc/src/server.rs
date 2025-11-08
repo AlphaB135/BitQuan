@@ -1032,7 +1032,7 @@ fn handle_login_endpoint(
                 message: format!("Invalid JSON: {}", e),
             };
             // SAFETY: ErrorResponse contains only Strings which always serialize to valid JSON
-            let error_json = serde_json::to_string(&error).unwrap();
+            let error_json = serde_json::to_string(&error).unwrap_or_else(|_| r#"{"error":"internal_error","message":"Failed to serialize error"}"#.to_string());
             let response = format!(
                 "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 error_json.len(),
@@ -1069,7 +1069,7 @@ fn handle_login_endpoint(
                 expires_in: 3600,
             };
             // SAFETY: LoginResponse contains only String/u64 fields which always serialize to valid JSON
-            let response_json = serde_json::to_string(&response_data).unwrap();
+            let response_json = serde_json::to_string(&response_data).unwrap_or_else(|_| r#"{"error":"internal_error","message":"Failed to serialize response"}"#.to_string());
             let security_headers = build_security_headers(config);
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
@@ -1106,7 +1106,7 @@ fn handle_login_endpoint(
                 message: e,
             };
             // SAFETY: ErrorResponse contains only Strings which always serialize to valid JSON
-            let error_json = serde_json::to_string(&error).unwrap();
+            let error_json = serde_json::to_string(&error).unwrap_or_else(|_| r#"{"error":"internal_error","message":"Failed to serialize error"}"#.to_string());
             let response = format!(
                 "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 error_json.len(),
@@ -1183,7 +1183,7 @@ fn handle_refresh_endpoint(
                 message: format!("Invalid JSON: {}", e),
             };
             // SAFETY: ErrorResponse contains only Strings which always serialize to valid JSON
-            let error_json = serde_json::to_string(&error).unwrap();
+            let error_json = serde_json::to_string(&error).unwrap_or_else(|_| r#"{"error":"internal_error","message":"Failed to serialize error"}"#.to_string());
             let response = format!(
                 "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 error_json.len(),
@@ -1220,7 +1220,7 @@ fn handle_refresh_endpoint(
                 expires_in: 3600,
             };
             // SAFETY: RefreshResponse contains only String/u64 fields which always serialize to valid JSON
-            let response_json = serde_json::to_string(&response_data).unwrap();
+            let response_json = serde_json::to_string(&response_data).unwrap_or_else(|_| r#"{"error":"internal_error","message":"Failed to serialize response"}"#.to_string());
             let security_headers = build_security_headers(config);
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
@@ -1257,7 +1257,7 @@ fn handle_refresh_endpoint(
                 message: e,
             };
             // SAFETY: ErrorResponse contains only Strings which always serialize to valid JSON
-            let error_json = serde_json::to_string(&error).unwrap();
+            let error_json = serde_json::to_string(&error).unwrap_or_else(|_| r#"{"error":"internal_error","message":"Failed to serialize error"}"#.to_string());
             let response = format!(
                 "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 error_json.len(),

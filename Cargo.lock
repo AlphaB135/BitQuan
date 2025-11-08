@@ -306,6 +306,8 @@ dependencies = [
  "bitquan-consensus",
  "bitquan-types",
  "bq-crypto",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
  "thiserror 1.0.69",
 ]
 
@@ -450,11 +452,13 @@ dependencies = [
  "getrandom 0.2.16",
  "hex",
  "hkdf",
+ "libc",
  "pqc-dilithium-seeded",
  "proptest",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
+ "secrecy",
  "serde",
  "serde_json",
  "sha2",
@@ -1862,6 +1866,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "wasm-bindgen",
+ "zeroize",
 ]
 
 [[package]]

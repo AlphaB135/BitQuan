@@ -551,12 +551,7 @@ impl PeerManager {
         self.peers
             .lock()
             .ok()
-            .map(|peers| {
-                peers
-                    .iter()
-                    .filter(|p| p.state == PeerState::Ready)
-                    .count()
-            })
+            .map(|peers| peers.iter().filter(|p| p.state == PeerState::Ready).count())
             .unwrap_or(0)
     }
 

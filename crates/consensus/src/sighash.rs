@@ -403,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_network_replay_rejected() {
+    fn cross_network_replay_rejected() -> bitquan_types::Result<()> {
         // Sign against mainnet context
         let tx = tx_for_network(NetworkId::Mainnet);
         let main_ctx = ctx_for_network(NetworkId::Mainnet);
@@ -418,5 +418,6 @@ mod tests {
             Error::Invalid(msg) => assert!(msg.contains("network mismatch")),
             other => return Err(Error::Invalid(format!("unexpected error: {other:?}"))),
         }
+        Ok(())
     }
 }

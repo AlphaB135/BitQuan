@@ -1,11 +1,26 @@
 use crate::params::{PUBLICKEYBYTES, SECRETKEYBYTES, SIGNBYTES};
 use crate::sign::*;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Keypair {
   pub public: [u8; PUBLICKEYBYTES],
   secret: [u8; SECRETKEYBYTES],
 }
+
+impl Drop for Keypair {
+  fn drop(&mut self) {
+    self.secret.zeroize();
+  }
+}
+
+impl Zeroize for Keypair {
+  fn zeroize(&mut self) {
+    self.secret.zeroize();
+  }
+}
+
+impl ZeroizeOnDrop for Keypair {}
 
 /// Secret key elided
 impl std::fmt::Debug for Keypair {

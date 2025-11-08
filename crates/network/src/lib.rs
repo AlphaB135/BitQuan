@@ -75,7 +75,12 @@ pub enum NetworkError {
     LockPoisoned(String),
     /// Invalid message type
     #[error("invalid message type: expected {expected}, got {got}")]
-    InvalidMessageType { expected: String, got: String },
+    InvalidMessageType {
+        /// Expected message type string.
+        expected: String,
+        /// Actual message type received.
+        got: String,
+    },
 }
 
 /// High-level façade for managing peer connections.

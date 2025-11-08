@@ -1,5 +1,5 @@
 //! BitQuan cryptography utilities.
-#![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "memory-locking"), forbid(unsafe_code))]
 #![deny(missing_docs)]
 
 use std::collections::HashMap;

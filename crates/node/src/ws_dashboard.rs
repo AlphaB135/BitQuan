@@ -7,7 +7,7 @@
 #![allow(dead_code)]
 
 use bitquan_consensus::pow::PowAlgo;
-use bitquan_types::{Error, Result};
+use bitquan_types::Result;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;

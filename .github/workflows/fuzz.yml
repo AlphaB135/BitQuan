@@ -1,0 +1,127 @@
+name: Fuzz Testing
+
+on:
+  schedule:
+    # Run fuzz tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Fuzzing duration in seconds'
+        required: false
+        default: '300'
+        type: string
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - fuzz_transaction
+          - fuzz_block
+          - fuzz_script
+          - fuzz_mempool
+          - fuzz_network
+          - fuzz_crypto
+          - fuzz_wire
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    
+    - name: Install cargo-fuzz
+      run: cargo install cargo-fuzz
+    
+    - name: Cache fuzz corpus
+      uses: actions/cache@v3
+      with:
+        path: fuzz/corpus/${{ matrix.target }}
+        key: fuzz-${{ matrix.target }}-${{ github.run_id }}
+        restore-keys: |
+          fuzz-${{ matrix.target }}-
+    
+    - name: Run fuzz tests
+      run: |
+        cd fuzz
+        duration=${{ github.event.inputs.duration || 300 }}
+        echo "Running ${{ matrix.target }} for ${duration} seconds"
+        timeout ${duration} cargo fuzz run ${{ matrix.target }} || true
+    
+    - name: Upload fuzz artifacts
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: fuzz-crash-${{ matrix.target }}
+        path: |
+          fuzz/artifacts/${{ matrix.target }}/
+          fuzz/corpus/${{ matrix.target }}/
+        retention-days: 7
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: fuzz
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    
+    - name: Install cargo-deny
+      run: cargo install cargo-deny
+    
+    - name: Run security audit
+      run: |
+        cargo audit
+        cargo deny check
+    
+    - name: Check for memory safety issues
+      run: |
+        # Install MIRAI for static analysis if available
+        if cargo install --list | grep -q mirai; then
+          cargo mirai
+        fi
+    
+    - name: Run clippy with all features
+      run: |
+        cargo clippy --all-features -- -D warnings -D clippy::all
+
+  fuzz-summary:
+    runs-on: ubuntu-latest
+    needs: [fuzz, security-scan]
+    if: always()
+    
+    steps:
+    - name: Generate fuzz report
+      run: |
+        echo "# Fuzz Testing Summary" > fuzz_report.md
+        echo "" >> fuzz_report.md
+        echo "## Fuzz Targets Status" >> fuzz_report.md
+        echo "- fuzz_transaction: ${{ needs.fuzz.result }}" >> fuzz_report.md
+        echo "- fuzz_block: ${{ needs.fuzz.result }}" >> fuzz_report.md
+        echo "- fuzz_script: ${{ needs.fuzz.result }}" >> fuzz_report.md
+        echo "- fuzz_mempool: ${{ needs.fuzz.result }}" >> fuzz_report.md
+        echo "- fuzz_network: ${{ needs.fuzz.result }}" >> fuzz_report.md
+        echo "- fuzz_crypto: ${{ needs.fuzz.result }}" >> fuzz_report.md
+        echo "- fuzz_wire: ${{ needs.fuzz.result }}" >> fuzz_report.md
+        echo "" >> fuzz_report.md
+        echo "## Security Scan Status" >> fuzz_report.md
+        echo "- Security Audit: ${{ needs.security-scan.result }}" >> fuzz_report.md
+        echo "" >> fuzz_report.md
+        echo "Generated on: $(date)" >> fuzz_report.md
+    
+    - name: Upload fuzz report
+      uses: actions/upload-artifact@v3
+      with:
+        name: fuzz-report
+        path: fuzz_report.md

@@ -15,6 +15,8 @@ allow = [
     "CC0-1.0",        # Public domain equivalent (used by bitcoin crates)
     "Unicode-3.0",   # Unicode license (used by unicode-ident)
     "OpenSSL",       # Required by aws-lc-sys (rustls backend)
+    "Zlib",          # OSI approved, FSF Free/Libre (used by foldhash)
+    "CDLA-Permissive-2.0",  # Community Data License Agreement (used by webpki-roots)
 ]
 
 [bans]

@@ -1,0 +1,1793 @@
+error[rejected]: failed to satisfy license requirements
+   ┌─ /Users/alphab/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/foldhash-0.1.5/Cargo.toml:40:12
+   │
+40 │ license = "Zlib"
+   │            ━━━━
+   │            │
+   │            rejected: license is not explicitly allowed
+   │
+   ├ Zlib - zlib License:
+   ├   - OSI approved
+   ├   - FSF Free/Libre
+   ├ foldhash v0.1.5
+     └── hashbrown v0.15.5
+         └── lru v0.12.5
+             └── bitquan-node v0.1.0
+
+error[rejected]: failed to satisfy license requirements
+   ┌─ /Users/alphab/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/webpki-roots-1.0.3/Cargo.toml:26:12
+   │
+26 │ license = "CDLA-Permissive-2.0"
+   │            ━━━━━━━━━━━━━━━━━━━
+   │            │
+   │            rejected: license is not explicitly allowed
+   │
+   ├ CDLA-Permissive-2.0 - Community Data License Agreement Permissive 2.0:
+   ├   - No additional metadata available for license
+   ├ webpki-roots v1.0.3
+     ├── hyper-rustls v0.27.7
+     │   └── reqwest v0.12.24
+     │       ├── (dev) bitquan-rpc v0.1.0
+     │       │   └── bitquan-node v0.1.0
+     │       └── bq-stress v0.1.0
+     └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'getrandom'
+   ┌─ /Users/alphab/BitQuan/Cargo.lock:93:1
+   │  
+93 │ ╭ getrandom 0.2.16 registry+https://github.com/rust-lang/crates.io-index
+94 │ │ getrandom 0.3.4 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ getrandom v0.2.16
+     ├── bitquan-node v0.1.0
+     ├── bq-crypto v0.0.1
+     │   ├── bitquan-consensus v0.1.0
+     │   │   ├── bitquan-mempool v0.1.0
+     │   │   │   └── bitquan-node v0.1.0 (*)
+     │   │   ├── bitquan-node v0.1.0 (*)
+     │   │   └── bitquan-rpc v0.1.0
+     │   │       └── bitquan-node v0.1.0 (*)
+     │   ├── bitquan-mempool v0.1.0 (*)
+     │   └── bitquan-node v0.1.0 (*)
+     ├── rand_core v0.6.4
+     │   ├── bq-crypto v0.0.1 (*)
+     │   ├── crypto-common v0.1.6
+     │   │   ├── aead v0.5.2
+     │   │   │   ├── aes-gcm v0.10.3
+     │   │   │   │   ├── bq-crypto v0.0.1 (*)
+     │   │   │   │   └── wallet v0.1.0
+     │   │   │   │       └── bitquan-node v0.1.0 (*)
+     │   │   │   └── chacha20poly1305 v0.10.1
+     │   │   │       └── bitquan-node v0.1.0 (*)
+     │   │   ├── cipher v0.4.4
+     │   │   │   ├── aes v0.8.4
+     │   │   │   │   └── aes-gcm v0.10.3 (*)
+     │   │   │   ├── aes-gcm v0.10.3 (*)
+     │   │   │   ├── chacha20 v0.9.1
+     │   │   │   │   └── chacha20poly1305 v0.10.1 (*)
+     │   │   │   ├── chacha20poly1305 v0.10.1 (*)
+     │   │   │   └── ctr v0.9.2
+     │   │   │       └── aes-gcm v0.10.3 (*)
+     │   │   ├── digest v0.10.7
+     │   │   │   ├── blake2 v0.10.6
+     │   │   │   │   └── argon2 v0.5.3
+     │   │   │   │       ├── bitquan-node v0.1.0 (*)
+     │   │   │   │       ├── bitquan-rpc v0.1.0 (*)
+     │   │   │   │       ├── bq-crypto v0.0.1 (*)
+     │   │   │   │       └── wallet v0.1.0 (*)
+     │   │   │   ├── hmac v0.12.1
+     │   │   │   │   ├── bitquan-node v0.1.0 (*)
+     │   │   │   │   ├── bitquan-rpc v0.1.0 (*)
+     │   │   │   │   └── hkdf v0.12.4
+     │   │   │   │       └── bq-crypto v0.0.1 (*)
+     │   │   │   └── sha2 v0.10.9
+     │   │   │       ├── bitquan-consensus v0.1.0 (*)
+     │   │   │       ├── bitquan-node v0.1.0 (*)
+     │   │   │       ├── bitquan-rpc v0.1.0 (*)
+     │   │   │       ├── bitquan-storage v0.1.0
+     │   │   │       │   ├── (dev) bitquan-consensus v0.1.0 (*)
+     │   │   │       │   ├── bitquan-node v0.1.0 (*)
+     │   │   │       │   └── bitquan-rpc v0.1.0 (*)
+     │   │   │       ├── bitquan-types v0.1.0
+     │   │   │       │   ├── bitquan-consensus v0.1.0 (*)
+     │   │   │       │   ├── bitquan-mempool v0.1.0 (*)
+     │   │   │       │   ├── bitquan-network v0.1.0
+     │   │   │       │   │   └── bitquan-node v0.1.0 (*)
+     │   │   │       │   ├── bitquan-node v0.1.0 (*)
+     │   │   │       │   ├── bitquan-rpc v0.1.0 (*)
+     │   │   │       │   ├── bitquan-storage v0.1.0 (*)
+     │   │   │       │   ├── bq-crypto v0.0.1 (*)
+     │   │   │       │   └── wallet v0.1.0 (*)
+     │   │   │       ├── bq-crypto v0.0.1 (*)
+     │   │   │       └── wallet v0.1.0 (*)
+     │   │   └── universal-hash v0.5.1
+     │   │       ├── poly1305 v0.8.0
+     │   │       │   └── chacha20poly1305 v0.10.1 (*)
+     │   │       └── polyval v0.6.2
+     │   │           └── ghash v0.5.1
+     │   │               └── aes-gcm v0.10.3 (*)
+     │   ├── password-hash v0.5.0
+     │   │   └── argon2 v0.5.3 (*)
+     │   ├── pqc-dilithium-seeded v0.2.1
+     │   │   ├── bitquan-node v0.1.0 (*)
+     │   │   └── bq-crypto v0.0.1 (*)
+     │   ├── rand v0.8.5
+     │   │   ├── bitquan-network v0.1.0 (*)
+     │   │   ├── bitquan-node v0.1.0 (*)
+     │   │   ├── bitquan-rpc v0.1.0 (*)
+     │   │   ├── bitquan-types v0.1.0 (*)
+     │   │   ├── bq-crypto v0.0.1 (*)
+     │   │   ├── bq-stress v0.1.0
+     │   │   ├── pqc-dilithium-seeded v0.2.1 (*)
+     │   │   └── wallet v0.1.0 (*)
+     │   └── rand_chacha v0.3.1
+     │       ├── bitquan-node v0.1.0 (*)
+     │       ├── bq-crypto v0.0.1 (*)
+     │       └── rand v0.8.5 (*)
+     └── ring v0.17.14
+         ├── jsonwebtoken v9.3.1
+         │   └── bitquan-rpc v0.1.0 (*)
+         ├── rcgen v0.13.2
+         │   └── bitquan-rpc v0.1.0 (*)
+         ├── rustls v0.23.34
+         │   ├── bitquan-rpc v0.1.0 (*)
+         │   ├── hyper-rustls v0.27.7
+         │   │   └── reqwest v0.12.24
+         │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+         │   │       └── bq-stress v0.1.0 (*)
+         │   ├── reqwest v0.12.24 (*)
+         │   └── tokio-rustls v0.26.4
+         │       ├── hyper-rustls v0.27.7 (*)
+         │       └── reqwest v0.12.24 (*)
+         └── rustls-webpki v0.103.8
+             └── rustls v0.23.34 (*)
+   ├ getrandom v0.3.4
+     ├── bitquan-types v0.1.0
+     │   ├── bitquan-consensus v0.1.0
+     │   │   ├── bitquan-mempool v0.1.0
+     │   │   │   └── bitquan-node v0.1.0
+     │   │   ├── bitquan-node v0.1.0 (*)
+     │   │   └── bitquan-rpc v0.1.0
+     │   │       └── bitquan-node v0.1.0 (*)
+     │   ├── bitquan-mempool v0.1.0 (*)
+     │   ├── bitquan-network v0.1.0
+     │   │   └── bitquan-node v0.1.0 (*)
+     │   ├── bitquan-node v0.1.0 (*)
+     │   ├── bitquan-rpc v0.1.0 (*)
+     │   ├── bitquan-storage v0.1.0
+     │   │   ├── (dev) bitquan-consensus v0.1.0 (*)
+     │   │   ├── bitquan-node v0.1.0 (*)
+     │   │   └── bitquan-rpc v0.1.0 (*)
+     │   ├── bq-crypto v0.0.1
+     │   │   ├── bitquan-consensus v0.1.0 (*)
+     │   │   ├── bitquan-mempool v0.1.0 (*)
+     │   │   └── bitquan-node v0.1.0 (*)
+     │   └── wallet v0.1.0
+     │       └── bitquan-node v0.1.0 (*)
+     ├── jobserver v0.1.34
+     │   └── cc v1.2.43
+     │       ├── (build) aws-lc-sys v0.32.3
+     │       │   └── aws-lc-rs v1.14.1
+     │       │       ├── rustls v0.23.34
+     │       │       │   ├── bitquan-rpc v0.1.0 (*)
+     │       │       │   ├── hyper-rustls v0.27.7
+     │       │       │   │   └── reqwest v0.12.24
+     │       │       │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+     │       │       │   │       └── bq-stress v0.1.0
+     │       │       │   ├── reqwest v0.12.24 (*)
+     │       │       │   └── tokio-rustls v0.26.4
+     │       │       │       ├── hyper-rustls v0.27.7 (*)
+     │       │       │       └── reqwest v0.12.24 (*)
+     │       │       └── rustls-webpki v0.103.8
+     │       │           └── rustls v0.23.34 (*)
+     │       ├── (build) bzip2-sys v0.1.13+1.0.8
+     │       │   └── librocksdb-sys v0.17.3+10.4.2
+     │       │       └── rocksdb v0.23.0
+     │       │           └── bitquan-storage v0.1.0 (*)
+     │       ├── cmake v0.1.54
+     │       │   └── (build) aws-lc-sys v0.32.3 (*)
+     │       ├── (build) iana-time-zone-haiku v0.1.2
+     │       │   └── iana-time-zone v0.1.64
+     │       │       └── chrono v0.4.42
+     │       │           ├── bitquan-node v0.1.0 (*)
+     │       │           ├── bitquan-rpc v0.1.0 (*)
+     │       │           └── bq-crypto v0.0.1 (*)
+     │       ├── (build) librocksdb-sys v0.17.3+10.4.2 (*)
+     │       ├── (build) libsqlite3-sys v0.27.0
+     │       │   └── rusqlite v0.30.0
+     │       │       └── bitquan-node v0.1.0 (*)
+     │       ├── (build) libz-sys v1.1.22
+     │       │   └── librocksdb-sys v0.17.3+10.4.2 (*)
+     │       ├── (build) lz4-sys v1.11.1+lz4-1.10.0
+     │       │   └── librocksdb-sys v0.17.3+10.4.2 (*)
+     │       ├── (build) openssl-sys v0.9.110
+     │       │   ├── native-tls v0.2.14
+     │       │   │   ├── hyper-tls v0.6.0
+     │       │   │   │   └── reqwest v0.12.24 (*)
+     │       │   │   ├── reqwest v0.12.24 (*)
+     │       │   │   └── tokio-native-tls v0.3.1
+     │       │   │       ├── hyper-tls v0.6.0 (*)
+     │       │   │       └── reqwest v0.12.24 (*)
+     │       │   └── openssl v0.10.74
+     │       │       └── native-tls v0.2.14 (*)
+     │       ├── (build) ring v0.17.14
+     │       │   ├── jsonwebtoken v9.3.1
+     │       │   │   └── bitquan-rpc v0.1.0 (*)
+     │       │   ├── rcgen v0.13.2
+     │       │   │   └── bitquan-rpc v0.1.0 (*)
+     │       │   ├── rustls v0.23.34 (*)
+     │       │   └── rustls-webpki v0.103.8 (*)
+     │       └── (build) zstd-sys v2.0.16+zstd.1.5.7
+     │           └── librocksdb-sys v0.17.3+10.4.2 (*)
+     ├── rand_core v0.9.3
+     │   ├── bitquan-types v0.1.0 (*)
+     │   ├── rand v0.9.2
+     │   │   └── proptest v1.8.0
+     │   │       ├── (dev) bitquan-consensus v0.1.0 (*)
+     │   │       └── (dev) bq-crypto v0.0.1 (*)
+     │   ├── rand_chacha v0.9.0
+     │   │   └── proptest v1.8.0 (*)
+     │   └── rand_xorshift v0.4.0
+     │       └── proptest v1.8.0 (*)
+     ├── tempfile v3.23.0
+     │   ├── (dev) bitquan-storage v0.1.0 (*)
+     │   ├── (dev) bq-crypto v0.0.1 (*)
+     │   ├── native-tls v0.2.14 (*)
+     │   ├── proptest v1.8.0 (*)
+     │   ├── rusty-fork v0.3.1
+     │   │   └── proptest v1.8.0 (*)
+     │   └── (dev) wallet v0.1.0 (*)
+     └── uuid v1.18.1
+         └── bitquan-node v0.1.0 (*)
+
+warning[duplicate]: found 3 duplicate entries for crate 'hashbrown'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:98:1
+    │  
+ 98 │ ╭ hashbrown 0.14.5 registry+https://github.com/rust-lang/crates.io-index
+ 99 │ │ hashbrown 0.15.5 registry+https://github.com/rust-lang/crates.io-index
+100 │ │ hashbrown 0.16.0 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ hashbrown v0.14.5
+      ├── dashmap v5.5.3
+      │   └── bitquan-node v0.1.0
+      └── hashlink v0.8.4
+          └── rusqlite v0.30.0
+              └── bitquan-node v0.1.0 (*)
+    ├ hashbrown v0.15.5
+      └── lru v0.12.5
+          └── bitquan-node v0.1.0
+    ├ hashbrown v0.16.0
+      └── indexmap v2.12.0
+          ├── h2 v0.4.12
+          │   ├── hyper v1.7.0
+          │   │   ├── hyper-rustls v0.27.7
+          │   │   │   └── reqwest v0.12.24
+          │   │   │       ├── (dev) bitquan-rpc v0.1.0
+          │   │   │       │   └── bitquan-node v0.1.0
+          │   │   │       └── bq-stress v0.1.0
+          │   │   ├── hyper-tls v0.6.0
+          │   │   │   └── reqwest v0.12.24 (*)
+          │   │   ├── hyper-util v0.1.17
+          │   │   │   ├── hyper-rustls v0.27.7 (*)
+          │   │   │   ├── hyper-tls v0.6.0 (*)
+          │   │   │   └── reqwest v0.12.24 (*)
+          │   │   └── reqwest v0.12.24 (*)
+          │   └── reqwest v0.12.24 (*)
+          └── toml_edit v0.22.27
+              └── toml v0.8.23
+                  └── (dev) bitquan-rpc v0.1.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'http'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:108:1
+    │  
+108 │ ╭ http 0.2.12 registry+https://github.com/rust-lang/crates.io-index
+109 │ │ http 1.3.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ http v0.2.12
+      └── bitquan-types v0.1.0
+          ├── bitquan-consensus v0.1.0
+          │   ├── bitquan-mempool v0.1.0
+          │   │   └── bitquan-node v0.1.0
+          │   ├── bitquan-node v0.1.0 (*)
+          │   └── bitquan-rpc v0.1.0
+          │       └── bitquan-node v0.1.0 (*)
+          ├── bitquan-mempool v0.1.0 (*)
+          ├── bitquan-network v0.1.0
+          │   └── bitquan-node v0.1.0 (*)
+          ├── bitquan-node v0.1.0 (*)
+          ├── bitquan-rpc v0.1.0 (*)
+          ├── bitquan-storage v0.1.0
+          │   ├── (dev) bitquan-consensus v0.1.0 (*)
+          │   ├── bitquan-node v0.1.0 (*)
+          │   └── bitquan-rpc v0.1.0 (*)
+          ├── bq-crypto v0.0.1
+          │   ├── bitquan-consensus v0.1.0 (*)
+          │   ├── bitquan-mempool v0.1.0 (*)
+          │   └── bitquan-node v0.1.0 (*)
+          └── wallet v0.1.0
+              └── bitquan-node v0.1.0 (*)
+    ├ http v1.3.1
+      ├── bitquan-rpc v0.1.0
+      │   └── bitquan-node v0.1.0
+      ├── h2 v0.4.12
+      │   ├── hyper v1.7.0
+      │   │   ├── hyper-rustls v0.27.7
+      │   │   │   └── reqwest v0.12.24
+      │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+      │   │   │       └── bq-stress v0.1.0
+      │   │   ├── hyper-tls v0.6.0
+      │   │   │   └── reqwest v0.12.24 (*)
+      │   │   ├── hyper-util v0.1.17
+      │   │   │   ├── hyper-rustls v0.27.7 (*)
+      │   │   │   ├── hyper-tls v0.6.0 (*)
+      │   │   │   └── reqwest v0.12.24 (*)
+      │   │   └── reqwest v0.12.24 (*)
+      │   └── reqwest v0.12.24 (*)
+      ├── http-body v1.0.1
+      │   ├── http-body-util v0.1.3
+      │   │   ├── hyper-tls v0.6.0 (*)
+      │   │   └── reqwest v0.12.24 (*)
+      │   ├── hyper v1.7.0 (*)
+      │   ├── hyper-util v0.1.17 (*)
+      │   ├── reqwest v0.12.24 (*)
+      │   └── tower-http v0.6.6
+      │       └── reqwest v0.12.24 (*)
+      ├── http-body-util v0.1.3 (*)
+      ├── hyper v1.7.0 (*)
+      ├── hyper-rustls v0.27.7 (*)
+      ├── hyper-util v0.1.17 (*)
+      ├── reqwest v0.12.24 (*)
+      └── tower-http v0.6.6 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'rand_core'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:196:1
+    │  
+196 │ ╭ rand_core 0.6.4 registry+https://github.com/rust-lang/crates.io-index
+197 │ │ rand_core 0.9.3 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ rand_core v0.6.4
+      ├── bq-crypto v0.0.1
+      │   ├── bitquan-consensus v0.1.0
+      │   │   ├── bitquan-mempool v0.1.0
+      │   │   │   └── bitquan-node v0.1.0
+      │   │   ├── bitquan-node v0.1.0 (*)
+      │   │   └── bitquan-rpc v0.1.0
+      │   │       └── bitquan-node v0.1.0 (*)
+      │   ├── bitquan-mempool v0.1.0 (*)
+      │   └── bitquan-node v0.1.0 (*)
+      ├── crypto-common v0.1.6
+      │   ├── aead v0.5.2
+      │   │   ├── aes-gcm v0.10.3
+      │   │   │   ├── bq-crypto v0.0.1 (*)
+      │   │   │   └── wallet v0.1.0
+      │   │   │       └── bitquan-node v0.1.0 (*)
+      │   │   └── chacha20poly1305 v0.10.1
+      │   │       └── bitquan-node v0.1.0 (*)
+      │   ├── cipher v0.4.4
+      │   │   ├── aes v0.8.4
+      │   │   │   └── aes-gcm v0.10.3 (*)
+      │   │   ├── aes-gcm v0.10.3 (*)
+      │   │   ├── chacha20 v0.9.1
+      │   │   │   └── chacha20poly1305 v0.10.1 (*)
+      │   │   ├── chacha20poly1305 v0.10.1 (*)
+      │   │   └── ctr v0.9.2
+      │   │       └── aes-gcm v0.10.3 (*)
+      │   ├── digest v0.10.7
+      │   │   ├── blake2 v0.10.6
+      │   │   │   └── argon2 v0.5.3
+      │   │   │       ├── bitquan-node v0.1.0 (*)
+      │   │   │       ├── bitquan-rpc v0.1.0 (*)
+      │   │   │       ├── bq-crypto v0.0.1 (*)
+      │   │   │       └── wallet v0.1.0 (*)
+      │   │   ├── hmac v0.12.1
+      │   │   │   ├── bitquan-node v0.1.0 (*)
+      │   │   │   ├── bitquan-rpc v0.1.0 (*)
+      │   │   │   └── hkdf v0.12.4
+      │   │   │       └── bq-crypto v0.0.1 (*)
+      │   │   └── sha2 v0.10.9
+      │   │       ├── bitquan-consensus v0.1.0 (*)
+      │   │       ├── bitquan-node v0.1.0 (*)
+      │   │       ├── bitquan-rpc v0.1.0 (*)
+      │   │       ├── bitquan-storage v0.1.0
+      │   │       │   ├── (dev) bitquan-consensus v0.1.0 (*)
+      │   │       │   ├── bitquan-node v0.1.0 (*)
+      │   │       │   └── bitquan-rpc v0.1.0 (*)
+      │   │       ├── bitquan-types v0.1.0
+      │   │       │   ├── bitquan-consensus v0.1.0 (*)
+      │   │       │   ├── bitquan-mempool v0.1.0 (*)
+      │   │       │   ├── bitquan-network v0.1.0
+      │   │       │   │   └── bitquan-node v0.1.0 (*)
+      │   │       │   ├── bitquan-node v0.1.0 (*)
+      │   │       │   ├── bitquan-rpc v0.1.0 (*)
+      │   │       │   ├── bitquan-storage v0.1.0 (*)
+      │   │       │   ├── bq-crypto v0.0.1 (*)
+      │   │       │   └── wallet v0.1.0 (*)
+      │   │       ├── bq-crypto v0.0.1 (*)
+      │   │       └── wallet v0.1.0 (*)
+      │   └── universal-hash v0.5.1
+      │       ├── poly1305 v0.8.0
+      │       │   └── chacha20poly1305 v0.10.1 (*)
+      │       └── polyval v0.6.2
+      │           └── ghash v0.5.1
+      │               └── aes-gcm v0.10.3 (*)
+      ├── password-hash v0.5.0
+      │   └── argon2 v0.5.3 (*)
+      ├── pqc-dilithium-seeded v0.2.1
+      │   ├── bitquan-node v0.1.0 (*)
+      │   └── bq-crypto v0.0.1 (*)
+      ├── rand v0.8.5
+      │   ├── bitquan-network v0.1.0 (*)
+      │   ├── bitquan-node v0.1.0 (*)
+      │   ├── bitquan-rpc v0.1.0 (*)
+      │   ├── bitquan-types v0.1.0 (*)
+      │   ├── bq-crypto v0.0.1 (*)
+      │   ├── bq-stress v0.1.0
+      │   ├── pqc-dilithium-seeded v0.2.1 (*)
+      │   └── wallet v0.1.0 (*)
+      └── rand_chacha v0.3.1
+          ├── bitquan-node v0.1.0 (*)
+          ├── bq-crypto v0.0.1 (*)
+          └── rand v0.8.5 (*)
+    ├ rand_core v0.9.3
+      ├── bitquan-types v0.1.0
+      │   ├── bitquan-consensus v0.1.0
+      │   │   ├── bitquan-mempool v0.1.0
+      │   │   │   └── bitquan-node v0.1.0
+      │   │   ├── bitquan-node v0.1.0 (*)
+      │   │   └── bitquan-rpc v0.1.0
+      │   │       └── bitquan-node v0.1.0 (*)
+      │   ├── bitquan-mempool v0.1.0 (*)
+      │   ├── bitquan-network v0.1.0
+      │   │   └── bitquan-node v0.1.0 (*)
+      │   ├── bitquan-node v0.1.0 (*)
+      │   ├── bitquan-rpc v0.1.0 (*)
+      │   ├── bitquan-storage v0.1.0
+      │   │   ├── (dev) bitquan-consensus v0.1.0 (*)
+      │   │   ├── bitquan-node v0.1.0 (*)
+      │   │   └── bitquan-rpc v0.1.0 (*)
+      │   ├── bq-crypto v0.0.1
+      │   │   ├── bitquan-consensus v0.1.0 (*)
+      │   │   ├── bitquan-mempool v0.1.0 (*)
+      │   │   └── bitquan-node v0.1.0 (*)
+      │   └── wallet v0.1.0
+      │       └── bitquan-node v0.1.0 (*)
+      ├── rand v0.9.2
+      │   └── proptest v1.8.0
+      │       ├── (dev) bitquan-consensus v0.1.0 (*)
+      │       └── (dev) bq-crypto v0.0.1 (*)
+      ├── rand_chacha v0.9.0
+      │   └── proptest v1.8.0 (*)
+      └── rand_xorshift v0.4.0
+          └── proptest v1.8.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'thiserror'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:247:1
+    │  
+247 │ ╭ thiserror 1.0.69 registry+https://github.com/rust-lang/crates.io-index
+248 │ │ thiserror 2.0.17 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ thiserror v1.0.69
+      ├── bitquan-consensus v0.1.0
+      │   ├── bitquan-mempool v0.1.0
+      │   │   └── bitquan-node v0.1.0
+      │   ├── bitquan-node v0.1.0 (*)
+      │   └── bitquan-rpc v0.1.0
+      │       └── bitquan-node v0.1.0 (*)
+      ├── bitquan-mempool v0.1.0 (*)
+      ├── bitquan-network v0.1.0
+      │   └── bitquan-node v0.1.0 (*)
+      ├── bitquan-rpc v0.1.0 (*)
+      ├── bitquan-storage v0.1.0
+      │   ├── (dev) bitquan-consensus v0.1.0 (*)
+      │   ├── bitquan-node v0.1.0 (*)
+      │   └── bitquan-rpc v0.1.0 (*)
+      ├── bitquan-types v0.1.0
+      │   ├── bitquan-consensus v0.1.0 (*)
+      │   ├── bitquan-mempool v0.1.0 (*)
+      │   ├── bitquan-network v0.1.0 (*)
+      │   ├── bitquan-node v0.1.0 (*)
+      │   ├── bitquan-rpc v0.1.0 (*)
+      │   ├── bitquan-storage v0.1.0 (*)
+      │   ├── bq-crypto v0.0.1
+      │   │   ├── bitquan-consensus v0.1.0 (*)
+      │   │   ├── bitquan-mempool v0.1.0 (*)
+      │   │   └── bitquan-node v0.1.0 (*)
+      │   └── wallet v0.1.0
+      │       └── bitquan-node v0.1.0 (*)
+      ├── bq-crypto v0.0.1 (*)
+      └── wallet v0.1.0 (*)
+    ├ thiserror v2.0.17
+      └── simple_asn1 v0.6.3
+          └── jsonwebtoken v9.3.1
+              └── bitquan-rpc v0.1.0
+                  └── bitquan-node v0.1.0
+
+warning[duplicate]: found 2 duplicate entries for crate 'thiserror-impl'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:249:1
+    │  
+249 │ ╭ thiserror-impl 1.0.69 registry+https://github.com/rust-lang/crates.io-index
+250 │ │ thiserror-impl 2.0.17 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ thiserror-impl v1.0.69
+      └── thiserror v1.0.69
+          ├── bitquan-consensus v0.1.0
+          │   ├── bitquan-mempool v0.1.0
+          │   │   └── bitquan-node v0.1.0
+          │   ├── bitquan-node v0.1.0 (*)
+          │   └── bitquan-rpc v0.1.0
+          │       └── bitquan-node v0.1.0 (*)
+          ├── bitquan-mempool v0.1.0 (*)
+          ├── bitquan-network v0.1.0
+          │   └── bitquan-node v0.1.0 (*)
+          ├── bitquan-rpc v0.1.0 (*)
+          ├── bitquan-storage v0.1.0
+          │   ├── (dev) bitquan-consensus v0.1.0 (*)
+          │   ├── bitquan-node v0.1.0 (*)
+          │   └── bitquan-rpc v0.1.0 (*)
+          ├── bitquan-types v0.1.0
+          │   ├── bitquan-consensus v0.1.0 (*)
+          │   ├── bitquan-mempool v0.1.0 (*)
+          │   ├── bitquan-network v0.1.0 (*)
+          │   ├── bitquan-node v0.1.0 (*)
+          │   ├── bitquan-rpc v0.1.0 (*)
+          │   ├── bitquan-storage v0.1.0 (*)
+          │   ├── bq-crypto v0.0.1
+          │   │   ├── bitquan-consensus v0.1.0 (*)
+          │   │   ├── bitquan-mempool v0.1.0 (*)
+          │   │   └── bitquan-node v0.1.0 (*)
+          │   └── wallet v0.1.0
+          │       └── bitquan-node v0.1.0 (*)
+          ├── bq-crypto v0.0.1 (*)
+          └── wallet v0.1.0 (*)
+    ├ thiserror-impl v2.0.17
+      └── thiserror v2.0.17
+          └── simple_asn1 v0.6.3
+              └── jsonwebtoken v9.3.1
+                  └── bitquan-rpc v0.1.0
+                      └── bitquan-node v0.1.0
+
+error[wildcard]: found 1 wildcard dependency for crate 'wallet'
+   ┌─ /Users/alphab/BitQuan/crates/wallet/Cargo.toml:24:17
+   │
+24 │ bitquan-types = { path = "../types" }
+   │                 ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ wallet v0.1.0
+     └── bitquan-node v0.1.0
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows-link'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:305:1
+    │  
+305 │ ╭ windows-link 0.1.3 registry+https://github.com/rust-lang/crates.io-index
+306 │ │ windows-link 0.2.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows-link v0.1.3
+      ├── windows-registry v0.5.3
+      │   └── hyper-util v0.1.17
+      │       ├── hyper-rustls v0.27.7
+      │       │   └── reqwest v0.12.24
+      │       │       ├── (dev) bitquan-rpc v0.1.0
+      │       │       │   └── bitquan-node v0.1.0
+      │       │       └── bq-stress v0.1.0
+      │       ├── hyper-tls v0.6.0
+      │       │   └── reqwest v0.12.24 (*)
+      │       └── reqwest v0.12.24 (*)
+      ├── windows-result v0.3.4
+      │   └── windows-registry v0.5.3 (*)
+      └── windows-strings v0.4.2
+          └── windows-registry v0.5.3 (*)
+    ├ windows-link v0.2.1
+      ├── chrono v0.4.42
+      │   ├── bitquan-node v0.1.0
+      │   ├── bitquan-rpc v0.1.0
+      │   │   └── bitquan-node v0.1.0 (*)
+      │   └── bq-crypto v0.0.1
+      │       ├── bitquan-consensus v0.1.0
+      │       │   ├── bitquan-mempool v0.1.0
+      │       │   │   └── bitquan-node v0.1.0 (*)
+      │       │   ├── bitquan-node v0.1.0 (*)
+      │       │   └── bitquan-rpc v0.1.0 (*)
+      │       ├── bitquan-mempool v0.1.0 (*)
+      │       └── bitquan-node v0.1.0 (*)
+      ├── libloading v0.8.9
+      │   └── clang-sys v1.8.1
+      │       └── bindgen v0.72.1
+      │           ├── (build) aws-lc-sys v0.32.3
+      │           │   └── aws-lc-rs v1.14.1
+      │           │       ├── rustls v0.23.34
+      │           │       │   ├── bitquan-rpc v0.1.0 (*)
+      │           │       │   ├── hyper-rustls v0.27.7
+      │           │       │   │   └── reqwest v0.12.24
+      │           │       │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+      │           │       │   │       └── bq-stress v0.1.0
+      │           │       │   ├── reqwest v0.12.24 (*)
+      │           │       │   └── tokio-rustls v0.26.4
+      │           │       │       ├── hyper-rustls v0.27.7 (*)
+      │           │       │       └── reqwest v0.12.24 (*)
+      │           │       └── rustls-webpki v0.103.8
+      │           │           └── rustls v0.23.34 (*)
+      │           └── (build) librocksdb-sys v0.17.3+10.4.2
+      │               └── rocksdb v0.23.0
+      │                   └── bitquan-storage v0.1.0
+      │                       ├── (dev) bitquan-consensus v0.1.0 (*)
+      │                       ├── bitquan-node v0.1.0 (*)
+      │                       └── bitquan-rpc v0.1.0 (*)
+      ├── parking_lot_core v0.9.12
+      │   ├── dashmap v5.5.3
+      │   │   └── bitquan-node v0.1.0 (*)
+      │   └── parking_lot v0.12.5
+      │       └── tokio v1.48.0
+      │           ├── bitquan-node v0.1.0 (*)
+      │           ├── (dev) bitquan-rpc v0.1.0 (*)
+      │           ├── bq-preflight v0.1.0
+      │           ├── bq-stress v0.1.0 (*)
+      │           ├── h2 v0.4.12
+      │           │   ├── hyper v1.7.0
+      │           │   │   ├── hyper-rustls v0.27.7 (*)
+      │           │   │   ├── hyper-tls v0.6.0
+      │           │   │   │   └── reqwest v0.12.24 (*)
+      │           │   │   ├── hyper-util v0.1.17
+      │           │   │   │   ├── hyper-rustls v0.27.7 (*)
+      │           │   │   │   ├── hyper-tls v0.6.0 (*)
+      │           │   │   │   └── reqwest v0.12.24 (*)
+      │           │   │   └── reqwest v0.12.24 (*)
+      │           │   └── reqwest v0.12.24 (*)
+      │           ├── hyper v1.7.0 (*)
+      │           ├── hyper-rustls v0.27.7 (*)
+      │           ├── hyper-tls v0.6.0 (*)
+      │           ├── hyper-util v0.1.17 (*)
+      │           ├── reqwest v0.12.24 (*)
+      │           ├── tokio-native-tls v0.3.1
+      │           │   ├── hyper-tls v0.6.0 (*)
+      │           │   └── reqwest v0.12.24 (*)
+      │           ├── tokio-rustls v0.26.4 (*)
+      │           ├── tokio-stream v0.1.17
+      │           │   └── tokio-test v0.4.4
+      │           │       └── (dev) bq-preflight v0.1.0 (*)
+      │           ├── tokio-test v0.4.4 (*)
+      │           ├── tokio-util v0.7.16
+      │           │   └── h2 v0.4.12 (*)
+      │           └── tower v0.5.2
+      │               ├── reqwest v0.12.24 (*)
+      │               └── tower-http v0.6.6
+      │                   └── reqwest v0.12.24 (*)
+      ├── windows-core v0.62.2
+      │   └── iana-time-zone v0.1.64
+      │       └── chrono v0.4.42 (*)
+      ├── windows-result v0.4.1
+      │   └── windows-core v0.62.2 (*)
+      ├── windows-strings v0.5.1
+      │   └── windows-core v0.62.2 (*)
+      ├── windows-sys v0.61.2
+      │   ├── errno v0.3.14
+      │   │   └── rustix v1.1.2
+      │   │       └── tempfile v3.23.0
+      │   │           ├── (dev) bitquan-storage v0.1.0 (*)
+      │   │           ├── (dev) bq-crypto v0.0.1 (*)
+      │   │           ├── native-tls v0.2.14
+      │   │           │   ├── hyper-tls v0.6.0 (*)
+      │   │           │   ├── reqwest v0.12.24 (*)
+      │   │           │   └── tokio-native-tls v0.3.1 (*)
+      │   │           ├── proptest v1.8.0
+      │   │           │   ├── (dev) bitquan-consensus v0.1.0 (*)
+      │   │           │   └── (dev) bq-crypto v0.0.1 (*)
+      │   │           ├── rusty-fork v0.3.1
+      │   │           │   └── proptest v1.8.0 (*)
+      │   │           └── (dev) wallet v0.1.0
+      │   │               └── bitquan-node v0.1.0 (*)
+      │   ├── mio v1.1.0
+      │   │   └── tokio v1.48.0 (*)
+      │   ├── nu-ansi-term v0.50.3
+      │   │   └── tracing-subscriber v0.3.20
+      │   │       └── (dev) bitquan-rpc v0.1.0 (*)
+      │   ├── rustix v1.1.2 (*)
+      │   ├── schannel v0.1.28
+      │   │   └── native-tls v0.2.14 (*)
+      │   ├── tempfile v3.23.0 (*)
+      │   └── tokio v1.48.0 (*)
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0 (*)
+              │               └── bq-stress v0.1.0 (*)
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17 (*)
+                  └── tokio v1.48.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows-result'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:308:1
+    │  
+308 │ ╭ windows-result 0.3.4 registry+https://github.com/rust-lang/crates.io-index
+309 │ │ windows-result 0.4.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows-result v0.3.4
+      └── windows-registry v0.5.3
+          └── hyper-util v0.1.17
+              ├── hyper-rustls v0.27.7
+              │   └── reqwest v0.12.24
+              │       ├── (dev) bitquan-rpc v0.1.0
+              │       │   └── bitquan-node v0.1.0
+              │       └── bq-stress v0.1.0
+              ├── hyper-tls v0.6.0
+              │   └── reqwest v0.12.24 (*)
+              └── reqwest v0.12.24 (*)
+    ├ windows-result v0.4.1
+      └── windows-core v0.62.2
+          └── iana-time-zone v0.1.64
+              └── chrono v0.4.42
+                  ├── bitquan-node v0.1.0
+                  ├── bitquan-rpc v0.1.0
+                  │   └── bitquan-node v0.1.0 (*)
+                  └── bq-crypto v0.0.1
+                      ├── bitquan-consensus v0.1.0
+                      │   ├── bitquan-mempool v0.1.0
+                      │   │   └── bitquan-node v0.1.0 (*)
+                      │   ├── bitquan-node v0.1.0 (*)
+                      │   └── bitquan-rpc v0.1.0 (*)
+                      ├── bitquan-mempool v0.1.0 (*)
+                      └── bitquan-node v0.1.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows-strings'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:310:1
+    │  
+310 │ ╭ windows-strings 0.4.2 registry+https://github.com/rust-lang/crates.io-index
+311 │ │ windows-strings 0.5.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows-strings v0.4.2
+      └── windows-registry v0.5.3
+          └── hyper-util v0.1.17
+              ├── hyper-rustls v0.27.7
+              │   └── reqwest v0.12.24
+              │       ├── (dev) bitquan-rpc v0.1.0
+              │       │   └── bitquan-node v0.1.0
+              │       └── bq-stress v0.1.0
+              ├── hyper-tls v0.6.0
+              │   └── reqwest v0.12.24 (*)
+              └── reqwest v0.12.24 (*)
+    ├ windows-strings v0.5.1
+      └── windows-core v0.62.2
+          └── iana-time-zone v0.1.64
+              └── chrono v0.4.42
+                  ├── bitquan-node v0.1.0
+                  ├── bitquan-rpc v0.1.0
+                  │   └── bitquan-node v0.1.0 (*)
+                  └── bq-crypto v0.0.1
+                      ├── bitquan-consensus v0.1.0
+                      │   ├── bitquan-mempool v0.1.0
+                      │   │   └── bitquan-node v0.1.0 (*)
+                      │   ├── bitquan-node v0.1.0 (*)
+                      │   └── bitquan-rpc v0.1.0 (*)
+                      ├── bitquan-mempool v0.1.0 (*)
+                      └── bitquan-node v0.1.0 (*)
+
+warning[duplicate]: found 4 duplicate entries for crate 'windows-sys'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:312:1
+    │  
+312 │ ╭ windows-sys 0.52.0 registry+https://github.com/rust-lang/crates.io-index
+313 │ │ windows-sys 0.59.0 registry+https://github.com/rust-lang/crates.io-index
+314 │ │ windows-sys 0.60.2 registry+https://github.com/rust-lang/crates.io-index
+315 │ │ windows-sys 0.61.2 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows-sys v0.52.0
+      ├── ring v0.17.14
+      │   ├── jsonwebtoken v9.3.1
+      │   │   └── bitquan-rpc v0.1.0
+      │   │       └── bitquan-node v0.1.0
+      │   ├── rcgen v0.13.2
+      │   │   └── bitquan-rpc v0.1.0 (*)
+      │   ├── rustls v0.23.34
+      │   │   ├── bitquan-rpc v0.1.0 (*)
+      │   │   ├── hyper-rustls v0.27.7
+      │   │   │   └── reqwest v0.12.24
+      │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+      │   │   │       └── bq-stress v0.1.0
+      │   │   ├── reqwest v0.12.24 (*)
+      │   │   └── tokio-rustls v0.26.4
+      │   │       ├── hyper-rustls v0.27.7 (*)
+      │   │       └── reqwest v0.12.24 (*)
+      │   └── rustls-webpki v0.103.8
+      │       └── rustls v0.23.34 (*)
+      └── rtoolbox v0.0.3
+          └── rpassword v7.4.0
+              └── bitquan-node v0.1.0 (*)
+    ├ windows-sys v0.59.0
+      └── rpassword v7.4.0
+          └── bitquan-node v0.1.0
+    ├ windows-sys v0.60.2
+      ├── anstyle-query v1.1.4
+      │   └── anstream v0.6.21
+      │       └── clap_builder v4.5.50
+      │           └── clap v4.5.50
+      │               ├── bitquan-consensus v0.1.0
+      │               │   ├── bitquan-mempool v0.1.0
+      │               │   │   └── bitquan-node v0.1.0
+      │               │   ├── bitquan-node v0.1.0 (*)
+      │               │   └── bitquan-rpc v0.1.0
+      │               │       └── bitquan-node v0.1.0 (*)
+      │               ├── bitquan-node v0.1.0 (*)
+      │               ├── bq-preflight v0.1.0
+      │               └── bq-stress v0.1.0
+      ├── anstyle-wincon v3.0.10
+      │   └── anstream v0.6.21 (*)
+      └── socket2 v0.6.1
+          ├── hyper-util v0.1.17
+          │   ├── hyper-rustls v0.27.7
+          │   │   └── reqwest v0.12.24
+          │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │       └── bq-stress v0.1.0 (*)
+          │   ├── hyper-tls v0.6.0
+          │   │   └── reqwest v0.12.24 (*)
+          │   └── reqwest v0.12.24 (*)
+          └── tokio v1.48.0
+              ├── bitquan-node v0.1.0 (*)
+              ├── (dev) bitquan-rpc v0.1.0 (*)
+              ├── bq-preflight v0.1.0 (*)
+              ├── bq-stress v0.1.0 (*)
+              ├── h2 v0.4.12
+              │   ├── hyper v1.7.0
+              │   │   ├── hyper-rustls v0.27.7 (*)
+              │   │   ├── hyper-tls v0.6.0 (*)
+              │   │   ├── hyper-util v0.1.17 (*)
+              │   │   └── reqwest v0.12.24 (*)
+              │   └── reqwest v0.12.24 (*)
+              ├── hyper v1.7.0 (*)
+              ├── hyper-rustls v0.27.7 (*)
+              ├── hyper-tls v0.6.0 (*)
+              ├── hyper-util v0.1.17 (*)
+              ├── reqwest v0.12.24 (*)
+              ├── tokio-native-tls v0.3.1
+              │   ├── hyper-tls v0.6.0 (*)
+              │   └── reqwest v0.12.24 (*)
+              ├── tokio-rustls v0.26.4
+              │   ├── hyper-rustls v0.27.7 (*)
+              │   └── reqwest v0.12.24 (*)
+              ├── tokio-stream v0.1.17
+              │   └── tokio-test v0.4.4
+              │       └── (dev) bq-preflight v0.1.0 (*)
+              ├── tokio-test v0.4.4 (*)
+              ├── tokio-util v0.7.16
+              │   └── h2 v0.4.12 (*)
+              └── tower v0.5.2
+                  ├── reqwest v0.12.24 (*)
+                  └── tower-http v0.6.6
+                      └── reqwest v0.12.24 (*)
+    ├ windows-sys v0.61.2
+      ├── errno v0.3.14
+      │   └── rustix v1.1.2
+      │       └── tempfile v3.23.0
+      │           ├── (dev) bitquan-storage v0.1.0
+      │           │   ├── (dev) bitquan-consensus v0.1.0
+      │           │   │   ├── bitquan-mempool v0.1.0
+      │           │   │   │   └── bitquan-node v0.1.0
+      │           │   │   ├── bitquan-node v0.1.0 (*)
+      │           │   │   └── bitquan-rpc v0.1.0
+      │           │   │       └── bitquan-node v0.1.0 (*)
+      │           │   ├── bitquan-node v0.1.0 (*)
+      │           │   └── bitquan-rpc v0.1.0 (*)
+      │           ├── (dev) bq-crypto v0.0.1
+      │           │   ├── bitquan-consensus v0.1.0 (*)
+      │           │   ├── bitquan-mempool v0.1.0 (*)
+      │           │   └── bitquan-node v0.1.0 (*)
+      │           ├── native-tls v0.2.14
+      │           │   ├── hyper-tls v0.6.0
+      │           │   │   └── reqwest v0.12.24
+      │           │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+      │           │   │       └── bq-stress v0.1.0
+      │           │   ├── reqwest v0.12.24 (*)
+      │           │   └── tokio-native-tls v0.3.1
+      │           │       ├── hyper-tls v0.6.0 (*)
+      │           │       └── reqwest v0.12.24 (*)
+      │           ├── proptest v1.8.0
+      │           │   ├── (dev) bitquan-consensus v0.1.0 (*)
+      │           │   └── (dev) bq-crypto v0.0.1 (*)
+      │           ├── rusty-fork v0.3.1
+      │           │   └── proptest v1.8.0 (*)
+      │           └── (dev) wallet v0.1.0
+      │               └── bitquan-node v0.1.0 (*)
+      ├── mio v1.1.0
+      │   └── tokio v1.48.0
+      │       ├── bitquan-node v0.1.0 (*)
+      │       ├── (dev) bitquan-rpc v0.1.0 (*)
+      │       ├── bq-preflight v0.1.0
+      │       ├── bq-stress v0.1.0 (*)
+      │       ├── h2 v0.4.12
+      │       │   ├── hyper v1.7.0
+      │       │   │   ├── hyper-rustls v0.27.7
+      │       │   │   │   └── reqwest v0.12.24 (*)
+      │       │   │   ├── hyper-tls v0.6.0 (*)
+      │       │   │   ├── hyper-util v0.1.17
+      │       │   │   │   ├── hyper-rustls v0.27.7 (*)
+      │       │   │   │   ├── hyper-tls v0.6.0 (*)
+      │       │   │   │   └── reqwest v0.12.24 (*)
+      │       │   │   └── reqwest v0.12.24 (*)
+      │       │   └── reqwest v0.12.24 (*)
+      │       ├── hyper v1.7.0 (*)
+      │       ├── hyper-rustls v0.27.7 (*)
+      │       ├── hyper-tls v0.6.0 (*)
+      │       ├── hyper-util v0.1.17 (*)
+      │       ├── reqwest v0.12.24 (*)
+      │       ├── tokio-native-tls v0.3.1 (*)
+      │       ├── tokio-rustls v0.26.4
+      │       │   ├── hyper-rustls v0.27.7 (*)
+      │       │   └── reqwest v0.12.24 (*)
+      │       ├── tokio-stream v0.1.17
+      │       │   └── tokio-test v0.4.4
+      │       │       └── (dev) bq-preflight v0.1.0 (*)
+      │       ├── tokio-test v0.4.4 (*)
+      │       ├── tokio-util v0.7.16
+      │       │   └── h2 v0.4.12 (*)
+      │       └── tower v0.5.2
+      │           ├── reqwest v0.12.24 (*)
+      │           └── tower-http v0.6.6
+      │               └── reqwest v0.12.24 (*)
+      ├── nu-ansi-term v0.50.3
+      │   └── tracing-subscriber v0.3.20
+      │       └── (dev) bitquan-rpc v0.1.0 (*)
+      ├── rustix v1.1.2 (*)
+      ├── schannel v0.1.28
+      │   └── native-tls v0.2.14 (*)
+      ├── tempfile v3.23.0 (*)
+      └── tokio v1.48.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows-targets'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:316:1
+    │  
+316 │ ╭ windows-targets 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+317 │ │ windows-targets 0.53.5 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows-targets v0.52.6
+      ├── windows-sys v0.52.0
+      │   ├── ring v0.17.14
+      │   │   ├── jsonwebtoken v9.3.1
+      │   │   │   └── bitquan-rpc v0.1.0
+      │   │   │       └── bitquan-node v0.1.0
+      │   │   ├── rcgen v0.13.2
+      │   │   │   └── bitquan-rpc v0.1.0 (*)
+      │   │   ├── rustls v0.23.34
+      │   │   │   ├── bitquan-rpc v0.1.0 (*)
+      │   │   │   ├── hyper-rustls v0.27.7
+      │   │   │   │   └── reqwest v0.12.24
+      │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+      │   │   │   │       └── bq-stress v0.1.0
+      │   │   │   ├── reqwest v0.12.24 (*)
+      │   │   │   └── tokio-rustls v0.26.4
+      │   │   │       ├── hyper-rustls v0.27.7 (*)
+      │   │   │       └── reqwest v0.12.24 (*)
+      │   │   └── rustls-webpki v0.103.8
+      │   │       └── rustls v0.23.34 (*)
+      │   └── rtoolbox v0.0.3
+      │       └── rpassword v7.4.0
+      │           └── bitquan-node v0.1.0 (*)
+      └── windows-sys v0.59.0
+          └── rpassword v7.4.0 (*)
+    ├ windows-targets v0.53.5
+      └── windows-sys v0.60.2
+          ├── anstyle-query v1.1.4
+          │   └── anstream v0.6.21
+          │       └── clap_builder v4.5.50
+          │           └── clap v4.5.50
+          │               ├── bitquan-consensus v0.1.0
+          │               │   ├── bitquan-mempool v0.1.0
+          │               │   │   └── bitquan-node v0.1.0
+          │               │   ├── bitquan-node v0.1.0 (*)
+          │               │   └── bitquan-rpc v0.1.0
+          │               │       └── bitquan-node v0.1.0 (*)
+          │               ├── bitquan-node v0.1.0 (*)
+          │               ├── bq-preflight v0.1.0
+          │               └── bq-stress v0.1.0
+          ├── anstyle-wincon v3.0.10
+          │   └── anstream v0.6.21 (*)
+          └── socket2 v0.6.1
+              ├── hyper-util v0.1.17
+              │   ├── hyper-rustls v0.27.7
+              │   │   └── reqwest v0.12.24
+              │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+              │   │       └── bq-stress v0.1.0 (*)
+              │   ├── hyper-tls v0.6.0
+              │   │   └── reqwest v0.12.24 (*)
+              │   └── reqwest v0.12.24 (*)
+              └── tokio v1.48.0
+                  ├── bitquan-node v0.1.0 (*)
+                  ├── (dev) bitquan-rpc v0.1.0 (*)
+                  ├── bq-preflight v0.1.0 (*)
+                  ├── bq-stress v0.1.0 (*)
+                  ├── h2 v0.4.12
+                  │   ├── hyper v1.7.0
+                  │   │   ├── hyper-rustls v0.27.7 (*)
+                  │   │   ├── hyper-tls v0.6.0 (*)
+                  │   │   ├── hyper-util v0.1.17 (*)
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  ├── hyper v1.7.0 (*)
+                  ├── hyper-rustls v0.27.7 (*)
+                  ├── hyper-tls v0.6.0 (*)
+                  ├── hyper-util v0.1.17 (*)
+                  ├── reqwest v0.12.24 (*)
+                  ├── tokio-native-tls v0.3.1
+                  │   ├── hyper-tls v0.6.0 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  ├── tokio-rustls v0.26.4
+                  │   ├── hyper-rustls v0.27.7 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  ├── tokio-stream v0.1.17
+                  │   └── tokio-test v0.4.4
+                  │       └── (dev) bq-preflight v0.1.0 (*)
+                  ├── tokio-test v0.4.4 (*)
+                  ├── tokio-util v0.7.16
+                  │   └── h2 v0.4.12 (*)
+                  └── tower v0.5.2
+                      ├── reqwest v0.12.24 (*)
+                      └── tower-http v0.6.6
+                          └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows_aarch64_gnullvm'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:318:1
+    │  
+318 │ ╭ windows_aarch64_gnullvm 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+319 │ │ windows_aarch64_gnullvm 0.53.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows_aarch64_gnullvm v0.52.6
+      └── windows-targets v0.52.6
+          ├── windows-sys v0.52.0
+          │   ├── ring v0.17.14
+          │   │   ├── jsonwebtoken v9.3.1
+          │   │   │   └── bitquan-rpc v0.1.0
+          │   │   │       └── bitquan-node v0.1.0
+          │   │   ├── rcgen v0.13.2
+          │   │   │   └── bitquan-rpc v0.1.0 (*)
+          │   │   ├── rustls v0.23.34
+          │   │   │   ├── bitquan-rpc v0.1.0 (*)
+          │   │   │   ├── hyper-rustls v0.27.7
+          │   │   │   │   └── reqwest v0.12.24
+          │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │   │   │       └── bq-stress v0.1.0
+          │   │   │   ├── reqwest v0.12.24 (*)
+          │   │   │   └── tokio-rustls v0.26.4
+          │   │   │       ├── hyper-rustls v0.27.7 (*)
+          │   │   │       └── reqwest v0.12.24 (*)
+          │   │   └── rustls-webpki v0.103.8
+          │   │       └── rustls v0.23.34 (*)
+          │   └── rtoolbox v0.0.3
+          │       └── rpassword v7.4.0
+          │           └── bitquan-node v0.1.0 (*)
+          └── windows-sys v0.59.0
+              └── rpassword v7.4.0 (*)
+    ├ windows_aarch64_gnullvm v0.53.1
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0
+              │               │   ├── bitquan-mempool v0.1.0
+              │               │   │   └── bitquan-node v0.1.0
+              │               │   ├── bitquan-node v0.1.0 (*)
+              │               │   └── bitquan-rpc v0.1.0
+              │               │       └── bitquan-node v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0
+              │               └── bq-stress v0.1.0
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17
+                  │   ├── hyper-rustls v0.27.7
+                  │   │   └── reqwest v0.12.24
+                  │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+                  │   │       └── bq-stress v0.1.0 (*)
+                  │   ├── hyper-tls v0.6.0
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  └── tokio v1.48.0
+                      ├── bitquan-node v0.1.0 (*)
+                      ├── (dev) bitquan-rpc v0.1.0 (*)
+                      ├── bq-preflight v0.1.0 (*)
+                      ├── bq-stress v0.1.0 (*)
+                      ├── h2 v0.4.12
+                      │   ├── hyper v1.7.0
+                      │   │   ├── hyper-rustls v0.27.7 (*)
+                      │   │   ├── hyper-tls v0.6.0 (*)
+                      │   │   ├── hyper-util v0.1.17 (*)
+                      │   │   └── reqwest v0.12.24 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── hyper v1.7.0 (*)
+                      ├── hyper-rustls v0.27.7 (*)
+                      ├── hyper-tls v0.6.0 (*)
+                      ├── hyper-util v0.1.17 (*)
+                      ├── reqwest v0.12.24 (*)
+                      ├── tokio-native-tls v0.3.1
+                      │   ├── hyper-tls v0.6.0 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-rustls v0.26.4
+                      │   ├── hyper-rustls v0.27.7 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-stream v0.1.17
+                      │   └── tokio-test v0.4.4
+                      │       └── (dev) bq-preflight v0.1.0 (*)
+                      ├── tokio-test v0.4.4 (*)
+                      ├── tokio-util v0.7.16
+                      │   └── h2 v0.4.12 (*)
+                      └── tower v0.5.2
+                          ├── reqwest v0.12.24 (*)
+                          └── tower-http v0.6.6
+                              └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows_aarch64_msvc'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:320:1
+    │  
+320 │ ╭ windows_aarch64_msvc 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+321 │ │ windows_aarch64_msvc 0.53.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows_aarch64_msvc v0.52.6
+      └── windows-targets v0.52.6
+          ├── windows-sys v0.52.0
+          │   ├── ring v0.17.14
+          │   │   ├── jsonwebtoken v9.3.1
+          │   │   │   └── bitquan-rpc v0.1.0
+          │   │   │       └── bitquan-node v0.1.0
+          │   │   ├── rcgen v0.13.2
+          │   │   │   └── bitquan-rpc v0.1.0 (*)
+          │   │   ├── rustls v0.23.34
+          │   │   │   ├── bitquan-rpc v0.1.0 (*)
+          │   │   │   ├── hyper-rustls v0.27.7
+          │   │   │   │   └── reqwest v0.12.24
+          │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │   │   │       └── bq-stress v0.1.0
+          │   │   │   ├── reqwest v0.12.24 (*)
+          │   │   │   └── tokio-rustls v0.26.4
+          │   │   │       ├── hyper-rustls v0.27.7 (*)
+          │   │   │       └── reqwest v0.12.24 (*)
+          │   │   └── rustls-webpki v0.103.8
+          │   │       └── rustls v0.23.34 (*)
+          │   └── rtoolbox v0.0.3
+          │       └── rpassword v7.4.0
+          │           └── bitquan-node v0.1.0 (*)
+          └── windows-sys v0.59.0
+              └── rpassword v7.4.0 (*)
+    ├ windows_aarch64_msvc v0.53.1
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0
+              │               │   ├── bitquan-mempool v0.1.0
+              │               │   │   └── bitquan-node v0.1.0
+              │               │   ├── bitquan-node v0.1.0 (*)
+              │               │   └── bitquan-rpc v0.1.0
+              │               │       └── bitquan-node v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0
+              │               └── bq-stress v0.1.0
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17
+                  │   ├── hyper-rustls v0.27.7
+                  │   │   └── reqwest v0.12.24
+                  │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+                  │   │       └── bq-stress v0.1.0 (*)
+                  │   ├── hyper-tls v0.6.0
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  └── tokio v1.48.0
+                      ├── bitquan-node v0.1.0 (*)
+                      ├── (dev) bitquan-rpc v0.1.0 (*)
+                      ├── bq-preflight v0.1.0 (*)
+                      ├── bq-stress v0.1.0 (*)
+                      ├── h2 v0.4.12
+                      │   ├── hyper v1.7.0
+                      │   │   ├── hyper-rustls v0.27.7 (*)
+                      │   │   ├── hyper-tls v0.6.0 (*)
+                      │   │   ├── hyper-util v0.1.17 (*)
+                      │   │   └── reqwest v0.12.24 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── hyper v1.7.0 (*)
+                      ├── hyper-rustls v0.27.7 (*)
+                      ├── hyper-tls v0.6.0 (*)
+                      ├── hyper-util v0.1.17 (*)
+                      ├── reqwest v0.12.24 (*)
+                      ├── tokio-native-tls v0.3.1
+                      │   ├── hyper-tls v0.6.0 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-rustls v0.26.4
+                      │   ├── hyper-rustls v0.27.7 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-stream v0.1.17
+                      │   └── tokio-test v0.4.4
+                      │       └── (dev) bq-preflight v0.1.0 (*)
+                      ├── tokio-test v0.4.4 (*)
+                      ├── tokio-util v0.7.16
+                      │   └── h2 v0.4.12 (*)
+                      └── tower v0.5.2
+                          ├── reqwest v0.12.24 (*)
+                          └── tower-http v0.6.6
+                              └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows_i686_gnu'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:322:1
+    │  
+322 │ ╭ windows_i686_gnu 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+323 │ │ windows_i686_gnu 0.53.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows_i686_gnu v0.52.6
+      └── windows-targets v0.52.6
+          ├── windows-sys v0.52.0
+          │   ├── ring v0.17.14
+          │   │   ├── jsonwebtoken v9.3.1
+          │   │   │   └── bitquan-rpc v0.1.0
+          │   │   │       └── bitquan-node v0.1.0
+          │   │   ├── rcgen v0.13.2
+          │   │   │   └── bitquan-rpc v0.1.0 (*)
+          │   │   ├── rustls v0.23.34
+          │   │   │   ├── bitquan-rpc v0.1.0 (*)
+          │   │   │   ├── hyper-rustls v0.27.7
+          │   │   │   │   └── reqwest v0.12.24
+          │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │   │   │       └── bq-stress v0.1.0
+          │   │   │   ├── reqwest v0.12.24 (*)
+          │   │   │   └── tokio-rustls v0.26.4
+          │   │   │       ├── hyper-rustls v0.27.7 (*)
+          │   │   │       └── reqwest v0.12.24 (*)
+          │   │   └── rustls-webpki v0.103.8
+          │   │       └── rustls v0.23.34 (*)
+          │   └── rtoolbox v0.0.3
+          │       └── rpassword v7.4.0
+          │           └── bitquan-node v0.1.0 (*)
+          └── windows-sys v0.59.0
+              └── rpassword v7.4.0 (*)
+    ├ windows_i686_gnu v0.53.1
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0
+              │               │   ├── bitquan-mempool v0.1.0
+              │               │   │   └── bitquan-node v0.1.0
+              │               │   ├── bitquan-node v0.1.0 (*)
+              │               │   └── bitquan-rpc v0.1.0
+              │               │       └── bitquan-node v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0
+              │               └── bq-stress v0.1.0
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17
+                  │   ├── hyper-rustls v0.27.7
+                  │   │   └── reqwest v0.12.24
+                  │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+                  │   │       └── bq-stress v0.1.0 (*)
+                  │   ├── hyper-tls v0.6.0
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  └── tokio v1.48.0
+                      ├── bitquan-node v0.1.0 (*)
+                      ├── (dev) bitquan-rpc v0.1.0 (*)
+                      ├── bq-preflight v0.1.0 (*)
+                      ├── bq-stress v0.1.0 (*)
+                      ├── h2 v0.4.12
+                      │   ├── hyper v1.7.0
+                      │   │   ├── hyper-rustls v0.27.7 (*)
+                      │   │   ├── hyper-tls v0.6.0 (*)
+                      │   │   ├── hyper-util v0.1.17 (*)
+                      │   │   └── reqwest v0.12.24 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── hyper v1.7.0 (*)
+                      ├── hyper-rustls v0.27.7 (*)
+                      ├── hyper-tls v0.6.0 (*)
+                      ├── hyper-util v0.1.17 (*)
+                      ├── reqwest v0.12.24 (*)
+                      ├── tokio-native-tls v0.3.1
+                      │   ├── hyper-tls v0.6.0 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-rustls v0.26.4
+                      │   ├── hyper-rustls v0.27.7 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-stream v0.1.17
+                      │   └── tokio-test v0.4.4
+                      │       └── (dev) bq-preflight v0.1.0 (*)
+                      ├── tokio-test v0.4.4 (*)
+                      ├── tokio-util v0.7.16
+                      │   └── h2 v0.4.12 (*)
+                      └── tower v0.5.2
+                          ├── reqwest v0.12.24 (*)
+                          └── tower-http v0.6.6
+                              └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows_i686_gnullvm'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:324:1
+    │  
+324 │ ╭ windows_i686_gnullvm 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+325 │ │ windows_i686_gnullvm 0.53.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows_i686_gnullvm v0.52.6
+      └── windows-targets v0.52.6
+          ├── windows-sys v0.52.0
+          │   ├── ring v0.17.14
+          │   │   ├── jsonwebtoken v9.3.1
+          │   │   │   └── bitquan-rpc v0.1.0
+          │   │   │       └── bitquan-node v0.1.0
+          │   │   ├── rcgen v0.13.2
+          │   │   │   └── bitquan-rpc v0.1.0 (*)
+          │   │   ├── rustls v0.23.34
+          │   │   │   ├── bitquan-rpc v0.1.0 (*)
+          │   │   │   ├── hyper-rustls v0.27.7
+          │   │   │   │   └── reqwest v0.12.24
+          │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │   │   │       └── bq-stress v0.1.0
+          │   │   │   ├── reqwest v0.12.24 (*)
+          │   │   │   └── tokio-rustls v0.26.4
+          │   │   │       ├── hyper-rustls v0.27.7 (*)
+          │   │   │       └── reqwest v0.12.24 (*)
+          │   │   └── rustls-webpki v0.103.8
+          │   │       └── rustls v0.23.34 (*)
+          │   └── rtoolbox v0.0.3
+          │       └── rpassword v7.4.0
+          │           └── bitquan-node v0.1.0 (*)
+          └── windows-sys v0.59.0
+              └── rpassword v7.4.0 (*)
+    ├ windows_i686_gnullvm v0.53.1
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0
+              │               │   ├── bitquan-mempool v0.1.0
+              │               │   │   └── bitquan-node v0.1.0
+              │               │   ├── bitquan-node v0.1.0 (*)
+              │               │   └── bitquan-rpc v0.1.0
+              │               │       └── bitquan-node v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0
+              │               └── bq-stress v0.1.0
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17
+                  │   ├── hyper-rustls v0.27.7
+                  │   │   └── reqwest v0.12.24
+                  │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+                  │   │       └── bq-stress v0.1.0 (*)
+                  │   ├── hyper-tls v0.6.0
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  └── tokio v1.48.0
+                      ├── bitquan-node v0.1.0 (*)
+                      ├── (dev) bitquan-rpc v0.1.0 (*)
+                      ├── bq-preflight v0.1.0 (*)
+                      ├── bq-stress v0.1.0 (*)
+                      ├── h2 v0.4.12
+                      │   ├── hyper v1.7.0
+                      │   │   ├── hyper-rustls v0.27.7 (*)
+                      │   │   ├── hyper-tls v0.6.0 (*)
+                      │   │   ├── hyper-util v0.1.17 (*)
+                      │   │   └── reqwest v0.12.24 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── hyper v1.7.0 (*)
+                      ├── hyper-rustls v0.27.7 (*)
+                      ├── hyper-tls v0.6.0 (*)
+                      ├── hyper-util v0.1.17 (*)
+                      ├── reqwest v0.12.24 (*)
+                      ├── tokio-native-tls v0.3.1
+                      │   ├── hyper-tls v0.6.0 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-rustls v0.26.4
+                      │   ├── hyper-rustls v0.27.7 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-stream v0.1.17
+                      │   └── tokio-test v0.4.4
+                      │       └── (dev) bq-preflight v0.1.0 (*)
+                      ├── tokio-test v0.4.4 (*)
+                      ├── tokio-util v0.7.16
+                      │   └── h2 v0.4.12 (*)
+                      └── tower v0.5.2
+                          ├── reqwest v0.12.24 (*)
+                          └── tower-http v0.6.6
+                              └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows_i686_msvc'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:326:1
+    │  
+326 │ ╭ windows_i686_msvc 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+327 │ │ windows_i686_msvc 0.53.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows_i686_msvc v0.52.6
+      └── windows-targets v0.52.6
+          ├── windows-sys v0.52.0
+          │   ├── ring v0.17.14
+          │   │   ├── jsonwebtoken v9.3.1
+          │   │   │   └── bitquan-rpc v0.1.0
+          │   │   │       └── bitquan-node v0.1.0
+          │   │   ├── rcgen v0.13.2
+          │   │   │   └── bitquan-rpc v0.1.0 (*)
+          │   │   ├── rustls v0.23.34
+          │   │   │   ├── bitquan-rpc v0.1.0 (*)
+          │   │   │   ├── hyper-rustls v0.27.7
+          │   │   │   │   └── reqwest v0.12.24
+          │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │   │   │       └── bq-stress v0.1.0
+          │   │   │   ├── reqwest v0.12.24 (*)
+          │   │   │   └── tokio-rustls v0.26.4
+          │   │   │       ├── hyper-rustls v0.27.7 (*)
+          │   │   │       └── reqwest v0.12.24 (*)
+          │   │   └── rustls-webpki v0.103.8
+          │   │       └── rustls v0.23.34 (*)
+          │   └── rtoolbox v0.0.3
+          │       └── rpassword v7.4.0
+          │           └── bitquan-node v0.1.0 (*)
+          └── windows-sys v0.59.0
+              └── rpassword v7.4.0 (*)
+    ├ windows_i686_msvc v0.53.1
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0
+              │               │   ├── bitquan-mempool v0.1.0
+              │               │   │   └── bitquan-node v0.1.0
+              │               │   ├── bitquan-node v0.1.0 (*)
+              │               │   └── bitquan-rpc v0.1.0
+              │               │       └── bitquan-node v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0
+              │               └── bq-stress v0.1.0
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17
+                  │   ├── hyper-rustls v0.27.7
+                  │   │   └── reqwest v0.12.24
+                  │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+                  │   │       └── bq-stress v0.1.0 (*)
+                  │   ├── hyper-tls v0.6.0
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  └── tokio v1.48.0
+                      ├── bitquan-node v0.1.0 (*)
+                      ├── (dev) bitquan-rpc v0.1.0 (*)
+                      ├── bq-preflight v0.1.0 (*)
+                      ├── bq-stress v0.1.0 (*)
+                      ├── h2 v0.4.12
+                      │   ├── hyper v1.7.0
+                      │   │   ├── hyper-rustls v0.27.7 (*)
+                      │   │   ├── hyper-tls v0.6.0 (*)
+                      │   │   ├── hyper-util v0.1.17 (*)
+                      │   │   └── reqwest v0.12.24 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── hyper v1.7.0 (*)
+                      ├── hyper-rustls v0.27.7 (*)
+                      ├── hyper-tls v0.6.0 (*)
+                      ├── hyper-util v0.1.17 (*)
+                      ├── reqwest v0.12.24 (*)
+                      ├── tokio-native-tls v0.3.1
+                      │   ├── hyper-tls v0.6.0 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-rustls v0.26.4
+                      │   ├── hyper-rustls v0.27.7 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-stream v0.1.17
+                      │   └── tokio-test v0.4.4
+                      │       └── (dev) bq-preflight v0.1.0 (*)
+                      ├── tokio-test v0.4.4 (*)
+                      ├── tokio-util v0.7.16
+                      │   └── h2 v0.4.12 (*)
+                      └── tower v0.5.2
+                          ├── reqwest v0.12.24 (*)
+                          └── tower-http v0.6.6
+                              └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows_x86_64_gnu'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:328:1
+    │  
+328 │ ╭ windows_x86_64_gnu 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+329 │ │ windows_x86_64_gnu 0.53.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows_x86_64_gnu v0.52.6
+      └── windows-targets v0.52.6
+          ├── windows-sys v0.52.0
+          │   ├── ring v0.17.14
+          │   │   ├── jsonwebtoken v9.3.1
+          │   │   │   └── bitquan-rpc v0.1.0
+          │   │   │       └── bitquan-node v0.1.0
+          │   │   ├── rcgen v0.13.2
+          │   │   │   └── bitquan-rpc v0.1.0 (*)
+          │   │   ├── rustls v0.23.34
+          │   │   │   ├── bitquan-rpc v0.1.0 (*)
+          │   │   │   ├── hyper-rustls v0.27.7
+          │   │   │   │   └── reqwest v0.12.24
+          │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │   │   │       └── bq-stress v0.1.0
+          │   │   │   ├── reqwest v0.12.24 (*)
+          │   │   │   └── tokio-rustls v0.26.4
+          │   │   │       ├── hyper-rustls v0.27.7 (*)
+          │   │   │       └── reqwest v0.12.24 (*)
+          │   │   └── rustls-webpki v0.103.8
+          │   │       └── rustls v0.23.34 (*)
+          │   └── rtoolbox v0.0.3
+          │       └── rpassword v7.4.0
+          │           └── bitquan-node v0.1.0 (*)
+          └── windows-sys v0.59.0
+              └── rpassword v7.4.0 (*)
+    ├ windows_x86_64_gnu v0.53.1
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0
+              │               │   ├── bitquan-mempool v0.1.0
+              │               │   │   └── bitquan-node v0.1.0
+              │               │   ├── bitquan-node v0.1.0 (*)
+              │               │   └── bitquan-rpc v0.1.0
+              │               │       └── bitquan-node v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0
+              │               └── bq-stress v0.1.0
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17
+                  │   ├── hyper-rustls v0.27.7
+                  │   │   └── reqwest v0.12.24
+                  │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+                  │   │       └── bq-stress v0.1.0 (*)
+                  │   ├── hyper-tls v0.6.0
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  └── tokio v1.48.0
+                      ├── bitquan-node v0.1.0 (*)
+                      ├── (dev) bitquan-rpc v0.1.0 (*)
+                      ├── bq-preflight v0.1.0 (*)
+                      ├── bq-stress v0.1.0 (*)
+                      ├── h2 v0.4.12
+                      │   ├── hyper v1.7.0
+                      │   │   ├── hyper-rustls v0.27.7 (*)
+                      │   │   ├── hyper-tls v0.6.0 (*)
+                      │   │   ├── hyper-util v0.1.17 (*)
+                      │   │   └── reqwest v0.12.24 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── hyper v1.7.0 (*)
+                      ├── hyper-rustls v0.27.7 (*)
+                      ├── hyper-tls v0.6.0 (*)
+                      ├── hyper-util v0.1.17 (*)
+                      ├── reqwest v0.12.24 (*)
+                      ├── tokio-native-tls v0.3.1
+                      │   ├── hyper-tls v0.6.0 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-rustls v0.26.4
+                      │   ├── hyper-rustls v0.27.7 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-stream v0.1.17
+                      │   └── tokio-test v0.4.4
+                      │       └── (dev) bq-preflight v0.1.0 (*)
+                      ├── tokio-test v0.4.4 (*)
+                      ├── tokio-util v0.7.16
+                      │   └── h2 v0.4.12 (*)
+                      └── tower v0.5.2
+                          ├── reqwest v0.12.24 (*)
+                          └── tower-http v0.6.6
+                              └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows_x86_64_gnullvm'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:330:1
+    │  
+330 │ ╭ windows_x86_64_gnullvm 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+331 │ │ windows_x86_64_gnullvm 0.53.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows_x86_64_gnullvm v0.52.6
+      └── windows-targets v0.52.6
+          ├── windows-sys v0.52.0
+          │   ├── ring v0.17.14
+          │   │   ├── jsonwebtoken v9.3.1
+          │   │   │   └── bitquan-rpc v0.1.0
+          │   │   │       └── bitquan-node v0.1.0
+          │   │   ├── rcgen v0.13.2
+          │   │   │   └── bitquan-rpc v0.1.0 (*)
+          │   │   ├── rustls v0.23.34
+          │   │   │   ├── bitquan-rpc v0.1.0 (*)
+          │   │   │   ├── hyper-rustls v0.27.7
+          │   │   │   │   └── reqwest v0.12.24
+          │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │   │   │       └── bq-stress v0.1.0
+          │   │   │   ├── reqwest v0.12.24 (*)
+          │   │   │   └── tokio-rustls v0.26.4
+          │   │   │       ├── hyper-rustls v0.27.7 (*)
+          │   │   │       └── reqwest v0.12.24 (*)
+          │   │   └── rustls-webpki v0.103.8
+          │   │       └── rustls v0.23.34 (*)
+          │   └── rtoolbox v0.0.3
+          │       └── rpassword v7.4.0
+          │           └── bitquan-node v0.1.0 (*)
+          └── windows-sys v0.59.0
+              └── rpassword v7.4.0 (*)
+    ├ windows_x86_64_gnullvm v0.53.1
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0
+              │               │   ├── bitquan-mempool v0.1.0
+              │               │   │   └── bitquan-node v0.1.0
+              │               │   ├── bitquan-node v0.1.0 (*)
+              │               │   └── bitquan-rpc v0.1.0
+              │               │       └── bitquan-node v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0
+              │               └── bq-stress v0.1.0
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17
+                  │   ├── hyper-rustls v0.27.7
+                  │   │   └── reqwest v0.12.24
+                  │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+                  │   │       └── bq-stress v0.1.0 (*)
+                  │   ├── hyper-tls v0.6.0
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  └── tokio v1.48.0
+                      ├── bitquan-node v0.1.0 (*)
+                      ├── (dev) bitquan-rpc v0.1.0 (*)
+                      ├── bq-preflight v0.1.0 (*)
+                      ├── bq-stress v0.1.0 (*)
+                      ├── h2 v0.4.12
+                      │   ├── hyper v1.7.0
+                      │   │   ├── hyper-rustls v0.27.7 (*)
+                      │   │   ├── hyper-tls v0.6.0 (*)
+                      │   │   ├── hyper-util v0.1.17 (*)
+                      │   │   └── reqwest v0.12.24 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── hyper v1.7.0 (*)
+                      ├── hyper-rustls v0.27.7 (*)
+                      ├── hyper-tls v0.6.0 (*)
+                      ├── hyper-util v0.1.17 (*)
+                      ├── reqwest v0.12.24 (*)
+                      ├── tokio-native-tls v0.3.1
+                      │   ├── hyper-tls v0.6.0 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-rustls v0.26.4
+                      │   ├── hyper-rustls v0.27.7 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-stream v0.1.17
+                      │   └── tokio-test v0.4.4
+                      │       └── (dev) bq-preflight v0.1.0 (*)
+                      ├── tokio-test v0.4.4 (*)
+                      ├── tokio-util v0.7.16
+                      │   └── h2 v0.4.12 (*)
+                      └── tower v0.5.2
+                          ├── reqwest v0.12.24 (*)
+                          └── tower-http v0.6.6
+                              └── reqwest v0.12.24 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'windows_x86_64_msvc'
+    ┌─ /Users/alphab/BitQuan/Cargo.lock:332:1
+    │  
+332 │ ╭ windows_x86_64_msvc 0.52.6 registry+https://github.com/rust-lang/crates.io-index
+333 │ │ windows_x86_64_msvc 0.53.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ windows_x86_64_msvc v0.52.6
+      └── windows-targets v0.52.6
+          ├── windows-sys v0.52.0
+          │   ├── ring v0.17.14
+          │   │   ├── jsonwebtoken v9.3.1
+          │   │   │   └── bitquan-rpc v0.1.0
+          │   │   │       └── bitquan-node v0.1.0
+          │   │   ├── rcgen v0.13.2
+          │   │   │   └── bitquan-rpc v0.1.0 (*)
+          │   │   ├── rustls v0.23.34
+          │   │   │   ├── bitquan-rpc v0.1.0 (*)
+          │   │   │   ├── hyper-rustls v0.27.7
+          │   │   │   │   └── reqwest v0.12.24
+          │   │   │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+          │   │   │   │       └── bq-stress v0.1.0
+          │   │   │   ├── reqwest v0.12.24 (*)
+          │   │   │   └── tokio-rustls v0.26.4
+          │   │   │       ├── hyper-rustls v0.27.7 (*)
+          │   │   │       └── reqwest v0.12.24 (*)
+          │   │   └── rustls-webpki v0.103.8
+          │   │       └── rustls v0.23.34 (*)
+          │   └── rtoolbox v0.0.3
+          │       └── rpassword v7.4.0
+          │           └── bitquan-node v0.1.0 (*)
+          └── windows-sys v0.59.0
+              └── rpassword v7.4.0 (*)
+    ├ windows_x86_64_msvc v0.53.1
+      └── windows-targets v0.53.5
+          └── windows-sys v0.60.2
+              ├── anstyle-query v1.1.4
+              │   └── anstream v0.6.21
+              │       └── clap_builder v4.5.50
+              │           └── clap v4.5.50
+              │               ├── bitquan-consensus v0.1.0
+              │               │   ├── bitquan-mempool v0.1.0
+              │               │   │   └── bitquan-node v0.1.0
+              │               │   ├── bitquan-node v0.1.0 (*)
+              │               │   └── bitquan-rpc v0.1.0
+              │               │       └── bitquan-node v0.1.0 (*)
+              │               ├── bitquan-node v0.1.0 (*)
+              │               ├── bq-preflight v0.1.0
+              │               └── bq-stress v0.1.0
+              ├── anstyle-wincon v3.0.10
+              │   └── anstream v0.6.21 (*)
+              └── socket2 v0.6.1
+                  ├── hyper-util v0.1.17
+                  │   ├── hyper-rustls v0.27.7
+                  │   │   └── reqwest v0.12.24
+                  │   │       ├── (dev) bitquan-rpc v0.1.0 (*)
+                  │   │       └── bq-stress v0.1.0 (*)
+                  │   ├── hyper-tls v0.6.0
+                  │   │   └── reqwest v0.12.24 (*)
+                  │   └── reqwest v0.12.24 (*)
+                  └── tokio v1.48.0
+                      ├── bitquan-node v0.1.0 (*)
+                      ├── (dev) bitquan-rpc v0.1.0 (*)
+                      ├── bq-preflight v0.1.0 (*)
+                      ├── bq-stress v0.1.0 (*)
+                      ├── h2 v0.4.12
+                      │   ├── hyper v1.7.0
+                      │   │   ├── hyper-rustls v0.27.7 (*)
+                      │   │   ├── hyper-tls v0.6.0 (*)
+                      │   │   ├── hyper-util v0.1.17 (*)
+                      │   │   └── reqwest v0.12.24 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── hyper v1.7.0 (*)
+                      ├── hyper-rustls v0.27.7 (*)
+                      ├── hyper-tls v0.6.0 (*)
+                      ├── hyper-util v0.1.17 (*)
+                      ├── reqwest v0.12.24 (*)
+                      ├── tokio-native-tls v0.3.1
+                      │   ├── hyper-tls v0.6.0 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-rustls v0.26.4
+                      │   ├── hyper-rustls v0.27.7 (*)
+                      │   └── reqwest v0.12.24 (*)
+                      ├── tokio-stream v0.1.17
+                      │   └── tokio-test v0.4.4
+                      │       └── (dev) bq-preflight v0.1.0 (*)
+                      ├── tokio-test v0.4.4 (*)
+                      ├── tokio-util v0.7.16
+                      │   └── h2 v0.4.12 (*)
+                      └── tower v0.5.2
+                          ├── reqwest v0.12.24 (*)
+                          └── tower-http v0.6.6
+                              └── reqwest v0.12.24 (*)
+
+advisories ok, bans FAILED, licenses FAILED, sources ok

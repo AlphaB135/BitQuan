@@ -402,7 +402,10 @@ impl ReorgInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    
+    // Allow unwrap/expect in test code for simplicity
+    #[allow(clippy::unwrap_used)]
+    #[allow(clippy::expect_used)]
     fn make_header(prev: [u8; 32], bits: u32, time: u32, nonce: u64) -> BlockHeader {
         BlockHeader {
             version: 1,
@@ -422,14 +425,14 @@ mod tests {
 
         // Add genesis
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).unwrap();
+        fc.add_genesis(genesis.clone()).expect("genesis should be valid");
 
         assert_eq!(fc.height(), 0);
 
         // Add block 1
         let genesis_hash = header_hash(&genesis);
         let block1 = make_header(genesis_hash, 0x207fffff, 1, 1);
-        let (is_new_tip, reorg) = fc.add_block(block1).unwrap();
+        let (is_new_tip, reorg) = fc.add_block(block1).expect("block1 should be valid");
 
         assert!(is_new_tip);
         assert!(reorg.is_none()); // No reorg on linear chain

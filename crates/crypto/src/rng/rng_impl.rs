@@ -51,8 +51,10 @@ pub trait RandomSource {
 
 /// Long-lived deterministic random byte generator with HKDF substreams.
 pub struct RngService {
-    drbg: ChaCha20Rng,
-    master_seed: [u8; 32],
+    /// The underlying ChaCha20 deterministic random bit generator.
+    pub drbg: ChaCha20Rng,
+    /// The master seed used for deriving substreams via HKDF.
+    pub master_seed: [u8; 32],
 }
 
 impl Drop for RngService {

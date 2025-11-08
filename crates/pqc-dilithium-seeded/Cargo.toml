@@ -46,6 +46,9 @@ features = ["getrandom"]
 version = "0.6.4"
 default-features = false
 
+[dependencies.zeroize]
+version = "1.5"
+
 [dependencies.wasm-bindgen]
 version = "0.2.87"
 optional = true

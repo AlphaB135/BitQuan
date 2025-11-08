@@ -6,7 +6,7 @@
 //! - Payout records
 
 use rusqlite::{params, Connection, Error as SqlError, Result as SqlResult};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 
 /// Record of a persisted block.
 #[derive(Debug, Clone)]
@@ -60,10 +60,9 @@ impl PoolDatabase {
     }
 
     /// Helper to acquire mutex lock with proper error handling.
-    fn lock_conn(&self) -> SqlResult<std::sync::MutexGuard<Connection>> {
+    fn lock_conn(&self) -> SqlResult<std::sync::MutexGuard<'_, Connection>> {
         self.conn.lock().map_err(|e| {
-            SqlError::ToSqlConversionFailure(Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            SqlError::ToSqlConversionFailure(Box::new(std::io::Error::other(
                 format!("database mutex poisoned: {}", e),
             )))
         })

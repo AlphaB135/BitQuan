@@ -1,6 +1,9 @@
 //! Transaction and block relay logic for P2P network.
 
-use crate::{protocol::{InvType, InvVector, Message}, NetworkError, Result};
+use crate::{
+    protocol::{InvType, InvVector, Message},
+    NetworkError, Result,
+};
 use bitquan_types::Transaction;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -31,7 +34,9 @@ impl RelayManager {
 
     /// Records an inventory announcement
     pub fn announce(&self, inv: &InvVector) -> Result<()> {
-        let mut announced = self.announced.lock()
+        let mut announced = self
+            .announced
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("announced: {}", e)))?;
 
         // Cleanup old entries if needed
@@ -46,14 +51,18 @@ impl RelayManager {
 
     /// Checks if we've recently announced this item
     pub fn has_announced(&self, hash: &[u8; 32]) -> Result<bool> {
-        let announced = self.announced.lock()
+        let announced = self
+            .announced
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("announced: {}", e)))?;
         Ok(announced.contains_key(hash))
     }
 
     /// Adds a pending request
     pub fn add_request(&self, hash: [u8; 32], peer_id: String) -> Result<()> {
-        let mut requests = self.pending_requests.lock()
+        let mut requests = self
+            .pending_requests
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("pending_requests: {}", e)))?;
         requests.entry(hash).or_default().insert(peer_id);
         Ok(())
@@ -61,7 +70,9 @@ impl RelayManager {
 
     /// Removes a pending request
     pub fn remove_request(&self, hash: &[u8; 32]) -> Result<()> {
-        let mut requests = self.pending_requests.lock()
+        let mut requests = self
+            .pending_requests
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("pending_requests: {}", e)))?;
         requests.remove(hash);
         Ok(())
@@ -69,7 +80,9 @@ impl RelayManager {
 
     /// Gets peers waiting for this item
     pub fn get_requesters(&self, hash: &[u8; 32]) -> Result<Vec<String>> {
-        let requests = self.pending_requests.lock()
+        let requests = self
+            .pending_requests
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("pending_requests: {}", e)))?;
         Ok(requests
             .get(hash)
@@ -79,7 +92,9 @@ impl RelayManager {
 
     /// Marks an item as relayed
     pub fn mark_relayed(&self, hash: [u8; 32]) -> Result<()> {
-        let mut relayed = self.relayed.lock()
+        let mut relayed = self
+            .relayed
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("relayed: {}", e)))?;
 
         // Limit size
@@ -93,7 +108,9 @@ impl RelayManager {
 
     /// Checks if we've already relayed this
     pub fn was_relayed(&self, hash: &[u8; 32]) -> Result<bool> {
-        let relayed = self.relayed.lock()
+        let relayed = self
+            .relayed
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("relayed: {}", e)))?;
         Ok(relayed.contains(hash))
     }
@@ -102,7 +119,9 @@ impl RelayManager {
     pub fn cleanup(&self) -> Result<()> {
         let cutoff = Instant::now() - Duration::from_secs(600);
 
-        let mut announced = self.announced.lock()
+        let mut announced = self
+            .announced
+            .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("announced: {}", e)))?;
         announced.retain(|_, time| *time > cutoff);
         Ok(())

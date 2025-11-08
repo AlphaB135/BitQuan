@@ -8,6 +8,7 @@ description = "BitQuan cryptography utilities with deterministic RNG support."
 
 [features]
 deterministic_tests = []
+memory-locking = ["libc"]
 
 [dependencies]
 bitquan-types = { path = "../types", version = "0.1.0" }
@@ -18,6 +19,8 @@ getrandom = "0.2"
 hkdf = "0.12"
 sha2 = "0.10"
 zeroize = { version = "1.8", features = ["derive"] }
+secrecy = "0.8"
+libc = { version = "0.2", optional = true }
 thiserror = "1"
 hex = "0.4"
 pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1" }
