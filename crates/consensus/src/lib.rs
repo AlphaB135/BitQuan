@@ -399,8 +399,11 @@ pub fn calculate_block_weight(block: &Block) -> Result<usize, ConsensusError> {
 /// Legacy function - calculates the block weight given an `alpha` multiplier.
 ///
 /// Deprecated: Use calculate_block_weight() instead for BQIP-0002 compliance.
+///
+/// **Note:** This function is internal-only for testing weight formulas.
+/// External callers should use `calculate_block_weight()` with production parameters.
 #[deprecated(note = "Use calculate_block_weight() for BQIP-0002 compliance")]
-pub fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
+pub(crate) fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
     use bitquan_types::CompactUint;
     // Total bytes (base + witness) - return 0 on error (deprecated anyway)
     let total = block.serialized_size_hint().unwrap_or(0) as u64;
