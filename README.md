@@ -369,6 +369,19 @@ BitQuan now includes complete reward calculation and pool accounting:
 
 See [POOL_OPERATIONS.md](docs/POOL_OPERATIONS.md) for pool lifecycle and payout details.
 
+## Non-Goals
+
+BitQuan intentionally does **NOT** include:
+
+- ❌ **Smart Contracts**: No scripting language or Turing-complete execution layer
+- ❌ **DeFi/DEX Features**: No built-in decentralized exchange or DeFi protocols
+- ❌ **Governance Tokens**: No on-chain voting, staking, or delegation mechanisms
+- ❌ **Alternative Consensus**: Only Proof-of-Work (no PoS, DPoS, BFT variants)
+- ❌ **Experimental Cryptography**: Only peer-reviewed, NIST-approved algorithms
+- ❌ **Marketing Gimmicks**: No promises of "moon", "get rich quick", or unrealistic TPS claims
+
+**Philosophy**: BitQuan does one thing well — quantum-resistant value transfer with Bitcoin-level simplicity and 50+ year security.
+
 ## Repository Structure
 
 ```

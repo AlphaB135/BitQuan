@@ -42,6 +42,43 @@ Security reports include, but are not limited to:
 - Primary: `security@bitquan.org`
 - GPG Fingerprint (example placeholder): `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`
 - Backup community channel with limited access shared under NDA during active incidents
+
+## Cryptographic Lifespan
+
+BitQuan's post-quantum cryptography is designed for **50+ year security resilience** against both classical and quantum computers.
+
+### Algorithm Security Estimates
+
+| Algorithm | Type | NIST Standard | Classical Security | Quantum Security | Expected Lifespan |
+|-----------|------|---------------|-------------------|------------------|-------------------|
+| **Dilithium3** | Signatures | FIPS 204 | 192-bit | NIST Level 3 (≈AES-192) | 50+ years |
+| **SHA-256** | Hashing | FIPS 180-4 | 256-bit | 128-bit (Grover) | 30+ years |
+| **AES-256-GCM** | Encryption | NIST approved | 256-bit | 128-bit (Grover) | 30+ years |
+
+### Security Assumptions
+
+1. **Quantum Threat Model**: Based on NIST PQC standardization estimates
+   - Large-scale quantum computers expected by 2030-2040
+   - Dilithium3 provides security margin beyond current projections
+
+2. **Conservative Design**: Chosen NIST Level 3 (not Level 1) for extra margin
+   - Level 3 ≈ AES-192 equivalent security
+   - Balances security vs. signature size (3,293 bytes)
+
+3. **Upgrade Path**: Protocol designed for future algorithm updates
+   - Version field in transactions allows smooth transitions
+   - Hybrid schemes possible if needed (Dilithium + classical ECDSA)
+
+### Cryptographic Audit Trail
+
+- **Dilithium**: NIST FIPS 204 (2023) — Final PQC signature standard
+- **SHA-256**: NIST FIPS 180-4 (2015) — Industry-proven hash function
+- **AES-GCM**: NIST SP 800-38D (2007) — Authenticated encryption standard
+- **HMAC-SHA512**: NIST FIPS 198-1 (2008) — Key derivation standard
+- **ChaCha20**: RFC 8439 (2018) — CSPRNG for key generation
+
+**Recommendation**: External cryptographic audit required before mainnet launch to validate implementation correctness.
+
 ## Sprint 3 Security Enhancements (November 2024)
 
 ### Error Handling Audit
