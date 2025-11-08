@@ -55,3 +55,85 @@ println!("Token: {}", mask_secret(&token, 4));
 
 See [LOGGING_POLICY.md](docs/LOGGING_POLICY.md) for details.
 
+## Code Structure & Naming Conventions
+
+### File Naming
+
+**✅ DO:**
+- Use `snake_case.rs` for all Rust files
+  - Examples: `transaction.rs`, `block_index.rs`, `tx_builder.rs`
+- Use `lib.rs` for crate entry points
+- Use `mod.rs` only for multi-file modules (prefer `module_name.rs` when possible)
+- Use `*_tests.rs` for integration tests in `tests/` directory
+  - Examples: `transaction_lifecycle_tests.rs`, `overflow_protection_tests.rs`
+
+**❌ DON'T:**
+- `CamelCase.rs` (incorrect)
+- `kebab-case.rs` (incorrect for Rust)
+- `test_*.rs` (use `*_tests.rs` instead)
+
+### Module Organization
+
+**Standard order in `lib.rs` or module files:**
+
+```rust
+// 1. Module declarations
+mod transaction;
+mod block;
+mod error;
+
+// 2. Re-exports (public API)
+pub use transaction::{Transaction, TxIn, TxOut};
+pub use block::Block;
+pub use error::Error;
+
+// 3. Internal modules (prefer pub(crate) for internals)
+pub(crate) mod internal_utils;
+
+// 4. Tests (at the end)
+#[cfg(test)]
+mod tests;
+```
+
+### Visibility Guidelines
+
+**Use `pub(crate)` for internal APIs:**
+
+```rust
+// ✅ Good - internal helper hidden from external users
+pub(crate) fn internal_validation_helper(...) -> Result<()> { ... }
+
+// ✅ Good - public stable API
+pub fn validate_transaction(...) -> Result<()> { ... }
+
+// ❌ Bad - exposes internal details
+pub fn internal_validation_helper(...) -> Result<()> { ... }
+```
+
+**Why?**
+- Prevents users from depending on internal implementation details
+- Easier to refactor without breaking external code
+- Clearer separation between stable API and internals
+
+### Crate Organization
+
+Each crate should have a **single, clear responsibility**:
+
+- `bitquan-types` - Core data structures only
+- `bitquan-crypto` - Cryptographic primitives
+- `bitquan-consensus` - Consensus rules and validation
+- `bitquan-storage` - Database backend
+- `bitquan-network` - P2P networking
+- `bitquan-rpc` - JSON-RPC server
+- `bitquan-mempool` - Transaction pool
+- `bitquan-wallet` - Wallet operations
+- `bitquan-node` - Main binary (orchestrator)
+
+**Dependency Flow:** Always unidirectional (no circular dependencies)
+```
+types ← crypto ← consensus ← mempool ← node
+types ← storage ← consensus ← rpc ← node
+```
+
+For more details, see the Code Structure audit report in `docs/audit/`.
+
