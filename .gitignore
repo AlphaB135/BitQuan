@@ -19,3 +19,9 @@ tmp/**/*.keystore
 todo.md
 crates/types/examples/genesis_hash_iter.rs
 forks/
+
+# Backup files
+*.bak
+*-e
+*.tmp
+.DS_Store
