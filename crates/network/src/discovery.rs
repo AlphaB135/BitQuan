@@ -4,6 +4,7 @@ use crate::protocol::PeerAddr;
 use bitquan_types::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bootstrap seed nodes for testnet.
