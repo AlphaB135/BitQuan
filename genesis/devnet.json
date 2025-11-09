@@ -8,7 +8,7 @@
     "timestamp": 1703980800,
     "prev_block_hash": "0000000000000000000000000000000000000000000000000000000000000000",
     "merkle_root": "9b7ec8a572c73ec1f8d6f74e2d7b8f1e3c5d9a2b4e6f8a1c3d5e7f9a2b4c6d8e",
-    "bits": 503382015,
+    "bits": 545259519,
     "nonce": 0,
     "pow_algo": "sha256d",
     "transactions": [

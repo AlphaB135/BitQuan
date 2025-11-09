@@ -4,6 +4,7 @@
 //! blockchain reorganizations when a competing chain becomes longer.
 
 use crate::pow::header_hash;
+use crate::CheckpointManager;
 use bitquan_types::BlockHeader;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -86,6 +87,8 @@ pub struct ForkChoice {
     pub last_reorg_depth: usize,
     /// Invalid blocks (for peer banning).
     invalid_blocks: HashMap<[u8; 32], String>,
+    /// Checkpoint manager for validation
+    checkpoint_manager: Option<CheckpointManager>,
 }
 
 impl ForkChoice {
@@ -100,6 +103,7 @@ impl ForkChoice {
             max_reorg_depth: Self::DEFAULT_MAX_REORG,
             last_reorg_depth: 0,
             invalid_blocks: HashMap::new(),
+            checkpoint_manager: None,
         }
     }
 
@@ -111,6 +115,7 @@ impl ForkChoice {
             max_reorg_depth,
             last_reorg_depth: 0,
             invalid_blocks: HashMap::new(),
+            checkpoint_manager: None,
         }
     }
 
@@ -122,6 +127,16 @@ impl ForkChoice {
     /// Check if a block is marked invalid.
     pub fn is_invalid(&self, hash: &[u8; 32]) -> Option<&String> {
         self.invalid_blocks.get(hash)
+    }
+
+    /// Sets the checkpoint manager for validation.
+    pub fn set_checkpoint_manager(&mut self, manager: Option<CheckpointManager>) {
+        self.checkpoint_manager = manager;
+    }
+
+    /// Gets the checkpoint manager.
+    pub fn checkpoint_manager(&self) -> Option<&CheckpointManager> {
+        self.checkpoint_manager.as_ref()
     }
 
     /// Adds the genesis block.
@@ -161,6 +176,13 @@ impl ForkChoice {
         // Calculate height and work
         let height = parent.height + 1;
         let parent_work = parent.chain_work;
+
+        // Validate against checkpoints if enabled
+        if let Some(ref manager) = self.checkpoint_manager {
+            manager
+                .validate_block(height, &hash)
+                .map_err(|_e| ForkError::InvalidWork)?;
+        }
 
         // Create new node
         let mut node = BlockNode::new(header, height, 0.0);
