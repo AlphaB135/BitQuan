@@ -3,9 +3,9 @@
 //! ตัวอย่างการใช้งานระบบกู้คืนอัตโนมัติ
 
 use bitquan_consensus::{
-    AutoRecoveryConfig, AutoRecoveryManager, BlockSnapshot
+    RecoveryConfig, AutoRecoveryManager, StateSnapshot
 };
-use bitquan_consensus::auto_recovery::{BlockMetrics, AnomalyType, RecoveryStatus};
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,71 +13,72 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=====================================");
     
     // 1. สร้าง Auto-Recovery Manager
-    let config = AutoRecoveryConfig {
-        memory_blocks: 1000,
-        safe_confirmations: 50,
-        anomaly_threshold: 0.05,
-        rollback_delay: 10, // 10 วินาทีสำหรับ demo
+    let config = RecoveryConfig {
+        enabled: true,
+        max_rollback_blocks: 1000,
+        min_confirmations: 50,
         override_signatures: 2,
+        anomaly_threshold_percent: 5,
     };
     
-    let mut manager = AutoRecoveryManager::new(config);
+    let checkpoint_manager = bitquan_consensus::CheckpointManager::new(true);
+    let monitor = bitquan_consensus::Monitor::default();
+    let mut manager = AutoRecoveryManager::new(config, checkpoint_manager, monitor);
     
 
     
     println!("SUCCESS: Auto-Recovery Manager initialized");
-    println!("Status: Initial status: {:?}", manager.get_status());
+    println!("Status: Initial status: {:?}", manager.status());
     println!();
     
     // 3. บันทึก blocks ปกติ
     println!("Recording: Recording normal blocks...");
     for height in 1000..=1010 {
-        let snapshot = create_normal_block(height);
-        manager.record_block(snapshot)?;
+        let hash = [height as u8; 32];
+        let state_root = [(height + 100) as u8; 32];
+        manager.process_block(height, hash, state_root)?;
         print!(".");
     }
     println!(" Done!");
-    println!("Status: Status after normal blocks: {:?}", manager.get_status());
+    println!("Status: Status after normal blocks: {:?}", manager.status());
     println!();
     
-    // 4. สร้าง block ที่มีปัญหา (Block size ใหญ่ผิดปกติ)
-    println!("Alert: Creating problematic block (oversized)...");
-    let mut bad_block = create_normal_block(1011);
-    bad_block.size = 50_000_000; // 50MB - ผิดปกติ
-    bad_block.tx_count = 5000;
+    // 4. สร้าง block ที่มีปัญหา (Hash mismatch)
+    println!("Alert: Creating problematic block (hash mismatch)...");
+    let bad_hash = [0xFFu8; 32];
+    let state_root = [(1011 + 100) as u8; 32];
     
-    manager.record_block(bad_block)?;
-    println!("Status: Status after bad block: {:?}", manager.get_status());
+    manager.process_block(1011, bad_hash, state_root)?;
+    println!("Status: Status after bad block: {:?}", manager.status());
     println!();
     
     // 5. แสดงรายงานความผิดปกติ
     println!("Reports: Anomaly Reports:");
-    for (i, anomaly) in manager.get_anomalies().iter().enumerate() {
+    for (i, anomaly) in manager.get_recovery_history().iter().enumerate() {
         println!("  {}. {:?}", i+1, anomaly.anomaly_type);
         println!("     Height: {}", anomaly.height);
-        println!("     Severity: {}/100", anomaly.severity);
-        println!("     Description: {}", anomaly.description);
+        println!("     Context: {}", anomaly.context);
     }
     println!();
     
     // 6. แสดงสถิติ
-    let stats = manager.get_statistics();
+    let stats = manager.get_recovery_stats();
     println!("Statistics: Recovery Statistics:");
-    println!("  Total snapshots: {}", stats.total_snapshots);
-    println!("  Total anomalies: {}", stats.total_anomalies);
+    println!("  Snapshot count: {}", stats.snapshot_count);
+    println!("  Recovery count: {}", stats.recovery_count);
     println!("  Last safe height: {}", stats.last_safe_height);
-    println!("  Memory usage: {} bytes", stats.memory_usage);
+    println!("  Override signatures: {}", stats.override_signatures);
     println!();
     
     // 7. ทดลอง manual override
     println!("Override: Attempting manual override...");
     let result = manager.manual_override(
         "sig_abc123", 
-        "False positive - legitimate large block"
+        "False positive - legitimate block"
     );
     
     match result {
-        Ok(_) => println!("SUCCESS: Override accepted from auto-recovery system"),
+        Ok(_) => println!("SUCCESS: Override signature added"),
         Err(e) => println!("Error: Override failed: {}", e),
     }
     
@@ -94,12 +95,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("Error: Override failed: {}", e),
     }
     
-    println!("Status: Final status: {:?}", manager.get_status());
+    println!("Status: Final status: {:?}", manager.status());
     println!();
     
     // 9. ทดลอง manual rollback
     println!("Manual: Performing manual rollback to height 1005...");
-    let result = manager.manual_rollback(1005, "Manual rollback test");
+    let signatures = vec!["sig_abc123".to_string(), "sig_def456".to_string()];
+    let result = manager.manual_rollback(1005, signatures);
     
     match result {
         Ok(_) => println!("SUCCESS: Manual rollback successful"),
@@ -107,20 +109,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // 10. สถิติสุดท้าย
-    let final_stats = manager.get_statistics();
+    let final_stats = manager.get_recovery_stats();
     println!();
     println!("Status: Final Statistics:");
-    println!("  Total snapshots: {}", final_stats.total_snapshots);
-    println!("  Total anomalies: {}", final_stats.total_anomalies);
+    println!("  Snapshot count: {}", final_stats.snapshot_count);
+    println!("  Recovery count: {}", final_stats.recovery_count);
     println!("  Last safe height: {}", final_stats.last_safe_height);
-    println!("  Current status: {:?}", final_stats.current_status);
+    println!("  Current status: {:?}", final_stats.status);
     
     // 11. แสดง snapshots ล่าสุด
     println!();
     println!("Snapshots: Recent Snapshots:");
-    for snapshot in manager.get_recent_snapshots(3) {
-        println!("  Height {}: {} bytes, {} txs", 
-                 snapshot.height, snapshot.size, snapshot.tx_count);
+    let history = manager.get_recovery_history();
+    for (i, snapshot) in history.iter().take(3).enumerate() {
+        println!("  {}. Height: {}, Type: {:?}", 
+                 i+1, snapshot.height, snapshot.anomaly_type);
     }
     
     println!();
@@ -129,32 +132,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// สร้าง block snapshot ปกติ
-fn create_normal_block(height: u64) -> BlockSnapshot {
+/// สร้าง state snapshot ปกติ
+fn create_normal_state_snapshot(height: u64) -> StateSnapshot {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
     
-    BlockSnapshot {
+    StateSnapshot {
         height,
         hash: [height as u8; 32],
+        state_root: [(height + 100) as u8; 32],
         timestamp: now,
-        parent_hash: [(height-1) as u8; 32],
-        merkle_root: [0u8; 32],
-        difficulty: 0x1d00ffff,
-        nonce: height,
-        tx_count: 100 + (height % 50) as usize,
-        size: 1_000_000 + (height % 100000) as usize,
-        metrics: BlockMetrics {
-            transaction_count: 100 + (height % 50) as usize,
-            avg_size_100: 1_000_000,
-            signature_count: 100 + (height % 50) as usize,
-            gas_used: 21000 * (100 + (height % 50) as u64),
-            orphan_rate: 0.01,
-            avg_difficulty: 1000.0,
-        },
-        recorded_at: now,
+        verified_safe: true,
     }
 }
 
@@ -165,21 +155,23 @@ mod tests {
     #[test]
     fn test_demo_flow() {
         // ทดสอบ flow การทำงานของ demo
-        let config = AutoRecoveryConfig::default();
-        let mut manager = AutoRecoveryManager::new(config);
-
+        let config = RecoveryConfig::default();
+        let checkpoint_manager = bitquan_consensus::CheckpointManager::new(true);
+        let monitor = bitquan_consensus::Monitor::default();
+        let mut manager = AutoRecoveryManager::new(config, checkpoint_manager, monitor);
         
         // บันทึก block ปกติ
-        let snapshot = create_normal_block(1000);
-        assert!(manager.record_block(snapshot).is_ok());
+        let hash = [1000u8; 32];
+        let state_root = [1100u8; 32];
+        assert!(manager.process_block(1000, hash, state_root).is_ok());
         assert_eq!(manager.get_status(), RecoveryStatus::Normal);
         
-        // บันทึก block ที่มีปัญหา
-        let mut bad_snapshot = create_normal_block(1001);
-        bad_snapshot.size = 50_000_000;
-        assert!(manager.record_block(bad_snapshot).is_ok());
+        // บันทึก block ที่มีปัญหา (hash mismatch)
+        let bad_hash = [0xFFu8; 32];
+        let bad_state_root = [1101u8; 32];
+        assert!(manager.process_block(1001, bad_hash, bad_state_root).is_ok());
         
         // ตรวจสอบว่ามี anomaly
-        assert!(!manager.get_anomalies().is_empty());
+        assert!(!manager.get_recovery_history().is_empty());
     }
 }
