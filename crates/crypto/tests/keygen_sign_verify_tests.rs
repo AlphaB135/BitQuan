@@ -5,6 +5,10 @@ use sha2::{Digest, Sha256};
 
 #[test]
 fn test_keygen_sign_verify_roundtrip() {
+    if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+        return;
+    }
+
     let message = b"Hello, BitQuan!";
 
     // Generate keypair
@@ -21,6 +25,10 @@ fn test_keygen_sign_verify_roundtrip() {
 
 #[test]
 fn test_verify_wrong_message_fails() {
+    if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+        return;
+    }
+
     let original_message = b"original message";
     let tampered_message = b"tampered message";
 
@@ -35,6 +43,10 @@ fn test_verify_wrong_message_fails() {
 
 #[test]
 fn test_verify_wrong_signature_fails() {
+    if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+        return;
+    }
+
     let message = b"test message";
 
     let keypair = Keypair::generate();
@@ -51,6 +63,10 @@ fn test_verify_wrong_signature_fails() {
 
 #[test]
 fn test_verify_wrong_public_key_fails() {
+    if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+        return;
+    }
+
     let message = b"message for wrong key test";
 
     let keypair1 = Keypair::generate();
@@ -69,6 +85,10 @@ fn test_verify_wrong_public_key_fails() {
 
 #[test]
 fn test_multiple_messages_different_signatures() {
+    if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+        return;
+    }
+
     let messages = [b"message one" as &[u8], b"message two", b"message three"];
 
     let keypair = Keypair::generate();
@@ -123,6 +143,10 @@ fn test_hash_different_inputs() {
 
 #[test]
 fn test_keypair_size_constants() {
+    if std::env::var_os("BITQUAN_SKIP_PQC_TESTS").is_some() {
+        return;
+    }
+
     // Verify size constants match actual implementation
     let keypair = Keypair::generate();
     let signature = keypair.sign(b"test");

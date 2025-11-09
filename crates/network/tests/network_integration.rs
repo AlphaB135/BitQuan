@@ -237,13 +237,14 @@ fn test_peer_book_persistence() {
     book.add_peer("persistent:18444".to_string());
     book.mark_peer_success("persistent:18444");
 
-    let temp_path = "/tmp/bitquan_network_test.json";
+    // Use a cross-platform temporary directory
+    let temp_path = std::env::temp_dir().join("bitquan_network_test.json");
 
     // Save
-    book.save_to_file(temp_path).unwrap();
+    book.save_to_file(temp_path.to_str().unwrap()).unwrap();
 
     // Load
-    let loaded = PeerBook::load_from_file(temp_path).unwrap();
+    let loaded = PeerBook::load_from_file(temp_path.to_str().unwrap()).unwrap();
 
     assert_eq!(loaded.peer_count(), 1);
     assert!(loaded.get_peer("persistent:18444").is_some());
