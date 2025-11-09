@@ -84,7 +84,7 @@ Status: Production Ready - See [Security Audit Report](docs/security/AUDIT_SUMMA
 
 | Category | Score | Status |
 |----------|--------|---------|
-| **Error Handling** | 30/30 | Excellent (0 unwraps) |
+| **Error Handling** | 0/30 | bad (340 unwraps)|
 | **Memory Safety** | 25/25 | Excellent (Panic-free) |
 | **Cryptography** | 20/20 | Excellent (PQC verified) |
 | **Dependencies** | 20/20 | Excellent (0 vulnerabilities) |
