@@ -72,6 +72,8 @@ All releases include:
 
 ## 🚨 Incident Response
 
+- **[Emergency Procedures](./EMERGENCY_PROCEDURES.md)** - Complete emergency response guide
+- **[Emergency Quick Reference](./EMERGENCY_QUICK_REFERENCE.md)** - Fast action reference
 - **On-Call Roster**: [oncall.md](./oncall.md)
 - **Incident Post-Mortems**: `SA-YYYY-NN.md` files
 - **Emergency Contact**: security@bitquan.network

@@ -6,7 +6,9 @@ use bq_crypto::{CryptoError, CryptoRegistry};
 use thiserror::Error;
 
 mod asert;
+mod checkpoint;
 mod difficulty;
+pub mod emergency;
 pub mod fork;
 pub mod pow;
 pub mod script;
@@ -17,7 +19,9 @@ pub mod utxo;
 mod tests;
 
 pub use asert::{asert_next_target, BurstGuardState, GuardContext};
+pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager};
 pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
+pub use emergency::{EmergencyAction, EmergencyConfig, EmergencyError, EmergencyManager, EmergencyStatus};
 pub use fork::{BlockNode, ForkChoice, ForkError, ReorgInfo};
 pub use pow::{
     check_header_pow, clamp_bits_within_bounds, compact_to_target_bytes, header_hash, PowError,
@@ -337,6 +341,9 @@ pub enum ConsensusError {
     /// Invalid signature hash computation.
     #[error("invalid signature: {0}")]
     InvalidSignature(String),
+    /// Checkpoint validation failed.
+    #[error("checkpoint validation failed: {0}")]
+    Checkpoint(#[from] CheckpointError),
 }
 
 /// Calculates transaction weight according to BQIP-0002.
@@ -500,6 +507,8 @@ pub struct ConsensusEngine {
     network_id: bitquan_types::NetworkId,
     /// Genesis block hash for transaction context
     genesis_hash: [u8; 32],
+    /// Checkpoint manager for emergency recovery
+    checkpoint_manager: CheckpointManager,
 }
 
 impl ConsensusEngine {
@@ -511,6 +520,7 @@ impl ConsensusEngine {
             difficulty: None,
             network_id: bitquan_types::NetworkId::default(),
             genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
+            checkpoint_manager: CheckpointManager::new(false), // Disabled by default
         }
     }
 
@@ -527,6 +537,7 @@ impl ConsensusEngine {
             difficulty: None,
             network_id,
             genesis_hash,
+            checkpoint_manager: CheckpointManager::new(false), // Disabled by default
         }
     }
 
@@ -543,6 +554,31 @@ impl ConsensusEngine {
     /// Returns the consensus parameters in use.
     pub fn params(&self) -> &ConsensusParams {
         &self.params
+    }
+
+    /// Returns the checkpoint manager.
+    pub fn checkpoint_manager(&self) -> &CheckpointManager {
+        &self.checkpoint_manager
+    }
+
+    /// Returns mutable checkpoint manager.
+    pub fn checkpoint_manager_mut(&mut self) -> &mut CheckpointManager {
+        &mut self.checkpoint_manager
+    }
+
+    /// Enables or disables checkpoint validation.
+    pub fn set_checkpoints_enabled(&mut self, enabled: bool) {
+        self.checkpoint_manager.set_enabled(enabled);
+    }
+
+    /// Adds a checkpoint for emergency recovery.
+    pub fn add_checkpoint(&mut self, checkpoint: Checkpoint) -> Result<(), CheckpointError> {
+        self.checkpoint_manager.add_checkpoint(checkpoint)
+    }
+
+    /// Updates the current blockchain height for checkpoint validation.
+    pub fn update_height(&mut self, height: u64) {
+        self.checkpoint_manager.update_height(height);
     }
 
     /// Sets the difficulty anchor used for subsequent ASERT calculations.
@@ -576,6 +612,16 @@ impl ConsensusEngine {
         block: &Block,
         height: u64,
     ) -> Result<BlockValidationReport, ConsensusError> {
+        // Update height for checkpoint validation
+        self.update_height(height);
+
+        // Validate against checkpoints first
+        let block_hash = crate::pow::header_hash(&block.header);
+        self.checkpoint_manager
+            .validate_block(height, &block_hash)
+            .map_err(|e| ConsensusError::InvalidSignature(format!("Checkpoint validation failed: {}", e)))?;
+
+        // Standard block validation
         validate_block(
             block,
             height,
