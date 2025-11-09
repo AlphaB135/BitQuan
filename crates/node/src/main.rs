@@ -3,6 +3,7 @@
 #![allow(clippy::expect_used)]
 
 mod address;
+mod alert_system;
 mod block_submit;
 mod chainstate;
 mod keystore;
@@ -65,7 +66,6 @@ enum PowMode {
     RandomX,
     Hybrid,
     Ethash,
-    Kawpow,
 }
 
 impl PowMode {
@@ -80,7 +80,6 @@ impl PowMode {
             #[cfg(not(feature = "randomx"))]
             "hybrid" => Ok(PowMode::Hybrid),
             "ethash" => Ok(PowMode::Ethash),
-            "kawpow" => Ok(PowMode::Kawpow),
             other => invalid(format!("unknown pow engine '{}'", other)),
         }
     }
@@ -113,7 +112,6 @@ fn ensure_pow_allowed(pow_mode: PowMode, network: NetworkId) -> Result<()> {
 }
 
 /// Parse hybrid weights from CLI string format "sha256d:1,randomx:2".
-#[cfg(feature = "randomx")]
 fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowAlgo, f32)>> {
     use bitquan_consensus::pow::PowAlgo;
 
@@ -128,6 +126,8 @@ fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowAlgo,
 
         let algo = match key.trim() {
             "sha256d" => PowAlgo::Sha256d,
+            "ethash" => PowAlgo::Ethash,
+            #[cfg(feature = "randomx")]
             "randomx" => PowAlgo::RandomX,
             other => return invalid(format!("unknown algorithm: '{}'", other)),
         };
@@ -239,8 +239,7 @@ enum Commands {
         /// Optional limit on number of blocks to mine in this session.
         #[arg(long)]
         limit_blocks: Option<u64>,
-        /// Hybrid algorithm weights (e.g., "sha256d:1,randomx:2").
-        #[cfg(feature = "randomx")]
+        /// Hybrid algorithm weights (e.g., "sha256d:1,ethash:2,kawpow:1").
         #[arg(long)]
         hybrid_weights: Option<String>,
         /// RandomX cache mode (fast|full).
@@ -677,7 +676,6 @@ fn main() -> Result<()> {
             pow,
             threads,
             limit_blocks,
-            #[cfg(feature = "randomx")]
             hybrid_weights,
             #[cfg(feature = "randomx")]
                 randomx_mode: _randomx_mode,
@@ -688,10 +686,9 @@ fn main() -> Result<()> {
             let pow_mode = PowMode::parse(&pow)?;
             ensure_pow_allowed(pow_mode, network_id)?;
 
-            #[cfg(feature = "randomx")]
             let weights = if matches!(pow_mode, PowMode::Hybrid) {
                 Some(parse_hybrid_weights(
-                    hybrid_weights.as_deref().unwrap_or("sha256d:1,randomx:2"),
+                    hybrid_weights.as_deref().unwrap_or("sha256d:1,ethash:2"),
                 )?)
             } else {
                 None
@@ -706,7 +703,6 @@ fn main() -> Result<()> {
                 limit_blocks,
                 network: network_id,
                 pow_mode,
-                #[cfg(feature = "randomx")]
                 hybrid_weights: weights,
             })
         }
@@ -1312,7 +1308,6 @@ struct MiningOptions<'a> {
     limit_blocks: Option<u64>,
     network: NetworkId,
     pow_mode: PowMode,
-    #[cfg(feature = "randomx")]
     hybrid_weights: Option<Vec<(bitquan_consensus::pow::PowAlgo, f32)>>,
 }
 
@@ -1360,7 +1355,6 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         limit_blocks,
         network,
         pow_mode,
-        #[cfg(feature = "randomx")]
         hybrid_weights,
     } = options;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -1411,15 +1405,12 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
     }
 
     // Initialize hybrid miner if applicable
-    #[cfg(feature = "randomx")]
-    let hybrid_miner = if matches!(pow_mode, PowMode::Hybrid | PowMode::RandomX) {
+    let hybrid_miner = if matches!(pow_mode, PowMode::Hybrid) {
         use bitquan_consensus::pow::PowAlgo;
         let weights = if let Some(w) = hybrid_weights {
             w
-        } else if matches!(pow_mode, PowMode::RandomX) {
-            vec![(PowAlgo::RandomX, 1.0)]
         } else {
-            vec![(PowAlgo::Sha256d, 1.0), (PowAlgo::RandomX, 2.0)]
+            vec![(PowAlgo::Sha256d, 1.0), (PowAlgo::Ethash, 2.0)]
         };
 
         println!("\n=== Hybrid Mining Enabled ===");
@@ -1574,7 +1565,6 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let start_time = std::time::Instant::now();
 
         // Hybrid mining path
-        #[cfg(feature = "randomx")]
         let (mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
@@ -1596,8 +1586,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         };
 
         // Standard SHA-256d mining path
-        #[cfg(not(feature = "randomx"))]
-        let (mined_header, _algo_used): (Option<bitquan_types::BlockHeader>, Option<()>) =
+        let (mined_header, _algo_used): (Option<bitquan_types::BlockHeader>, Option<bitquan_consensus::pow::PowAlgo>) =
             (None, None);
 
         let (header, n) = if let Some(h) = mined_header {

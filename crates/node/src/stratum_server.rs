@@ -1283,13 +1283,11 @@ fn verify_share_pow_sync(
             randomx_pow_hash(&preimage, &seed)
         }
         PowAlgo::Ethash => {
-            // TODO: Implement Ethash PoW hash for GPU mining
-            todo!("Ethash PoW hash implementation pending");
+            use bitquan_consensus::pow::{ethash_pow_hash, EthashConfig};
+            let config = EthashConfig::default();
+            ethash_pow_hash(&preimage, &config.cache_size)
         }
-        PowAlgo::Kawpow => {
-            // TODO: Implement KawPow PoW hash for GPU mining
-            todo!("KawPow PoW hash implementation pending");
-        }
+
     };
 
     // 5) Derive target from template bits

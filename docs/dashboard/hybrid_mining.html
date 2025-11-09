@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitQuan Hybrid Mining Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            background: linear-gradient(45deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 1rem;
+            animation: pulse 2s infinite;
+        }
+
+        .status-connected {
+            background: #00ff88;
+        }
+
+        .status-disconnected {
+            background: #ff4444;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0, 255, 136, 0.1);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #00ff88;
+        }
+
+        .stat-unit {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-left: 0.25rem;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .chart-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        .miners-table {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+            color: #00ff88;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .algo-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .algo-sha256d {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
+        .algo-ethash {
+            background: rgba(0, 123, 255, 0.2);
+            color: #007bff;
+        }
+
+        .algo-randomx {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+        }
+
+        .efficiency-bar {
+            width: 100px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .efficiency-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4444, #ffc107, #00ff88);
+            transition: width 0.3s;
+        }
+
+        .last-updated {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            BitQuan Hybrid Mining Dashboard
+            <span id="status" class="status-indicator status-disconnected"></span>
+        </h1>
+    </div>
+
+    <div class="container">
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Active Miners</div>
+                <div class="stat-value" id="active-miners">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Hashrate</div>
+                <div class="stat-value">
+                    <span id="total-hashrate">0</span>
+                    <span class="stat-unit">H/s</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pool Efficiency</div>
+                <div class="stat-value">
+                    <span id="pool-efficiency">0</span>
+                    <span class="stat-unit">%</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Block Height</div>
+                <div class="stat-value" id="block-height">0</div>
+            </div>
+        </div>
+
+        <!-- Algorithm Distribution -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">SHA-256d</div>
+                <div class="stat-value">
+                    <span id="hashrate-sha256d">0</span>
+                    <span class="stat-unit">H/s</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Ethash</div>
+                <div class="stat-value">
+                    <span id="hashrate-ethash">0</span>
+                    <span class="stat-unit">H/s</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">RandomX</div>
+                <div class="stat-value">
+                    <span id="hashrate-randomx">0</span>
+                    <span class="stat-unit">H/s</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Accepted Shares</div>
+                <div class="stat-value" id="shares-ok">0</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3 class="chart-title">Algorithm Distribution</h3>
+                <canvas id="algoChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3 class="chart-title">Hashrate History</h3>
+                <canvas id="hashrateChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Miners Table -->
+        <div class="miners-table">
+            <h3 class="chart-title">Active Miners</h3>
+            <table id="miners-table">
+                <thead>
+                    <tr>
+                        <th>Address</th>
+                        <th>Algorithm</th>
+                        <th>Hashrate</th>
+                        <th>Difficulty</th>
+                        <th>Efficiency</th>
+                        <th>Uptime</th>
+                        <th>Shares</th>
+                    </tr>
+                </thead>
+                <tbody id="miners-tbody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="last-updated" id="last-updated">
+            Connecting to dashboard...
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let ws;
+        let algoChart;
+        let hashrateChart;
+        let hashrateHistory = [];
+        const MAX_HISTORY_POINTS = 50;
+
+        // Initialize charts
+        function initCharts() {
+            // Algorithm distribution pie chart
+            const algoCtx = document.getElementById('algoChart').getContext('2d');
+            algoChart = new Chart(algoCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['SHA-256d', 'Ethash', 'RandomX'],
+                    datasets: [{
+                        data: [33.33, 33.33, 33.34],
+                        backgroundColor: [
+                            'rgba(255, 193, 7, 0.8)',
+                            'rgba(0, 123, 255, 0.8)',
+                            'rgba(40, 167, 69, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 193, 7, 1)',
+                            'rgba(0, 123, 255, 1)',
+                            'rgba(40, 167, 69, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#ffffff',
+                                padding: 20
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Hashrate history line chart
+            const hashrateCtx = document.getElementById('hashrateChart').getContext('2d');
+            hashrateChart = new Chart(hashrateCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Total Hashrate',
+                        data: [],
+                        borderColor: 'rgba(0, 255, 136, 1)',
+                        backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            ticks: { color: '#ffffff' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: '#ffffff' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#ffffff' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Format hashrate
+        function formatHashrate(hashes) {
+            if (hashes >= 1e18) return (hashes / 1e18).toFixed(2) + ' EH/s';
+            if (hashes >= 1e15) return (hashes / 1e15).toFixed(2) + ' PH/s';
+            if (hashes >= 1e12) return (hashes / 1e12).toFixed(2) + ' TH/s';
+            if (hashes >= 1e9) return (hashes / 1e9).toFixed(2) + ' GH/s';
+            if (hashes >= 1e6) return (hashes / 1e6).toFixed(2) + ' MH/s';
+            if (hashes >= 1e3) return (hashes / 1e3).toFixed(2) + ' KH/s';
+            return hashes.toFixed(0) + ' H/s';
+        }
+
+        // Format uptime
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            
+            if (days > 0) return `${days}d ${hours}h`;
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
+        }
+
+        // Update stats display
+        function updateStats(stats) {
+            document.getElementById('active-miners').textContent = stats.active_miners;
+            document.getElementById('total-hashrate').textContent = formatHashrate(stats.hashrate_total);
+            document.getElementById('pool-efficiency').textContent = stats.pool_efficiency.toFixed(1);
+            document.getElementById('block-height').textContent = stats.block_height;
+            document.getElementById('shares-ok').textContent = stats.shares_ok.toLocaleString();
+
+            // Algorithm hashrates
+            document.getElementById('hashrate-sha256d').textContent = formatHashrate(stats.hashrate_sha256d);
+            document.getElementById('hashrate-ethash').textContent = formatHashrate(stats.hashrate_ethash);
+            document.getElementById('hashrate-randomx').textContent = formatHashrate(stats.hashrate_randomx || 0);
+
+            // Update algorithm distribution chart
+            algoChart.data.datasets[0].data = [
+                stats.algo_distribution.sha256d_percent,
+                stats.algo_distribution.ethash_percent,
+                stats.algo_distribution.randomx_percent || 0
+            ];
+            algoChart.update();
+
+            // Update hashrate history
+            const now = new Date().toLocaleTimeString();
+            hashrateHistory.push({
+                time: now,
+                hashrate: stats.hashrate_total
+            });
+
+            if (hashrateHistory.length > MAX_HISTORY_POINTS) {
+                hashrateHistory.shift();
+            }
+
+            hashrateChart.data.labels = hashrateHistory.map(h => h.time);
+            hashrateChart.data.datasets[0].data = hashrateHistory.map(h => h.hashrate);
+            hashrateChart.update();
+
+            // Update last updated time
+            document.getElementById('last-updated').textContent = 
+                `Last updated: ${new Date().toLocaleString()}`;
+        }
+
+        // Update miners table
+        function updateMiners(miners) {
+            const tbody = document.getElementById('miners-tbody');
+            tbody.innerHTML = '';
+
+            miners.sort((a, b) => b.hashrate - a.hashrate);
+
+            miners.forEach(miner => {
+                const row = document.createElement('tr');
+                
+                const algoClass = `algo-${miner.algo}`;
+                const efficiencyWidth = Math.min(100, Math.max(0, miner.efficiency));
+                
+                row.innerHTML = `
+                    <td>${miner.address.substring(0, 20)}...</td>
+                    <td><span class="algo-badge ${algoClass}">${miner.algo}</span></td>
+                    <td>${formatHashrate(miner.hashrate)}</td>
+                    <td>${miner.difficulty.toFixed(2)}</td>
+                    <td>
+                        <div class="efficiency-bar">
+                            <div class="efficiency-fill" style="width: ${efficiencyWidth}%"></div>
+                        </div>
+                        <small>${miner.efficiency.toFixed(1)}%</small>
+                    </td>
+                    <td>${formatUptime(miner.uptime)}</td>
+                    <td>${miner.shares_ok.toLocaleString()}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // Connect to dashboard WebSocket
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.hostname}:8081`;
+            
+            try {
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = function() {
+                    console.log('Connected to dashboard');
+                    document.getElementById('status').className = 'status-indicator status-connected';
+                };
+
+                ws.onmessage = function(event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        
+                        if (message.type === 'stats') {
+                            updateStats(message.data);
+                        } else if (message.type === 'miners') {
+                            updateMiners(message.data);
+                        }
+                    } catch (error) {
+                        console.error('Error parsing message:', error);
+                    }
+                };
+
+                ws.onclose = function() {
+                    console.log('Disconnected from dashboard');
+                    document.getElementById('status').className = 'status-indicator status-disconnected';
+                    // Reconnect after 5 seconds
+                    setTimeout(connect, 5000);
+                };
+
+                ws.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                };
+
+            } catch (error) {
+                console.error('Failed to connect:', error);
+                document.getElementById('last-updated').textContent = 
+                    'Failed to connect to dashboard. Retrying...';
+                setTimeout(connect, 5000);
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts();
+            connect();
+        });
+    </script>
+</body>
+</html>

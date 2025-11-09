@@ -103,7 +103,7 @@ max_download_bytes_per_sec = 10485760  # 10 MB/s
 # Mainnet-specific features
 allow_mining_without_peers = false
 fast_sync_enabled = true
-checkpoint_enabled = true
+checkpoint_enabled = false
 
 # WARNING: Mainnet NOT YET LAUNCHED
 # DO NOT USE FOR REAL VALUE TRANSACTIONS

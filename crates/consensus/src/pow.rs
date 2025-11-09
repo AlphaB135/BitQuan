@@ -24,8 +24,6 @@ pub enum PowAlgo {
     RandomX = 1,
     /// Ethash - GPU-friendly PoW (Ethereum-style).
     Ethash = 2,
-    /// KawPoW - GPU-friendly PoW (Ravencoin-style).
-    Kawpow = 3,
 }
 
 impl PowAlgo {
@@ -36,7 +34,6 @@ impl PowAlgo {
             #[cfg(feature = "randomx")]
             1 => Some(PowAlgo::RandomX),
             2 => Some(PowAlgo::Ethash),
-            3 => Some(PowAlgo::Kawpow),
             _ => None,
         }
     }
@@ -53,7 +50,6 @@ impl PowAlgo {
             #[cfg(feature = "randomx")]
             PowAlgo::RandomX => "randomx",
             PowAlgo::Ethash => "ethash",
-            PowAlgo::Kawpow => "kawpow",
         }
     }
 }
@@ -207,6 +203,78 @@ pub enum RandomXMode {
     /// Full mode (more memory, better performance).
     Full,
 }
+
+/// Ethash PoW engine (GPU-friendly, Ethereum-style).
+pub struct EthashEngine {
+    _config: EthashConfig,
+}
+
+impl EthashEngine {
+    /// Create a new Ethash engine with the given configuration.
+    pub fn new(config: EthashConfig) -> Self {
+        Self { _config: config }
+    }
+}
+
+impl PowEngine for EthashEngine {
+    fn algo(&self) -> PowAlgo {
+        PowAlgo::Ethash
+    }
+
+    fn verify(&self, header: &BlockHeader) -> Result<()> {
+        let hash = self.pow_hash(header)?;
+        let target = compact_to_target_bytes(header.bits)
+            .map_err(|e| bitquan_types::Error::Invalid(e.to_string()))?;
+        if hash_meets_target(&hash, &target) {
+            Ok(())
+        } else {
+            Err(bitquan_types::Error::Invalid(
+                "ethash: hash does not meet target".to_string(),
+            ))
+        }
+    }
+
+    fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
+        let bytes = header.to_bytes();
+        Ok(ethash_pow_hash(&bytes, &self._config.cache_size))
+    }
+}
+
+/// Computes Ethash PoW hash (exposed for Stratum).
+pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
+    // Ethash implementation using Keccak-256 and DAG
+    // For now, use a placeholder that combines Keccak with header data
+    // This will be replaced with real Ethash once the library is integrated
+    use sha3::{Digest, Keccak256};
+    let mut hasher = Keccak256::new();
+    hasher.update(b"Ethash-placeholder-");
+    hasher.update(&cache_size.to_le_bytes());
+    hasher.update(preimage);
+    let result = hasher.finalize();
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&result);
+    out
+}
+
+/// Ethash configuration.
+#[derive(Clone, Debug)]
+pub struct EthashConfig {
+    /// Cache size in MB.
+    pub cache_size: u32,
+    /// DAG size in MB.
+    pub dag_size: u32,
+}
+
+impl Default for EthashConfig {
+    fn default() -> Self {
+        Self {
+            cache_size: 1024,  // 1GB cache
+            dag_size: 4096,    // 4GB DAG
+        }
+    }
+}
+
+
 
 /// Computes double-SHA256 hash of the block header (Bitcoin-style), big-endian bytes.
 pub fn header_hash(header: &BlockHeader) -> [u8; 32] {

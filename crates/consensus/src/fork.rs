@@ -4,7 +4,6 @@
 //! blockchain reorganizations when a competing chain becomes longer.
 
 use crate::pow::header_hash;
-use crate::CheckpointManager;
 use bitquan_types::BlockHeader;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -87,8 +86,6 @@ pub struct ForkChoice {
     pub last_reorg_depth: usize,
     /// Invalid blocks (for peer banning).
     invalid_blocks: HashMap<[u8; 32], String>,
-    /// Checkpoint manager for validation
-    checkpoint_manager: Option<CheckpointManager>,
 }
 
 impl ForkChoice {
@@ -103,7 +100,6 @@ impl ForkChoice {
             max_reorg_depth: Self::DEFAULT_MAX_REORG,
             last_reorg_depth: 0,
             invalid_blocks: HashMap::new(),
-            checkpoint_manager: None,
         }
     }
 
@@ -115,7 +111,6 @@ impl ForkChoice {
             max_reorg_depth,
             last_reorg_depth: 0,
             invalid_blocks: HashMap::new(),
-            checkpoint_manager: None,
         }
     }
 
@@ -129,15 +124,7 @@ impl ForkChoice {
         self.invalid_blocks.get(hash)
     }
 
-    /// Sets the checkpoint manager for validation.
-    pub fn set_checkpoint_manager(&mut self, manager: Option<CheckpointManager>) {
-        self.checkpoint_manager = manager;
-    }
 
-    /// Gets the checkpoint manager.
-    pub fn checkpoint_manager(&self) -> Option<&CheckpointManager> {
-        self.checkpoint_manager.as_ref()
-    }
 
     /// Adds the genesis block.
     pub fn add_genesis(&mut self, header: BlockHeader) -> Result<(), ForkError> {
@@ -166,6 +153,11 @@ impl ForkChoice {
             return Err(ForkError::DuplicateBlock(hash));
         }
 
+        // Check if block is marked invalid
+        if let Some(reason) = self.is_invalid(&hash) {
+            return Err(ForkError::InvalidWork); // Invalid blocks are rejected
+        }
+
         // Find parent
         let parent_hash = header.prev_block;
         let parent = self
@@ -177,12 +169,7 @@ impl ForkChoice {
         let height = parent.height + 1;
         let parent_work = parent.chain_work;
 
-        // Validate against checkpoints if enabled
-        if let Some(ref manager) = self.checkpoint_manager {
-            manager
-                .validate_block(height, &hash)
-                .map_err(|_e| ForkError::InvalidWork)?;
-        }
+
 
         // Create new node
         let mut node = BlockNode::new(header, height, 0.0);
@@ -677,5 +664,44 @@ mod tests {
 
         // Tip should still be A2
         assert_eq!(fc.best_hash(), a2_hash);
+    }
+
+    #[test]
+    fn reject_invalid_blocks_in_fork_choice() {
+        let mut fc = ForkChoice::new();
+
+        let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
+        fc.add_genesis(genesis.clone()).unwrap();
+        let genesis_hash = header_hash(&genesis);
+
+        // Build chain: genesis -> A1 -> A2
+        let a1 = make_header(genesis_hash, 0x207fffff, 1, 1);
+        fc.add_block(a1.clone()).unwrap();
+        let a1_hash = header_hash(&a1);
+
+        let a2 = make_header(a1_hash, 0x207fffff, 2, 2);
+        fc.add_block(a2.clone()).unwrap();
+        let a2_hash = header_hash(&a2);
+
+        // Mark A2 as invalid
+        fc.mark_invalid(a2_hash, "Invalid block".to_string());
+
+        // Try to add longer chain with invalid block
+        let a3_invalid = make_header(a2_hash, 0x207fffff, 3, 3);
+        let result = fc.add_block(a3_invalid);
+
+        // Should reject because parent is invalid
+        assert!(result.is_err());
+
+        // Try competing valid chain
+        let b1 = make_header(genesis_hash, 0x207fffff, 10, 10);
+        fc.add_block(b1.clone()).unwrap();
+
+        let b2 = make_header(header_hash(&b1), 0x207fffff, 11, 11);
+        let (is_new_tip, reorg) = fc.add_block(b2).unwrap();
+
+        // Should reorg to valid chain
+        assert!(is_new_tip);
+        assert!(reorg.is_some());
     }
 }

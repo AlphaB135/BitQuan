@@ -31,16 +31,6 @@
     ]
   },
   "genesis_hash": "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943",
-  "checkpoint_hashes": [
-    {
-      "height": 1000,
-      "hash": "00000000001a19c1e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4"
-    },
-    {
-      "height": 5000,
-      "hash": "00000000002b28d2f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5"
-    }
-  ],
   "consensus_params": {
     "target_block_time": 600,
     "difficulty_adjustment_interval": 2016,

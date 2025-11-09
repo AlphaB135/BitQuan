@@ -28,10 +28,6 @@ pub enum AlertSeverity {
 /// Types of monitored events
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MonitorEventType {
-    /// Checkpoint was created
-    CheckpointCreated,
-    /// Checkpoint validation failed
-    CheckpointValidationFailed,
     /// Block validation failed
     BlockValidationFailed,
     /// Anomaly was detected
@@ -484,7 +480,7 @@ mod tests {
     fn create_test_alert() -> Alert {
         Alert::new(
             AlertSeverity::Warning,
-            MonitorEventType::CheckpointCreated,
+            MonitorEventType::BlockValidationFailed,
             "Test alert".to_string(),
             Some(1000),
         ).unwrap()
@@ -494,7 +490,7 @@ mod tests {
     fn test_alert_creation() {
         let alert = create_test_alert();
         assert_eq!(alert.severity, AlertSeverity::Warning);
-        assert_eq!(alert.event_type, MonitorEventType::CheckpointCreated);
+        assert_eq!(alert.event_type, MonitorEventType::BlockValidationFailed);
         assert_eq!(alert.message, "Test alert");
         assert_eq!(alert.block_height, Some(1000));
         assert!(!alert.acknowledged);

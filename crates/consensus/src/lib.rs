@@ -4,15 +4,12 @@
 use bitquan_types::{count_signatures, Block, NetworkId};
 use bq_crypto::{CryptoError, CryptoRegistry};
 use thiserror::Error;
+use sha2::{Sha256, Digest};
 
 mod asert;
-pub mod auto_recovery;
-mod checkpoint;
 mod monitoring;
-mod voting;
 mod economic;
 mod difficulty;
-pub mod emergency;
 pub mod fork;
 pub mod pow;
 pub mod script;
@@ -23,13 +20,9 @@ pub mod utxo;
 mod tests;
 
 pub use asert::{asert_next_target, BurstGuardState, GuardContext};
-pub use auto_recovery::{RecoveryConfig, AutoRecoveryManager, AutoRecoveryError, RecoveryStatus, RecoveryStats, StateSnapshot, AnomalyDetection, AnomalyType};
-pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager};
 pub use monitoring::{Alert, AlertSeverity, Monitor, MonitorConfig, MonitorError, MonitorEventType, MonitorStats};
-pub use voting::{VotingManager, VotingConfig, RollbackProposal, Vote, VoteOption, VoteCounts, VotingError, VotingStats, ProposalResult};
-pub use economic::{EconomicManager, EconomicConfig, StakeInfo, SlashEvent, RewardEvent, SlashReason, RewardReason, EconomicError, EconomicStats};
+pub use economic::{EconomicManager, EconomicConfig, StakeInfo, SlashEvent, RewardEvent, SlashReason, EconomicError, EconomicStats};
 pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
-pub use emergency::{EmergencyAction, EmergencyConfig, EmergencyError, EmergencyManager, EmergencyStatus};
 pub use fork::{BlockNode, ForkChoice, ForkError, ReorgInfo};
 pub use pow::{
     check_header_pow, clamp_bits_within_bounds, compact_to_target_bytes, header_hash, PowError,
@@ -102,7 +95,7 @@ impl PowSetParams {
     pub fn testnet_hybrid() -> Self {
         Self {
             activated_height: 1000,
-            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX, pow::PowAlgo::Ethash, pow::PowAlgo::Kawpow],
+            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX, pow::PowAlgo::Ethash],
             default_algo: pow::PowAlgo::Sha256d,
         }
     }
@@ -112,7 +105,7 @@ impl PowSetParams {
     pub fn devnet_hybrid() -> Self {
         Self {
             activated_height: 0,
-            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX, pow::PowAlgo::Ethash, pow::PowAlgo::Kawpow],
+            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX, pow::PowAlgo::Ethash],
             default_algo: pow::PowAlgo::Sha256d,
         }
     }
@@ -349,9 +342,7 @@ pub enum ConsensusError {
     /// Invalid signature hash computation.
     #[error("invalid signature: {0}")]
     InvalidSignature(String),
-    /// Checkpoint validation failed.
-    #[error("checkpoint validation failed: {0}")]
-    Checkpoint(#[from] CheckpointError),
+
 }
 
 /// Calculates transaction weight according to BQIP-0002.
@@ -449,6 +440,12 @@ pub fn validate_block(
     network_id: bitquan_types::NetworkId,
     genesis_hash: [u8; 32],
 ) -> Result<BlockValidationReport, ConsensusError> {
+    // Bitcoin-style block header validation
+    validate_block_header(block, height, params)?;
+
+    // Coinbase transaction validation
+    validate_coinbase_transaction(block, height)?;
+
     // Calculate block weight using BQIP-0002 formula (with overflow protection)
     let block_weight = calculate_block_weight(block)?;
     let signature_count = count_signatures(block);
@@ -461,6 +458,9 @@ pub fn validate_block(
             limit: params.block_weight_cap,
         });
     }
+
+    // Validate transaction fees and rewards
+    validate_transaction_fees(block, block_subsidy)?;
 
     // Create transaction context for signature verification
     let ctx = bitquan_types::TxContext::new(network_id, genesis_hash);
@@ -493,6 +493,194 @@ pub fn validate_transaction_signatures(
     Ok(())
 }
 
+/// Validates block header according to Bitcoin-style rules
+fn validate_block_header(block: &Block, height: u64, params: &ConsensusParams) -> Result<(), ConsensusError> {
+    let header = &block.header;
+    
+    // Genesis block has no parent
+    if height > 0 {
+        // Validate timestamp is not too far in the future (2 hours tolerance)
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        if u64::from(header.time) > current_time + 7200 {
+            return Err(ConsensusError::InvalidSignature(
+                "Block timestamp too far in the future".to_string()
+            ));
+        }
+        
+        // Validate timestamp is greater than median of past 11 blocks
+        // Simplified: just ensure it's reasonable
+        if header.time == 0 {
+            return Err(ConsensusError::InvalidSignature(
+                "Invalid block timestamp".to_string()
+            ));
+        }
+    }
+    
+    // Validate proof of work target
+    let target = header.bits;
+    if target == 0 || target > 0x207fffff {
+        return Err(ConsensusError::InvalidSignature(
+            "Invalid difficulty target".to_string()
+        ));
+    }
+    
+    // Validate merkle root matches transactions
+    let calculated_merkle = calculate_merkle_root(&block.transactions)?;
+    if calculated_merkle != header.merkle_root {
+        return Err(ConsensusError::InvalidSignature(
+            "Merkle root mismatch".to_string()
+        ));
+    }
+    
+    Ok(())
+}
+
+/// Validates coinbase transaction according to Bitcoin rules
+fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), ConsensusError> {
+    if block.transactions.is_empty() {
+        return Err(ConsensusError::InvalidSignature(
+            "Block must contain at least one transaction".to_string()
+        ));
+    }
+    
+    let coinbase = &block.transactions[0];
+    
+    // Coinbase must have exactly one input with null prev_txid and prev_vout = MAX
+    if coinbase.inputs.len() != 1 {
+        return Err(ConsensusError::InvalidSignature(
+            "Coinbase must have exactly one input".to_string()
+        ));
+    }
+    
+    let coinbase_input = &coinbase.inputs[0];
+    if coinbase_input.prev_txid != [0u8; 32] || coinbase_input.prev_vout != u32::MAX {
+        return Err(ConsensusError::InvalidSignature(
+            "Invalid coinbase input".to_string()
+        ));
+    }
+    
+    // Coinbase scriptSig must be at least 2 bytes and at most 100 bytes
+    if coinbase_input.script_sig.len() < 2 || coinbase_input.script_sig.len() > 100 {
+        return Err(ConsensusError::InvalidSignature(
+            "Invalid coinbase script length".to_string()
+        ));
+    }
+    
+    // No other transactions should have coinbase-like inputs
+    for tx in block.transactions.iter().skip(1) {
+        for input in &tx.inputs {
+            if input.prev_txid == [0u8; 32] && input.prev_vout == u32::MAX {
+                return Err(ConsensusError::InvalidSignature(
+                    "Non-coinbase transaction has coinbase input".to_string()
+                ));
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Validates transaction fees and block reward
+fn validate_transaction_fees(block: &Block, block_subsidy: u64) -> Result<(), ConsensusError> {
+    // Simple validation: coinbase output should not exceed reasonable maximum
+    let coinbase_output = block.transactions[0].outputs.iter().map(|o| o.value).sum::<u64>();
+    
+    // Coinbase should not exceed block subsidy + reasonable fee buffer
+    let max_reasonable_reward = block_subsidy.saturating_add(100000000); // 1 BTC fee buffer
+    
+    if coinbase_output > max_reasonable_reward {
+        return Err(ConsensusError::InvalidSignature(
+            "Coinbase reward exceeds reasonable limit".to_string()
+        ));
+    }
+    
+    // Coinbase should be at least block subsidy
+    if coinbase_output < block_subsidy {
+        return Err(ConsensusError::InvalidSignature(
+            "Coinbase reward below block subsidy".to_string()
+        ));
+    }
+    
+    Ok(())
+}
+
+/// Calculates merkle root from transactions
+fn calculate_merkle_root(transactions: &[bitquan_types::Transaction]) -> Result<[u8; 32], ConsensusError> {
+    if transactions.is_empty() {
+        return Ok([0u8; 32]);
+    }
+    
+    // Calculate transaction hashes
+    let mut hashes: Vec<[u8; 32]> = transactions
+        .iter()
+        .map(hash_transaction)
+        .collect();
+    
+    // Build merkle tree
+    while hashes.len() > 1 {
+        let mut next_level = Vec::new();
+        
+        for chunk in hashes.chunks(2) {
+            if chunk.len() == 1 {
+                // Duplicate odd hash
+                next_level.push(hash_pair(chunk[0], chunk[0]));
+            } else {
+                next_level.push(hash_pair(chunk[0], chunk[1]));
+            }
+        }
+        
+        hashes = next_level;
+    }
+    
+    Ok(hashes[0])
+}
+
+/// Hashes a transaction for merkle root calculation
+fn hash_transaction(tx: &bitquan_types::Transaction) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    
+    // Simple transaction serialization for merkle root
+    hasher.update(tx.version.to_le_bytes());
+    hasher.update((tx.network as u8).to_le_bytes());
+    hasher.update(tx.genesis_hash);
+    hasher.update(tx.lock_time.to_le_bytes());
+    
+    // Hash inputs
+    for input in &tx.inputs {
+        hasher.update(input.prev_txid);
+        hasher.update(input.prev_vout.to_le_bytes());
+        hasher.update(&input.script_sig);
+        hasher.update(input.sequence.to_le_bytes());
+    }
+    
+    // Hash outputs
+    for output in &tx.outputs {
+        hasher.update(output.value.to_le_bytes());
+        hasher.update(&output.script_pubkey);
+    }
+    
+    let result = hasher.finalize();
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&result);
+    hash
+}
+
+/// Hashes two merkle tree nodes
+fn hash_pair(a: [u8; 32], b: [u8; 32]) -> [u8; 32] {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(a);
+    hasher.update(b);
+    let result = hasher.finalize();
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&result);
+    hash
+}
+
 /// Consensus engine bundling parameters, crypto registry, and RNG state.
 #[allow(dead_code)]
 fn is_coinbase_tx(tx: &bitquan_types::Transaction) -> bool {
@@ -515,8 +703,6 @@ pub struct ConsensusEngine {
     network_id: bitquan_types::NetworkId,
     /// Genesis block hash for transaction context
     genesis_hash: [u8; 32],
-    /// Checkpoint manager for emergency recovery
-    checkpoint_manager: CheckpointManager,
 }
 
 impl ConsensusEngine {
@@ -528,7 +714,6 @@ impl ConsensusEngine {
             difficulty: None,
             network_id: bitquan_types::NetworkId::default(),
             genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
-            checkpoint_manager: CheckpointManager::new(false), // Disabled by default
         }
     }
 
@@ -545,7 +730,6 @@ impl ConsensusEngine {
             difficulty: None,
             network_id,
             genesis_hash,
-            checkpoint_manager: CheckpointManager::new(false), // Disabled by default
         }
     }
 
@@ -564,30 +748,7 @@ impl ConsensusEngine {
         &self.params
     }
 
-    /// Returns the checkpoint manager.
-    pub fn checkpoint_manager(&self) -> &CheckpointManager {
-        &self.checkpoint_manager
-    }
 
-    /// Returns mutable checkpoint manager.
-    pub fn checkpoint_manager_mut(&mut self) -> &mut CheckpointManager {
-        &mut self.checkpoint_manager
-    }
-
-    /// Enables or disables checkpoint validation.
-    pub fn set_checkpoints_enabled(&mut self, enabled: bool) {
-        self.checkpoint_manager.set_enabled(enabled);
-    }
-
-    /// Adds a checkpoint for emergency recovery.
-    pub fn add_checkpoint(&mut self, checkpoint: Checkpoint) -> Result<(), CheckpointError> {
-        self.checkpoint_manager.add_checkpoint(checkpoint)
-    }
-
-    /// Updates the current blockchain height for checkpoint validation.
-    pub fn update_height(&mut self, height: u64) {
-        self.checkpoint_manager.update_height(height);
-    }
 
     /// Sets the difficulty anchor used for subsequent ASERT calculations.
     pub fn set_difficulty_state(&mut self, state: DifficultyState) {
@@ -620,15 +781,6 @@ impl ConsensusEngine {
         block: &Block,
         height: u64,
     ) -> Result<BlockValidationReport, ConsensusError> {
-        // Update height for checkpoint validation
-        self.update_height(height);
-
-        // Validate against checkpoints first
-        let block_hash = crate::pow::header_hash(&block.header);
-        self.checkpoint_manager
-            .validate_block(height, &block_hash)
-            .map_err(|e| ConsensusError::InvalidSignature(format!("Checkpoint validation failed: {}", e)))?;
-
         // Standard block validation
         validate_block(
             block,

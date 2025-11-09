@@ -2,7 +2,7 @@
 //!
 //! This module provides staking and slashing mechanisms to create
 //! economic incentives for honest behavior and disincentives for
-//! malicious actions in the checkpoint and voting systems.
+//! malicious actions in consensus validation.
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};

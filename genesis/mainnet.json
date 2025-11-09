@@ -31,7 +31,6 @@
     ]
   },
   "genesis_hash": "1a3e156469520d4d46dad77241e37651e1c186571d499e332d263876023e2c7b",
-  "checkpoint_hashes": [],
   "consensus_params": {
     "target_block_time": 600,
     "difficulty_adjustment_interval": 2016,

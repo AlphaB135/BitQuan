@@ -4,7 +4,7 @@
   "genesis_timestamp": 1703980800,
   "genesis_block": {
     "version": 1,
-    "height": 0,
+    "height": 1,
     "timestamp": 1703980800,
     "prev_block_hash": "0000000000000000000000000000000000000000000000000000000000000000",
     "merkle_root": "9b7ec8a572c73ec1f8d6f74e2d7b8f1e3c5d9a2b4e6f8a1c3d5e7f9a2b4c6d8e",
@@ -17,7 +17,7 @@
         "version": 1,
         "inputs": [
           {
-            "coinbase": "426974517561206465766e65742067656e657369732032303234"
+            "coinbase": "426974517561206465766e65742067656e6573697320626c6f636b2031"
           }
         ],
         "outputs": [

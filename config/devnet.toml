@@ -60,6 +60,20 @@ initial_block_reward = 50000000000  # 500 BQ for faster testing
 # Halving interval (blocks)
 halving_interval = 21000  # Shorter for devnet
 
+# Hybrid mining configuration
+hybrid_mining_enabled = true
+algorithm_weights = "sha256d:1,ethash:2"  # CPU:GPU ratio
+
+# Algorithm-specific settings
+[mining.algorithms.sha256d]
+enabled = true
+threads = 0  # 0 = auto-detect CPU cores
+
+[mining.algorithms.ethash]
+enabled = true
+cache_size_mb = 1024  # 1GB cache
+dag_size_mb = 4096    # 4GB DAG
+
 [wallet]
 # Default keystore encryption
 keystore_kdf_mem_kib = 32768  # Lower for devnet

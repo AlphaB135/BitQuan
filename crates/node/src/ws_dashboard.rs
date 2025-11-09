@@ -47,12 +47,34 @@ pub struct PoolStats {
     /// Estimated SHA-256d hashrate (H/s).
     pub hashrate_sha256d: f64,
     /// Estimated RandomX hashrate (H/s).
-    #[cfg(feature = "randomx")]
     pub hashrate_randomx: f64,
+    /// Estimated Ethash hashrate (H/s).
+    pub hashrate_ethash: f64,
+    /// Total network hashrate (H/s).
+    pub hashrate_total: f64,
+    /// Algorithm distribution percentages.
+    pub algo_distribution: AlgoDistribution,
     /// Total accepted shares.
     pub shares_ok: u64,
     /// Total rejected shares.
     pub shares_rejected: u64,
+    /// Network difficulty.
+    pub network_difficulty: f64,
+    /// Block height.
+    pub block_height: u64,
+    /// Pool efficiency (accepted/total shares).
+    pub pool_efficiency: f64,
+}
+
+/// Algorithm distribution percentages.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AlgoDistribution {
+    /// SHA-256d percentage (0-100).
+    pub sha256d_percent: f64,
+    /// RandomX percentage (0-100).
+    pub randomx_percent: f64,
+    /// Ethash percentage (0-100).
+    pub ethash_percent: f64,
 }
 
 /// Individual miner information.
@@ -70,6 +92,16 @@ pub struct MinerInfo {
     pub shares_rejected: u64,
     /// Connection uptime (seconds).
     pub uptime: u64,
+    /// Estimated hashrate (H/s).
+    pub hashrate: f64,
+    /// Miner efficiency (accepted/total shares).
+    pub efficiency: f64,
+    /// Last seen timestamp.
+    pub last_seen: u64,
+    /// Geographic region (if available).
+    pub region: Option<String>,
+    /// Client version.
+    pub client_version: Option<String>,
 }
 
 /// WebSocket dashboard server.
@@ -159,31 +191,140 @@ impl WsDashboard {
 
                 let active_miners = peers.len();
 
+                // Collect shares by algorithm
                 let shares_ok_sha256d = metrics.get_accepted(PowAlgo::Sha256d);
                 let shares_rejected_sha256d = metrics.get_rejected(PowAlgo::Sha256d);
 
                 #[cfg(feature = "randomx")]
-                let _shares_ok_randomx = metrics.get_accepted(PowAlgo::RandomX);
+                let shares_ok_randomx = metrics.get_accepted(PowAlgo::RandomX);
                 #[cfg(feature = "randomx")]
-                let _shares_rejected_randomx = metrics.get_rejected(PowAlgo::RandomX);
+                let shares_rejected_randomx = metrics.get_rejected(PowAlgo::RandomX);
 
-                let shares_ok = shares_ok_sha256d;
-                let shares_rejected = shares_rejected_sha256d;
+                let shares_ok_ethash = metrics.get_accepted(PowAlgo::Ethash);
+                let shares_rejected_ethash = metrics.get_rejected(PowAlgo::Ethash);
 
-                // Estimate hashrate (simplified)
+                let shares_ok = {
+                    #[cfg(feature = "randomx")]
+                    {
+                        shares_ok_sha256d + shares_ok_ethash + shares_ok_randomx
+                    }
+                    #[cfg(not(feature = "randomx"))]
+                    {
+                        shares_ok_sha256d + shares_ok_ethash
+                    }
+                };
+                let shares_rejected = {
+                    #[cfg(feature = "randomx")]
+                    {
+                        shares_rejected_sha256d + shares_rejected_ethash + shares_rejected_randomx
+                    }
+                    #[cfg(not(feature = "randomx"))]
+                    {
+                        shares_rejected_sha256d + shares_rejected_ethash
+                    }
+                };
+
+                // Estimate hashrate by algorithm
                 let hashrate_sha256d = estimate_hashrate(&peers, PowAlgo::Sha256d);
-
+                let hashrate_ethash = estimate_hashrate(&peers, PowAlgo::Ethash);
                 #[cfg(feature = "randomx")]
                 let hashrate_randomx = estimate_hashrate(&peers, PowAlgo::RandomX);
 
-                let stats = PoolStats {
-                    timestamp,
-                    active_miners,
-                    hashrate_sha256d,
+                let hashrate_total = {
                     #[cfg(feature = "randomx")]
-                    hashrate_randomx,
-                    shares_ok,
-                    shares_rejected,
+                    {
+                        hashrate_sha256d + hashrate_ethash + hashrate_randomx
+                    }
+                    #[cfg(not(feature = "randomx"))]
+                    {
+                        hashrate_sha256d + hashrate_ethash
+                    }
+                };
+
+                // Calculate algorithm distribution
+                let algo_distribution = if hashrate_total > 0.0 {
+                    #[cfg(feature = "randomx")]
+                    {
+                        AlgoDistribution {
+                            sha256d_percent: (hashrate_sha256d / hashrate_total) * 100.0,
+                            randomx_percent: (hashrate_randomx / hashrate_total) * 100.0,
+                            ethash_percent: (hashrate_ethash / hashrate_total) * 100.0,
+                        }
+                    }
+                    #[cfg(not(feature = "randomx"))]
+                    {
+                        AlgoDistribution {
+                            sha256d_percent: (hashrate_sha256d / hashrate_total) * 100.0,
+                            randomx_percent: 0.0,
+                            ethash_percent: (hashrate_ethash / hashrate_total) * 100.0,
+                        }
+                    }
+                } else {
+                    #[cfg(feature = "randomx")]
+                    {
+                        AlgoDistribution {
+                            sha256d_percent: 33.33,
+                            randomx_percent: 33.33,
+                            ethash_percent: 33.34,
+                        }
+                    }
+                    #[cfg(not(feature = "randomx"))]
+                    {
+                        AlgoDistribution {
+                            sha256d_percent: 50.0,
+                            randomx_percent: 0.0,
+                            ethash_percent: 50.0,
+                        }
+                    }
+                };
+
+                // Calculate pool efficiency
+                let total_shares = shares_ok + shares_rejected;
+                let pool_efficiency = if total_shares > 0 {
+                    (shares_ok as f64 / total_shares as f64) * 100.0
+                } else {
+                    100.0
+                };
+
+                // Get network stats (simplified - would come from consensus in production)
+                let network_difficulty = 1.0; // Placeholder
+                let block_height = 1; // Placeholder
+
+                let stats = {
+                    #[cfg(feature = "randomx")]
+                    {
+                        PoolStats {
+                            timestamp,
+                            active_miners,
+                            hashrate_sha256d,
+                            hashrate_randomx,
+                            hashrate_ethash,
+                            hashrate_total,
+                            algo_distribution,
+                            shares_ok,
+                            shares_rejected,
+                            network_difficulty,
+                            block_height,
+                            pool_efficiency,
+                        }
+                    }
+                    #[cfg(not(feature = "randomx"))]
+                    {
+                        PoolStats {
+                            timestamp,
+                            active_miners,
+                            hashrate_sha256d,
+                            hashrate_randomx: 0.0,
+                            hashrate_ethash,
+                            hashrate_total,
+                            algo_distribution,
+                            shares_ok,
+                            shares_rejected,
+                            network_difficulty,
+                            block_height,
+                            pool_efficiency,
+                        }
+                    }
                 };
 
                 let _ = stats_tx.send(stats);
@@ -193,6 +334,16 @@ impl WsDashboard {
                     .iter()
                     .map(|entry| {
                         let session = entry.value();
+                        let total_shares = session.get_accepted() + session.get_rejected();
+                        let efficiency = if total_shares > 0 {
+                            (session.get_accepted() as f64 / total_shares as f64) * 100.0
+                        } else {
+                            100.0
+                        };
+                        
+                        // Estimate individual miner hashrate
+                        let hashrate = estimate_miner_hashrate(session);
+                        
                         MinerInfo {
                             address: session.address.clone(),
                             algo: session.algo.name().to_string(),
@@ -200,6 +351,14 @@ impl WsDashboard {
                             shares_ok: session.get_accepted(),
                             shares_rejected: session.get_rejected(),
                             uptime: session.connected_at.elapsed().as_secs(),
+                            hashrate,
+                            efficiency,
+                            last_seen: SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                            region: None, // Would be populated from IP geolocation
+                            client_version: None, // Would be populated from user agent
                         }
                     })
                     .collect();
@@ -215,14 +374,16 @@ fn estimate_hashrate(peers: &Arc<DashMap<String, MinerSession>>, algo: PowAlgo) 
     peers
         .iter()
         .filter(|entry| entry.value().algo == algo)
-        .map(|entry| {
-            let session = entry.value();
-            // Rough estimate: difficulty / target_time
-            // Assume 15s target share time
-            let target_time = 15.0;
-            session.difficulty * 4_294_967_296.0 / target_time
-        })
+        .map(|entry| estimate_miner_hashrate(entry.value()))
         .sum()
+}
+
+/// Estimate individual miner hashrate based on difficulty and share submission rate.
+fn estimate_miner_hashrate(session: &MinerSession) -> f64 {
+    // Rough estimate: difficulty * 2^32 / target_share_time
+    // Assume 15s target share time for estimation
+    let target_share_time = 15.0;
+    session.difficulty * 4_294_967_296.0 / target_share_time
 }
 
 /// Handle a WebSocket connection (simplified HTTP upgrade).
@@ -281,19 +442,32 @@ mod tests {
 
     #[test]
     fn test_pool_stats_serialization() {
+        let algo_distribution = AlgoDistribution {
+            sha256d_percent: 33.33,
+            randomx_percent: 33.33,
+            ethash_percent: 33.34,
+        };
+
         let stats = PoolStats {
             timestamp: 1730500000,
             active_miners: 14,
             hashrate_sha256d: 1.3e9,
-            #[cfg(feature = "randomx")]
             hashrate_randomx: 8.1e7,
+            hashrate_ethash: 6.5e8,
+            hashrate_total: 2.0e9,
+            algo_distribution,
             shares_ok: 2034,
             shares_rejected: 57,
+            network_difficulty: 1.0,
+            block_height: 12345,
+            pool_efficiency: 97.3,
         };
 
         let json = serde_json::to_string(&stats).unwrap();
         assert!(json.contains("\"timestamp\":1730500000"));
         assert!(json.contains("\"active_miners\":14"));
+        assert!(json.contains("\"hashrate_total\":2.0e9"));
+        assert!(json.contains("\"pool_efficiency\":97.3"));
     }
 
     #[test]
@@ -305,10 +479,17 @@ mod tests {
             shares_ok: 100,
             shares_rejected: 5,
             uptime: 3600,
+            hashrate: 2.86e8,
+            efficiency: 95.2,
+            last_seen: 1730500000,
+            region: Some("us-west".to_string()),
+            client_version: Some("BitQuan-Miner/1.0".to_string()),
         };
 
         let json = serde_json::to_string(&miner).unwrap();
         assert!(json.contains("\"address\":\"miner1\""));
         assert!(json.contains("\"algo\":\"sha256d\""));
+        assert!(json.contains("\"hashrate\":2.86e8"));
+        assert!(json.contains("\"efficiency\":95.2"));
     }
 }
