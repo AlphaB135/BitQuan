@@ -17,11 +17,15 @@ pub const DEVNET_MAX_BITS: u32 = 0x207fffff;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum PowAlgo {
-    /// SHA-256d (double SHA-256) - Bitcoin-style PoW.
+    /// SHA-256d (double SHA-256) - Bitcoin-style PoW (ASIC-friendly).
     Sha256d = 0,
     /// RandomX - CPU-friendly memory-hard PoW (testnet-only, feature-gated).
     #[cfg(feature = "randomx")]
     RandomX = 1,
+    /// Ethash - GPU-friendly PoW (Ethereum-style).
+    Ethash = 2,
+    /// KawPoW - GPU-friendly PoW (Ravencoin-style).
+    Kawpow = 3,
 }
 
 impl PowAlgo {
@@ -31,6 +35,8 @@ impl PowAlgo {
             0 => Some(PowAlgo::Sha256d),
             #[cfg(feature = "randomx")]
             1 => Some(PowAlgo::RandomX),
+            2 => Some(PowAlgo::Ethash),
+            3 => Some(PowAlgo::Kawpow),
             _ => None,
         }
     }
@@ -46,6 +52,8 @@ impl PowAlgo {
             PowAlgo::Sha256d => "sha256d",
             #[cfg(feature = "randomx")]
             PowAlgo::RandomX => "randomx",
+            PowAlgo::Ethash => "ethash",
+            PowAlgo::Kawpow => "kawpow",
         }
     }
 }

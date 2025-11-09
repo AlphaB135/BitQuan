@@ -63,8 +63,9 @@ enum PowMode {
     Mock,
     #[cfg(feature = "randomx")]
     RandomX,
-    #[cfg(feature = "randomx")]
     Hybrid,
+    Ethash,
+    Kawpow,
 }
 
 impl PowMode {
@@ -76,6 +77,10 @@ impl PowMode {
             "randomx" => Ok(PowMode::RandomX),
             #[cfg(feature = "randomx")]
             "hybrid" => Ok(PowMode::Hybrid),
+            #[cfg(not(feature = "randomx"))]
+            "hybrid" => Ok(PowMode::Hybrid),
+            "ethash" => Ok(PowMode::Ethash),
+            "kawpow" => Ok(PowMode::Kawpow),
             other => invalid(format!("unknown pow engine '{}'", other)),
         }
     }
@@ -97,10 +102,11 @@ fn ensure_pow_allowed(pow_mode: PowMode, network: NetworkId) -> Result<()> {
     }
     #[cfg(feature = "randomx")]
     {
-        if matches!(pow_mode, PowMode::RandomX | PowMode::Hybrid)
+        // Allow hybrid mining on mainnet for multi-algorithm support
+        if matches!(pow_mode, PowMode::RandomX)
             && matches!(network, NetworkId::Mainnet)
         {
-            return invalid("RandomX and hybrid PoW are disabled on mainnet");
+            return invalid("RandomX only mode is disabled on mainnet (use hybrid)");
         }
     }
     Ok(())
@@ -224,7 +230,7 @@ enum Commands {
         /// Network to target (mainnet|testnet|devnet|regtest).
         #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
         network: String,
-        /// Proof-of-Work engine (hashcash|mock|randomx|hybrid).
+        /// Proof-of-Work engine (hashcash|mock|randomx|ethash|kawpow|hybrid).
         #[arg(long, value_name = "POW", default_value = "hashcash")]
         pow: String,
         /// Number of threads for mining (0 = CPU count)

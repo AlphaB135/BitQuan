@@ -1,23 +1,23 @@
 {
   "chain_id": "bitquan-mainnet-v1",
   "network_id": "mainnet",
-  "genesis_timestamp": 1704067200,
+  "genesis_timestamp": 1729944000,
   "genesis_block": {
     "version": 1,
     "height": 0,
-    "timestamp": 1704067200,
+    "timestamp": 1729944000,
     "prev_block_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-    "merkle_root": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+    "merkle_root": "521f5d80ae609c1b251ba6a797ff110db68fad4b5367ce7283df842d8ac90690",
     "bits": 545259519,
-    "nonce": 0,
-    "pow_algo": "sha256d",
+    "nonce": 71683936,
+    "pow_algo": "hashcash",
     "transactions": [
       {
-        "txid": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+        "txid": "521f5d80ae609c1b251ba6a797ff110db68fad4b5367ce7283df842d8ac90690",
         "version": 1,
         "inputs": [
           {
-            "coinbase": "426974517561206d61696e6e6574206765736973202d204a616e20323032342d20506f73742d5175616e74756d2053656375726520426c6f636b636861696e"
+            "coinbase": "546865205175616e74756d2041676520426567696e73202d203236204f637420323032352e204f776e65726c6573732e2056657269666961626c652e20466f722065766572796f6e652e"
           }
         ],
         "outputs": [
@@ -30,7 +30,7 @@
       }
     ]
   },
-  "genesis_hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+  "genesis_hash": "521f5d80ae609c1b251ba6a797ff110db68fad4b5367ce7283df842d8ac90690",
   "checkpoint_hashes": [],
   "consensus_params": {
     "target_block_time": 600,
@@ -40,7 +40,7 @@
     "coinbase_maturity": 100,
     "subsidy_halving_interval": 210000,
     "initial_subsidy": 5000000000,
-    "pow_algo": "sha256d",
+    "pow_algo": "hashcash",
     "min_difficulty_bits": 486604799,
     "max_difficulty_bits": 503382015
   },

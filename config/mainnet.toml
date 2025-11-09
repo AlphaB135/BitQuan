@@ -13,8 +13,12 @@ genesis_hash = "0000000000000000000000000000000000000000000000000000000000000000
 p2p_port = 8333
 rpc_port = 8332
 
-# Bootstrap nodes (to be populated at mainnet launch)
-bootstrap_nodes = []
+# Bootstrap nodes (mainnet bootstrap nodes)
+bootstrap_nodes = [
+    "node1.bitquan.network:8333",
+    "node2.bitquan.network:8333", 
+    "node3.bitquan.network:8333"
+]
 
 # Initial difficulty (higher than testnet)
 difficulty_bits = "0x1c00ffff"

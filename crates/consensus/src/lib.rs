@@ -102,7 +102,7 @@ impl PowSetParams {
     pub fn testnet_hybrid() -> Self {
         Self {
             activated_height: 1000,
-            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX],
+            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX, pow::PowAlgo::Ethash, pow::PowAlgo::Kawpow],
             default_algo: pow::PowAlgo::Sha256d,
         }
     }
@@ -112,7 +112,7 @@ impl PowSetParams {
     pub fn devnet_hybrid() -> Self {
         Self {
             activated_height: 0,
-            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX],
+            allowed_algos: vec![pow::PowAlgo::Sha256d, pow::PowAlgo::RandomX, pow::PowAlgo::Ethash, pow::PowAlgo::Kawpow],
             default_algo: pow::PowAlgo::Sha256d,
         }
     }

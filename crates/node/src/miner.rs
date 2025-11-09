@@ -164,6 +164,14 @@ impl HybridMiner {
                     };
                     engines.push(Arc::new(RandomXEngine::new(config)));
                 }
+                PowAlgo::Ethash => {
+                    // TODO: Implement EthashEngine for GPU mining
+                    todo!("Ethash engine implementation pending");
+                }
+                PowAlgo::Kawpow => {
+                    // TODO: Implement KawPowEngine for GPU mining  
+                    todo!("KawPow engine implementation pending");
+                }
             }
         }
 
@@ -332,11 +340,16 @@ mod tests {
         // Collect selections to verify distribution
         let mut sha256d_count = 0;
         let mut randomx_count = 0;
+        let mut ethash_count = 0;
+        let mut kawpow_count = 0;
 
         for i in 0..100 {
             match miner.select_algorithm(i) {
                 PowAlgo::Sha256d => sha256d_count += 1,
+                #[cfg(feature = "randomx")]
                 PowAlgo::RandomX => randomx_count += 1,
+                PowAlgo::Ethash => ethash_count += 1,
+                PowAlgo::Kawpow => kawpow_count += 1,
             }
         }
 

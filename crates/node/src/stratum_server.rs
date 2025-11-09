@@ -1282,6 +1282,14 @@ fn verify_share_pow_sync(
             seed.copy_from_slice(&tpl.header.prev_block); // Use previous block hash as seed
             randomx_pow_hash(&preimage, &seed)
         }
+        PowAlgo::Ethash => {
+            // TODO: Implement Ethash PoW hash for GPU mining
+            todo!("Ethash PoW hash implementation pending");
+        }
+        PowAlgo::Kawpow => {
+            // TODO: Implement KawPow PoW hash for GPU mining
+            todo!("KawPow PoW hash implementation pending");
+        }
     };
 
     // 5) Derive target from template bits
