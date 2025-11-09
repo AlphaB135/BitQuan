@@ -23,12 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut manager = AutoRecoveryManager::new(config);
     
-    // 2. ตั้งค่า authorized operators
-    manager.set_authorized_operators(vec![
-        "operator-001".to_string(),
-        "operator-002".to_string(),
-        "operator-003".to_string(),
-    ]);
+
     
     println!("✅ Auto-Recovery Manager initialized");
     println!("📊 Initial status: {:?}", manager.get_status());
@@ -77,13 +72,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 7. ทดลอง manual override
     println!("🔐 Attempting manual override...");
     let result = manager.manual_override(
-        "operator-001", 
         "sig_abc123", 
         "False positive - legitimate large block"
     );
     
     match result {
-        Ok(_) => println!("✅ Override accepted from operator-001"),
+        Ok(_) => println!("✅ Override accepted from auto-recovery system"),
         Err(e) => println!("❌ Override failed: {}", e),
     }
     
@@ -91,7 +85,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("🔐 Adding second signature...");
     let result = manager.manual_override(
-        "operator-002", 
         "sig_def456", 
         "Confirmed false positive"
     );
@@ -106,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // 9. ทดลอง manual rollback
     println!("🔧 Performing manual rollback to height 1005...");
-    let result = manager.manual_rollback("operator-001", 1005, "Manual rollback test");
+    let result = manager.manual_rollback(1005, "Manual rollback test");
     
     match result {
         Ok(_) => println!("✅ Manual rollback successful"),
@@ -174,7 +167,7 @@ mod tests {
         // ทดสอบ flow การทำงานของ demo
         let config = AutoRecoveryConfig::default();
         let mut manager = AutoRecoveryManager::new(config);
-        manager.set_authorized_operators(vec!["op1".to_string(), "op2".to_string()]);
+
         
         // บันทึก block ปกติ
         let snapshot = create_normal_block(1000);

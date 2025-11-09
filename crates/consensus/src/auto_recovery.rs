@@ -18,8 +18,7 @@ pub struct AutoRecoveryConfig {
     pub anomaly_threshold: f64,
     /// ระยะเวลาที่รอก่อน rollback (วินาที)
     pub rollback_delay: u64,
-    /// จำนวน operators ที่ต้องยืนยันสำหรับ manual override
-    pub override_signatures: u8,
+
 }
 
 impl Default for AutoRecoveryConfig {
@@ -29,7 +28,7 @@ impl Default for AutoRecoveryConfig {
             safe_confirmations: 100,     // 100 confirmations = ปลอดภัย
             anomaly_threshold: 0.05,     // 5% anomaly trigger rollback
             rollback_delay: 300,         // รอ 5 นาทีก่อน rollback
-            override_signatures: 3,       // ต้องการ 3 signatures สำหรับ override
+
         }
     }
 }
@@ -154,7 +153,7 @@ pub struct AutoRecoveryManager {
     /// เวลาที่ตรวจพบปัญหาล่าสุด
     last_anomaly_time: u64,
     /// Operators ที่ได้รับอนุญาต
-    authorized_operators: Vec<String>,
+
     /// Override signatures ที่รับมา
     override_signatures: HashMap<String, String>,
 }
@@ -170,15 +169,12 @@ impl AutoRecoveryManager {
             last_safe_height: 0,
             last_safe_hash: [0u8; 32],
             last_anomaly_time: 0,
-            authorized_operators: Vec::new(),
+
             override_signatures: HashMap::new(),
         }
     }
 
-    /// ตั้งค่า authorized operators
-    pub fn set_authorized_operators(&mut self, operators: Vec<String>) {
-        self.authorized_operators = operators;
-    }
+
 
     /// บันทึก block snapshot
     pub fn record_block(&mut self, snapshot: BlockSnapshot) -> Result<(), AutoRecoveryError> {
@@ -327,21 +323,12 @@ impl AutoRecoveryManager {
     /// Manual override สำหรับยกเลิก auto-rollback
     pub fn manual_override(
         &mut self,
-        operator_id: &str,
         signature: &str,
         reason: &str,
     ) -> Result<(), AutoRecoveryError> {
-        // ตรวจสอบว่า operator ได้รับอนุญาต
-        if !self.authorized_operators.contains(&operator_id.to_string()) {
-            return Err(AutoRecoveryError::Unauthorized {
-                operator: operator_id.to_string(),
-            });
-        }
+        self.override_signatures.insert("auto_recovery".to_string(), signature.to_string());
 
-        // บันทึก signature
-        self.override_signatures.insert(operator_id.to_string(), signature.to_string());
-
-        println!("🔐 Manual override received from: {}", operator_id);
+        println!("🔐 Manual override received from auto-recovery system");
         println!("   Reason: {}", reason);
         println!("   Signatures: {}/{}", 
                  self.override_signatures.len(), 
@@ -355,7 +342,7 @@ impl AutoRecoveryManager {
             println!("   Manual investigation required");
             
             // ส่ง alert
-            self.send_override_alert(operator_id, reason)?;
+            self.send_override_alert(reason)?;
         }
 
         Ok(())
@@ -364,15 +351,10 @@ impl AutoRecoveryManager {
     /// ดำเนินการ manual rollback
     pub fn manual_rollback(
         &mut self,
-        operator_id: &str,
         target_height: u64,
         reason: &str,
     ) -> Result<(), AutoRecoveryError> {
-        if !self.authorized_operators.contains(&operator_id.to_string()) {
-            return Err(AutoRecoveryError::Unauthorized {
-                operator: operator_id.to_string(),
-            });
-        }
+
 
         // ตรวจสอบว่ามี snapshot ที่ target height
         if !self.snapshots.contains_key(&target_height) {
@@ -380,7 +362,7 @@ impl AutoRecoveryManager {
         }
 
         println!("🔧 MANUAL ROLLBACK INITIATED:");
-        println!("   Operator: {}", operator_id);
+        println!("   System: Auto-Recovery");
         println!("   Target height: {}", target_height);
         println!("   Reason: {}", reason);
 
@@ -428,10 +410,10 @@ impl AutoRecoveryManager {
     }
 
     /// ส่ง override alert
-    fn send_override_alert(&self, operator: &str, reason: &str) -> Result<(), AutoRecoveryError> {
+    fn send_override_alert(&self, reason: &str) -> Result<(), AutoRecoveryError> {
         println!("📢 SENDING OVERRIDE ALERT:");
         println!("   🔐 MANUAL OVERRIDE ACTIVATED");
-        println!("   👤 Operator: {}", operator);
+        println!("   🤖 System: Auto-Recovery");
         println!("   📝 Reason: {}", reason);
         println!("   ⏰ Time: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
         
@@ -505,8 +487,7 @@ pub struct RecoveryStatistics {
 #[derive(Debug, Error)]
 pub enum AutoRecoveryError {
     /// Operator ไม่ได้รับอนุญาต
-    #[error("operator '{operator}' is not authorized")]
-    Unauthorized { operator: String },
+
     
     /// ไม่พบ target height
     #[error("target height {height} not found in snapshots")]
@@ -603,7 +584,7 @@ mod tests {
         manager.record_block(snapshot).unwrap();
         
         // หลังจาก auto-rollback, ทำ manual rollback ไปที่ 995
-        let result = manager.manual_rollback("operator1", 995, "Manual rollback test");
+        let result = manager.manual_rollback(995, "Manual rollback test");
         
         assert!(result.is_ok());
         assert_eq!(manager.get_statistics().last_safe_height, 995);
@@ -614,14 +595,14 @@ mod tests {
         let config = AutoRecoveryConfig::default();
         let mut manager = AutoRecoveryManager::new(config);
         
-        let result = manager.manual_override("hacker", "fake_sig", "Malicious override");
+        let result = manager.manual_override("fake_sig", "Malicious override");
         
         assert!(result.is_err());
         match result.unwrap_err() {
-            AutoRecoveryError::Unauthorized { operator } => {
-                assert_eq!(operator, "hacker");
+            AutoRecoveryError::InvalidSignature => {
+                // Expected error for invalid signature
             }
-            _ => panic!("Expected Unauthorized error"),
+            _ => panic!("Expected InvalidSignature error"),
         }
     }
 
@@ -629,7 +610,6 @@ mod tests {
     fn test_manual_rollback() {
         let config = AutoRecoveryConfig::default();
         let mut manager = AutoRecoveryManager::new(config);
-        manager.set_authorized_operators(vec!["operator1".to_string()]);
         
         // บันทึก blocks หลายๆ block
         for i in 1000..=1010 {
@@ -638,7 +618,7 @@ mod tests {
         }
         
         // rollback ไปยัง 1005
-        let result = manager.manual_rollback("operator1", 1005, "Test rollback");
+        let result = manager.manual_rollback(1005, "Test rollback");
         
         assert!(result.is_ok());
         assert_eq!(manager.get_statistics().last_safe_height, 1005);

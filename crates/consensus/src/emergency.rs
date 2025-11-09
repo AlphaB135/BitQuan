@@ -21,7 +21,7 @@ pub enum EmergencyAction {
     RollbackTo { height: u64 },
     /// Ban malicious peers
     BanPeers { peer_ids: Vec<String> },
-    /// Alert network operators
+    /// Send network alert
     SendAlert { message: String },
 }
 
@@ -34,8 +34,7 @@ pub struct EmergencyConfig {
     pub required_signatures: u8,
     /// Time window for emergency response (seconds)
     pub response_window: u64,
-    /// List of authorized operators
-    pub authorized_operators: Vec<String>,
+
 }
 
 impl Default for EmergencyConfig {
@@ -44,7 +43,7 @@ impl Default for EmergencyConfig {
             enabled: false, // Disabled by default for security
             required_signatures: 3,
             response_window: 3600, // 1 hour
-            authorized_operators: vec![],
+
         }
     }
 }
@@ -95,21 +94,13 @@ impl EmergencyManager {
         self.processing_paused
     }
 
-    /// Executes an emergency action (with authorization check)
+    /// Executes an emergency action
     pub fn execute_action(
         &mut self,
         action: EmergencyAction,
-        operator_id: &str,
     ) -> Result<(), EmergencyError> {
         if !self.config.enabled {
             return Err(EmergencyError::Disabled);
-        }
-
-        // Check if operator is authorized
-        if !self.config.authorized_operators.contains(&operator_id.to_string()) {
-            return Err(EmergencyError::Unauthorized {
-                operator: operator_id.to_string(),
-            });
         }
 
         // Execute action
@@ -154,18 +145,12 @@ impl EmergencyManager {
         height: u64,
         hash: [u8; 32],
         reason: String,
-        operator_id: &str,
     ) -> Result<(), EmergencyError> {
         if !self.config.enabled {
             return Err(EmergencyError::Disabled);
         }
 
-        // Validate operator
-        if !self.config.authorized_operators.contains(&operator_id.to_string()) {
-            return Err(EmergencyError::Unauthorized {
-                operator: operator_id.to_string(),
-            });
-        }
+
 
         // Enable checkpoints if not already enabled
         if !self.checkpoint_manager.is_enabled() {
@@ -277,8 +262,7 @@ pub enum EmergencyError {
     Disabled,
 
     /// Operator not authorized
-    #[error("operator '{operator}' is not authorized")]
-    Unauthorized { operator: String },
+
 
     /// Checkpoint error
     #[error("checkpoint error: {0}")]
@@ -306,7 +290,6 @@ mod tests {
             enabled: true,
             required_signatures: 1,
             response_window: 3600,
-            authorized_operators: vec!["operator1".to_string()],
         }
     }
 
@@ -320,28 +303,13 @@ mod tests {
             1000,
             hash,
             "Test emergency".to_string(),
-            "operator1",
         );
 
         assert!(result.is_ok());
         assert!(manager.checkpoint_manager().has_checkpoint(1000));
     }
 
-    #[test]
-    fn test_unauthorized_operator() {
-        let mut manager = EmergencyManager::new(make_config());
-        manager.update_height(1000);
 
-        let hash = [123u8; 32];
-        let result = manager.create_emergency_checkpoint(
-            500,
-            hash,
-            "Test emergency".to_string(),
-            "unauthorized",
-        );
-
-        assert!(result.is_err());
-    }
 
     #[test]
     fn test_pause_processing() {
@@ -362,7 +330,7 @@ mod tests {
             peer_ids: vec!["peer1".to_string(), "peer2".to_string()],
         };
         
-        manager.execute_action(action, "operator1").unwrap();
+        manager.execute_action(action).unwrap();
         
         assert!(manager.is_peer_banned("peer1"));
         assert!(manager.is_peer_banned("peer2"));

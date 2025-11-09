@@ -39,9 +39,6 @@ enum Commands {
         /// เหตุผลในการสร้าง checkpoint
         #[arg(long)]
         reason: String,
-        /// Operator ID
-        #[arg(long, default_value = "operator1")]
-        operator: String,
     },
     /// แสดงรายการ checkpoints
     List {
@@ -83,7 +80,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match cli.command {
         Commands::Status { verbose } => cmd_status(verbose),
-        Commands::Create { height, hash, reason, operator } => cmd_create(height, hash, reason, operator),
+        Commands::Create { height, hash, reason } => cmd_create(height, hash, reason),
         Commands::List { up_to } => cmd_list(up_to),
         Commands::Rollback { height } => cmd_rollback(height),
         Commands::Toggle { enable } => cmd_toggle(enable),
@@ -125,7 +122,7 @@ fn cmd_status(verbose: bool) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn cmd_create(height: u64, hash: String, reason: String, operator: String) -> Result<(), Box<dyn Error>> {
+fn cmd_create(height: u64, hash: String, reason: String) -> Result<(), Box<dyn Error>> {
     println!("🛡️  Creating Emergency Checkpoint");
     println!("=" .repeat(40));
 
@@ -145,7 +142,6 @@ fn cmd_create(height: u64, hash: String, reason: String, operator: String) -> Re
     println!("📍 Height: {}", height);
     println!("🔐 Hash: {}...{}", &hash[..8], &hash[hash.len()-8..]);
     println!("📝 Reason: {}", reason);
-    println!("👤 Operator: {}", operator);
 
     // จำลองการสร้าง checkpoint
     println!("\n✅ Validating checkpoint data...");
@@ -153,8 +149,8 @@ fn cmd_create(height: u64, hash: String, reason: String, operator: String) -> Re
     println!("   ✅ Hash format is correct");
     println!("   ✅ Reason is provided");
 
-    println!("\n🔐 Checking authorization...");
-    println!("   ✅ Operator '{}' is authorized", operator);
+    println!("\n🔐 Validating checkpoint creation...");
+    println!("   ✅ Checkpoint validation passed");
 
     println!("\n🛡️  Creating checkpoint...");
     println!("   ✅ Checkpoint created successfully");
@@ -164,7 +160,7 @@ fn cmd_create(height: u64, hash: String, reason: String, operator: String) -> Re
     println!("   ✅ Checkpoint validation enabled");
 
     println!("\n📢 Sending network alert...");
-    println!("   ✅ Alert sent to all operators");
+    println!("   ✅ Alert sent to all nodes");
 
     println!("\n🎉 Emergency checkpoint created successfully!");
     println!("   📍 Height: {}", height);
@@ -297,13 +293,12 @@ fn cmd_alert(message: String) -> Result<(), Box<dyn Error>> {
     println!("=" .repeat(40));
 
     println!("📝 Message: {}", message);
-    println!("👤 Sent by: operator1");
     println!("📅 Time: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
 
     println!("\n📡 Broadcasting alert...");
     println!("   ✅ Alert sent to 150 active nodes");
     println!("   ✅ Alert logged to audit trail");
-    println!("   ✅ Email notification sent to operators");
+    println!("   ✅ Email notification sent to administrators");
 
     println!("\n📊 Alert Statistics:");
     println!("   📧 Email recipients: 5");
@@ -329,12 +324,12 @@ mod tests {
     #[test]
     fn test_cmd_create() {
         let hash = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-        assert!(cmd_create(750000, hash.to_string(), "Test".to_string(), "operator1".to_string()).is_ok());
+        assert!(cmd_create(750000, hash.to_string(), "Test".to_string()).is_ok());
     }
 
     #[test]
     fn test_cmd_create_invalid_hash() {
-        let result = cmd_create(750000, "invalid".to_string(), "Test".to_string(), "operator1".to_string());
+        let result = cmd_create(750000, "invalid".to_string(), "Test".to_string());
         assert!(result.is_err());
     }
 

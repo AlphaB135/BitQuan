@@ -1,7 +1,7 @@
-//! Checkpoint system for emergency blockchain recovery.
+//! Automatic checkpoint system for emergency blockchain recovery.
 //!
-//! This module provides a simple, secure checkpoint mechanism that allows
-//! network operators to rollback the blockchain to a known good state
+//! This module provides a simple, secure checkpoint mechanism that automatically
+//! creates checkpoints and allows rollback to a known good state
 //! during emergency situations like mining bugs or attacks.
 
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,9 @@ use thiserror::Error;
 
 /// Maximum number of checkpoints allowed (prevents abuse)
 pub const MAX_CHECKPOINTS: usize = 100;
+
+/// Auto-checkpoint interval (blocks)
+pub const AUTO_CHECKPOINT_INTERVAL: u64 = 1000;
 
 /// Minimum blocks between checkpoints (prevents frequent rollbacks)
 pub const MIN_CHECKPOINT_INTERVAL: u64 = 1000;
@@ -93,7 +96,7 @@ impl Checkpoint {
     }
 }
 
-/// Checkpoint manager for emergency recovery
+/// Checkpoint manager for automatic recovery
 #[derive(Debug, Clone)]
 pub struct CheckpointManager {
     /// Ordered checkpoints by height
@@ -102,6 +105,10 @@ pub struct CheckpointManager {
     current_height: u64,
     /// Whether checkpoints are enabled
     enabled: bool,
+    /// Auto-checkpoint interval (blocks)
+    auto_checkpoint_interval: u64,
+    /// Last auto-checkpoint height
+    last_auto_checkpoint: u64,
 }
 
 impl CheckpointManager {
@@ -111,6 +118,19 @@ impl CheckpointManager {
             checkpoints: BTreeMap::new(),
             current_height: 0,
             enabled,
+            auto_checkpoint_interval: AUTO_CHECKPOINT_INTERVAL,
+            last_auto_checkpoint: 0,
+        }
+    }
+
+    /// Creates a new checkpoint manager with custom interval
+    pub fn new_with_interval(enabled: bool, interval: u64) -> Self {
+        Self {
+            checkpoints: BTreeMap::new(),
+            current_height: 0,
+            enabled,
+            auto_checkpoint_interval: interval,
+            last_auto_checkpoint: 0,
         }
     }
 
@@ -126,28 +146,130 @@ impl CheckpointManager {
 
     /// Updates the current blockchain height
     pub fn update_height(&mut self, height: u64) {
+        // Security: Height should never decrease
+        if height < self.current_height {
+            return;
+        }
+        
         self.current_height = height;
     }
 
-    /// Adds a new checkpoint (only for emergency use)
-    pub fn add_checkpoint(&mut self, checkpoint: Checkpoint) -> Result<(), CheckpointError> {
-        if !self.enabled {
+    /// Updates height and creates auto-checkpoint if needed with verified block hash
+    pub fn update_height_with_block(&mut self, height: u64, block_hash: [u8; 32]) -> Result<(), CheckpointError> {
+        // Security: Height should never decrease
+        if height < self.current_height {
             return Err(CheckpointError::InvalidData {
-                reason: "checkpoints are disabled".to_string(),
+                reason: "Block height cannot decrease".to_string(),
+            });
+        }
+        
+        self.current_height = height;
+        
+        // Auto-checkpoint logic with security checks
+        if self.enabled && self.should_create_auto_checkpoint(height) {
+            self.create_auto_checkpoint_with_hash(height, block_hash)?;
+        }
+        
+        Ok(())
+    }
+
+    /// Checks if auto-checkpoint should be created with security validation
+    fn should_create_auto_checkpoint(&self, height: u64) -> bool {
+        // Security: Never checkpoint at genesis
+        if height == 0 {
+            return false;
+        }
+        
+        // Security: Never checkpoint in the future
+        if height > self.current_height {
+            return false;
+        }
+        
+        // Security: Respect minimum interval
+        if self.last_auto_checkpoint > 0 {
+            if height < self.last_auto_checkpoint + self.auto_checkpoint_interval {
+                return false;
+            }
+        }
+        
+        // First checkpoint logic
+        if self.last_auto_checkpoint == 0 {
+            return height >= self.auto_checkpoint_interval;
+        }
+        
+        true
+    }
+
+    /// Creates an automatic checkpoint with security validation
+    fn create_auto_checkpoint(&mut self, height: u64) -> Result<(), CheckpointError> {
+        // Security: Never create checkpoint without actual block hash
+        // This function should only be called with verified block data
+        return Err(CheckpointError::InvalidData {
+            reason: "Auto-checkpoint requires actual block hash - use create_auto_checkpoint_with_hash()".to_string(),
+        });
+    }
+
+    /// Creates an automatic checkpoint with verified block hash
+    pub fn create_auto_checkpoint_with_hash(&mut self, height: u64, block_hash: [u8; 32]) -> Result<(), CheckpointError> {
+        // Security validations
+        if height == 0 {
+            return Err(CheckpointError::InvalidData {
+                reason: "Cannot create checkpoint at genesis block".to_string(),
             });
         }
 
-        // Validate checkpoint data
-        checkpoint.validate()?;
+        if height > self.current_height {
+            return Err(CheckpointError::CheckpointInFuture {
+                height,
+                current: self.current_height,
+            });
+        }
 
-        // Security: limit number of checkpoints
         if self.checkpoints.len() >= MAX_CHECKPOINTS {
             return Err(CheckpointError::TooManyCheckpoints {
                 max: MAX_CHECKPOINTS,
             });
         }
 
-        // Security: prevent future checkpoints only
+        // Prevent duplicate checkpoints
+        if self.checkpoints.contains_key(&height) {
+            return Err(CheckpointError::InvalidData {
+                reason: "Checkpoint already exists at this height".to_string(),
+            });
+        }
+
+        let checkpoint = Checkpoint::new(
+            height,
+            block_hash,
+            format!("Auto-checkpoint at height {}", height),
+        );
+        
+        self.add_checkpoint(checkpoint)?;
+        self.last_auto_checkpoint = height;
+        
+        Ok(())
+    }
+
+    /// Adds a new checkpoint with comprehensive security validation
+    pub fn add_checkpoint(&mut self, checkpoint: Checkpoint) -> Result<(), CheckpointError> {
+        // Security: Must be enabled
+        if !self.enabled {
+            return Err(CheckpointError::InvalidData {
+                reason: "Checkpoints are disabled".to_string(),
+            });
+        }
+
+        // Security: Validate checkpoint data structure
+        checkpoint.validate()?;
+
+        // Security: Prevent checkpoint overflow
+        if self.checkpoints.len() >= MAX_CHECKPOINTS {
+            return Err(CheckpointError::TooManyCheckpoints {
+                max: MAX_CHECKPOINTS,
+            });
+        }
+
+        // Security: No future checkpoints
         if checkpoint.height > self.current_height {
             return Err(CheckpointError::CheckpointInFuture {
                 height: checkpoint.height,
@@ -155,14 +277,41 @@ impl CheckpointManager {
             });
         }
 
+        // Security: Prevent duplicate checkpoints
+        if self.checkpoints.contains_key(&checkpoint.height) {
+            return Err(CheckpointError::InvalidData {
+                reason: "Checkpoint already exists at this height".to_string(),
+            });
+        }
+
+        // Security: Validate checkpoint reason
+        if checkpoint.reason.is_empty() || checkpoint.reason.len() > 200 {
+            return Err(CheckpointError::InvalidData {
+                reason: "Invalid checkpoint reason length".to_string(),
+            });
+        }
+
         self.checkpoints.insert(checkpoint.height, checkpoint);
         Ok(())
     }
 
-    /// Validates a block against checkpoints
+    /// Validates a block against checkpoints with security checks
     pub fn validate_block(&self, height: u64, hash: &[u8; 32]) -> Result<(), CheckpointError> {
+        // Security: Skip validation if disabled
         if !self.enabled {
-            return Ok(()); // Skip validation if disabled
+            return Ok(());
+        }
+
+        // Security: Validate input parameters
+        if height == 0 {
+            return Ok(()); // Genesis block has no checkpoint
+        }
+
+        // Security: Check hash length
+        if hash.len() != 32 {
+            return Err(CheckpointError::InvalidData {
+                reason: "Invalid block hash length".to_string(),
+            });
         }
 
         // Check if there's a checkpoint at this height
@@ -206,6 +355,21 @@ impl CheckpointManager {
         self.checkpoints.keys().next_back().copied()
     }
 
+    /// Gets auto-checkpoint interval
+    pub fn auto_checkpoint_interval(&self) -> u64 {
+        self.auto_checkpoint_interval
+    }
+
+    /// Sets auto-checkpoint interval
+    pub fn set_auto_checkpoint_interval(&mut self, interval: u64) {
+        self.auto_checkpoint_interval = interval;
+    }
+
+    /// Gets last auto-checkpoint height
+    pub fn last_auto_checkpoint(&self) -> u64 {
+        self.last_auto_checkpoint
+    }
+
     /// Returns the number of checkpoints
     pub fn count(&self) -> usize {
         self.checkpoints.len()
@@ -226,30 +390,56 @@ impl CheckpointManager {
         self.checkpoints.values().collect()
     }
 
-    /// Imports checkpoints from backup (with validation)
+    /// Imports checkpoints from backup with comprehensive validation
     pub fn import(&mut self, checkpoints: Vec<Checkpoint>) -> Result<(), CheckpointError> {
+        // Security: Must be enabled
         if !self.enabled {
             return Err(CheckpointError::InvalidData {
-                reason: "checkpoints are disabled".to_string(),
+                reason: "Checkpoints are disabled".to_string(),
             });
         }
 
-        // Clear existing checkpoints
-        self.checkpoints.clear();
+        // Security: Validate input size
+        if checkpoints.is_empty() {
+            return Err(CheckpointError::InvalidData {
+                reason: "Cannot import empty checkpoint list".to_string(),
+            });
+        }
 
-        // Validate and import each checkpoint
-        for checkpoint in checkpoints {
+        if checkpoints.len() > MAX_CHECKPOINTS {
+            return Err(CheckpointError::TooManyCheckpoints {
+                max: MAX_CHECKPOINTS,
+            });
+        }
+
+        // Security: Clear existing checkpoints only after validation
+        let mut temp_checkpoints = BTreeMap::new();
+
+        // Validate each checkpoint before importing
+        for checkpoint in &checkpoints {
+            // Validate checkpoint structure
             checkpoint.validate()?;
-            
-            if self.checkpoints.len() >= MAX_CHECKPOINTS {
-                return Err(CheckpointError::TooManyCheckpoints {
-                    max: MAX_CHECKPOINTS,
+
+            // Security: No future checkpoints
+            if checkpoint.height > self.current_height {
+                return Err(CheckpointError::CheckpointInFuture {
+                    height: checkpoint.height,
+                    current: self.current_height,
                 });
             }
 
-            self.checkpoints.insert(checkpoint.height, checkpoint);
+            // Security: Prevent duplicates
+            if temp_checkpoints.contains_key(&checkpoint.height) {
+                return Err(CheckpointError::InvalidData {
+                    reason: "Duplicate checkpoint height in import data".to_string(),
+                });
+            }
+
+            temp_checkpoints.insert(checkpoint.height, checkpoint.clone());
         }
 
+        // Security: Only clear after successful validation
+        self.checkpoints = temp_checkpoints;
         Ok(())
     }
 }
@@ -282,6 +472,69 @@ mod tests {
         // Future checkpoint
         let future = make_checkpoint(1500, 789);
         assert!(manager.add_checkpoint(future).is_err());
+    }
+
+    #[test]
+    fn test_auto_checkpoint_with_hash() {
+        let mut manager = CheckpointManager::new_with_interval(true, 100);
+        let test_hash = [1u8; 32];
+        
+        // Should create auto-checkpoint at height 100
+        let result = manager.update_height_with_block(100, test_hash);
+        assert!(result.is_ok());
+        assert_eq!(manager.last_auto_checkpoint(), 100);
+        assert_eq!(manager.count(), 1);
+        
+        // Should create auto-checkpoint at height 200
+        let result = manager.update_height_with_block(200, test_hash);
+        assert!(result.is_ok());
+        assert_eq!(manager.last_auto_checkpoint(), 200);
+        assert_eq!(manager.count(), 2);
+    }
+
+    #[test]
+    fn test_auto_checkpoint_security() {
+        let mut manager = CheckpointManager::new_with_interval(true, 100);
+        let test_hash = [1u8; 32];
+        
+        // Should not create checkpoint at genesis
+        let result = manager.update_height_with_block(0, test_hash);
+        assert!(result.is_ok());
+        assert_eq!(manager.last_auto_checkpoint(), 0);
+        assert_eq!(manager.count(), 0);
+        
+        // Should not create checkpoint when disabled
+        let mut disabled_manager = CheckpointManager::new_with_interval(false, 100);
+        let result = disabled_manager.update_height_with_block(100, test_hash);
+        assert!(result.is_ok());
+        assert_eq!(disabled_manager.last_auto_checkpoint(), 0);
+        assert_eq!(disabled_manager.count(), 0);
+    }
+
+    #[test]
+    fn test_import_security() {
+        let mut manager = CheckpointManager::new(true);
+        manager.update_height(1000);
+        
+        // Should reject empty import
+        let result = manager.import(vec![]);
+        assert!(result.is_err());
+        
+        // Should reject import with too many checkpoints
+        let mut checkpoints = Vec::new();
+        for i in 0..101 {
+            checkpoints.push(make_checkpoint(i as u64, i));
+        }
+        let result = manager.import(checkpoints);
+        assert!(result.is_err());
+        
+        // Should reject import with duplicate heights
+        let duplicate_checkpoints = vec![
+            make_checkpoint(100, 1),
+            make_checkpoint(100, 2),
+        ];
+        let result = manager.import(duplicate_checkpoints);
+        assert!(result.is_err());
     }
 
     #[test]

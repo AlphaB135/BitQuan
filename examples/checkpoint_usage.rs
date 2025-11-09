@@ -39,7 +39,6 @@ fn setup_example() -> Result<(), Box<dyn Error>> {
         enabled: true,
         required_signatures: 1,  // ลดลงใน dev
         response_window: 300,    // 5 นาที
-        authorized_operators: vec!["dev_operator".to_string()],
     };
 
     let mut emergency_manager = EmergencyManager::new(config);
@@ -61,7 +60,6 @@ fn mining_bug_scenario() -> Result<(), Box<dyn Error>> {
         enabled: true,
         required_signatures: 1,
         response_window: 300,
-        authorized_operators: vec!["operator1".to_string()],
     };
 
     let mut emergency_manager = EmergencyManager::new(config);
@@ -72,7 +70,7 @@ fn mining_bug_scenario() -> Result<(), Box<dyn Error>> {
     // Step 1: หยุดการประมวลผล
     println!("\n⏸️  Step 1: หยุดการประมวลผลทันที");
     let pause_action = EmergencyAction::PauseProcessing;
-    emergency_manager.execute_action(pause_action, "operator1")?;
+    emergency_manager.execute_action(pause_action)?;
     println!("   ✅ Block processing ถูกหยุดแล้ว");
 
     // Step 2: หา block สุดท้ายที่ถูกต้อง
@@ -93,7 +91,6 @@ fn mining_bug_scenario() -> Result<(), Box<dyn Error>> {
         last_safe_height,
         last_safe_hash,
         "Mining bug rollback - invalid blocks after 798500".to_string(),
-        "operator1"
     )?;
     println!("   ✅ Checkpoint สร้างสำเร็จ");
 
@@ -108,7 +105,7 @@ fn mining_bug_scenario() -> Result<(), Box<dyn Error>> {
     let alert_action = EmergencyAction::SendAlert {
         message: "🚨 MINING BUG: Update to v1.2.5 immediately. Rollback to 798500.".to_string(),
     };
-    emergency_manager.execute_action(alert_action, "operator1")?;
+    emergency_manager.execute_action(alert_action)?;
     println!("   ✅ ส่ง alert ให้ miners แล้ว");
 
     // แสดงสถานะสุดท้าย
@@ -129,7 +126,6 @@ fn network_attack_scenario() -> Result<(), Box<dyn Error>> {
         enabled: true,
         required_signatures: 1,
         response_window: 300,
-        authorized_operators: vec!["operator1".to_string()],
     };
 
     let mut emergency_manager = EmergencyManager::new(config);
@@ -154,7 +150,7 @@ fn network_attack_scenario() -> Result<(), Box<dyn Error>> {
     let ban_action = EmergencyAction::BanPeers {
         peer_ids: malicious_peers.clone(),
     };
-    emergency_manager.execute_action(ban_action, "operator1")?;
+    emergency_manager.execute_action(ban_action)?;
     println!("   ✅ แบน peers สำเร็จ");
 
     // Step 3: ตรวจสอบว่าโดนแบนจริง
@@ -171,7 +167,7 @@ fn network_attack_scenario() -> Result<(), Box<dyn Error>> {
     let alert_action = EmergencyAction::SendAlert {
         message: "🚨 NETWORK ATTACK: 3 malicious peers banned. Update firewall rules.".to_string(),
     };
-    emergency_manager.execute_action(alert_action, "operator1")?;
+    emergency_manager.execute_action(alert_action)?;
     println!("   ✅ ส่ง alert สำเร็จ");
 
     // Step 5: ถ้าจำเป็นต้อง rollback
@@ -181,7 +177,7 @@ fn network_attack_scenario() -> Result<(), Box<dyn Error>> {
     if chain_compromised {
         println!("   ⚠️  Chain state เสียหาย ต้อง rollback");
         let rollback_action = EmergencyAction::RollbackTo { height: 580000 };
-        emergency_manager.execute_action(rollback_action, "operator1")?;
+        emergency_manager.execute_action(rollback_action)?;
         println!("   ✅ Rollback ไปยัง height 580000 สำเร็จ");
     } else {
         println!("   ✅ Chain state ปลอดภัย ไม่ต้อง rollback");
@@ -198,11 +194,6 @@ fn monitoring_example() -> Result<(), Box<dyn Error>> {
         enabled: true,
         required_signatures: 3,
         response_window: 3600,
-        authorized_operators: vec![
-            "operator1".to_string(),
-            "operator2".to_string(), 
-            "operator3".to_string(),
-        ],
     };
 
     let mut emergency_manager = EmergencyManager::new(config);
@@ -214,7 +205,6 @@ fn monitoring_example() -> Result<(), Box<dyn Error>> {
         850000,
         test_hash,
         "Test checkpoint for monitoring".to_string(),
-        "operator1"
     )?;
 
     // แสดงสถานะทั้งหมด
