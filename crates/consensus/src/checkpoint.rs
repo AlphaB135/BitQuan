@@ -31,47 +31,88 @@ pub const MIN_CROSS_VALIDATION_NODES: usize = 5;
 pub enum CheckpointError {
     /// Checkpoint height is too recent (security risk)
     #[error("checkpoint height {height} is too recent (min: {min})")]
-    CheckpointTooRecent { height: u64, min: u64 },
+    CheckpointTooRecent { 
+        /// The checkpoint height that is too recent
+        height: u64, 
+        /// Minimum allowed height for checkpoint creation
+        min: u64 
+    },
 
     /// Checkpoint height is in the future
     #[error("checkpoint height {height} is in the future (current: {current})")]
-    CheckpointInFuture { height: u64, current: u64 },
+    CheckpointInFuture { 
+        /// The checkpoint height that is in the future
+        height: u64, 
+        /// Current blockchain height
+        current: u64 
+    },
 
     /// Checkpoint hash does not match block hash
     #[error("checkpoint hash mismatch at height {height}")]
-    HashMismatch { height: u64 },
+    HashMismatch { 
+        /// Height where hash mismatch occurred
+        height: u64 
+    },
 
     /// Too many checkpoints (potential abuse)
     #[error("too many checkpoints (max: {max})")]
-    TooManyCheckpoints { max: usize },
+    TooManyCheckpoints { 
+        /// Maximum number of checkpoints allowed
+        max: usize 
+    },
 
     /// Checkpoint not found
     #[error("checkpoint not found at height {height}")]
-    NotFound { height: u64 },
+    NotFound { 
+        /// Height of the missing checkpoint
+        height: u64 
+    },
 
     /// Invalid checkpoint data
     #[error("invalid checkpoint data: {reason}")]
-    InvalidData { reason: String },
+    InvalidData { 
+        /// Reason why the data is invalid
+        reason: String 
+    },
 
     /// Insufficient signatures for validation
     #[error("insufficient signatures: {have}/{required}")]
-    InsufficientSignatures { have: usize, required: usize },
+    InsufficientSignatures { 
+        /// Number of signatures provided
+        have: usize, 
+        /// Number of signatures required
+        required: usize 
+    },
 
     /// Invalid signature format
     #[error("invalid signature format: {reason}")]
-    InvalidSignature { reason: String },
+    InvalidSignature { 
+        /// Reason why the signature format is invalid
+        reason: String 
+    },
 
     /// Signature too old
     #[error("signature too old: age {age}s > max {max}s")]
-    SignatureTooOld { age: u64, max: u64 },
+    SignatureTooOld { 
+        /// Age of the signature in seconds
+        age: u64, 
+        /// Maximum allowed age for signatures
+        max: u64 
+    },
 
     /// Cross-validation failed
     #[error("cross-validation failed: {reason}")]
-    CrossValidationFailed { reason: String },
+    CrossValidationFailed { 
+        /// Reason why cross-validation failed
+        reason: String 
+    },
 
     /// Node verification failed
     #[error("node verification failed: {node_id}")]
-    NodeVerificationFailed { node_id: String },
+    NodeVerificationFailed { 
+        /// ID of the node that failed verification
+        node_id: String 
+    },
 }
 
 /// A single checkpoint entry
@@ -1051,7 +1092,7 @@ mod tests {
         // Should reject import with too many checkpoints
         let mut checkpoints = Vec::new();
         for i in 0..101 {
-            checkpoints.push(make_checkpoint(i as u64, i));
+            checkpoints.push(make_checkpoint(i, i));
         }
         let result = manager.import(checkpoints);
         assert!(result.is_err());

@@ -133,6 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// สร้าง state snapshot ปกติ
+#[allow(dead_code)]
 fn create_normal_state_snapshot(height: u64) -> StateSnapshot {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -18,11 +18,20 @@ pub enum EmergencyAction {
     /// Add emergency checkpoint
     AddCheckpoint(Checkpoint),
     /// Rollback to specific height
-    RollbackTo { height: u64 },
+    RollbackTo { 
+        /// The block height to rollback to
+        height: u64 
+    },
     /// Ban malicious peers
-    BanPeers { peer_ids: Vec<String> },
+    BanPeers { 
+        /// List of peer IDs to ban
+        peer_ids: Vec<String> 
+    },
     /// Send network alert
-    SendAlert { message: String },
+    SendAlert { 
+        /// The alert message to send
+        message: String 
+    },
 }
 
 /// Emergency response configuration
@@ -270,7 +279,12 @@ pub enum EmergencyError {
 
     /// Invalid rollback height
     #[error("invalid rollback height {height} (current: {current})")]
-    InvalidRollback { height: u64, current: u64 },
+    InvalidRollback { 
+        /// The requested rollback height
+        height: u64, 
+        /// The current block height
+        current: u64 
+    },
 
     /// Processing is paused
     #[error("block processing is paused due to emergency")]
@@ -278,7 +292,10 @@ pub enum EmergencyError {
 
     /// Invalid action
     #[error("invalid emergency action: {reason}")]
-    InvalidAction { reason: String },
+    InvalidAction { 
+        /// The reason the action is invalid
+        reason: String 
+    },
 }
 
 #[cfg(test)]

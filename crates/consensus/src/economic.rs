@@ -179,11 +179,17 @@ pub struct SlashEvent {
 /// Reasons for slashing
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SlashReason {
+    /// Created malicious proposals
     MaliciousProposal,
+    /// Provided false voting information
     FalseVoting,
+    /// Voted multiple times on the same proposal
     DoubleVoting,
+    /// Forged signatures
     SignatureForgery,
+    /// Inactive for extended period
     Inactivity,
+    /// Other reason with custom description
     Other(String),
 }
 
@@ -207,10 +213,15 @@ pub struct RewardEvent {
 /// Reasons for rewards
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardReason {
+    /// Rewarded for honest voting behavior
     HonestVoting,
+    /// Rewarded for creating proposals
     ProposalCreation,
+    /// Rewarded for active participation
     ActiveParticipation,
+    /// Rewarded for bug bounty contributions
     BugBounty,
+    /// Other reason with custom description
     Other(String),
 }
 
@@ -253,13 +264,21 @@ pub struct ReputationRecoveryEvent {
 /// Economic statistics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EconomicStats {
+    /// Total number of participants
     pub total_participants: u64,
+    /// Total amount staked by all participants
     pub total_staked: u64,
+    /// Total amount slashed from participants
     pub total_slashed: u64,
+    /// Total rewards distributed
     pub total_rewards: u64,
+    /// Number of currently active proposals
     pub active_proposals: u64,
+    /// Average reputation score across all participants
     pub average_reputation: f64,
+    /// Total number of reputation recoveries
     pub total_reputation_recoveries: u64,
+    /// Number of participants above reputation threshold
     pub participants_above_reputation_threshold: u64,
 }
 
@@ -282,7 +301,7 @@ impl EconomicManager {
     }
 
     /// Creates an economic manager with default secure configuration
-    pub fn default() -> Result<Self, EconomicError> {
+    pub fn with_default_config() -> Result<Self, EconomicError> {
         Self::new(EconomicConfig::default())
     }
 
@@ -702,7 +721,7 @@ impl EconomicManager {
         // Check if any region exceeds the maximum percentage
         let max_region_power = (total_votes * self.config.max_voting_power_per_region_percent as u64) / 100;
         
-        for (_region, &region_power) in &region_votes {
+        for &region_power in region_votes.values() {
             if region_power > max_region_power {
                 return Ok(false);
             }
@@ -967,32 +986,75 @@ impl EconomicManager {
 /// Economic system errors
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum EconomicError {
+    /// Invalid configuration error
     #[error("invalid configuration field '{field}': {reason}")]
-    InvalidConfig { field: String, reason: String },
+    InvalidConfig { 
+        /// The configuration field name
+        field: String, 
+        /// The reason for invalidity
+        reason: String 
+    },
 
+    /// Invalid participant error
     #[error("invalid participant '{id}': {reason}")]
-    InvalidParticipant { id: String, reason: String },
+    InvalidParticipant { 
+        /// The participant ID
+        id: String, 
+        /// The reason for invalidity
+        reason: String 
+    },
 
+    /// Participant not found error
     #[error("participant not found: {id}")]
-    ParticipantNotFound { id: String },
+    ParticipantNotFound { 
+        /// The participant ID that was not found
+        id: String 
+    },
 
+    /// Invalid amount error
     #[error("invalid amount: {reason}")]
-    InvalidAmount { reason: String },
+    InvalidAmount { 
+        /// The reason the amount is invalid
+        reason: String 
+    },
 
+    /// Insufficient stake error
     #[error("insufficient stake: required {required}, provided {provided}")]
-    InsufficientStake { required: u64, provided: u64 },
+    InsufficientStake { 
+        /// The required stake amount
+        required: u64, 
+        /// The provided stake amount
+        provided: u64 
+    },
 
+    /// Excessive stake error
     #[error("excessive stake: maximum {maximum}, attempted {attempted}")]
-    ExcessiveStake { maximum: u64, attempted: u64 },
+    ExcessiveStake { 
+        /// The maximum allowed stake amount
+        maximum: u64, 
+        /// The attempted stake amount
+        attempted: u64 
+    },
 
+    /// Cooldown period active error
     #[error("cooldown period is active")]
     CooldownActive,
 
+    /// No unbonding in progress error
     #[error("no unbonding in progress for participant: {id}")]
-    NoUnbondingInProgress { id: String },
+    NoUnbondingInProgress { 
+        /// The participant ID
+        id: String 
+    },
 
+    /// Unbonding not complete error
     #[error("unbonding not complete for participant: {id}, completion time: {completion_time}")]
-    UnbondingNotComplete { id: String, completion_time: u64 },
+    UnbondingNotComplete { 
+        /// The participant ID
+        id: String, 
+        /// The completion time for unbonding
+        completion_time: u64 
+    },
 }
 
 #[cfg(test)]

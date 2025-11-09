@@ -1048,7 +1048,7 @@ fn test_checkpoint_concurrent_operations() {
                 let height = (i * 5 + j) as u64 * 100 + 1;
                 let hash = [((i * 5 + j) % 256) as u8; 32];
                 let checkpoint = Checkpoint::new(height, hash, format!("Thread {} checkpoint {}", i, j));
-                if let Err(_) = mgr.add_checkpoint(checkpoint) {
+                if mgr.add_checkpoint(checkpoint).is_err() {
                     // May fail due to race conditions or limits
                 }
             }

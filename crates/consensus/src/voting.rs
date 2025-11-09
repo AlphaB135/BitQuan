@@ -251,13 +251,18 @@ pub struct RollbackProposal {
 /// Vote counting structure
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VoteCounts {
+    /// Number of approve votes
     pub approve: u64,
+    /// Number of reject votes
     pub reject: u64,
+    /// Number of abstain votes
     pub abstain: u64,
+    /// Total number of participants
     pub total_participants: u64,
 }
 
 impl VoteCounts {
+    /// Creates a new empty vote counter
     pub fn new() -> Self {
         Self {
             approve: 0,
@@ -329,11 +334,35 @@ pub struct VotingManager {
 /// Voting statistics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VotingStats {
+    /// Total number of proposals created
     pub total_proposals: u64,
+    /// Number of successful proposals
     pub successful_proposals: u64,
+    /// Number of failed proposals
     pub failed_proposals: u64,
+    /// Total number of votes cast
     pub total_votes_cast: u64,
+    /// Number of currently active proposals
     pub active_proposals: u64,
+}
+
+/// Participant data for voting factor calculation
+#[derive(Debug, Clone)]
+pub struct ParticipantVotingData {
+    /// Participant ID
+    pub participant_id: String,
+    /// Reputation score
+    pub reputation_score: u8,
+    /// Staked amount
+    pub staked_amount: u64,
+    /// Time locked hours
+    pub time_locked_hours: u64,
+    /// Geographic region
+    pub geographic_region: String,
+    /// Participation score
+    pub participation_score: f64,
+    /// Last activity timestamp
+    pub last_activity_timestamp: u64,
 }
 
 impl VotingManager {
@@ -354,7 +383,7 @@ impl VotingManager {
     }
 
     /// Creates a voting manager with default secure configuration
-    pub fn default() -> Result<Self, VotingError> {
+    pub fn with_default_config() -> Result<Self, VotingError> {
         Self::new(VotingConfig::default())
     }
 
@@ -798,21 +827,15 @@ impl VotingManager {
     /// Gets voting factors for a participant (integration point with economic system)
     pub fn get_voting_factors_for_participant(
         &self,
-        _participant_id: &str,
-        reputation_score: u8,
-        staked_amount: u64,
-        _time_locked_hours: u64,
-        geographic_region: &str,
-        participation_score: f64,
-        last_activity_timestamp: u64,
+        data: ParticipantVotingData,
     ) -> VotingFactors {
         VotingFactors::new(
-            reputation_score,
-            staked_amount,
-            Some(geographic_region.to_string()),
-            participation_score as u32,
-            last_activity_timestamp,
-            last_activity_timestamp,
+            data.reputation_score,
+            data.staked_amount,
+            Some(data.geographic_region.clone()),
+            data.participation_score as u32,
+            data.last_activity_timestamp,
+            data.last_activity_timestamp,
         )
     }
 
@@ -881,8 +904,11 @@ impl VotingManager {
 /// Proposal result
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProposalResult {
+    /// Proposal was approved
     Approved,
+    /// Proposal was rejected
     Rejected,
+    /// Proposal is still pending
     Pending,
 }
 
@@ -890,43 +916,92 @@ pub enum ProposalResult {
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum VotingError {
     #[error("invalid configuration field '{field}': {reason}")]
-    InvalidConfig { field: String, reason: String },
+    /// Invalid configuration field
+    InvalidConfig { 
+        /// Field name that is invalid
+        field: String, 
+        /// Reason why the field is invalid
+        reason: String 
+    },
 
     #[error("invalid participant '{id}': {reason}")]
-    InvalidParticipant { id: String, reason: String },
+    /// Invalid participant
+    InvalidParticipant { 
+        /// Participant ID
+        id: String, 
+        /// Reason why the participant is invalid
+        reason: String 
+    },
 
     #[error("unauthorized creator '{creator}'")]
-    UnauthorizedCreator { creator: String },
+    /// Unauthorized proposal creator
+    UnauthorizedCreator { 
+        /// Creator ID
+        creator: String 
+    },
 
     #[error("unauthorized voter '{voter}'")]
-    UnauthorizedVoter { voter: String },
+    /// Unauthorized voter
+    UnauthorizedVoter { 
+        /// Voter ID
+        voter: String 
+    },
 
     #[error("invalid rollback: {reason}")]
-    InvalidRollback { reason: String },
+    /// Invalid rollback operation
+    InvalidRollback { 
+        /// Reason why rollback is invalid
+        reason: String 
+    },
 
     #[error("proposal cooldown is active")]
+    /// Proposal cooldown period is active
     CooldownActive,
 
     #[error("invalid proposal reason")]
+    /// Invalid proposal reason provided
     InvalidReason,
 
     #[error("proposal not found: {id}")]
-    ProposalNotFound { id: String },
+    /// Proposal with specified ID not found
+    ProposalNotFound { 
+        /// ID of the missing proposal
+        id: String 
+    },
 
     #[error("proposal '{id}' is not active")]
-    ProposalNotActive { id: String },
+    /// Proposal is not currently active
+    ProposalNotActive { 
+        /// ID of the inactive proposal
+        id: String 
+    },
 
     #[error("voting expired for proposal '{id}'")]
-    VotingExpired { id: String },
+    /// Voting period has expired for the proposal
+    VotingExpired { 
+        /// ID of the expired proposal
+        id: String 
+    },
 
     #[error("invalid signature")]
+    /// Invalid signature provided
     InvalidSignature,
 
     #[error("voter '{voter}' already voted on proposal '{proposal_id}'")]
-    AlreadyVoted { voter: String, proposal_id: String },
+    /// Voter has already voted on the proposal
+    AlreadyVoted { 
+        /// ID of the voter
+        voter: String, 
+        /// ID of the proposal
+        proposal_id: String 
+    },
 
     #[error("proposal '{id}' is not approved")]
-    ProposalNotApproved { id: String },
+    /// Proposal is not approved
+    ProposalNotApproved { 
+        /// ID of the unapproved proposal
+        id: String 
+    },
 }
 
 #[cfg(test)]

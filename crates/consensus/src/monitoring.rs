@@ -17,19 +17,28 @@ const MAX_ALERT_MESSAGE_LENGTH: usize = 500;
 /// Alert severity levels
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum AlertSeverity {
+    /// Informational alert
     Info = 0,
+    /// Warning alert
     Warning = 1,
+    /// Critical alert
     Critical = 2,
 }
 
 /// Types of monitored events
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MonitorEventType {
+    /// Checkpoint was created
     CheckpointCreated,
+    /// Checkpoint validation failed
     CheckpointValidationFailed,
+    /// Block validation failed
     BlockValidationFailed,
+    /// Anomaly was detected
     AnomalyDetected,
+    /// System error occurred
     SystemError,
+    /// Security violation detected
     SecurityViolation,
 }
 
@@ -168,10 +177,15 @@ pub struct Monitor {
 /// Monitoring statistics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MonitorStats {
+    /// Total number of alerts generated
     pub total_alerts: u64,
+    /// Number of critical alerts
     pub critical_alerts: u64,
+    /// Number of warning alerts
     pub warning_alerts: u64,
+    /// Number of info alerts
     pub info_alerts: u64,
+    /// Number of acknowledged alerts
     pub acknowledged_alerts: u64,
 }
 
@@ -186,11 +200,16 @@ impl Monitor {
         }
     }
 
+}
+
+impl Default for Monitor {
     /// Creates a monitor with default secure configuration
-    pub fn default() -> Self {
+    fn default() -> Self {
         Self::new(MonitorConfig::default())
     }
+}
 
+impl Monitor {
     /// Adds an alert with comprehensive security validation
     pub fn add_alert(&mut self, alert: Alert) -> Result<(), MonitorError> {
         // Security: Check if monitoring is enabled
@@ -422,22 +441,40 @@ impl Monitor {
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum MonitorError {
     #[error("monitoring is disabled")]
+    /// Monitoring system is disabled
     Disabled,
 
     #[error("rate limit exceeded")]
+    /// Rate limit exceeded
     RateLimited,
 
     #[error("invalid message: {reason}")]
-    InvalidMessage { reason: String },
+    /// Invalid message format
+    InvalidMessage { 
+        /// Reason why the message is invalid
+        reason: String 
+    },
 
     #[error("invalid alert: {reason}")]
-    InvalidAlert { reason: String },
+    /// Invalid alert data
+    InvalidAlert { 
+        /// Reason why the alert is invalid
+        reason: String 
+    },
 
     #[error("invalid configuration: {reason}")]
-    InvalidConfig { reason: String },
+    /// Invalid configuration provided
+    InvalidConfig { 
+        /// Reason why the configuration is invalid
+        reason: String 
+    },
 
     #[error("alert not found: {id}")]
-    AlertNotFound { id: String },
+    /// Alert with specified ID not found
+    AlertNotFound { 
+        /// ID of the missing alert
+        id: String 
+    },
 }
 
 #[cfg(test)]
