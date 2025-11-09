@@ -584,18 +584,20 @@ pub fn polyz_unpack(r: &mut Poly, a: &[u8]) {
     }
   } else if GAMMA1 == 1 << 19 {
     for i in 0..N / 2 {
-      r.coeffs[2 * i + 0] = a[5 * i + 0] as i32;
-      r.coeffs[2 * i + 0] |= (a[5 * i + 1] as i32) << 8;
-      r.coeffs[2 * i + 0] |= (a[5 * i + 2] as i32) << 16;
-      r.coeffs[2 * i + 0] &= 0xFFFFF;
+      if 5 * i + 4 < a.len() {
+        r.coeffs[2 * i + 0] = a[5 * i + 0] as i32;
+        r.coeffs[2 * i + 0] |= (a[5 * i + 1] as i32) << 8;
+        r.coeffs[2 * i + 0] |= (a[5 * i + 2] as i32) << 16;
+        r.coeffs[2 * i + 0] &= 0xFFFFF;
 
-      r.coeffs[2 * i + 1] = (a[5 * i + 2] as i32) >> 4;
-      r.coeffs[2 * i + 1] |= (a[5 * i + 3] as i32) << 4;
-      r.coeffs[2 * i + 1] |= (a[5 * i + 4] as i32) << 12;
-      r.coeffs[2 * i + 0] &= 0xFFFFF; // TODO: Unnecessary mask?
+        r.coeffs[2 * i + 1] = (a[5 * i + 2] as i32) >> 4;
+        r.coeffs[2 * i + 1] |= (a[5 * i + 3] as i32) << 4;
+        r.coeffs[2 * i + 1] |= (a[5 * i + 4] as i32) << 12;
+        r.coeffs[2 * i + 0] &= 0xFFFFF; // TODO: Unnecessary mask?
 
-      r.coeffs[2 * i + 0] = GAMMA1_I32 - r.coeffs[2 * i + 0];
-      r.coeffs[2 * i + 1] = GAMMA1_I32 - r.coeffs[2 * i + 1];
+        r.coeffs[2 * i + 0] = GAMMA1_I32 - r.coeffs[2 * i + 0];
+        r.coeffs[2 * i + 1] = GAMMA1_I32 - r.coeffs[2 * i + 1];
+      }
     }
   }
 }

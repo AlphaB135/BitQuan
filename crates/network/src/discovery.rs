@@ -326,13 +326,17 @@ mod tests {
         book.add_peer("test:18444".to_string());
         book.mark_peer_success("test:18444");
 
-        let temp_file = "/tmp/bitquan_peers_test.json";
+        let temp_file = if cfg!(windows) {
+            std::env::temp_dir().join("bitquan_peers_test.json")
+        } else {
+            PathBuf::from("/tmp/bitquan_peers_test.json")
+        };
 
         // Save
-        book.save_to_file(temp_file).unwrap();
+        book.save_to_file(temp_file.to_str().unwrap()).unwrap();
 
         // Load
-        let loaded = PeerBook::load_from_file(temp_file).unwrap();
+        let loaded = PeerBook::load_from_file(temp_file.to_str().unwrap()).unwrap();
 
         assert_eq!(loaded.peer_count(), 1);
         assert!(loaded.get_peer("test:18444").is_some());

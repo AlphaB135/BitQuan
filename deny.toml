@@ -19,6 +19,31 @@ allow = [
     "CDLA-Permissive-2.0",  # Community Data License Agreement (used by webpki-roots)
 ]
 
+# แก้ไขปัญหา license ที่ยังคงอยู่
+[[licenses.exceptions]]
+allow = ["Zlib"]
+name = "foldhash"
+version = "0.1.5"
+
+[[licenses.exceptions]]
+allow = ["CDLA-Permissive-2.0"]
+name = "webpki-roots"
+version = "1.0.3"
+
+# หรือใช้วิธีนี้ถ้ายังไม่ได้ผล
+# allow = [
+#     "Apache-2.0",
+#     "MIT", 
+#     "BSD-3-Clause",
+#     "ISC",
+#     "CC0-1.0",
+#     "Unicode-3.0",
+#     "OpenSSL",
+#     "Zlib",
+#     "CDLA-Permissive-2.0",
+#     "Zlib OR Apache-2.0 OR MIT",  # รูปแบบที่ foldhash อาจใช้
+# ]
+
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
