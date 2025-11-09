@@ -384,3 +384,10 @@ PREFLIGHT_MOCK=1 scripts/preflight/check_tls_jwt.sh mainnet v1.0.0
 
 See [docs/PRELAUNCH_CHECKLIST.md](docs/PRELAUNCH_CHECKLIST.md) for complete validation requirements.
 
+### Continuous Security
+
+- Dependencies are checked on every PR via `cargo-deny`.
+- Nightly `cargo audit` runs against the RustSec database.
+- Production crates enable `-D clippy::unwrap_used` and CI fails on warnings.
+- Consensus/crypto paths are covered by `nextest` and line-coverage gate (≥80%).
+

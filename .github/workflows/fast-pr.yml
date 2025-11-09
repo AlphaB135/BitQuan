@@ -1,0 +1,74 @@
+name: Fast PR
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    name: PR quick checks (Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - '**/*.rs'
+              - '**/Cargo.toml'
+              - '**/Cargo.lock'
+            docs:
+              - 'docs/**'
+              - '*.md'
+              - '.github/ISSUE_TEMPLATE/**'
+              - 'LICENSE'
+              - 'README.md'
+
+      # 1) Format
+      - name: Format Check
+        if: steps.filter.outputs.rust == 'true'
+        run: cargo fmt --all -- --check
+
+      # 2) Clippy (ห้าม warning)
+      - name: Clippy Lints
+        if: steps.filter.outputs.rust == 'true'
+        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::unwrap_used
+
+      # 3) Cargo Deny (dependencies/licenses)
+      - name: Cargo Deny
+        if: steps.filter.outputs.rust == 'true'
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+      # 4) Tests (nextest) + Coverage threshold (no report)
+      - name: Install nextest + llvm-cov
+        if: steps.filter.outputs.rust == 'true'
+        run: cargo install cargo-nextest cargo-llvm-cov --locked
+
+      - name: Test (nextest)
+        if: steps.filter.outputs.rust == 'true'
+        run: cargo nextest run --workspace --profile ci
+
+      - name: Coverage threshold (≥80% lines, no report)
+        if: steps.filter.outputs.rust == 'true'
+        run: |
+          cargo llvm-cov nextest --workspace --fail-under-lines 80 --no-report
+
+      # no fuzz on PR (เร็ว)

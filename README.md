@@ -118,6 +118,13 @@ cargo test --all --locked
 ./target/release/bitquan-node mine
 ```
 
+## CI Pipelines
+
+- **Fast PR** (`.github/workflows/fast-pr.yml`): Ubuntu-only, runs format, clippy (deny warnings & unwrap_used), cargo-deny, nextest, and coverage threshold (≥80% lines) without generating reports. Target: < 5–7 minutes.
+- **Full Matrix** (`.github/workflows/full-matrix.yml`): On push to `main` and nightly schedule. Tests on Ubuntu/macOS/Windows, generates HTML/LCOV coverage, builds extra targets (musl/aarch64/wasm), runs long fuzz, and nightly security audit.
+
+Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
+
 ## Documentation
 
 [Full Documentation Site](https://alphab135.github.io/BitQuan/)

@@ -1,0 +1,11 @@
+[profile.default]
+status-level = "fail"
+retries = 0
+run-ignored = "never"
+test-threads = "num-cpus"
+
+[profile.ci]
+status-level = "fail"
+retries = 0
+run-ignored = "never"
+test-threads = "num-cpus"
