@@ -4,8 +4,8 @@ use crate::{Block, BlockHeader, NetworkId, SigAlgorithm, Transaction, TxIn, TxOu
 use sha2::{Digest, Sha256};
 
 /// Genesis block timestamp (Unix epoch)
-/// Oct 26, 2025 12:00:00 UTC
-pub const GENESIS_TIME: u32 = 1729944000;
+/// Jan 1, 2025 00:00:00 UTC
+pub const GENESIS_TIME: u32 = 1735689600;
 
 /// Genesis block bits (very easy difficulty for initial mining)
 pub const GENESIS_BITS: u32 = 0x207fffff;
@@ -15,22 +15,22 @@ pub const GENESIS_VERSION: i32 = 1;
 
 /// Genesis coinbase message
 pub const GENESIS_MESSAGE: &[u8] =
-    b"The Quantum Age Begins - 26 Oct 2025. Ownerless. Verifiable. For everyone.";
+    b"The Quantum Age Begins - 1 Jan 2025. Ownerless. Verifiable. For everyone.";
 
 /// Genesis block reward (50 BQ)
 pub const GENESIS_REWARD: u64 = 5_000_000_000; // 50 BQ in qbits
 
 /// Genesis block nonce discovered during genesis mining
-pub const GENESIS_NONCE: u64 = 71_683_936;
+pub const GENESIS_NONCE: u64 = 2;
 
 /// Genesis block hash (double SHA256, displayed big-endian)
-/// Updated for algo_id field addition
-pub const GENESIS_HASH: &str = "521f5d80ae609c1b251ba6a797ff110db68fad4b5367ce7283df842d8ac90690";
+/// Updated for Jan 1, 2025 launch
+pub const GENESIS_HASH: &str = "1a3e156469520d4d46dad77241e37651e1c186571d499e332d263876023e2c7b";
 
 /// Genesis block hash bytes (big-endian)
 pub const GENESIS_HASH_BYTES: [u8; 32] = [
-    0x52, 0x1f, 0x5d, 0x80, 0xae, 0x60, 0x9c, 0x1b, 0x25, 0x1b, 0xa6, 0xa7, 0x97, 0xff, 0x11, 0x0d,
-    0xb6, 0x8f, 0xad, 0x4b, 0x53, 0x67, 0xce, 0x72, 0x83, 0xdf, 0x84, 0x2d, 0x8a, 0xc9, 0x06, 0x90,
+    0x1a, 0x3e, 0x15, 0x64, 0x69, 0x52, 0x0d, 0x4d, 0x46, 0xda, 0xd7, 0x72, 0x41, 0xe3, 0x76, 0x51,
+    0xe1, 0xc1, 0x86, 0x57, 0x1d, 0x49, 0x9e, 0x33, 0x2d, 0x26, 0x38, 0x76, 0x02, 0x3e, 0x2c, 0x7b,
 ];
 
 /// Genesis hash value embedded in coinbase transactions for replay protection.

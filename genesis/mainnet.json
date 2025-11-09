@@ -1,15 +1,15 @@
 {
   "chain_id": "bitquan-mainnet-v1",
   "network_id": "mainnet",
-  "genesis_timestamp": 1729944000,
+  "genesis_timestamp": 1735689600,
   "genesis_block": {
     "version": 1,
     "height": 0,
-    "timestamp": 1729944000,
+    "timestamp": 1735689600,
     "prev_block_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-    "merkle_root": "521f5d80ae609c1b251ba6a797ff110db68fad4b5367ce7283df842d8ac90690",
+    "merkle_root": "ed5925efa52574a89f56b2e63e4341ab57f812c197f058828272a99755004e3f",
     "bits": 545259519,
-    "nonce": 71683936,
+    "nonce": 2,
     "pow_algo": "hashcash",
     "transactions": [
       {
@@ -30,7 +30,7 @@
       }
     ]
   },
-  "genesis_hash": "521f5d80ae609c1b251ba6a797ff110db68fad4b5367ce7283df842d8ac90690",
+  "genesis_hash": "1a3e156469520d4d46dad77241e37651e1c186571d499e332d263876023e2c7b",
   "checkpoint_hashes": [],
   "consensus_params": {
     "target_block_time": 600,
