@@ -130,7 +130,7 @@ impl EmergencyManager {
             }
             EmergencyAction::SendAlert { message } => {
                 // In a real implementation, this would send alerts to operators
-                eprintln!("EMERGENCY ALERT: {}", message);
+                // Emergency alert - use proper logging in production
             }
         }
 

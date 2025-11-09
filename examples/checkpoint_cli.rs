@@ -90,8 +90,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn cmd_status(verbose: bool) -> Result<(), Box<dyn Error>> {
-    println!("📊 BitQuan Checkpoint System Status");
-    println!("=" .repeat(40));
+    println!("BitQuan Checkpoint System Status");
+    println!("{}", "=".repeat(40));
 
     // จำลองข้อมูลสถานะ
     let enabled = true;
@@ -102,16 +102,16 @@ fn cmd_status(verbose: bool) -> Result<(), Box<dyn Error>> {
     let action_history_count = 7;
     let current_height = 850000;
 
-    println!("🟢 Emergency System: {}", if enabled { "Enabled" } else { "Disabled" });
-    println!("⏸️  Processing: {}", if processing_paused { "Paused" } else { "Running" });
-    println!("🛡️  Checkpoints: {}", if checkpoints_enabled { "Enabled" } else { "Disabled" });
-    println!("📊 Checkpoint Count: {}", checkpoint_count);
-    println!("🚫 Banned Peers: {}", banned_peers_count);
-    println!("📜 Action History: {}", action_history_count);
-    println!("📏 Current Height: {}", current_height);
+    println!("Status: Emergency System: {}", if enabled { "Enabled" } else { "Disabled" });
+    println!("Processing:  Processing: {}", if processing_paused { "Paused" } else { "Running" });
+    println!("Checkpoints:  Checkpoints: {}", if checkpoints_enabled { "Enabled" } else { "Disabled" });
+    println!("Count: Checkpoint Count: {}", checkpoint_count);
+    println!("Banned: Banned Peers: {}", banned_peers_count);
+    println!("History: Action History: {}", action_history_count);
+    println!("Height: Current Height: {}", current_height);
 
     if verbose {
-        println!("\n📋 Detailed Information:");
+        println!("\nInformation: Detailed Information:");
         println!("   Last Checkpoint: Height 750000 (2 hours ago)");
         println!("   Latest Action: Enable Checkpoints (30 minutes ago)");
         println!("   System Uptime: 7 days, 14 hours");
@@ -123,7 +123,7 @@ fn cmd_status(verbose: bool) -> Result<(), Box<dyn Error>> {
 }
 
 fn cmd_create(height: u64, hash: String, reason: String) -> Result<(), Box<dyn Error>> {
-    println!("🛡️  Creating Emergency Checkpoint");
+    println!("Checkpoints:  Creating Emergency Checkpoint");
     println!("=" .repeat(40));
 
     // แปลง hash จาก hex
@@ -139,38 +139,38 @@ fn cmd_create(height: u64, hash: String, reason: String) -> Result<(), Box<dyn E
         Err(_) => return Err("Invalid hex format".into()),
     };
 
-    println!("📍 Height: {}", height);
-    println!("🔐 Hash: {}...{}", &hash[..8], &hash[hash.len()-8..]);
-    println!("📝 Reason: {}", reason);
+    println!("Height: Height: {}", height);
+    println!("Hash: Hash: {}...{}", &hash[..8], &hash[hash.len()-8..]);
+    println!("Reason: Reason: {}", reason);
 
     // จำลองการสร้าง checkpoint
-    println!("\n✅ Validating checkpoint data...");
-    println!("   ✅ Height is valid (not future, not genesis)");
-    println!("   ✅ Hash format is correct");
-    println!("   ✅ Reason is provided");
+    println!("\nSUCCESS: Validating checkpoint data...");
+    println!("   SUCCESS: Height is valid (not future, not genesis)");
+    println!("   SUCCESS: Hash format is correct");
+    println!("   SUCCESS: Reason is provided");
 
-    println!("\n🔐 Validating checkpoint creation...");
-    println!("   ✅ Checkpoint validation passed");
+    println!("\nHash: Validating checkpoint creation...");
+    println!("   SUCCESS: Checkpoint validation passed");
 
-    println!("\n🛡️  Creating checkpoint...");
-    println!("   ✅ Checkpoint created successfully");
+    println!("\nCheckpoints:  Creating checkpoint...");
+    println!("   SUCCESS: Checkpoint created successfully");
     println!("   📅 Created at: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
 
-    println!("\n🔄 Enabling checkpoint validation...");
-    println!("   ✅ Checkpoint validation enabled");
+    println!("\nAction: Enabling checkpoint validation...");
+    println!("   SUCCESS: Checkpoint validation enabled");
 
-    println!("\n📢 Sending network alert...");
-    println!("   ✅ Alert sent to all nodes");
+    println!("\nAlert: Sending network alert...");
+    println!("   SUCCESS: Alert sent to all nodes");
 
-    println!("\n🎉 Emergency checkpoint created successfully!");
-    println!("   📍 Height: {}", height);
-    println!("   🔐 Hash: {}...{}", &hash[..8], &hash[hash.len()-8..]);
+    println!("\nCOMPLETE: Emergency checkpoint created successfully!");
+    println!("   Height: Height: {}", height);
+    println!("   Hash: Hash: {}...{}", &hash[..8], &hash[hash.len()-8..]);
 
     Ok(())
 }
 
 fn cmd_list(up_to: Option<u64>) -> Result<(), Box<dyn Error>> {
-    println!("📋 Checkpoint List");
+    println!("Information: Checkpoint List");
     println!("=" .repeat(40));
 
     // จำลองข้อมูล checkpoints
@@ -181,10 +181,10 @@ fn cmd_list(up_to: Option<u64>) -> Result<(), Box<dyn Error>> {
     ];
 
     if let Some(max_height) = up_to {
-        println!("🔍 Showing checkpoints up to height {}", max_height);
+        println!("Search: Showing checkpoints up to height {}", max_height);
     }
 
-    println!("\n🛡️  Active Checkpoints:");
+    println!("\nCheckpoints:  Active Checkpoints:");
     for (i, (height, hash_prefix, reason, timestamp)) in checkpoints.iter().enumerate() {
         if let Some(max) = up_to {
             if *height > max {
@@ -196,9 +196,9 @@ fn cmd_list(up_to: Option<u64>) -> Result<(), Box<dyn Error>> {
             .unwrap_or_default()
             .format("%Y-%m-%d %H:%M:%S");
 
-        println!("\n{}. 📍 Height: {}", i + 1, height);
-        println!("   🔐 Hash: {}...", hash_prefix);
-        println!("   📝 Reason: {}", reason);
+        println!("\n{}. Height: Height: {}", i + 1, height);
+        println!("   Hash: Hash: {}...", hash_prefix);
+        println!("   Reason: Reason: {}", reason);
         println!("   📅 Created: {}", created_at);
     }
 
@@ -210,103 +210,103 @@ fn cmd_list(up_to: Option<u64>) -> Result<(), Box<dyn Error>> {
 }
 
 fn cmd_rollback(height: u64) -> Result<(), Box<dyn Error>> {
-    println!("🔄 Rolling Back Checkpoints");
+    println!("Action: Rolling Back Checkpoints");
     println!("=" .repeat(40));
 
-    println!("📍 Target height: {}", height);
+    println!("Height: Target height: {}", height);
     
     // จำลองการ rollback
-    println!("\n🔍 Finding checkpoints above height {}...", height);
-    println!("   📊 Found 2 checkpoints to remove:");
+    println!("\nSearch: Finding checkpoints above height {}...", height);
+    println!("   Count: Found 2 checkpoints to remove:");
     println!("      - Height 800000: Emergency checkpoint");
     println!("      - Height 775000: Network upgrade checkpoint");
 
-    println!("\n⚠️  Warning: This will remove checkpoints above height {}", height);
+    println!("\nWARNING:  Warning: This will remove checkpoints above height {}", height);
     print!("   Are you sure? (y/N): ");
     use std::io;
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
     
     if !input.trim().to_lowercase().starts_with('y') {
-        println!("   ❌ Rollback cancelled");
+        println!("   ERROR: Rollback cancelled");
         return Ok(());
     }
 
-    println!("\n🔄 Performing rollback...");
-    println!("   ✅ Checkpoint at height 800000 removed");
-    println!("   ✅ Checkpoint at height 775000 removed");
-    println!("   ✅ Rollback completed");
+    println!("\nAction: Performing rollback...");
+    println!("   SUCCESS: Checkpoint at height 800000 removed");
+    println!("   SUCCESS: Checkpoint at height 775000 removed");
+    println!("   SUCCESS: Rollback completed");
 
-    println!("\n📊 New checkpoint count: 1");
-    println!("   📍 Latest checkpoint: Height 750000");
+    println!("\nCount: New checkpoint count: 1");
+    println!("   Height: Latest checkpoint: Height 750000");
 
     Ok(())
 }
 
 fn cmd_toggle(enable: bool) -> Result<(), Box<dyn Error>> {
-    println!("🛡️  Checkpoint Validation");
+    println!("Checkpoints:  Checkpoint Validation");
     println!("=" .repeat(40));
 
     if enable {
         println!("🔓 Enabling checkpoint validation...");
-        println!("   ✅ Checkpoint validation enabled");
-        println!("   📊 All new blocks will be validated against checkpoints");
+        println!("   SUCCESS: Checkpoint validation enabled");
+        println!("   Count: All new blocks will be validated against checkpoints");
     } else {
         println!("🔒 Disabling checkpoint validation...");
-        println!("   ⚠️  Warning: Blocks will not be validated against checkpoints");
-        println!("   ✅ Checkpoint validation disabled");
+        println!("   WARNING:  Warning: Blocks will not be validated against checkpoints");
+        println!("   SUCCESS: Checkpoint validation disabled");
     }
 
     Ok(())
 }
 
 fn cmd_ban(peer_id: String, reason: String) -> Result<(), Box<dyn Error>> {
-    println!("🚫 Banning Peer");
+    println!("Banned: Banning Peer");
     println!("=" .repeat(40));
 
-    println!("🎯 Peer ID: {}", peer_id);
-    println!("📝 Reason: {}", reason);
+    println!("Target: Peer ID: {}", peer_id);
+    println!("Reason: Reason: {}", reason);
 
-    println!("\n🔍 Checking peer status...");
-    println!("   ✅ Peer is currently active");
-    println!("   📊 Connection count: 15");
-    println!("   ⏱️  Last seen: 2 minutes ago");
+    println!("\nSearch: Checking peer status...");
+    println!("   SUCCESS: Peer is currently active");
+    println!("   Count: Connection count: 15");
+    println!("   Time:  Last seen: 2 minutes ago");
 
-    println!("\n🚫 Banning peer...");
-    println!("   ✅ Peer '{}' banned successfully", peer_id);
-    println!("   📝 Ban reason: {}", reason);
+    println!("\nBanned: Banning peer...");
+    println!("   SUCCESS: Peer '{}' banned successfully", peer_id);
+    println!("   Reason: Ban reason: {}", reason);
     println!("   📅 Banned at: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
 
-    println!("\n🔄 Updating peer filters...");
-    println!("   ✅ Firewall rules updated");
-    println!("   ✅ Connection terminated");
-    println!("   ✅ Peer added to blacklist");
+    println!("\nAction: Updating peer filters...");
+    println!("   SUCCESS: Firewall rules updated");
+    println!("   SUCCESS: Connection terminated");
+    println!("   SUCCESS: Peer added to blacklist");
 
-    println!("\n📢 Notifying network...");
-    println!("   ✅ Alert sent to other nodes");
+    println!("\nAlert: Notifying network...");
+    println!("   SUCCESS: Alert sent to other nodes");
 
     Ok(())
 }
 
 fn cmd_alert(message: String) -> Result<(), Box<dyn Error>> {
-    println!("📢 Sending Network Alert");
+    println!("Alert: Sending Network Alert");
     println!("=" .repeat(40));
 
-    println!("📝 Message: {}", message);
+    println!("Reason: Message: {}", message);
     println!("📅 Time: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
 
     println!("\n📡 Broadcasting alert...");
-    println!("   ✅ Alert sent to 150 active nodes");
-    println!("   ✅ Alert logged to audit trail");
-    println!("   ✅ Email notification sent to administrators");
+    println!("   SUCCESS: Alert sent to 150 active nodes");
+    println!("   SUCCESS: Alert logged to audit trail");
+    println!("   SUCCESS: Email notification sent to administrators");
 
-    println!("\n📊 Alert Statistics:");
+    println!("\nCount: Alert Statistics:");
     println!("   📧 Email recipients: 5");
     println!("   💬 Discord notifications: 3");
     println!("   📱 SMS alerts: 2");
     println!("   🌐 Webhook calls: 1");
 
-    println!("\n🎉 Network alert sent successfully!");
+    println!("\nCOMPLETE: Network alert sent successfully!");
 
     Ok(())
 }

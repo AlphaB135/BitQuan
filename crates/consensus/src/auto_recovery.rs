@@ -268,53 +268,29 @@ impl AutoRecoveryManager {
         if anomaly.severity >= 80 {
             self.status = RecoveryStatus::PendingRollback;
             
-            println!("🚨 CRITICAL ANOMALY DETECTED:");
-            println!("   Type: {:?}", anomaly.anomaly_type);
-            println!("   Height: {}", anomaly.height);
-            println!("   Severity: {}/100", anomaly.severity);
-            println!("   Description: {}", anomaly.description);
-            println!("   Recommendation: {}", anomaly.recommendation);
 
             // เริ่มนับถอยหลังสำหรับ auto-rollback
             self.schedule_auto_rollback(&anomaly)?;
         } else {
             self.status = RecoveryStatus::AnomalyDetected;
-            println!("⚠️  Anomaly detected - monitoring closely");
         }
 
         Ok(())
     }
-
-    /// กำหนดเวลา auto-rollback
     fn schedule_auto_rollback(&mut self, anomaly: &AnomalyReport) -> Result<(), AutoRecoveryError> {
-        println!("⏰ Scheduling auto-rollback in {} seconds...", self.config.rollback_delay);
-        println!("   Operators can override with manual intervention");
         
         // ในระบบจริงจะใช้ scheduler หรือ background thread
         // ตอนนี้จำลองว่า rollback เกิดขึ้นทันที
         self.execute_auto_rollback(anomaly)
     }
-
-    /// ดำเนินการ auto-rollback
-    fn execute_auto_rollback(&mut self, anomaly: &AnomalyReport) -> Result<(), AutoRecoveryError> {
         self.status = RecoveryStatus::RollingBack;
 
-        println!("🔄 EXECUTING AUTO-ROLLBACK:");
-        println!("   From height: {}", anomaly.height);
-        println!("   To height: {}", self.last_safe_height);
-        println!("   Reason: {}", anomaly.description);
 
         // ลบ snapshots ที่มากกว่า safe height
         self.snapshots.split_off(&(self.last_safe_height + 1));
 
         // ส่ง alert ให้ทุกคนรู้
         self.send_recovery_alert(anomaly)?;
-
-        self.status = RecoveryStatus::Recovered;
-        println!("✅ AUTO-RECOVERY COMPLETED:");
-        println!("   Network is now at safe height: {}", self.last_safe_height);
-        println!("   Safe hash: {:02x}{:02x}...{:02x}{:02x}", 
-                 self.last_safe_hash[0], self.last_safe_hash[1],
                  self.last_safe_hash[30], self.last_safe_hash[31]);
 
         Ok(())
@@ -327,19 +303,11 @@ impl AutoRecoveryManager {
         reason: &str,
     ) -> Result<(), AutoRecoveryError> {
         self.override_signatures.insert("auto_recovery".to_string(), signature.to_string());
-
-        println!("🔐 Manual override received from auto-recovery system");
-        println!("   Reason: {}", reason);
-        println!("   Signatures: {}/{}", 
-                 self.override_signatures.len(), 
                  self.config.override_signatures);
 
         // ถ้ามี signatures ครบ
         if self.override_signatures.len() >= self.config.override_signatures as usize {
             self.status = RecoveryStatus::ManualIntervention;
-            println!("✅ MANUAL OVERRIDE ACTIVATED:");
-            println!("   Auto-rollback cancelled");
-            println!("   Manual investigation required");
             
             // ส่ง alert
             self.send_override_alert(reason)?;
@@ -349,10 +317,6 @@ impl AutoRecoveryManager {
     }
 
     /// ดำเนินการ manual rollback
-    pub fn manual_rollback(
-        &mut self,
-        target_height: u64,
-        reason: &str,
     ) -> Result<(), AutoRecoveryError> {
 
 
@@ -360,11 +324,6 @@ impl AutoRecoveryManager {
         if !self.snapshots.contains_key(&target_height) {
             return Err(AutoRecoveryError::TargetNotFound { height: target_height });
         }
-
-        println!("🔧 MANUAL ROLLBACK INITIATED:");
-        println!("   System: Auto-Recovery");
-        println!("   Target height: {}", target_height);
-        println!("   Reason: {}", reason);
 
         // ดำเนินการ rollback
         self.snapshots.split_off(&(target_height + 1));
@@ -375,8 +334,6 @@ impl AutoRecoveryManager {
         }
 
         self.status = RecoveryStatus::Recovered;
-        println!("✅ MANUAL ROLLBACK COMPLETED:");
-        println!("   Network is now at height: {}", target_height);
 
         Ok(())
     }
@@ -390,32 +347,13 @@ impl AutoRecoveryManager {
             let to_remove = heights.len() - self.config.memory_blocks;
             for i in 0..to_remove {
                 if let Some(height) = heights.get(i) {
-                    self.snapshots.remove(height);
-                }
-            }
-        }
-    }
 
     /// ส่ง recovery alert
     fn send_recovery_alert(&self, anomaly: &AnomalyReport) -> Result<(), AutoRecoveryError> {
-        println!("📢 SENDING RECOVERY ALERT:");
-        println!("   🚨 CRITICAL: Auto-recovery initiated");
-        println!("   📍 Height: {}", anomaly.height);
-        println!("   🔍 Type: {:?}", anomaly.anomaly_type);
-        println!("   📝 Description: {}", anomaly.description);
-        println!("   🔄 Rollback to: {}", self.last_safe_height);
-        println!("   ⏰ Time: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
         
         Ok(())
     }
 
-    /// ส่ง override alert
-    fn send_override_alert(&self, reason: &str) -> Result<(), AutoRecoveryError> {
-        println!("📢 SENDING OVERRIDE ALERT:");
-        println!("   🔐 MANUAL OVERRIDE ACTIVATED");
-        println!("   🤖 System: Auto-Recovery");
-        println!("   📝 Reason: {}", reason);
-        println!("   ⏰ Time: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
         
         Ok(())
     }
@@ -436,15 +374,6 @@ impl AutoRecoveryManager {
             last_anomaly_time: self.last_anomaly_time,
             memory_usage: self.estimate_memory_usage(),
         }
-    }
-
-    /// ประเมินการใช้หน่วยความจำ
-    fn estimate_memory_usage(&self) -> usize {
-        // ประมาณการใช้หน่วยความจำ (bytes)
-        let snapshot_size = std::mem::size_of::<BlockSnapshot>();
-        let anomaly_size = std::mem::size_of::<AnomalyReport>();
-        
-        self.snapshots.len() * snapshot_size + 
         self.anomalies.len() * anomaly_size +
         1024 // overhead
     }
@@ -458,12 +387,6 @@ impl AutoRecoveryManager {
     pub fn get_recent_snapshots(&self, count: usize) -> Vec<&BlockSnapshot> {
         self.snapshots
             .values()
-            .rev()
-            .take(count)
-            .collect()
-    }
-}
-
 /// สถิติการกู้คืน
 #[derive(Debug, Clone)]
 pub struct RecoveryStatistics {

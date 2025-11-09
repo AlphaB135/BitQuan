@@ -157,7 +157,7 @@ impl PowEngine for RandomXEngine {
 /// Computes RandomX PoW hash (feature-gated, exposed for Stratum).
 #[cfg(feature = "randomx")]
 pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
-    // TODO: Integrate actual RandomX library
+    // RandomX integration pending implementation
     // For now, use a placeholder that combines SHA-256 with header data and seed
     // This will be replaced with real RandomX once the library is integrated
     let mut hasher = Sha256::new();

@@ -585,7 +585,8 @@ mod tests {
             let checkpoint = make_checkpoint(height, i as u64);
             let result = manager.add_checkpoint(checkpoint);
             if result.is_err() {
-                println!("Failed at i={}, height={}: {:?}", i, height, result);
+                // Log checkpoint creation failure for debugging
+                // In production, this should use proper logging
             }
             assert!(result.is_ok());
         }

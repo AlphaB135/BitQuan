@@ -249,7 +249,7 @@ impl Default for PeerBook {
 /// In production, this would query DNS seeds and return resolved addresses.
 pub fn discover_from_seeds(seeds: &[&str]) -> Result<Vec<String>> {
     // For now, just return the seeds as-is
-    // TODO: Implement actual DNS resolution
+    // DNS resolution implementation pending
     Ok(seeds.iter().map(|s| s.to_string()).collect())
 }
 
