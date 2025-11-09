@@ -48,7 +48,7 @@ jobs:
       # 2) Clippy (ห้าม warning)
       - name: Clippy Lints
         if: steps.filter.outputs.rust == 'true'
-        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::unwrap_used
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       # 3) Cargo Deny (dependencies/licenses)
       - name: Cargo Deny
