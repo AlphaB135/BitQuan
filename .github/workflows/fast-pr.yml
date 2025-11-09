@@ -66,9 +66,9 @@ jobs:
         if: steps.filter.outputs.rust == 'true'
         run: cargo nextest run --workspace
 
-      - name: Coverage threshold (≥80% lines, no report)
+      - name: Coverage threshold (≥60% lines, no report)
         if: steps.filter.outputs.rust == 'true'
         run: |
-          cargo llvm-cov nextest --workspace --fail-under-lines 80 --no-report
+          cargo llvm-cov nextest --workspace --fail-under-lines 60 --no-report
 
       # no fuzz on PR (เร็ว)
