@@ -40,21 +40,32 @@ impl Default for RecoveryConfig {
 /// Recovery status
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RecoveryStatus {
+    /// Normal operation with no anomalies detected
     Normal,
+    /// Actively detecting potential anomalies
     Detecting,
+    /// In the process of recovering from an anomaly
     Recovering,
+    /// Requires manual intervention to proceed
     ManualIntervention,
+    /// Auto-recovery system is disabled
     Disabled,
 }
 
 /// Blockchain anomaly types
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AnomalyType {
+    /// Block hash does not match expected value
     BlockHashMismatch,
+    /// Invalid state transition detected
     InvalidStateTransition,
+    /// Consensus rules violation
     ConsensusFailure,
+    /// Mining-related bug detected
     MiningBug,
+    /// Network partition detected
     NetworkPartition,
+    /// Other type of anomaly with custom description
     Other(String),
 }
 
@@ -94,31 +105,67 @@ pub struct StateSnapshot {
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum AutoRecoveryError {
     #[error("recovery is disabled")]
+    /// Recovery system is disabled
     Disabled,
 
     #[error("invalid configuration: {reason}")]
-    InvalidConfig { reason: String },
+    /// Invalid configuration provided
+    InvalidConfig { 
+        /// Reason for invalid configuration
+        reason: String 
+    },
 
     #[error("anomaly detected at height {height}: {anomaly_type:?}")]
-    AnomalyDetected { height: u64, anomaly_type: AnomalyType },
+    /// Anomaly detected at specific block height
+    AnomalyDetected { 
+        /// Block height where anomaly was detected
+        height: u64, 
+        /// Type of anomaly detected
+        anomaly_type: AnomalyType 
+    },
 
     #[error("target height {height} not found")]
-    TargetNotFound { height: u64 },
+    /// Target rollback height not found in snapshots
+    TargetNotFound { 
+        /// Target height that was not found
+        height: u64 
+    },
 
     #[error("rollback too large: {blocks} blocks (max: {max})")]
-    RollbackTooLarge { blocks: u64, max: u64 },
+    /// Rollback size exceeds maximum allowed
+    RollbackTooLarge { 
+        /// Number of blocks to rollback
+        blocks: u64, 
+        /// Maximum allowed rollback size
+        max: u64 
+    },
 
     #[error("insufficient signatures: {have}/{required}")]
-    InsufficientSignatures { have: u8, required: u8 },
+    /// Insufficient signatures for manual override
+    InsufficientSignatures { 
+        /// Number of signatures provided
+        have: u8, 
+        /// Number of signatures required
+        required: u8 
+    },
 
     #[error("checkpoint error: {0}")]
+    /// Checkpoint-related error
     CheckpointError(#[from] CheckpointError),
 
     #[error("invalid state: {reason}")]
-    InvalidState { reason: String },
+    /// Invalid blockchain state
+    InvalidState { 
+        /// Reason for invalid state
+        reason: String 
+    },
 
     #[error("operation not allowed in current status: {status:?}")]
-    InvalidStatus { status: RecoveryStatus },
+    /// Operation not allowed in current recovery status
+    InvalidStatus { 
+        /// Current recovery status
+        status: RecoveryStatus 
+    },
 }
 
 /// Automatic recovery manager
@@ -451,10 +498,15 @@ impl AutoRecoveryManager {
 /// Recovery statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryStats {
+    /// Current recovery status
     pub status: RecoveryStatus,
+    /// Last known safe block height
     pub last_safe_height: u64,
+    /// Number of stored snapshots
     pub snapshot_count: usize,
+    /// Number of recovery operations performed
     pub recovery_count: usize,
+    /// Number of override signatures collected
     pub override_signatures: u8,
 }
 
