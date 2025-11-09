@@ -1,0 +1,104 @@
+# BitQuan Devnet Configuration
+# Network: devnet
+# Purpose: Development and testing
+
+[network]
+# Network identifier
+id = "devnet"
+
+# Genesis block hash (auto-generated from genesis.json)
+genesis_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+
+# Network ports
+p2p_port = 29444
+rpc_port = 29443
+
+# Bootstrap nodes (empty for devnet)
+bootstrap_nodes = []
+
+# Initial difficulty (easiest for development)
+difficulty_bits = "0x1e00ffff"
+
+# Block target time (60 seconds = 1 minute for faster testing)
+block_interval_seconds = 60
+
+[consensus]
+# ASERT difficulty adjustment parameters
+asert_half_life = 3600  # 1 hour in seconds for faster adjustment
+
+# BurstGuard parameters
+burst_guard_enabled = true
+burst_guard_threshold = 2.0  # More lenient for devnet
+
+# Maximum block size (in weight units)
+max_block_weight = 4000000
+
+[mempool]
+# Maximum mempool size in bytes (50 MB for devnet)
+max_size_bytes = 52428800
+
+# Minimum relay fee (qbits per weight unit)
+min_relay_fee_per_wu = 1
+
+# Maximum transaction size
+max_tx_size = 100000
+
+[rpc]
+# RPC server bind address
+bind = "127.0.0.1:29443"
+
+# Enable RPC authentication
+auth_enabled = false  # Disabled for devnet
+
+[mining]
+# Coinbase maturity (blocks before coinbase can be spent)
+coinbase_maturity = 10  # Shorter for devnet
+
+# Block reward (in satoshis / qbits)
+initial_block_reward = 50000000000  # 500 BQ for faster testing
+
+# Halving interval (blocks)
+halving_interval = 21000  # Shorter for devnet
+
+[wallet]
+# Default keystore encryption
+keystore_kdf_mem_kib = 32768  # Lower for devnet
+keystore_kdf_time_cost = 2
+keystore_kdf_parallelism = 1
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "debug"
+
+# Log to file
+log_file = "data/devnet/node.log"
+
+# Log rotation
+max_log_size_mb = 50
+max_log_files = 5
+
+[storage]
+# Database path
+db_path = "data/devnet/chainstate"
+
+# Cache size in MB
+cache_size_mb = 256
+
+[network.limits]
+# Connection limits
+max_inbound_peers = 50
+max_outbound_peers = 4
+
+# Message size limits
+max_message_size = 33554432  # 32 MB
+
+# Bandwidth limits (bytes per second)
+max_upload_bytes_per_sec = 10485760   # 10 MB/s
+max_download_bytes_per_sec = 52428800 # 50 MB/s
+
+[devnet]
+# Devnet-specific features
+allow_mining_without_peers = true
+fast_sync_enabled = true
+checkpoint_enabled = false
+instant_deposit = true  # For testing
