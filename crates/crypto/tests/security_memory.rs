@@ -52,7 +52,7 @@ fn test_multiple_keys_memory_locking() {
             .iter()
             .filter(|&&locked| locked)
             .count();
-            
+
         if locked_count == 0 {
             println!("Warning: No memory locking available (may be normal in CI)");
         } else {
