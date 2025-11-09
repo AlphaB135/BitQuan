@@ -26,11 +26,9 @@ Nodes: 100+ global bootstrap nodes
 - **Enterprise Security**: Comprehensive audits, fuzzing, memory safety
 - **Production Ready**: Extensive testing, CI/CD, monitoring tools
 
-## 🚀 Quick Start
+## Quick Start
 
-<div align="center">
-
-### 📱 For Users
+### For Users
 ```bash
 # Clone and build
 git clone https://github.com/AlphaB135/BitQuan.git
@@ -44,19 +42,19 @@ cargo build --release
 ./target/release/bitquan-node wallet-address --keystore my-wallet.keystore
 ```
 
-### 🖥️ For Node Operators
+### For Node Operators
 ```bash
 # Initialize mainnet configuration
 ./target/release/bitquan-node init --network mainnet
 
-# Start the node
+# Start node
 ./target/release/bitquan-node --config config/mainnet.toml
 
 # Mine genesis block (first time only)
 ./target/release/bitquan-node mine-genesis
 ```
 
-### ⛏️ For Miners
+### For Miners
 ```bash
 # Start mining with RandomX (CPU-friendly)
 ./target/release/bitquan-node mine --algorithm randomx
@@ -68,47 +66,7 @@ cargo build --release
 bitquan-miner --pool pool.bitquan.org:3333 --address YOUR_ADDRESS
 ```
 
-</div>
 
-## 🏗️ Architecture Overview
-
-<div align="center">
-
-```mermaid
-graph TB
-    subgraph "Application Layer"
-        A[Wallet CLI] --> B[JSON-RPC API]
-        C[Mining Pool] --> B
-        D[Block Explorer] --> B
-    end
-    
-    subgraph "Core Layer"
-        B --> E[Node Core]
-        E --> F[Consensus Engine]
-        E --> G[Mempool Manager]
-        E --> H[Chain State]
-    end
-    
-    subgraph "Security Layer"
-        F --> I[Post-Quantum Crypto]
-        I --> J[Dilithium3 Signatures]
-        I --> K[RandomX PoW]
-    end
-    
-    subgraph "Network Layer"
-        E --> L[P2P Network]
-        L --> M[Peer Discovery]
-        L --> N[Block Propagation]
-    end
-    
-    subgraph "Storage Layer"
-        H --> O[RocksDB]
-        O --> P[UTXO Set]
-        O --> Q[Block Index]
-    end
-```
-
-</div>
 
 ## Overview
 
@@ -180,36 +138,20 @@ cargo test --all --locked
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](CHANGELOG.md)
 
-## ✨ Key Features
+## Features
 
-### 🔐 **Post-Quantum Security**
-- **CRYSTALS-Dilithium3** signatures (NIST PQC standard)
-- **3293-byte** quantum-resistant signatures
-- **50+ year** security horizon against quantum attacks
-
-### ⛏️ **Advanced Mining**
-- **Hybrid PoW**: RandomX (CPU) + SHA256d (ASIC) algorithms
-- **ASERT difficulty** with burst guard protection
-- **Mining pools** with Stratum V1 protocol
-- **Real-time dashboard** with WebSocket monitoring
-
-### 💼 **Enterprise Wallet**
-- **BIP39 mnemonic** support (12/24 words)
-- **Encrypted keystore** with memory locking
-- **Multi-signature** transactions
-- **Deterministic recovery** across devices
-
-### 🌐 **Production Network**
-- **2MB blocks** with 4,000,000 WU cap
-- **UTXO model** with 100-block maturity
-- **P2P networking** with efficient relay
-- **JSON-RPC 2.0** API compatibility
-
-### 🛡️ **Security Hardened**
-- **Zero unwraps** in production code
-- **Memory safety** with Rust guarantees
-- **Comprehensive audits** and fuzzing
-- **Reproducible builds** for verification
+- Post-Quantum Cryptography (Dilithium3, 3293-byte signatures)
+- BIP39 Mnemonic Wallet with deterministic key derivation (12/24 words)
+- Block weight accounting (4,000,000 WU cap, 384 WU per PQC sig)
+- Quantum-aware difficulty (ASERT + burst guard) with 4 h half-life, 11-block window, 0.33 floor ratio, 1.5× clamp
+- Fee-per-weight mempool ordering
+- Proof-of-Work consensus (SHA-256d mainnet, hybrid testnet)
+- Mining Pool & Dashboard (Stratum V1, WebSocket, Grafana integration)
+- UTXO model with coin maturity (100 blocks)
+- Persistent storage (RocksDB)
+- P2P networking with relay policy
+- JSON-RPC 2.0 API
+- Reproducible builds
 
 ## Non-Goals
 
