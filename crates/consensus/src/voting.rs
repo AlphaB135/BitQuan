@@ -22,6 +22,16 @@ pub struct VotingConfig {
     pub max_rollback_blocks: u64,
     /// Minimum time between votes (seconds)
     pub vote_cooldown_seconds: u64,
+    /// Enable multi-factor voting
+    pub multi_factor_voting_enabled: bool,
+    /// Minimum reputation score to vote (0-100)
+    pub min_reputation_to_vote: u8,
+    /// Minimum time-locked stake to vote
+    pub min_time_locked_stake: u64,
+    /// Minimum account age in seconds
+    pub min_account_age_seconds: u64,
+    /// Maximum voting weight multiplier
+    pub max_voting_weight_multiplier: f64,
 }
 
 impl Default for VotingConfig {
@@ -32,6 +42,11 @@ impl Default for VotingConfig {
             voting_window_seconds: 3600,    // 1 hour voting window
             max_rollback_blocks: 10000,    // Max 10k blocks rollback
             vote_cooldown_seconds: 1800,    // 30 min cooldown
+            multi_factor_voting_enabled: true,
+            min_reputation_to_vote: 50,
+            min_time_locked_stake: 1000,
+            min_account_age_seconds: 86400 * 30, // 30 days
+            max_voting_weight_multiplier: 10.0,
         }
     }
 }
@@ -42,6 +57,167 @@ pub enum VoteOption {
     Approve,
     Reject,
     Abstain,
+}
+
+/// Multi-factor voting criteria
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VotingFactors {
+    /// Reputation score (0-100)
+    pub reputation_score: u8,
+    /// Time-locked stake amount
+    pub time_locked_stake: u64,
+    /// Geographic region
+    pub geographic_region: Option<String>,
+    /// Participation history (number of past votes)
+    pub participation_history: u32,
+    /// Account age (in seconds)
+    pub account_age_seconds: u64,
+    /// Last activity timestamp
+    pub last_activity_timestamp: u64,
+}
+
+impl VotingFactors {
+    /// Creates new voting factors
+    pub fn new(
+        reputation_score: u8,
+        time_locked_stake: u64,
+        geographic_region: Option<String>,
+        participation_history: u32,
+        account_age_seconds: u64,
+        last_activity_timestamp: u64,
+    ) -> Self {
+        Self {
+            reputation_score,
+            time_locked_stake,
+            geographic_region,
+            participation_history,
+            account_age_seconds,
+            last_activity_timestamp,
+        }
+    }
+    
+    /// Calculates voting weight based on all factors
+    pub fn calculate_voting_weight(&self, config: &VotingConfig) -> f64 {
+        let mut weight = 1.0;
+        
+        // Reputation factor (0.5x to 2.0x multiplier)
+        let reputation_multiplier = 0.5 + (self.reputation_score as f64 / 100.0) * 1.5;
+        weight *= reputation_multiplier;
+        
+        // Stake factor (logarithmic scaling to prevent excessive influence)
+        if self.time_locked_stake > 0 {
+            let stake_factor = 1.0 + (self.time_locked_stake as f64).ln() / 100.0;
+            weight *= stake_factor.min(3.0); // Cap at 3x multiplier
+        }
+        
+        // Participation history factor (up to 1.5x multiplier)
+        let participation_multiplier = 1.0 + (self.participation_history as f64 / 100.0).min(0.5);
+        weight *= participation_multiplier;
+        
+        // Account age factor (up to 1.2x multiplier for long-term participants)
+        let age_days = self.account_age_seconds / 86400;
+        let age_multiplier = 1.0 + (age_days as f64 / 365.0).min(0.2);
+        weight *= age_multiplier;
+        
+        // Recent activity bonus (up to 1.1x)
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        
+        if now - self.last_activity_timestamp < 86400 * 7 { // Active in last 7 days
+            weight *= 1.1;
+        }
+        
+        weight
+    }
+    
+    /// Validates if participant meets minimum requirements
+    pub fn meets_minimum_requirements(&self, config: &VotingConfig) -> bool {
+        // Minimum reputation
+        if self.reputation_score < 50 {
+            return false;
+        }
+        
+        // Minimum time-locked stake
+        if self.time_locked_stake < 1000 {
+            return false;
+        }
+        
+        // Minimum account age (30 days)
+        if self.account_age_seconds < 86400 * 30 {
+            return false;
+        }
+        
+        // Recent activity (within 30 days)
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        
+        if now - self.last_activity_timestamp > 86400 * 30 {
+            return false;
+        }
+        
+        true
+    }
+}
+
+/// Enhanced vote with multi-factor weighting
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnhancedVote {
+    /// Voter identifier
+    pub voter_id: String,
+    /// Vote option
+    pub vote_option: VoteOption,
+    /// Voting factors at time of vote
+    pub voting_factors: VotingFactors,
+    /// Calculated voting weight
+    pub voting_weight: f64,
+    /// Vote timestamp
+    pub timestamp: u64,
+    /// Vote signature
+    pub signature: Option<String>,
+}
+
+impl EnhancedVote {
+    /// Creates new enhanced vote
+    pub fn new(
+        voter_id: String,
+        vote_option: VoteOption,
+        voting_factors: VotingFactors,
+        config: &VotingConfig,
+    ) -> Self {
+        let voting_weight = voting_factors.calculate_voting_weight(config);
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        
+        Self {
+            voter_id,
+            vote_option,
+            voting_factors,
+            voting_weight,
+            timestamp,
+            signature: None,
+        }
+    }
+    
+    /// Validates the vote
+    pub fn validate(&self, config: &VotingConfig) -> bool {
+        // Check minimum requirements
+        if !self.voting_factors.meets_minimum_requirements(config) {
+            return false;
+        }
+        
+        // Check voting weight is reasonable
+        if self.voting_weight <= 0.0 || self.voting_weight > 10.0 {
+            return false;
+        }
+        
+        true
+    }
 }
 
 /// Rollback proposal
@@ -129,6 +305,8 @@ pub struct VotingManager {
     proposals: HashMap<String, RollbackProposal>,
     /// Cast votes
     votes: HashMap<String, Vec<Vote>>,
+    /// Enhanced votes with multi-factor weighting
+    enhanced_votes: HashMap<String, Vec<EnhancedVote>>,
     /// Network participants
     participants: HashSet<String>,
     /// Last proposal time (for cooldown)
@@ -157,6 +335,7 @@ impl VotingManager {
             config,
             proposals: HashMap::new(),
             votes: HashMap::new(),
+            enhanced_votes: HashMap::new(),
             participants: HashSet::new(),
             last_proposal_time: 0,
             stats: VotingStats::default(),
@@ -466,6 +645,175 @@ impl VotingManager {
         self.votes.get(proposal_id)
     }
 
+    /// Casts an enhanced vote with multi-factor weighting
+    pub fn cast_enhanced_vote(&mut self, proposal_id: &str, vote: EnhancedVote) -> Result<(), VotingError> {
+        if !self.config.multi_factor_voting_enabled {
+            return Err(VotingError::InvalidConfig {
+                field: "multi_factor_voting_enabled".to_string(),
+                reason: "Multi-factor voting is disabled".to_string(),
+            });
+        }
+
+        // Validate the vote
+        if !vote.validate(&self.config) {
+            return Err(VotingError::InvalidParticipant {
+                id: vote.voter_id.clone(),
+                reason: "Vote does not meet minimum requirements".to_string(),
+            });
+        }
+
+        // Check if proposal exists and is active
+        let proposal = self.proposals.get(proposal_id)
+            .ok_or_else(|| VotingError::ProposalNotFound {
+                id: proposal_id.to_string(),
+            })?;
+
+        if !proposal.active {
+            return Err(VotingError::ProposalNotActive {
+                id: proposal_id.to_string(),
+            });
+        }
+
+        // Check if voting window is still open
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        if now > proposal.created_at + self.config.voting_window_seconds {
+            return Err(VotingError::VotingExpired {
+                id: proposal_id.to_string(),
+            });
+        }
+
+        // Check if voter has already voted
+        let proposal_votes = self.enhanced_votes.entry(proposal_id.to_string()).or_insert_with(Vec::new);
+        if proposal_votes.iter().any(|v| v.voter_id == vote.voter_id) {
+            return Err(VotingError::AlreadyVoted {
+                voter: vote.voter_id.clone(),
+                proposal_id: proposal_id.to_string(),
+            });
+        }
+
+        // Add the vote
+        proposal_votes.push(vote);
+
+        Ok(())
+    }
+
+    /// Calculates weighted voting results for a proposal
+    pub fn calculate_weighted_results(&self, proposal_id: &str) -> Result<(f64, f64, f64), VotingError> {
+        if !self.config.multi_factor_voting_enabled {
+            return Err(VotingError::InvalidConfig {
+                field: "multi_factor_voting_enabled".to_string(),
+                reason: "Multi-factor voting is disabled".to_string(),
+            });
+        }
+
+        let votes = self.enhanced_votes.get(proposal_id)
+            .ok_or_else(|| VotingError::ProposalNotFound {
+                id: proposal_id.to_string(),
+            })?;
+
+        let mut approve_weight = 0.0;
+        let mut reject_weight = 0.0;
+        let mut abstain_weight = 0.0;
+
+        for vote in votes {
+            match vote.vote_option {
+                VoteOption::Approve => approve_weight += vote.voting_weight,
+                VoteOption::Reject => reject_weight += vote.voting_weight,
+                VoteOption::Abstain => abstain_weight += vote.voting_weight,
+            }
+        }
+
+        Ok((approve_weight, reject_weight, abstain_weight))
+    }
+
+    /// Determines if a proposal passes using regular voting (non-weighted)
+    fn does_proposal_pass_regular(&self, proposal_id: &str) -> Result<bool, VotingError> {
+        let proposal = self.proposals.get(proposal_id)
+            .ok_or_else(|| VotingError::ProposalNotFound {
+                id: proposal_id.to_string(),
+            })?;
+
+        let empty_votes = vec![];
+        let votes = self.votes.get(proposal_id).unwrap_or(&empty_votes);
+        let total_votes = votes.len() as u64;
+        
+        if total_votes == 0 {
+            return Ok(false);
+        }
+
+        let approve_votes = proposal.vote_counts.approve;
+        let total_participants = self.participants.len() as u64;
+
+        // Check minimum participation
+        let participation_percentage = (total_votes as f64 / total_participants as f64) * 100.0;
+        if participation_percentage < self.config.min_participation_percent as f64 {
+            return Ok(false);
+        }
+
+        // Check supermajority
+        let approval_percentage = (approve_votes as f64 / total_votes as f64) * 100.0;
+        Ok(approval_percentage >= self.config.supermajority_percent as f64)
+    }
+
+    /// Determines if a proposal passes based on weighted voting
+    pub fn does_proposal_pass_weighted(&self, proposal_id: &str) -> Result<bool, VotingError> {
+        if !self.config.multi_factor_voting_enabled {
+            // Use regular voting logic when multi-factor is disabled
+            return self.does_proposal_pass_regular(proposal_id);
+        }
+
+        let (approve_weight, reject_weight, abstain_weight) = self.calculate_weighted_results(proposal_id)?;
+        let total_weight = approve_weight + reject_weight + abstain_weight;
+
+        if total_weight == 0.0 {
+            return Ok(false);
+        }
+
+        // Check minimum participation
+        let participation_percentage = ((total_weight - abstain_weight) / total_weight) * 100.0;
+        if participation_percentage < self.config.min_participation_percent as f64 {
+            return Ok(false);
+        }
+
+        // Check supermajority
+        let approval_percentage = (approve_weight / total_weight) * 100.0;
+        Ok(approval_percentage >= self.config.supermajority_percent as f64)
+    }
+
+    /// Gets voting factors for a participant (integration point with economic system)
+    pub fn get_voting_factors_for_participant(
+        &self,
+        participant_id: &str,
+        reputation_score: u8,
+        time_locked_stake: u64,
+        geographic_region: Option<String>,
+        participation_history: u32,
+        account_age_seconds: u64,
+        last_activity_timestamp: u64,
+    ) -> VotingFactors {
+        VotingFactors::new(
+            reputation_score,
+            time_locked_stake,
+            geographic_region,
+            participation_history,
+            account_age_seconds,
+            last_activity_timestamp,
+        )
+    }
+
+    /// Validates participant can vote with multi-factor requirements
+    pub fn can_participant_vote_weighted(&self, voting_factors: &VotingFactors) -> bool {
+        if !self.config.multi_factor_voting_enabled {
+            return true;
+        }
+
+        voting_factors.meets_minimum_requirements(&self.config)
+    }
+
     /// Gets voting statistics
     pub fn get_stats(&self) -> &VotingStats {
         &self.stats
@@ -581,6 +929,11 @@ mod tests {
             voting_window_seconds: 3600,
             max_rollback_blocks: 1000,
             vote_cooldown_seconds: 300,
+            multi_factor_voting_enabled: true,
+            min_reputation_to_vote: 50,
+            min_time_locked_stake: 1000,
+            min_account_age_seconds: 86400 * 30,
+            max_voting_weight_multiplier: 10.0,
         }).unwrap()
     }
 
@@ -738,6 +1091,11 @@ mod tests {
             voting_window_seconds: 3600,
             max_rollback_blocks: 1000,
             vote_cooldown_seconds: 300,
+            multi_factor_voting_enabled: true,
+            min_reputation_to_vote: 50,
+            min_time_locked_stake: 1000,
+            min_account_age_seconds: 86400 * 30,
+            max_voting_weight_multiplier: 10.0,
         };
         
         let result = VotingManager::new(invalid_config);
@@ -747,5 +1105,184 @@ mod tests {
         let valid_config = VotingConfig::default();
         let result = VotingManager::new(valid_config);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_voting_factors() {
+        let factors = VotingFactors::new(
+            80, // reputation
+            2000, // time-locked stake
+            Some("NorthAmerica".to_string()), // geographic region
+            10, // participation history
+            86400 * 60, // 60 days account age
+            1234567890, // last activity
+        );
+
+        let config = VotingConfig::default();
+        
+        // Test minimum requirements
+        assert!(factors.meets_minimum_requirements(&config));
+        
+        // Test voting weight calculation
+        let weight = factors.calculate_voting_weight(&config);
+        assert!(weight > 1.0); // Should be > 1.0 due to good factors
+        assert!(weight < 10.0); // Should be reasonable
+    }
+
+    #[test]
+    fn test_enhanced_vote() {
+        let config = VotingConfig::default();
+        let factors = VotingFactors::new(
+            80, // reputation
+            2000, // time-locked stake
+            Some("NorthAmerica".to_string()), // geographic region
+            10, // participation history
+            86400 * 60, // 60 days account age
+            1234567890, // last activity
+        );
+
+        let vote = EnhancedVote::new(
+            "voter1".to_string(),
+            VoteOption::Approve,
+            factors,
+            &config,
+        );
+
+        // Test vote validation
+        assert!(vote.validate(&config));
+        assert!(vote.voting_weight > 1.0);
+        assert_eq!(vote.vote_option, VoteOption::Approve);
+        assert_eq!(vote.voter_id, "voter1");
+    }
+
+    #[test]
+    fn test_multi_factor_voting() {
+        let mut manager = create_test_manager();
+        
+        // Create a proposal
+        let proposal_id = manager.create_proposal(
+            500, // current_height
+            1000, // target_height
+            "creator1".to_string(),
+            "Test rollback".to_string(),
+        ).unwrap();
+
+        // Create voting factors for different voters
+        let high_reputation_factors = VotingFactors::new(
+            90, // high reputation
+            5000, // high stake
+            Some("NorthAmerica".to_string()),
+            20, // experienced participant
+            86400 * 365, // 1 year old account
+            1234567890,
+        );
+
+        let low_reputation_factors = VotingFactors::new(
+            60, // low reputation
+            1000, // minimum stake
+            Some("Europe".to_string()),
+            5, // new participant
+            86400 * 30, // minimum age
+            1234567890,
+        );
+
+        // Cast enhanced votes
+        let vote1 = EnhancedVote::new(
+            "voter1".to_string(),
+            VoteOption::Approve,
+            high_reputation_factors,
+            &manager.config,
+        );
+
+        let vote2 = EnhancedVote::new(
+            "voter2".to_string(),
+            VoteOption::Approve,
+            low_reputation_factors,
+            &manager.config,
+        );
+
+        manager.cast_enhanced_vote(&proposal_id, vote1).unwrap();
+        manager.cast_enhanced_vote(&proposal_id, vote2).unwrap();
+
+        // Test weighted results
+        let (approve_weight, reject_weight, abstain_weight) = manager.calculate_weighted_results(&proposal_id).unwrap();
+        assert!(approve_weight > 0.0);
+        assert_eq!(reject_weight, 0.0);
+        assert_eq!(abstain_weight, 0.0);
+
+        // High reputation vote should have more weight
+        assert!(approve_weight > 2.0); // Both votes combined
+    }
+
+    #[test]
+    fn test_multi_factor_voting_requirements() {
+        let config = VotingConfig::default();
+        
+        // Test factors that don't meet requirements
+        let low_reputation_factors = VotingFactors::new(
+            30, // too low reputation
+            2000,
+            Some("NorthAmerica".to_string()),
+            10,
+            86400 * 60,
+            1234567890,
+        );
+
+        let low_stake_factors = VotingFactors::new(
+            80,
+            500, // too low stake
+            Some("NorthAmerica".to_string()),
+            10,
+            86400 * 60,
+            1234567890,
+        );
+
+        let new_account_factors = VotingFactors::new(
+            80,
+            2000,
+            Some("NorthAmerica".to_string()),
+            10,
+            86400 * 10, // too new
+            1234567890,
+        );
+
+        assert!(!low_reputation_factors.meets_minimum_requirements(&config));
+        assert!(!low_stake_factors.meets_minimum_requirements(&config));
+        assert!(!new_account_factors.meets_minimum_requirements(&config));
+    }
+
+    #[test]
+    fn test_multi_factor_voting_disabled() {
+        let mut manager = VotingManager::new(VotingConfig {
+            multi_factor_voting_enabled: false,
+            ..VotingConfig::default()
+        }).unwrap();
+
+        let proposal_id = manager.create_proposal(
+            500, // current_height
+            1000, // target_height
+            "creator1".to_string(),
+            "Test rollback".to_string(),
+        ).unwrap();
+
+        let factors = VotingFactors::new(
+            80,
+            2000,
+            Some("NorthAmerica".to_string()),
+            10,
+            86400 * 60,
+            1234567890,
+        );
+
+        let vote = EnhancedVote::new(
+            "voter1".to_string(),
+            VoteOption::Approve,
+            factors,
+            &manager.config,
+        );
+
+        // Should fail when multi-factor voting is disabled
+        let result = manager.cast_enhanced_vote(&proposal_id, vote);
+        assert!(result.is_err());
     }
 }
