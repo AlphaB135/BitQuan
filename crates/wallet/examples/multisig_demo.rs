@@ -15,6 +15,7 @@ fn main() {
         "dilithium3_pubkey_charlie_0xabcd...".to_string(),
     ];
 
+    #[allow(clippy::expect_used)]
     let config = MultisigConfig::new(2, public_keys.clone(), Some("Team Wallet".to_string()))
         .expect("Failed to create config");
 
@@ -37,6 +38,7 @@ fn main() {
     // Example 3: First signature (Alice)
     println!("3. Alice signs the transaction...");
     let alice_signature = b"dilithium3_sig_alice_..."; // In real use, generate with keypair.sign()
+    #[allow(clippy::expect_used)]
     wallet
         .add_signature(&mut pending, &public_keys[0], alice_signature)
         .expect("Failed to add Alice's signature");
@@ -57,6 +59,7 @@ fn main() {
     // Example 4: Second signature (Bob)
     println!("4. Bob signs the transaction...");
     let bob_signature = b"dilithium3_sig_bob_...";
+    #[allow(clippy::expect_used)]
     wallet
         .add_signature(&mut pending, &public_keys[1], bob_signature)
         .expect("Failed to add Bob's signature");
@@ -73,12 +76,14 @@ fn main() {
 
     // Example 5: Finalize transaction
     println!("5. Finalizing transaction...");
+    #[allow(clippy::expect_used)]
     let finalized = wallet
         .finalize_transaction(&pending)
         .expect("Failed to finalize");
 
     println!("   ✓ Transaction finalized!");
     println!("   Final signature count: {}", finalized.signatures.len());
+    #[allow(clippy::expect_used)]
     finalized.verify().expect("Verification failed");
     println!("   ✓ Verification passed");
     println!();

@@ -75,11 +75,13 @@ fn derive_key(
     parallelism: u8,
 ) -> [u8; 32] {
     // SAFETY: Params::new can only fail if parameters are out of range, which never happens with our constants
+    #[allow(clippy::expect_used)]
     let params = Params::new(mem_kib, time_cost, parallelism.into(), None).expect("argon params");
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     let mut key = [0u8; 32];
     // SAFETY: hash_password_into can only fail if output buffer is wrong size, which is fixed at 32 bytes
+    #[allow(clippy::expect_used)]
     argon2
         .hash_password_into(password.expose_secret(), salt, &mut key)
         .expect("Argon2 derive failed");
@@ -111,6 +113,7 @@ pub fn encrypt_keystore(
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     // SAFETY: AES-GCM encryption can only fail if key/nonce are wrong size, which are fixed at 32/12 bytes
+    #[allow(clippy::expect_used)]
     let ciphertext = cipher
         .encrypt(
             nonce,

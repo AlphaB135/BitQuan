@@ -211,6 +211,7 @@ impl HybridMiner {
 
         // Fallback to first algorithm
         // SAFETY: weights is guaranteed non-empty (validated in new())
+        #[allow(clippy::unwrap_used)]
         *self.weights.keys().next().unwrap()
     }
 

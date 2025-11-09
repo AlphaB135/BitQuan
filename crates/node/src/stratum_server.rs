@@ -199,11 +199,13 @@ impl MinerSession {
     pub fn new(algo: PowAlgo, address: String, difficulty: f64) -> Self {
         // Duplicate cache: keep last 4096 nonces
         // SAFETY: 4096 is a non-zero constant
+        #[allow(clippy::unwrap_used)]
         let cache_size = NonZeroUsize::new(4096).unwrap();
         let duplicate_cache = Arc::new(Mutex::new(LruCache::new(cache_size)));
 
         // Assign cryptographically secure extranonce1
         let mut extranonce1_bytes = [0u8; 4];
+        #[allow(clippy::expect_used)]
         getrandom::getrandom(&mut extranonce1_bytes)
             .expect("Failed to generate secure extranonce1");
         let extranonce1 = u32::from_le_bytes(extranonce1_bytes);
