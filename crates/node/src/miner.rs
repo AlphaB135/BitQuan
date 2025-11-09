@@ -38,6 +38,7 @@ pub struct MinerMetrics {
 
 impl MinerMetrics {
     /// Create new metrics for given algorithms.
+    #[allow(dead_code)] // Reserved for Phase 8 metrics integration
     pub fn new(algos: &[PowAlgo]) -> Self {
         let mut blocks_mined = HashMap::new();
         let mut hash_attempts = HashMap::new();
@@ -57,6 +58,7 @@ impl MinerMetrics {
     }
 
     /// Increment blocks mined counter for algorithm.
+    #[allow(dead_code)] // Reserved for Phase 8 metrics integration
     pub fn record_block(&self, algo: PowAlgo) {
         if let Some(counter) = self.blocks_mined.get(&algo) {
             counter.fetch_add(1, Ordering::Relaxed);
@@ -64,6 +66,7 @@ impl MinerMetrics {
     }
 
     /// Increment hash attempt counter for algorithm.
+    #[allow(dead_code)] // Reserved for Phase 8 metrics integration
     pub fn record_hash_attempt(&self, algo: PowAlgo) {
         if let Some(counter) = self.hash_attempts.get(&algo) {
             counter.fetch_add(1, Ordering::Relaxed);
@@ -113,6 +116,7 @@ impl HybridMiner {
     /// * `weights` - Algorithm weights (higher = more mining time)
     /// * `threads` - Number of mining threads (0 = CPU count)
     /// * `network` - Network ID for validation
+    #[allow(dead_code)] // Reserved for Phase 8 mining activation
     pub fn new(weights: &[(PowAlgo, f32)], threads: usize, network: NetworkId) -> Result<Self> {
         if weights.is_empty() {
             return Err(bitquan_types::Error::Invalid(
@@ -191,11 +195,13 @@ impl HybridMiner {
     }
 
     /// Check if miner should stop.
+    #[allow(dead_code)] // Reserved for Phase 8 mining control
     pub fn should_stop(&self) -> bool {
         self.stop_flag.load(Ordering::Relaxed)
     }
 
     /// Select next algorithm based on weighted round-robin.
+    #[allow(dead_code)] // Reserved for Phase 8 mining control
     pub fn select_algorithm(&self, iteration: u64) -> PowAlgo {
         // Simple weighted selection: accumulate weights and select based on iteration
         let total_weight: f32 = self.weights.values().sum();
@@ -216,6 +222,7 @@ impl HybridMiner {
     }
 
     /// Get engine for given algorithm.
+    #[allow(dead_code)] // Reserved for Phase 8 mining control
     pub fn get_engine(&self, algo: PowAlgo) -> Option<Arc<dyn PowEngine + Send + Sync>> {
         for engine in &self.engines {
             if engine.algo() == algo {
@@ -226,6 +233,7 @@ impl HybridMiner {
     }
 
     /// Mine a single block attempt with given header template.
+    #[allow(dead_code)] // Reserved for Phase 8 mining control
     pub fn mine_block_attempt(
         &self,
         mut header: BlockHeader,
