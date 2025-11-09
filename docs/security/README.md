@@ -1,8 +1,8 @@
 # Security Documentation
 
-**Last Updated: 2025-01-07**
+**Last Updated: 2025-01-10**
 
-This section contains security policies, audit reports, vulnerability disclosure procedures, and security best practices for BitQuan.
+This section contains security policies, audit reports, vulnerability disclosure procedures, and security best practices for BitQuan's Bitcoin-style consensus system.
 
 ## 🔒 Security Policy
 
@@ -44,6 +44,12 @@ See [BUG_BOUNTY.md](./BUG_BOUNTY.md) for complete program details.
 
 ## 🛡️ Security Features
 
+### Bitcoin-Style Consensus
+- **Longest VALID Chain**: Mathematical fork choice rule
+- **No Centralized Control**: No checkpoints or emergency overrides
+- **Proof-of-Work Security**: Computational protection
+- **Transparent Validation**: All nodes use same rules
+
 ### Post-Quantum Cryptography
 - CRYSTALS-Dilithium3 signatures (NIST FIPS 204)
 - 50+ year quantum resistance
@@ -58,6 +64,8 @@ See [BUG_BOUNTY.md](./BUG_BOUNTY.md) for complete program details.
 
 ### Operational Security
 - TLS for RPC endpoints
+- No special operator privileges
+- Decentralized incident response
 - JWT authentication
 - [No Backdoors](./NO_BACKDOORS.md)
 - [GPG Signed Releases](./GPG_SIGNING.md)
@@ -70,13 +78,19 @@ All releases include:
 - SHA-256 checksums
 - Reproducibility attestations ([attestations/](./attestations/))
 
-## 🚨 Incident Response
+## 🚨 Network Security
 
-- **[Emergency Procedures](./EMERGENCY_PROCEDURES.md)** - Complete emergency response guide
-- **[Emergency Quick Reference](./EMERGENCY_QUICK_REFERENCE.md)** - Fast action reference
-- **On-Call Roster**: [oncall.md](./oncall.md)
-- **Incident Post-Mortems**: `SA-YYYY-NN.md` files
-- **Emergency Contact**: security@bitquan.network
+- **[Network Security Procedures](./EMERGENCY_PROCEDURES.md)** - Bitcoin-style security guide
+- **[Security Quick Reference](./EMERGENCY_QUICK_REFERENCE.md)** - Fast security commands
+- **[Consensus Documentation](./CHECKPOINT_README.md)** - Bitcoin-style consensus
+- **[Usage Guide](./CHECKPOINT_USAGE_GUIDE.md)** - Consensus usage examples
+- **Security Contact**: security@bitquan.network
+
+### Decentralized Response
+- No manual intervention capabilities
+- Network self-healing through consensus
+- Automatic invalid block rejection
+- Longest chain rule resolves conflicts
 
 ## 📖 Best Practices
 

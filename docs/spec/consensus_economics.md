@@ -1,6 +1,15 @@
-# Consensus Economics & PQC Cost Model (Phase 3 Draft)
+# Consensus Economics & PQC Cost Model (Bitcoin-Style Consensus)
 
-This note captures the initial production assumptions for Proof-of-Work security, post-quantum signature costs, and fee/weight policy. It complements `docs/architecture/overview.md` and the transaction/block data specification.
+This note captures the production assumptions for Bitcoin-style consensus, Proof-of-Work security, post-quantum signature costs, and fee/weight policy. It complements `docs/architecture/overview.md` and the transaction/block data specification.
+
+## Consensus Model
+
+BitQuan uses **Bitcoin-style consensus** with the following principles:
+
+- **Longest VALID Chain**: Chain with most cumulative proof-of-work wins
+- **No Centralized Control**: No checkpoints, emergency overrides, or manual intervention
+- **Mathematical Security**: Security derived from proof-of-work and consensus rules
+- **Transparent Validation**: All nodes use identical validation rules
 
 ## Currency Units
 

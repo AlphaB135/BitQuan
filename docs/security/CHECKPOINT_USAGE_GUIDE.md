@@ -1,440 +1,267 @@
-# BitQuan Checkpoint System - คู่มือการใช้งาน
+# BitQuan Consensus Usage Guide - Bitcoin-Style Validation
 
-## 📋 ภาพรวมการใช้งาน
+## 📋 ภาพรวม
 
-Checkpoint system ใน BitQuan ถูกออกแบบมาเพื่อการกู้คืน blockchain ในสถานการณ์ฉุกเฉิน โดยมีวัตถุประสงค์หลักคือ:
+BitQuan ใช้ Bitcoin-style consensus ที่ไม่มีระบบศูนย์กลาง:
 
-- 🛡️ ป้องกันการโจมตีทาง consensus
-- 🔄 กู้คืน blockchain จาก mining bugs
-- 🚨 ตอบสนองต่อเหตุการณ์ฉุกเฉิน
-- 📊 ตรวจสอบความถูกต้องของ blocks
-
----
-
-## 🚀 การเริ่มต้นใช้งาน
-
-### 1. การตั้งค่าเบื้องต้น
-
-```rust
-use bitquan_consensus::{CheckpointManager, EmergencyManager, EmergencyConfig};
-
-// สร้าง checkpoint manager (ปกติจะปิดไว้ก่อน)
-let mut checkpoint_manager = CheckpointManager::new(false);
-
-// ตั้งค่า emergency manager
-let config = EmergencyConfig {
-    enabled: true,
-    required_signatures: 3,  // ต้องการ 3 ลายเซ็น
-    response_window: 3600,    // 1 ชั่วโมง
-    authorized_operators: vec![
-        "operator1".to_string(),
-        "operator2".to_string(),
-        "operator3".to_string(),
-    ],
-};
-
-let mut emergency_manager = EmergencyManager::new(config);
-```
-
-### 2. การอัปเดตความสูงของ blockchain
-
-```rust
-// อัปเดตความสูงปัจจุบันเสมอ
-emergency_manager.update_height(current_block_height);
-checkpoint_manager.update_height(current_block_height);
-```
+- ⛓️ **Longest VALID Chain**: เลือก chain ที่มี cumulative work สูงสุด
+- 🚫 **No Checkpoints**: ไม่มี manual checkpoints หรือ intervention
+- 🛡️ **Pure Mathematics**: ความปลอดภัยจาก proof-of-work เท่านั้น
+- ✅ **Deterministic**: ทุก node ใช้กฎเดียวกันเสมอ
 
 ---
 
-## 🔐 การสร้าง Checkpoint
+## 🚀 การใช้งาน
 
-### สถานการณ์ที่ต้องสร้าง Checkpoint
-
-1. **Mining Bug** - เกิดข้อผิดพลาดใน mining algorithm
-2. **Network Attack** - มีการโจมตีทาง network
-3. **Consensus Failure** - consensus rules มีปัญหา
-4. **Software Vulnerability** - พบช่องโหว่ด้านความปลอดภัย
-
-### วิธีการสร้าง Emergency Checkpoint
+### Basic Block Validation
 
 ```rust
-use bitquan_consensus::Checkpoint;
+use bitquan_consensus::{ConsensusEngine, ConsensusParams};
 
-// 1. ระบุ block ที่ปลอดภัย (ต้องเก่ากว่า 1000 blocks)
-let safe_height = 750000;
-let safe_hash = [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0,
-                 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
-                 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00,
-                 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88];
+// Create consensus engine
+let engine = ConsensusEngine::phase3_defaults();
 
-// 2. สร้าง checkpoint
-let result = emergency_manager.create_emergency_checkpoint(
-    safe_height,
-    safe_hash,
-    "Mining bug fix - rollback to safe state".to_string(),
-    "operator1"  // operator ID ที่ได้รับอนุญาต
-);
+// Validate block
+let result = engine.validate_block(&block, height)?;
+println!("Block valid: {:?}", result);
+```
 
-match result {
-    Ok(()) => println!("✅ Checkpoint created successfully"),
-    Err(e) => println!("❌ Failed to create checkpoint: {}", e),
+### Fork Choice Management
+
+```rust
+use bitquan_consensus::fork::ForkChoice;
+
+let mut fork_choice = ForkChoice::new();
+
+// Add genesis
+fork_choice.add_genesis(genesis_header)?;
+
+// Add blocks
+let (is_new_tip, reorg) = fork_choice.add_block(block_header)?;
+if reorg.is_some() {
+    println!("Chain reorganization occurred!");
 }
 ```
 
-### การสร้าง Checkpoint แบบ Manual
+### Invalid Block Handling
 
 ```rust
-// สร้าง checkpoint โดยตรง (ถ้ามีสิทธิ์)
-let checkpoint = Checkpoint::new(
-    750000,
-    safe_hash,
-    "Manual checkpoint for testing".to_string()
-);
+// Mark block as invalid (consensus failure)
+fork_choice.mark_invalid(block_hash, "Invalid signature".to_string());
 
-// เพิ่มเข้าไปใน manager
-checkpoint_manager.add_checkpoint(checkpoint)?;
+// Try to add invalid block's child
+let result = fork_choice.add_block(child_header);
+assert!(result.is_err()); // Should fail
 ```
 
 ---
 
-## 🛡️ การใช้งาน Emergency Actions
+## 🛡️ การตรวจสอบความปลอดภัย
 
-### 1. การหยุดการประมวลผล (Pause Processing)
+### Block Header Validation
 
 ```rust
-use bitquan_consensus::EmergencyAction;
+// Timestamp validation (2 hour future limit)
+if u64::from(header.time) > current_time + 7200 {
+    return Err(ConsensusError::InvalidSignature(
+        "Block timestamp too far in the future".to_string()
+    ));
+}
 
-// หยุดการประมวลผลทันที
-let action = EmergencyAction::PauseProcessing;
-emergency_manager.execute_action(action, "operator1")?;
-
-// ตรวจสอบสถานะ
-if emergency_manager.is_processing_paused() {
-    println!("⏸️ Block processing is paused");
+// Merkle root validation
+let calculated_merkle = calculate_merkle_root(&transactions)?;
+if calculated_merkle != header.merkle_root {
+    return Err(ConsensusError::InvalidSignature(
+        "Merkle root mismatch".to_string()
+    ));
 }
 ```
 
-### 2. การเปิดใช้งาน Checkpoint Validation
+### Coinbase Transaction Validation
 
 ```rust
-// เปิด checkpoint validation
-let action = EmergencyAction::EnableCheckpoints;
-emergency_manager.execute_action(action, "operator1")?;
-
-// ตรวจสอบว่าเปิดใช้งานแล้ว
-if emergency_manager.checkpoint_manager().is_enabled() {
-    println!("✅ Checkpoint validation is enabled");
-}
-```
-
-### 3. การ Rollback ไปยังความสูงที่กำหนด
-
-```rust
-// Rollback ไปยังความสูงที่ปลอดภัย
-let action = EmergencyAction::RollbackTo { height: 740000 };
-emergency_manager.execute_action(action, "operator1")?;
-```
-
-### 4. การแบน Peer ที่เป็นอันตราย
-
-```rust
-// แบน malicious peers
-let action = EmergencyAction::BanPeers {
-    peer_ids: vec![
-        "malicious_peer_1".to_string(),
-        "attacker_node".to_string(),
-    ],
-};
-emergency_manager.execute_action(action, "operator1")?;
-
-// ตรวจสอบว่า peer โดนแบนหรือไม่
-if emergency_manager.is_peer_banned("malicious_peer_1") {
-    println!("🚫 Peer is banned");
-}
-```
-
-### 5. การส่ง Alert ให้ Network Operators
-
-```rust
-// ส่งข้อความแจ้งเตือน
-let action = EmergencyAction::SendAlert {
-    message: "🚨 CRITICAL: Mining bug detected. Update to v1.2.4 immediately!".to_string(),
-};
-emergency_manager.execute_action(action, "operator1")?;
-```
-
----
-
-## 🔍 การตรวจสอบและ Monitoring
-
-### การตรวจสอบสถานะ Emergency System
-
-```rust
-// ดูสถานะทั้งหมด
-let status = emergency_manager.get_status();
-println!("Emergency Status:");
-println!("  Enabled: {}", status.enabled);
-println!("  Processing Paused: {}", status.processing_paused);
-println!("  Checkpoints Enabled: {}", status.checkpoints_enabled);
-println!("  Checkpoint Count: {}", status.checkpoint_count);
-println!("  Banned Peers: {}", status.banned_peers_count);
-println!("  Current Height: {}", status.current_height);
-```
-
-### การตรวจสอบ Checkpoints
-
-```rust
-// ดู checkpoints ทั้งหมด
-let checkpoints = checkpoint_manager.export();
-for cp in checkpoints {
-    println!("Checkpoint at height {}: {}", cp.height, cp.reason);
+// Coinbase must have null input
+let coinbase_input = &coinbase.inputs[0];
+if coinbase_input.prev_txid != [0u8; 32] || coinbase_input.prev_vout != u32::MAX {
+    return Err(ConsensusError::InvalidSignature(
+        "Invalid coinbase input".to_string()
+    ));
 }
 
-// ดู checkpoint ล่าสุด
-if let Some(latest) = checkpoint_manager.get_latest_checkpoint(current_height) {
-    println!("Latest checkpoint: height {}, created at {}", 
-             latest.height, latest.created_at);
-}
-
-// ตรวจสอบว่ามี checkpoint ที่ความสูงนั้นหรือไม่
-if checkpoint_manager.has_checkpoint(750000) {
-    println!("✅ Checkpoint exists at height 750000");
-}
-```
-
-### การตรวจสอบ Banned Peers
-
-```rust
-// ดู peers ที่โดนแบนทั้งหมด
-let banned_peers = emergency_manager.get_banned_peers();
-for (peer_id, reason) in banned_peers {
-    println!("Banned peer {}: {}", peer_id, reason);
-}
-
-// ตรวจสอบว่า peer โดนแบนด้วยเหตุผลอะไร
-if let Some(reason) = emergency_manager.get_ban_reason("malicious_peer_1") {
-    println!("Ban reason: {}", reason);
+// Script length limits
+if coinbase_input.script_sig.len() < 2 || coinbase_input.script_sig.len() > 100 {
+    return Err(ConsensusError::InvalidSignature(
+        "Invalid coinbase script length".to_string()
+    ));
 }
 ```
 
 ---
 
-## ⚙️ การตั้งค่าใน Production
+## ⚙️ Configuration
 
-### Configuration File (TOML)
+### Mainnet Setup
 
 ```toml
-# emergency.toml
-[emergency]
-enabled = false  # ปิดไว้ก่อน จะเปิดเฉพาะตอนฉุกเฉิน
-required_signatures = 5  # ต้องการ 5 ลายเซ็นใน production
-response_window = 7200    # 2 ชั่วโมง
-authorized_operators = [
-    "mainnet_operator_1",
-    "mainnet_operator_2", 
-    "mainnet_operator_3",
-    "mainnet_operator_4",
-    "mainnet_operator_5"
-]
+[network]
+id = "mainnet"
+genesis_hash = "1a3e156469520d4d46dad77241e37651e1c186571d499e332d263876023e2c7b"
 
-[checkpoint]
-max_checkpoints = 100
-min_interval = 1000
+[consensus]
+# Bitcoin-style (no centralized features)
+checkpoint_enabled = false
+max_block_weight = 4000000
+asert_half_life = 172800
+
+[mempool]
+max_size_bytes = 314572800
+min_relay_fee_per_wu = 10
 ```
 
-### Environment Variables
+### Genesis Block
 
-```bash
-# สำหรับการตั้งค่าแบบ dynamic
-export BITQUAN_EMERGENCY_ENABLED=false
-export BITQUAN_EMERGENCY_SIGNATURES=5
-export BITQUAN_EMERGENCY_WINDOW=7200
-export BITQUAN_AUTHORIZED_OPERATORS="op1,op2,op3,op4,op5"
-```
-
----
-
-## 🧪 การทดสอบระบบ
-
-### การทดสอบใน Development
-
-```rust
-// สร้าง test environment
-let config = EmergencyConfig {
-    enabled: true,
-    required_signatures: 1,  // ลดลงใน dev
-    response_window: 300,    // 5 นาที
-    authorized_operators: vec!["dev_operator".to_string()],
-};
-
-let mut manager = EmergencyManager::new(config);
-manager.update_height(10000);
-
-// ทดสอบการสร้าง checkpoint
-let test_hash = [0x42; 32];
-manager.create_emergency_checkpoint(
-    5000,
-    test_hash,
-    "Test checkpoint".to_string(),
-    "dev_operator"
-)?;
-
-// ทดสอบการ validate block
-let result = manager.validate_block_emergency(5000, &test_hash);
-assert!(result.is_ok());
-```
-
-### การรัน Tests
-
-```bash
-# ทดสอบ checkpoint system
-cargo test -p bitquan-consensus checkpoint
-
-# ทดสอบ emergency system  
-cargo test -p bitquan-consensus emergency
-
-# ทดสอบทั้งหมด
-cargo test -p bitquan-consensus test_emergency
-```
-
----
-
-## 📋 ขั้นตอนการใช้งานจริง (Real-world Usage)
-
-### Scenario 1: Mining Bug Detection
-
-```rust
-// 1. ตรวจพบปัญหา
-println!("🚨 Mining bug detected at height 800000!");
-
-// 2. หยุดการประมวลผลทันที
-let pause_action = EmergencyAction::PauseProcessing;
-emergency_manager.execute_action(pause_action, "operator1")?;
-
-// 3. หา block สุดท้ายที่ถูกต้อง
-let last_safe_height = 798500;
-let last_safe_hash = get_block_hash(last_safe_height)?;
-
-// 4. สร้าง emergency checkpoint
-emergency_manager.create_emergency_checkpoint(
-    last_safe_height,
-    last_safe_hash,
-    "Mining bug rollback - invalid blocks after 798500".to_string(),
-    "operator1"
-)?;
-
-// 5. เปิด checkpoint validation
-let enable_action = EmergencyAction::EnableCheckpoints;
-emergency_manager.execute_action(enable_action, "operator1")?;
-
-// 6. แจ้ง miners ให้อัปเดต software
-let alert_action = EmergencyAction::SendAlert {
-    message: "🚨 MINING BUG: Update to v1.2.5 immediately. Rollback to 798500.".to_string(),
-};
-emergency_manager.execute_action(alert_action, "operator1")?;
-
-// 7. รอให้ network อัปเดต แล้วค่อยเปิดการประมวลผลอีกครั้ง
-```
-
-### Scenario 2: Network Attack Response
-
-```rust
-// 1. ตรวจพบการโจมตี
-println!("🚨 Network attack detected!");
-
-// 2. ระบุ malicious peers
-let malicious_peers = vec![
-    "attacker_node_1".to_string(),
-    "attacker_node_2".to_string(),
-];
-
-// 3. แบน peers ทันที
-let ban_action = EmergencyAction::BanPeers {
-    peer_ids: malicious_peers.clone(),
-};
-emergency_manager.execute_action(ban_action, "operator1")?;
-
-// 4. ส่ง alert ให้ทุกคนรู้
-let alert_action = EmergencyAction::SendAlert {
-    message: "🚨 NETWORK ATTACK: Malicious peers banned. Update firewall rules.".to_string(),
-};
-emergency_manager.execute_action(alert_action, "operator1")?;
-
-// 5. ถ้า chain state เสียหาย ให้ rollback
-if chain_state_compromised() {
-    let rollback_action = EmergencyAction::RollbackTo { height: 750000 };
-    emergency_manager.execute_action(rollback_action, "operator1")?;
+```json
+{
+  "genesis_hash": "1a3e156469520d4d46dad77241e37651e1c186571d499e332d263876023e2c7b",
+  "checkpoint_hashes": [],
+  "consensus_params": {
+    "target_block_time": 600,
+    "max_block_size": 4000000,
+    "coinbase_maturity": 100
+  }
 }
 ```
 
 ---
 
-## 🔧 การบำรุงรักษา
+## 🧪 Testing
 
-### การ Cleanup Checkpoints เก่า
+### Unit Tests
+
+```bash
+# Test block validation
+cargo test -p bitquan-consensus validate_block
+
+# Test fork choice
+cargo test -p bitquan-consensus fork_choice
+
+# Test invalid block rejection
+cargo test -p bitquan-consensus reject_invalid_blocks
+```
+
+### Integration Tests
+
+```bash
+# Test full consensus flow
+cargo test -p bitquan-consensus test_consensus_integration
+
+# Test reorganization
+cargo test -p bitquan-consensus test_fork_choice_reorg
+
+# Test longest chain rule
+cargo test -p bitquan-consensus test_longest_valid_chain
+```
+
+---
+
+## 🔍 Debug Tools
+
+### Block Validation
+
+```bash
+# Validate specific block
+cargo run --bin bitquan-node -- \
+  --validate-block <block-hash> \
+  --height <block-height>
+
+# Check chain work
+cargo run --bin bitquan-node -- \
+  --chain-work <tip-hash>
+```
+
+### Fork Analysis
+
+```bash
+# Monitor fork choice
+cargo run --bin bitquan-node -- \
+  --monitor-forks \
+  --max-reorg-depth 100
+
+# Analyze reorganization
+cargo run --bin bitquan-node -- \
+  --analyze-reorg <old-tip> <new-tip>
+```
+
+---
+
+## 📊 Monitoring
+
+### Chain Health Metrics
 
 ```rust
-// ลบ checkpoints ที่เก่ากว่า 30 วัน
-let thirty_days_ago = current_timestamp() - (30 * 24 * 60 * 60);
-let mut to_remove = Vec::new();
+// Get current chain state
+let height = fork_choice.height();
+let tip = fork_choice.best_hash();
+let chain_work = fork_choice.get_chain_work(&tip)?;
 
-for checkpoint in checkpoint_manager.export() {
-    if checkpoint.created_at < thirty_days_ago {
-        to_remove.push(checkpoint.height);
+// Check for invalid blocks
+let invalid_count = fork_choice.invalid_blocks.len();
+```
+
+### Performance Monitoring
+
+```bash
+# Benchmark validation
+cargo bench -p bitquan-consensus validate_block
+
+# Profile fork choice
+cargo bench -p bitquan-consensus fork_choice
+```
+
+---
+
+## ⚠️ ข้อควรระวัง
+
+### No Safety Nets
+
+- ❌ ไม่มี emergency rollback
+- ❌ ไม่มี manual intervention
+- ❌ ไม่มี centralized coordination
+
+### Network Security
+
+- ✅ ต้องรักษา hashrate ที่เพียงพอ
+- ✅ ต้องมี node diversity ทางภูมิศาสตร์
+- ✅ ต้อง monitor network health สม่ำเสมอ
+
+### Best Practices
+
+```rust
+// Always validate blocks before adding
+if let Err(e) = engine.validate_block(&block, height) {
+    // Mark as invalid if consensus fails
+    fork_choice.mark_invalid(block_hash, format!("Validation failed: {}", e));
+    return Err(e);
+}
+
+// Monitor reorganizations
+if let Some(reorg) = reorg_info {
+    if reorg.depth() > MAX_SAFE_REORG_DEPTH {
+        // Alert on deep reorgs
+        alert_system.trigger_alert(&format!("Deep reorg: {} blocks", reorg.depth()));
     }
 }
-
-for height in to_remove {
-    checkpoint_manager.rollback_to(height - 1);
-}
-```
-
-### การ Export/Import Checkpoints
-
-```rust
-// Export สำหรับ backup
-let checkpoints = checkpoint_manager.export();
-let backup_data = serde_json::to_string(&checkpoints)?;
-
-// Import จาก backup
-let backup_checkpoints: Vec<Checkpoint> = serde_json::from_str(&backup_data)?;
-checkpoint_manager.import(backup_checkpoints)?;
 ```
 
 ---
 
-## 🚨 ข้อควรระวัง
+## 🎯 สรุป
 
-### สิ่งที่ต้องหลีกเหลี่ยง
+BitQuan consensus ให้:
 
-1. **❌ อย่าสร้าง checkpoint บ่อยเกินไป** (ขั้นต่ำ 1000 blocks)
-2. **❌ อย่าสร้าง checkpoint ในอนาคต** (ต้องเป็น block ที่ผ่านมาแล้ว)
-3. **❌ อย่าเปิด emergency system ตลอดเวลา** (เปิดเฉพาะตอนฉุกเฉิน)
-4. **❌ อย่าใช้ operator ID ที่ไม่ได้รับอนุญาต**
+✅ **True Decentralization** - ไม่มีศูนย์กลางควบคุม  
+✅ **Mathematical Security** - ความปลอดภัยจาก proof-of-work  
+✅ **Deterministic Rules** - ทุก node ใช้กฎเดียวกัน  
+✅ **Transparent Validation** - ไม่มี hidden privileges  
 
-### สิ่งที่ควรทำ
-
-1. **✅ ตรวจสอบ block hash จากหลายแหล่งก่อนสร้าง checkpoint**
-2. **✅ บันทึกทุกการกระทำเพื่อการ audit**
-3. **✅ ทดสอบระบบ定期**
-4. **✅ เก็บ backup ของ checkpoints**
-
----
-
-## 📞 การติดต่อและ Support
-
-### ในกรณีฉุกเฉิน
-
-1. **Primary Contact**: security@bitquan.network
-2. **Emergency Channel**: [Discord/Telegram private channel]
-3. **Operator Hotline**: [Phone number]
-
-### Documentation
-
-- 📖 [Full Emergency Procedures](EMERGENCY_PROCEDURES.md)
-- 📋 [Quick Reference](EMERGENCY_QUICK_REFERENCE.md)
-- 🔧 [API Documentation](../rpc/API_REFERENCE.md)
-
----
-
-**⚠️ Important**: Checkpoint system เป็นเครื่องมือด้านความปลอดภัยระดับสูง การใช้งานต้องมีการพิจารณาอย่างรอบคอบและได้รับอนุญาตจาก authorized operators เท่านั้น!
+**Bitcoin-Style Consensus** - ทดสอบแล้วว่าปลอดภัยและน่าเชื่อถือ

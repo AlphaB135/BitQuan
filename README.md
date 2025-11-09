@@ -21,7 +21,9 @@ Nodes: 100+ global bootstrap nodes
 
 ## Core Principles
 
+- **Truly Decentralized**: Bitcoin-style consensus with no centralized control
 - **Quantum-Resistant**: CRYSTALS-Dilithium3 post-quantum signatures
+- **Longest VALID Chain**: Mathematical fork choice rule (no checkpoints)
 - **High Performance**: 2MB blocks, optimized P2P networking
 - **Enterprise Security**: Comprehensive audits, fuzzing, memory safety
 - **Production Ready**: Extensive testing, CI/CD, monitoring tools
