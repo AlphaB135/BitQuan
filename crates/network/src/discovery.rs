@@ -327,7 +327,10 @@ mod tests {
         book.mark_peer_success("test:18444");
 
         let temp_file = if cfg!(windows) {
-            std::env::temp_dir().join("bitquan_peers_test.json").to_string_lossy().to_string()
+            std::env::temp_dir()
+                .join("bitquan_peers_test.json")
+                .to_string_lossy()
+                .to_string()
         } else {
             "/tmp/bitquan_peers_test.json".to_string()
         };
