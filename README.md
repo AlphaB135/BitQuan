@@ -67,7 +67,7 @@ Status: Production Ready - See [Security Audit Report](docs/security/AUDIT_SUMMA
 | **Dependencies** | 20/20 | Excellent (0 vulnerabilities) |
 | **Crypto Ops** | 20/25 | Partial (RNG perfect) |
 | **Input Validation** | 15/20 | Good start |
-| **รวม** | **65/100** | **D** |
+| **Total** | **65/100** | **D** |
 
 ## Development Build
 
