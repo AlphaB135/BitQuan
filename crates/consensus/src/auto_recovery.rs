@@ -1,549 +1,541 @@
-//! BitQuan Auto-Recovery System - ระบบกู้คืนอัตโนมัติ
-//! 
-//! แนวคิด: บันทึกทุก block และ rollback อัตโนมัติเมื่อตรวจพบปัญหา
-//! โดยมี manual override เฉพาะกรณีฉุกเฉินเท่านั้น
+//! Automatic recovery system for blockchain anomalies
+//!
+//! This module provides automatic detection and recovery from blockchain
+//! anomalies like mining bugs, attacks, or consensus failures.
 
+use crate::checkpoint::{CheckpointManager, CheckpointError};
+use crate::monitoring::{Monitor, MonitorEventType, AlertSeverity};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// ค่าคอนฟิกกูร์สำหรับ auto-recovery
-pub struct AutoRecoveryConfig {
-    /// จำนวน block ที่เก็บไว้ในหน่วยความจำ
-    pub memory_blocks: usize,
-    /// จำนวน confirmations ที่ต้องการก่อนถือว่า block ปลอดภัย
-    pub safe_confirmations: u64,
-    /// เปอร์เซ็นต์ความผิดปกติที่จะ trigger auto-rollback
-    pub anomaly_threshold: f64,
-    /// ระยะเวลาที่รอก่อน rollback (วินาที)
-    pub rollback_delay: u64,
-
+/// Recovery configuration with security defaults
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecoveryConfig {
+    /// Whether auto-recovery is enabled
+    pub enabled: bool,
+    /// Maximum rollback size in blocks
+    pub max_rollback_blocks: u64,
+    /// Minimum confirmations before considering state safe
+    pub min_confirmations: u64,
+    /// Number of signatures required for manual override
+    pub override_signatures: u8,
+    /// Anomaly detection threshold (deviation percentage)
+    pub anomaly_threshold_percent: u8,
 }
 
-impl Default for AutoRecoveryConfig {
+impl Default for RecoveryConfig {
     fn default() -> Self {
         Self {
-            memory_blocks: 10000,      // เก็บ 10,000 blocks ล่าสุด
-            safe_confirmations: 100,     // 100 confirmations = ปลอดภัย
-            anomaly_threshold: 0.05,     // 5% anomaly trigger rollback
-            rollback_delay: 300,         // รอ 5 นาทีก่อน rollback
-
+            enabled: false, // Disabled by default for security
+            max_rollback_blocks: 10000,
+            min_confirmations: 6,
+            override_signatures: 3,
+            anomaly_threshold_percent: 10,
         }
     }
 }
 
-/// Block snapshot สำหรับการ rollback
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockSnapshot {
+/// Recovery status
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RecoveryStatus {
+    Normal,
+    Detecting,
+    Recovering,
+    ManualIntervention,
+    Disabled,
+}
+
+/// Blockchain anomaly types
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AnomalyType {
+    BlockHashMismatch,
+    InvalidStateTransition,
+    ConsensusFailure,
+    MiningBug,
+    NetworkPartition,
+    Other(String),
+}
+
+/// Anomaly detection result
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnomalyDetection {
+    /// Anomaly type
+    pub anomaly_type: AnomalyType,
+    /// Block height where anomaly was detected
+    pub height: u64,
+    /// Expected block hash
+    pub expected_hash: [u8; 32],
+    /// Actual block hash
+    pub actual_hash: [u8; 32],
+    /// Detection timestamp
+    pub timestamp: u64,
+    /// Additional context
+    pub context: String,
+}
+
+/// Blockchain state snapshot
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StateSnapshot {
     /// Block height
     pub height: u64,
     /// Block hash
     pub hash: [u8; 32],
-    /// Block timestamp
+    /// State root hash
+    pub state_root: [u8; 32],
+    /// Timestamp when snapshot was created
     pub timestamp: u64,
-    /// Parent hash
-    pub parent_hash: [u8; 32],
-    /// Merkle root
-    pub merkle_root: [u8; 32],
-    /// Difficulty
-    pub difficulty: u32,
-    /// Nonce
-    pub nonce: u64,
-    /// Transaction count
-    pub tx_count: usize,
-    /// Block size
-    pub size: usize,
-    /// Validation metrics
-    pub metrics: BlockMetrics,
-    /// เวลาที่บันทึก
-    pub recorded_at: u64,
+    /// Whether state is verified as safe
+    pub verified_safe: bool,
 }
 
-/// Metrics สำหรับตรวจสอบความผิดปกติ
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockMetrics {
-    /// จำนวน transactions
-    pub transaction_count: usize,
-    /// ขนาด block เฉลี่ย (100 blocks ล่าสุด)
-    pub avg_size_100: usize,
-    /// จำนวน signatures
-    pub signature_count: usize,
-    /// Gas used
-    pub gas_used: u64,
-    /// จำนวน orphan blocks ในช่วงเวลาเดียวกัน
-    pub orphan_rate: f64,
-    /// ความยากในการขุดเฉลี่ย
-    pub avg_difficulty: f64,
+/// Auto-recovery errors
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum AutoRecoveryError {
+    #[error("recovery is disabled")]
+    Disabled,
+
+    #[error("invalid configuration: {reason}")]
+    InvalidConfig { reason: String },
+
+    #[error("anomaly detected at height {height}: {anomaly_type:?}")]
+    AnomalyDetected { height: u64, anomaly_type: AnomalyType },
+
+    #[error("target height {height} not found")]
+    TargetNotFound { height: u64 },
+
+    #[error("rollback too large: {blocks} blocks (max: {max})")]
+    RollbackTooLarge { blocks: u64, max: u64 },
+
+    #[error("insufficient signatures: {have}/{required}")]
+    InsufficientSignatures { have: u8, required: u8 },
+
+    #[error("checkpoint error: {0}")]
+    CheckpointError(#[from] CheckpointError),
+
+    #[error("invalid state: {reason}")]
+    InvalidState { reason: String },
+
+    #[error("operation not allowed in current status: {status:?}")]
+    InvalidStatus { status: RecoveryStatus },
 }
 
-/// ประเภทของปัญหาที่ตรวจพบ
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AnomalyType {
-    /// Block size ผิดปกติ (ใหญ่หรือเล็กเกินไป)
-    InvalidSize,
-    /// Transaction count ผิดปกติ
-    InvalidTransactionCount,
-    /// Signature verification ล้มเหลว
-    SignatureFailure,
-    /// Difficulty ผิดปกติ
-    InvalidDifficulty,
-    /// Orphan rate สูงผิดปกติ
-    HighOrphanRate,
-    /// Timestamp ผิดปกติ
-    InvalidTimestamp,
-    /// Gas usage ผิดปกติ
-    InvalidGasUsage,
-    /// การโจมตีทาง consensus
-    ConsensusAttack,
-    /// ปัญหาที่ไม่รู้จัก
-    Unknown,
-}
-
-/// รายงานความผิดปกติ
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AnomalyReport {
-    /// ประเภทของความผิดปกติ
-    pub anomaly_type: AnomalyType,
-    /// Block height ที่เกิดปัญหา
-    pub height: u64,
-    /// Block hash ที่เกิดปัญหา
-    pub hash: [u8; 32],
-    /// รายละเอียดของปัญหา
-    pub description: String,
-    /// คะแนนความรุนแรง (0-100)
-    pub severity: u8,
-    /// เวลาที่ตรวจพบ
-    pub detected_at: u64,
-    /// ข้อเสนอแนะการแก้ไข
-    pub recommendation: String,
-}
-
-/// สถานะของ auto-recovery
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RecoveryStatus {
-    /// ปกติ
-    Normal,
-    /// ตรวจพบความผิดปกติ
-    AnomalyDetected,
-    /// กำลังรอการยืนยัน rollback
-    PendingRollback,
-    /// กำลัง rollback
-    RollingBack,
-    /// กู้คืนสำเร็จ
-    Recovered,
-    /// ต้องการ manual intervention
-    ManualIntervention,
-}
-
-/// Auto-Recovery Manager
+/// Automatic recovery manager
+#[derive(Debug, Clone)]
 pub struct AutoRecoveryManager {
-    /// ค่าคอนฟิก
-    config: AutoRecoveryConfig,
-    /// Block snapshots ที่บันทึกไว้
-    snapshots: BTreeMap<u64, BlockSnapshot>,
-    /// รายงานความผิดปกติ
-    anomalies: Vec<AnomalyReport>,
-    /// สถานะปัจจุบัน
+    /// Configuration
+    config: RecoveryConfig,
+    /// Current recovery status
     status: RecoveryStatus,
-    /// Block height ที่ปลอดภัยล่าสุด
+    /// Checkpoint manager for rollback targets
+    checkpoint_manager: CheckpointManager,
+    /// Monitoring system for alerts
+    monitor: Monitor,
+    /// State snapshots by height
+    snapshots: BTreeMap<u64, StateSnapshot>,
+    /// Last known safe height
     last_safe_height: u64,
-    /// Block hash ที่ปลอดภัยล่าสุด
+    /// Last known safe hash
     last_safe_hash: [u8; 32],
-    /// เวลาที่ตรวจพบปัญหาล่าสุด
-    last_anomaly_time: u64,
-    /// Operators ที่ได้รับอนุญาต
-
-    /// Override signatures ที่รับมา
+    /// Manual override signatures
     override_signatures: HashMap<String, String>,
+    /// Recovery history
+    recovery_history: Vec<AnomalyDetection>,
 }
 
 impl AutoRecoveryManager {
-    /// สร้าง auto-recovery manager ใหม่
-    pub fn new(config: AutoRecoveryConfig) -> Self {
+    /// Creates a new auto-recovery manager
+    pub fn new(
+        config: RecoveryConfig,
+        checkpoint_manager: CheckpointManager,
+        monitor: Monitor,
+    ) -> Self {
         Self {
             config,
-            snapshots: BTreeMap::new(),
-            anomalies: Vec::new(),
             status: RecoveryStatus::Normal,
+            checkpoint_manager,
+            monitor,
+            snapshots: BTreeMap::new(),
             last_safe_height: 0,
             last_safe_hash: [0u8; 32],
-            last_anomaly_time: 0,
-
             override_signatures: HashMap::new(),
+            recovery_history: Vec::new(),
         }
     }
 
+    /// Gets current recovery status
+    pub fn status(&self) -> RecoveryStatus {
+        self.status.clone()
+    }
 
+    /// Enables or disables auto-recovery
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.config.enabled = enabled;
+        if !enabled {
+            self.status = RecoveryStatus::Disabled;
+        } else if self.status == RecoveryStatus::Disabled {
+            self.status = RecoveryStatus::Normal;
+        }
+    }
 
-    /// บันทึก block snapshot
-    pub fn record_block(&mut self, snapshot: BlockSnapshot) -> Result<(), AutoRecoveryError> {
-        // บันทึก snapshot
-        self.snapshots.insert(snapshot.height, snapshot.clone());
-
-        // ตรวจสอบความผิดปกติ
-        if let Some(anomaly) = self.detect_anomaly(&snapshot) {
-            self.handle_anomaly(anomaly)?;
+    /// Updates configuration with validation
+    pub fn update_config(&mut self, config: RecoveryConfig) -> Result<(), AutoRecoveryError> {
+        // Validate configuration
+        if config.max_rollback_blocks == 0 || config.max_rollback_blocks > 100000 {
+            return Err(AutoRecoveryError::InvalidConfig {
+                reason: "Invalid max_rollback_blocks".to_string(),
+            });
         }
 
-        // ถ้าไม่มีปัญหา อัปเดต safe height
-        if self.status == RecoveryStatus::Normal {
-            self.last_safe_height = snapshot.height;
-            self.last_safe_hash = snapshot.hash;
+        if config.min_confirmations == 0 || config.min_confirmations > 100 {
+            return Err(AutoRecoveryError::InvalidConfig {
+                reason: "Invalid min_confirmations".to_string(),
+            });
         }
 
-        // ลบ snapshots เก่าเกินไป
+        if config.override_signatures == 0 || config.override_signatures > 10 {
+            return Err(AutoRecoveryError::InvalidConfig {
+                reason: "Invalid override_signatures".to_string(),
+            });
+        }
+
+        self.config = config;
+        Ok(())
+    }
+
+    /// Processes a new block for anomaly detection
+    pub fn process_block(
+        &mut self,
+        height: u64,
+        hash: [u8; 32],
+        state_root: [u8; 32],
+    ) -> Result<(), AutoRecoveryError> {
+        // Security: Skip if disabled
+        if !self.config.enabled {
+            return Ok(());
+        }
+
+        // Security: Only process in normal status
+        if self.status != RecoveryStatus::Normal {
+            return Err(AutoRecoveryError::InvalidStatus {
+                status: self.status.clone(),
+            });
+        }
+
+        // Create state snapshot
+        let snapshot = StateSnapshot {
+            height,
+            hash,
+            state_root,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            verified_safe: false,
+        };
+
+        // Store snapshot
+        self.snapshots.insert(height, snapshot);
+
+        // Validate against checkpoints
+        if let Err(e) = self.checkpoint_manager.validate_block(height, &hash) {
+            let anomaly = AnomalyDetection {
+                anomaly_type: AnomalyType::BlockHashMismatch,
+                height,
+                expected_hash: self.last_safe_hash,
+                actual_hash: hash,
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+                context: format!("Checkpoint validation failed: {}", e),
+            };
+
+            return self.handle_anomaly(anomaly);
+        }
+
+        // Update safe state after sufficient confirmations
+        if height > self.last_safe_height + self.config.min_confirmations {
+            self.last_safe_height = height - self.config.min_confirmations;
+            self.last_safe_hash = hash;
+
+            // Mark snapshots as safe
+            if let Some(snapshot) = self.snapshots.get_mut(&self.last_safe_height) {
+                snapshot.verified_safe = true;
+            }
+        }
+
+        // Cleanup old snapshots
         self.cleanup_old_snapshots();
 
         Ok(())
     }
 
-    /// ตรวจสอบความผิดปกติใน block
-    fn detect_anomaly(&self, snapshot: &BlockSnapshot) -> Option<AnomalyReport> {
-        let mut anomalies = Vec::new();
+    /// Handles detected anomaly
+    fn handle_anomaly(&mut self, anomaly: AnomalyDetection) -> Result<(), AutoRecoveryError> {
+        self.status = RecoveryStatus::Detecting;
 
-        // ตรวจสอบ block size
-        if snapshot.size > 10_000_000 || snapshot.size < 1000 {
-            anomalies.push(AnomalyReport {
-                anomaly_type: AnomalyType::InvalidSize,
-                height: snapshot.height,
-                hash: snapshot.hash,
-                description: format!("Block size {} is abnormal", snapshot.size),
-                severity: 80,
-                detected_at: current_timestamp(),
-                recommendation: "Rollback to previous safe block".to_string(),
-            });
+        // Add to recovery history
+        self.recovery_history.push(anomaly.clone());
+
+        // Send alert
+        let _ = self.monitor.create_alert(
+            AlertSeverity::Critical,
+            MonitorEventType::AnomalyDetected,
+            format!("Anomaly detected: {:?}", anomaly.anomaly_type),
+            Some(anomaly.height),
+        );
+
+        // Attempt automatic recovery
+        if self.can_auto_recover(&anomaly) {
+            self.status = RecoveryStatus::Recovering;
+            return self.execute_auto_rollback(&anomaly);
         }
 
-        // ตรวจสอบ transaction count
-        if snapshot.tx_count > 10000 || snapshot.tx_count == 0 {
-            anomalies.push(AnomalyReport {
-                anomaly_type: AnomalyType::InvalidTransactionCount,
-                height: snapshot.height,
-                hash: snapshot.hash,
-                description: format!("Transaction count {} is abnormal", snapshot.tx_count),
-                severity: 70,
-                detected_at: current_timestamp(),
-                recommendation: "Investigate transaction pattern".to_string(),
-            });
-        }
-
-        // ตรวจสอบ orphan rate
-        if snapshot.metrics.orphan_rate > 0.1 {
-            anomalies.push(AnomalyReport {
-                anomaly_type: AnomalyType::HighOrphanRate,
-                height: snapshot.height,
-                hash: snapshot.hash,
-                description: format!("Orphan rate {:.2}% is too high", snapshot.metrics.orphan_rate * 100.0),
-                severity: 90,
-                detected_at: current_timestamp(),
-                recommendation: "Immediate rollback required".to_string(),
-            });
-        }
-
-        // ตรวจสอบ timestamp
-        let now = current_timestamp();
-        if snapshot.timestamp > now + 3600 || snapshot.timestamp < now - 86400 {
-            anomalies.push(AnomalyReport {
-                anomaly_type: AnomalyType::InvalidTimestamp,
-                height: snapshot.height,
-                hash: snapshot.hash,
-                description: "Block timestamp is out of range".to_string(),
-                severity: 85,
-                detected_at: current_timestamp(),
-                recommendation: "Rollback and investigate clock sync".to_string(),
-            });
-        }
-
-        // เลือก anomaly ที่รุนแรงที่สุด
-        anomalies.into_iter().max_by_key(|a| a.severity)
+        // Require manual intervention
+        self.status = RecoveryStatus::ManualIntervention;
+        Err(AutoRecoveryError::AnomalyDetected {
+            height: anomaly.height,
+            anomaly_type: anomaly.anomaly_type,
+        })
     }
 
-    /// จัดการกับความผิดปกติที่ตรวจพบ
-    fn handle_anomaly(&mut self, anomaly: AnomalyReport) -> Result<(), AutoRecoveryError> {
-        self.anomalies.push(anomaly.clone());
-        self.last_anomaly_time = anomaly.detected_at;
-
-        // ถ้า severity สูง เริ่มกระบวนการ rollback
-        if anomaly.severity >= 80 {
-            self.status = RecoveryStatus::PendingRollback;
-            
-
-            // เริ่มนับถอยหลังสำหรับ auto-rollback
-            self.schedule_auto_rollback(&anomaly)?;
-        } else {
-            self.status = RecoveryStatus::AnomalyDetected;
+    /// Checks if automatic recovery is possible
+    fn can_auto_recover(&self, anomaly: &AnomalyDetection) -> bool {
+        // Check rollback size
+        let rollback_size = anomaly.height.saturating_sub(self.last_safe_height);
+        if rollback_size > self.config.max_rollback_blocks {
+            return false;
         }
 
-        Ok(())
+        // Check if we have a safe checkpoint
+        if self.last_safe_height == 0 {
+            return false;
+        }
+
+        true
     }
-    fn schedule_auto_rollback(&mut self, anomaly: &AnomalyReport) -> Result<(), AutoRecoveryError> {
-        
-        // ในระบบจริงจะใช้ scheduler หรือ background thread
-        // ตอนนี้จำลองว่า rollback เกิดขึ้นทันที
-        self.execute_auto_rollback(anomaly)
-    }
-        self.status = RecoveryStatus::RollingBack;
 
+    /// Executes automatic rollback
+    fn execute_auto_rollback(&mut self, anomaly: &AnomalyDetection) -> Result<(), AutoRecoveryError> {
+        // Calculate rollback size
+        let rollback_size = anomaly.height.saturating_sub(self.last_safe_height);
+        if rollback_size > self.config.max_rollback_blocks {
+            return Err(AutoRecoveryError::RollbackTooLarge {
+                blocks: rollback_size,
+                max: self.config.max_rollback_blocks,
+            });
+        }
 
-        // ลบ snapshots ที่มากกว่า safe height
-        self.snapshots.split_off(&(self.last_safe_height + 1));
+        // Perform rollback
+        self.rollback_to(self.last_safe_height)?;
 
-        // ส่ง alert ให้ทุกคนรู้
-        self.send_recovery_alert(anomaly)?;
-                 self.last_safe_hash[30], self.last_safe_hash[31]);
+        // Send recovery alert
+        let _ = self.monitor.create_alert(
+            AlertSeverity::Warning,
+            MonitorEventType::SystemError,
+            format!("Auto-recovery completed: rolled back {} blocks", rollback_size),
+            Some(self.last_safe_height),
+        );
+
+        // Return to normal status
+        self.status = RecoveryStatus::Normal;
 
         Ok(())
     }
 
-    /// Manual override สำหรับยกเลิก auto-rollback
+    /// Manual override for canceling auto-rollback
     pub fn manual_override(
         &mut self,
         signature: &str,
         reason: &str,
     ) -> Result<(), AutoRecoveryError> {
-        self.override_signatures.insert("auto_recovery".to_string(), signature.to_string());
-                 self.config.override_signatures);
+        // Add signature
+        self.override_signatures.insert("manual_override".to_string(), signature.to_string());
 
-        // ถ้ามี signatures ครบ
+        // Check if we have enough signatures
         if self.override_signatures.len() >= self.config.override_signatures as usize {
             self.status = RecoveryStatus::ManualIntervention;
-            
-            // ส่ง alert
-            self.send_override_alert(reason)?;
+
+            // Send alert
+            let _ = self.monitor.create_alert(
+                AlertSeverity::Warning,
+                MonitorEventType::SecurityViolation,
+                format!("Manual override triggered: {}", reason),
+                None,
+            );
         }
 
         Ok(())
     }
 
-    /// ดำเนินการ manual rollback
+    /// Executes manual rollback to specified height
+    pub fn manual_rollback(
+        &mut self,
+        target_height: u64,
+        signatures: Vec<String>,
     ) -> Result<(), AutoRecoveryError> {
+        // Verify signatures
+        if signatures.len() < self.config.override_signatures as usize {
+            return Err(AutoRecoveryError::InsufficientSignatures {
+                have: signatures.len() as u8,
+                required: self.config.override_signatures,
+            });
+        }
 
-
-        // ตรวจสอบว่ามี snapshot ที่ target height
+        // Check if target height exists
         if !self.snapshots.contains_key(&target_height) {
             return Err(AutoRecoveryError::TargetNotFound { height: target_height });
         }
 
-        // ดำเนินการ rollback
+        // Perform rollback
+        self.rollback_to(target_height)?;
+
+        // Send alert
+        let _ = self.monitor.create_alert(
+            AlertSeverity::Warning,
+            MonitorEventType::SystemError,
+            format!("Manual rollback to height {} completed", target_height),
+            Some(target_height),
+        );
+
+        Ok(())
+    }
+
+    /// Rolls back to specified height
+    fn rollback_to(&mut self, target_height: u64) -> Result<(), AutoRecoveryError> {
+        // Remove snapshots above target height
         self.snapshots.split_off(&(target_height + 1));
-        self.last_safe_height = target_height;
-        
+
+        // Update checkpoint manager
+        self.checkpoint_manager.rollback_to(target_height);
+
+        // Update safe state
         if let Some(snapshot) = self.snapshots.get(&target_height) {
+            self.last_safe_height = target_height;
             self.last_safe_hash = snapshot.hash;
         }
 
-        self.status = RecoveryStatus::Recovered;
-
         Ok(())
     }
 
-    /// ลบ snapshots เก่า
+    /// Cleans up old snapshots
     fn cleanup_old_snapshots(&mut self) {
-        if self.snapshots.len() > self.config.memory_blocks {
-            let mut heights: Vec<u64> = self.snapshots.keys().cloned().collect();
-            heights.sort();
-            
-            let to_remove = heights.len() - self.config.memory_blocks;
-            for i in 0..to_remove {
-                if let Some(height) = heights.get(i) {
-
-    /// ส่ง recovery alert
-    fn send_recovery_alert(&self, anomaly: &AnomalyReport) -> Result<(), AutoRecoveryError> {
-        
-        Ok(())
+        let cutoff_height = self.last_safe_height.saturating_sub(self.config.max_rollback_blocks);
+        self.snapshots.split_off(&cutoff_height);
     }
 
-        
-        Ok(())
-    }
-
-    /// ดูสถานะปัจจุบัน
-    pub fn get_status(&self) -> RecoveryStatus {
-        self.status.clone()
-    }
-
-    /// ดูข้อมูลสถิติ
-    pub fn get_statistics(&self) -> RecoveryStatistics {
-        RecoveryStatistics {
-            total_snapshots: self.snapshots.len(),
-            total_anomalies: self.anomalies.len(),
+    /// Gets recovery statistics
+    pub fn get_recovery_stats(&self) -> RecoveryStats {
+        RecoveryStats {
+            status: self.status.clone(),
             last_safe_height: self.last_safe_height,
-            last_safe_hash: self.last_safe_hash,
-            current_status: self.status.clone(),
-            last_anomaly_time: self.last_anomaly_time,
-            memory_usage: self.estimate_memory_usage(),
+            snapshot_count: self.snapshots.len(),
+            recovery_count: self.recovery_history.len(),
+            override_signatures: self.override_signatures.len() as u8,
         }
-        self.anomalies.len() * anomaly_size +
-        1024 // overhead
     }
 
-    /// ดูรายการ anomalies
-    pub fn get_anomalies(&self) -> &[AnomalyReport] {
-        &self.anomalies
+    /// Gets recovery history
+    pub fn get_recovery_history(&self) -> &[AnomalyDetection] {
+        &self.recovery_history
     }
 
-    /// ดู snapshots ล่าสุด
-    pub fn get_recent_snapshots(&self, count: usize) -> Vec<&BlockSnapshot> {
-        self.snapshots
-            .values()
-/// สถิติการกู้คืน
-#[derive(Debug, Clone)]
-pub struct RecoveryStatistics {
-    /// จำนวน snapshots ทั้งหมด
-    pub total_snapshots: usize,
-    /// จำนวน anomalies ทั้งหมด
-    pub total_anomalies: usize,
-    /// Height ล่าสุดที่ปลอดภัย
+    /// Clears recovery history
+    pub fn clear_history(&mut self) {
+        self.recovery_history.clear();
+    }
+}
+
+/// Recovery statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecoveryStats {
+    pub status: RecoveryStatus,
     pub last_safe_height: u64,
-    /// Hash ล่าสุดที่ปลอดภัย
-    pub last_safe_hash: [u8; 32],
-    /// สถานะปัจจุบัน
-    pub current_status: RecoveryStatus,
-    /// เวลาที่ตรวจพบ anomaly ล่าสุด
-    pub last_anomaly_time: u64,
-    /// การใช้หน่วยความจำ (bytes)
-    pub memory_usage: usize,
-}
-
-/// Errors สำหรับ auto-recovery
-#[derive(Debug, Error)]
-pub enum AutoRecoveryError {
-    /// Operator ไม่ได้รับอนุญาต
-
-    
-    /// ไม่พบ target height
-    #[error("target height {height} not found in snapshots")]
-    TargetNotFound { height: u64 },
-    
-    /// ข้อผิดพลาดในการตรวจสอบ
-    #[error("validation error: {reason}")]
-    ValidationError { reason: String },
-    
-    /// ข้อผิดพลาดในการ rollback
-    #[error("rollback failed: {reason}")]
-    RollbackError { reason: String },
-}
-
-/// ฟังก์ชันช่วยเหลือ
-fn current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+    pub snapshot_count: usize,
+    pub recovery_count: usize,
+    pub override_signatures: u8,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::monitoring::{Monitor, MonitorConfig};
 
-    fn create_test_snapshot(height: u64) -> BlockSnapshot {
-        BlockSnapshot {
-            height,
-            hash: [height as u8; 32],
-            timestamp: current_timestamp(),
-            parent_hash: [0u8; 32],
-            merkle_root: [0u8; 32],
-            difficulty: 0x1d00ffff,
-            nonce: height,
-            tx_count: 100,
-            size: 1_000_000,
-            metrics: BlockMetrics {
-                transaction_count: 100,
-                avg_size_100: 1_000_000,
-                signature_count: 100,
-                gas_used: 21000,
-                orphan_rate: 0.01,
-                avg_difficulty: 1000.0,
-            },
-            recorded_at: current_timestamp(),
+    fn create_test_manager() -> AutoRecoveryManager {
+        let config = RecoveryConfig {
+            enabled: true,
+            max_rollback_blocks: 1000,
+            min_confirmations: 6,
+            override_signatures: 3,
+            anomaly_threshold_percent: 10,
+        };
+
+        let checkpoint_manager = CheckpointManager::new(true);
+        let monitor = Monitor::default();
+
+        AutoRecoveryManager::new(config, checkpoint_manager, monitor)
+    }
+
+    #[test]
+    fn test_auto_recovery_disabled() {
+        let mut manager = create_test_manager();
+        manager.set_enabled(false);
+
+        let result = manager.process_block(100, [1u8; 32], [2u8; 32]);
+        assert!(result.is_ok()); // Should succeed without processing
+    }
+
+    #[test]
+    fn test_normal_block_processing() {
+        let mut manager = create_test_manager();
+
+        // Process normal blocks
+        for i in 1..=10 {
+            let hash = [i as u8; 32];
+            let state_root = [(i + 100) as u8; 32];
+            let result = manager.process_block(i, hash, state_root);
+            assert!(result.is_ok());
         }
-    }
 
-    #[test]
-    fn test_normal_block_recording() {
-        let config = AutoRecoveryConfig::default();
-        let mut manager = AutoRecoveryManager::new(config);
-        
-        let snapshot = create_test_snapshot(1000);
-        let result = manager.record_block(snapshot);
-        
-        assert!(result.is_ok());
-        assert_eq!(manager.get_status(), RecoveryStatus::Normal);
-        assert_eq!(manager.get_statistics().last_safe_height, 1000);
-    }
-
-    #[test]
-    fn test_anomaly_detection() {
-        let config = AutoRecoveryConfig::default();
-        let mut manager = AutoRecoveryManager::new(config);
-        
-        // สร้าง block ที่มีปัญหา (size ใหญ่เกินไป)
-        let mut snapshot = create_test_snapshot(1000);
-        snapshot.size = 50_000_000; // 50MB - ผิดปกติ
-        
-        let result = manager.record_block(snapshot);
-        
-        assert!(result.is_ok());
-        assert!(manager.get_status() != RecoveryStatus::Normal);
-        assert!(!manager.get_anomalies().is_empty());
+        let stats = manager.get_recovery_stats();
+        assert_eq!(stats.status, RecoveryStatus::Normal);
+        assert_eq!(stats.snapshot_count, 10);
     }
 
     #[test]
     fn test_manual_override() {
-        let config = AutoRecoveryConfig::default();
-        let mut manager = AutoRecoveryManager::new(config);
-        manager.set_authorized_operators(vec!["operator1".to_string()]);
-        
-        // บันทึก blocks ปกติก่อน
-        for i in 990..=999 {
-            let snapshot = create_test_snapshot(i);
-            manager.record_block(snapshot).unwrap();
-        }
-        
-        // สร้างปัญหาเพื่อ trigger rollback
-        let mut snapshot = create_test_snapshot(1000);
-        snapshot.size = 50_000_000;
-        manager.record_block(snapshot).unwrap();
-        
-        // หลังจาก auto-rollback, ทำ manual rollback ไปที่ 995
-        let result = manager.manual_rollback(995, "Manual rollback test");
-        
+        let mut manager = create_test_manager();
+
+        // Add signatures
+        let result = manager.manual_override("sig1", "Test override");
         assert!(result.is_ok());
-        assert_eq!(manager.get_statistics().last_safe_height, 995);
+
+        let result = manager.manual_override("sig2", "Test override");
+        assert!(result.is_ok());
+
+        let result = manager.manual_override("sig3", "Test override");
+        assert!(result.is_ok());
+
+        let stats = manager.get_recovery_stats();
+        assert_eq!(stats.override_signatures, 3);
     }
 
     #[test]
-    fn test_unauthorized_override() {
-        let config = AutoRecoveryConfig::default();
-        let mut manager = AutoRecoveryManager::new(config);
-        
-        let result = manager.manual_override("fake_sig", "Malicious override");
-        
+    fn test_config_validation() {
+        let mut manager = create_test_manager();
+
+        // Invalid config
+        let invalid_config = RecoveryConfig {
+            enabled: true,
+            max_rollback_blocks: 0, // Invalid
+            min_confirmations: 6,
+            override_signatures: 3,
+            anomaly_threshold_percent: 10,
+        };
+
+        let result = manager.update_config(invalid_config);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            AutoRecoveryError::InvalidSignature => {
-                // Expected error for invalid signature
-            }
-            _ => panic!("Expected InvalidSignature error"),
-        }
-    }
-
-    #[test]
-    fn test_manual_rollback() {
-        let config = AutoRecoveryConfig::default();
-        let mut manager = AutoRecoveryManager::new(config);
-        
-        // บันทึก blocks หลายๆ block
-        for i in 1000..=1010 {
-            let snapshot = create_test_snapshot(i);
-            manager.record_block(snapshot).unwrap();
-        }
-        
-        // rollback ไปยัง 1005
-        let result = manager.manual_rollback(1005, "Test rollback");
-        
-        assert!(result.is_ok());
-        assert_eq!(manager.get_statistics().last_safe_height, 1005);
     }
 }

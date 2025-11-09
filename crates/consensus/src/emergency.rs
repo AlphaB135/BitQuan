@@ -316,7 +316,7 @@ mod tests {
         let mut manager = EmergencyManager::new(make_config());
         
         let action = EmergencyAction::PauseProcessing;
-        let result = manager.execute_action(action, "operator1");
+        let result = manager.execute_action(action);
         
         assert!(result.is_ok());
         assert!(manager.is_processing_paused());

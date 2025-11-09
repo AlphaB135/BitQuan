@@ -23,7 +23,7 @@ pub mod utxo;
 mod tests;
 
 pub use asert::{asert_next_target, BurstGuardState, GuardContext};
-pub use auto_recovery::{AutoRecoveryConfig, AutoRecoveryManager, AutoRecoveryError, RecoveryStatus, RecoveryStatistics, BlockSnapshot, AnomalyReport, AnomalyType};
+pub use auto_recovery::{RecoveryConfig, AutoRecoveryManager, AutoRecoveryError, RecoveryStatus, RecoveryStats, StateSnapshot, AnomalyDetection, AnomalyType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager};
 pub use monitoring::{Alert, AlertSeverity, Monitor, MonitorConfig, MonitorError, MonitorEventType, MonitorStats};
 pub use voting::{VotingManager, VotingConfig, RollbackProposal, Vote, VoteOption, VoteCounts, VotingError, VotingStats, ProposalResult};
