@@ -5,7 +5,7 @@ use bitquan_types::{Block, BlockHeader};
 
 fuzz_target!(|data: &[u8]| {
     // Fuzz block header parsing
-    if data.len() >= 120 {
+    if data.len() >= 117 {
         let mut version = [0u8; 4];
         let mut prev_block = [0u8; 32];
         let mut merkle_root = [0u8; 32];
@@ -13,6 +13,7 @@ fuzz_target!(|data: &[u8]| {
         let mut time = [0u8; 4];
         let mut bits = [0u8; 4];
         let mut nonce = [0u8; 8];
+        let mut algo_id = [0u8; 1];
         
         version.copy_from_slice(&data[0..4]);
         prev_block.copy_from_slice(&data[4..36]);
@@ -21,6 +22,7 @@ fuzz_target!(|data: &[u8]| {
         time.copy_from_slice(&data[100..104]);
         bits.copy_from_slice(&data[104..108]);
         nonce.copy_from_slice(&data[108..116]);
+        algo_id.copy_from_slice(&data[116..117]);
         
         let header = BlockHeader {
             version: i32::from_le_bytes(version),
@@ -30,6 +32,7 @@ fuzz_target!(|data: &[u8]| {
             time: u32::from_le_bytes(time),
             bits: u32::from_le_bytes(bits),
             nonce: u64::from_le_bytes(nonce),
+            algo_id: algo_id[0],
         };
         
         // Test serialization doesn't panic

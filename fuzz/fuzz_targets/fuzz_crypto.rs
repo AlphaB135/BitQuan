@@ -2,7 +2,7 @@
 
 use libfuzzer_sys::fuzz_target;
 use bq_crypto::CryptoRegistry;
-use bitquan_types::SigAlgorithm;
+use bitquan_types::{SigAlgorithm, SignaturePayload};
 
 fuzz_target!(|data: &[u8]| {
     // Fuzz Dilithium signature verification
@@ -33,12 +33,15 @@ fuzz_target!(|data: &[u8]| {
             }
             
             // Test verification doesn't panic
-            let _ = registry.verify(
-                &signature,
-                &message,
-                &public_key,
-                SigAlgorithm::Dilithium3,
-            );
+            if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium3) {
+                let payload = SignaturePayload {
+                    signer_index: 0,
+                    signature: signature.to_vec(),
+                    public_key: public_key.to_vec(),
+                    aux: None,
+                };
+                let _ = provider.verify(&payload, &message);
+            }
         }
     }
     
@@ -57,12 +60,15 @@ fuzz_target!(|data: &[u8]| {
         let message = b"test message";
         
         // Should handle malformed signatures gracefully
-        let _ = registry.verify(
-            &malformed_sig[..actual_len],
-            message,
-            &public_key,
-            SigAlgorithm::Dilithium3,
-        );
+        if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium3) {
+            let payload = SignaturePayload {
+                signer_index: 0,
+                signature: malformed_sig[..actual_len].to_vec(),
+                public_key: public_key.to_vec(),
+                aux: None,
+            };
+            let _ = provider.verify(&payload, message);
+        }
     }
     
     // Fuzz oversized messages
@@ -72,11 +78,14 @@ fuzz_target!(|data: &[u8]| {
         let public_key = [0u8; 1952];
         
         // Should handle oversized messages
-        let _ = registry.verify(
-            &signature,
-            &data[..1_000_000], // Truncate to 1MB
-            &public_key,
-            SigAlgorithm::Dilithium3,
-        );
+        if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium3) {
+            let payload = SignaturePayload {
+                signer_index: 0,
+                signature: signature.to_vec(),
+                public_key: public_key.to_vec(),
+                aux: None,
+            };
+            let _ = provider.verify(&payload, &data[..1_000_000]); // Truncate to 1MB
+        }
     }
 });
