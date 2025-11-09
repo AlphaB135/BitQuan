@@ -128,7 +128,7 @@ impl EmergencyManager {
                     self.banned_peers.insert(peer_id, "Emergency ban".to_string());
                 }
             }
-            EmergencyAction::SendAlert { message } => {
+            EmergencyAction::SendAlert { message: _ } => {
                 // In a real implementation, this would send alerts to operators
                 // Emergency alert - use proper logging in production
             }

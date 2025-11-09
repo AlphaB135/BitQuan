@@ -702,7 +702,7 @@ impl EconomicManager {
         // Check if any region exceeds the maximum percentage
         let max_region_power = (total_votes * self.config.max_voting_power_per_region_percent as u64) / 100;
         
-        for (region, &region_power) in &region_votes {
+        for (_region, &region_power) in &region_votes {
             if region_power > max_region_power {
                 return Ok(false);
             }
@@ -873,7 +873,7 @@ impl EconomicManager {
     }
 
     /// Applies reputation penalty for malicious proposal
-    pub fn apply_reputation_penalty(&mut self, participant_id: &str, reason: &str) -> Result<(), EconomicError> {
+    pub fn apply_reputation_penalty(&mut self, participant_id: &str, _reason: &str) -> Result<(), EconomicError> {
         let stake_info = self.stakes.get_mut(participant_id)
             .ok_or_else(|| EconomicError::ParticipantNotFound {
                 id: participant_id.to_string(),
@@ -899,7 +899,7 @@ impl EconomicManager {
     }
 
     /// Applies reputation reward for honest voting
-    pub fn apply_reputation_reward(&mut self, participant_id: &str, reason: &str) -> Result<(), EconomicError> {
+    pub fn apply_reputation_reward(&mut self, participant_id: &str, _reason: &str) -> Result<(), EconomicError> {
         let stake_info = self.stakes.get_mut(participant_id)
             .ok_or_else(|| EconomicError::ParticipantNotFound {
                 id: participant_id.to_string(),

@@ -54,8 +54,11 @@ impl Default for VotingConfig {
 /// Vote options
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VoteOption {
+    /// Approve the proposal
     Approve,
+    /// Reject the proposal
     Reject,
+    /// Abstain from voting
     Abstain,
 }
 
@@ -97,7 +100,7 @@ impl VotingFactors {
     }
     
     /// Calculates voting weight based on all factors
-    pub fn calculate_voting_weight(&self, config: &VotingConfig) -> f64 {
+    pub fn calculate_voting_weight(&self, _config: &VotingConfig) -> f64 {
         let mut weight = 1.0;
         
         // Reputation factor (0.5x to 2.0x multiplier)
@@ -133,7 +136,7 @@ impl VotingFactors {
     }
     
     /// Validates if participant meets minimum requirements
-    pub fn meets_minimum_requirements(&self, config: &VotingConfig) -> bool {
+    pub fn meets_minimum_requirements(&self, _config: &VotingConfig) -> bool {
         // Minimum reputation
         if self.reputation_score < 50 {
             return false;
@@ -264,6 +267,7 @@ impl VoteCounts {
         }
     }
 
+    /// Calculates approval percentage
     pub fn approval_percentage(&self) -> f64 {
         if self.total_participants == 0 {
             0.0
@@ -272,12 +276,19 @@ impl VoteCounts {
         }
     }
 
+    /// Calculates participation percentage
     pub fn participation_percentage(&self, total_nodes: u64) -> f64 {
         if total_nodes == 0 {
             0.0
         } else {
             (self.total_participants as f64 / total_nodes as f64) * 100.0
         }
+    }
+}
+
+impl Default for VoteCounts {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -581,7 +592,7 @@ impl VotingManager {
                 id: proposal_id.to_string(),
             })?;
 
-        let total_nodes = self.participant_count() as u64;
+        let total_nodes = self.participant_count();
         let counts = &proposal.vote_counts;
 
         let participation = counts.participation_percentage(total_nodes);
@@ -687,7 +698,7 @@ impl VotingManager {
         }
 
         // Check if voter has already voted
-        let proposal_votes = self.enhanced_votes.entry(proposal_id.to_string()).or_insert_with(Vec::new);
+        let proposal_votes = self.enhanced_votes.entry(proposal_id.to_string()).or_default();
         if proposal_votes.iter().any(|v| v.voter_id == vote.voter_id) {
             return Err(VotingError::AlreadyVoted {
                 voter: vote.voter_id.clone(),
@@ -787,20 +798,20 @@ impl VotingManager {
     /// Gets voting factors for a participant (integration point with economic system)
     pub fn get_voting_factors_for_participant(
         &self,
-        participant_id: &str,
+        _participant_id: &str,
         reputation_score: u8,
-        time_locked_stake: u64,
-        geographic_region: Option<String>,
-        participation_history: u32,
-        account_age_seconds: u64,
+        staked_amount: u64,
+        _time_locked_hours: u64,
+        geographic_region: &str,
+        participation_score: f64,
         last_activity_timestamp: u64,
     ) -> VotingFactors {
         VotingFactors::new(
             reputation_score,
-            time_locked_stake,
-            geographic_region,
-            participation_history,
-            account_age_seconds,
+            staked_amount,
+            Some(geographic_region.to_string()),
+            participation_score as u32,
+            last_activity_timestamp,
             last_activity_timestamp,
         )
     }

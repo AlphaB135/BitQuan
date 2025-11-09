@@ -15,8 +15,7 @@ pub const MAX_CHECKPOINTS: usize = 100;
 /// Auto-checkpoint interval (blocks)
 pub const AUTO_CHECKPOINT_INTERVAL: u64 = 1000;
 
-/// Minimum blocks between checkpoints (prevents frequent rollbacks)
-pub const MIN_CHECKPOINT_INTERVAL: u64 = 1000;
+
 
 /// Minimum signatures required for checkpoint validation
 pub const MIN_SIGNATURES: usize = 3;
@@ -495,10 +494,9 @@ impl CheckpointManager {
         }
         
         // Security: Respect minimum interval
-        if self.last_auto_checkpoint > 0 {
-            if height < self.last_auto_checkpoint + self.auto_checkpoint_interval {
-                return false;
-            }
+        if self.last_auto_checkpoint > 0
+            && height < self.last_auto_checkpoint + self.auto_checkpoint_interval {
+            return false;
         }
         
         // First checkpoint logic
@@ -509,14 +507,7 @@ impl CheckpointManager {
         true
     }
 
-    /// Creates an automatic checkpoint with security validation
-    fn create_auto_checkpoint(&mut self, height: u64) -> Result<(), CheckpointError> {
-        // Security: Never create checkpoint without actual block hash
-        // This function should only be called with verified block data
-        return Err(CheckpointError::InvalidData {
-            reason: "Auto-checkpoint requires actual block hash - use create_auto_checkpoint_with_hash()".to_string(),
-        });
-    }
+
 
     /// Creates an automatic checkpoint with verified block hash
     pub fn create_auto_checkpoint_with_hash(&mut self, height: u64, block_hash: [u8; 32]) -> Result<(), CheckpointError> {
@@ -778,7 +769,7 @@ impl CheckpointManager {
         public_key: Vec<u8>,
     ) -> Result<(), CheckpointError> {
         let pending = self.pending_checkpoints.get_mut(&pending_id)
-            .ok_or_else(|| CheckpointError::NotFound { height: pending_id })?;
+            .ok_or(CheckpointError::NotFound { height: pending_id })?;
 
         // Check if pending checkpoint has expired
         let current_time = std::time::SystemTime::now()
@@ -818,7 +809,7 @@ impl CheckpointManager {
     /// Finalizes a pending checkpoint with sufficient signatures
     fn finalize_pending_checkpoint(&mut self, pending_id: u64) -> Result<(), CheckpointError> {
         let pending = self.pending_checkpoints.remove(&pending_id)
-            .ok_or_else(|| CheckpointError::NotFound { height: pending_id })?;
+            .ok_or(CheckpointError::NotFound { height: pending_id })?;
 
         // Perform cross-validation
         self.cross_validate_checkpoint(&pending.checkpoint)?;
@@ -861,7 +852,7 @@ impl CheckpointManager {
             results.push((validator.node_id.clone(), is_valid));
 
             // Add cross-validation result to checkpoint
-            let validation = CrossValidation {
+            let _validation = CrossValidation {
                 node_id: validator.node_id.clone(),
                 is_valid,
                 timestamp: current_time,
@@ -1224,7 +1215,7 @@ mod tests {
         manager.add_validator_node(validator).unwrap();
 
         // Create pending checkpoint
-        let pending_id = manager.create_pending_checkpoint(
+        let _pending_id = manager.create_pending_checkpoint(
             500,
             [123u8; 32],
             "Test checkpoint".to_string(),
@@ -1321,7 +1312,7 @@ mod tests {
         manager.add_validator_node(validator).unwrap();
 
         // Create pending checkpoint
-        let pending_id = manager.create_pending_checkpoint(
+        let _pending_id = manager.create_pending_checkpoint(
             500,
             [123u8; 32],
             "Test checkpoint".to_string(),

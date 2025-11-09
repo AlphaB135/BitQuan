@@ -3,7 +3,7 @@
 //! This module provides comprehensive monitoring capabilities without
 //! exposing sensitive information or creating attack vectors.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

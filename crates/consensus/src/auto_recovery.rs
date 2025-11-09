@@ -461,7 +461,7 @@ pub struct RecoveryStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::monitoring::{Monitor, MonitorConfig};
+    use crate::monitoring::Monitor;
 
     fn create_test_manager() -> AutoRecoveryManager {
         let config = RecoveryConfig {
