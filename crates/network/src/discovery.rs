@@ -4,7 +4,6 @@ use crate::protocol::PeerAddr;
 use bitquan_types::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bootstrap seed nodes for testnet.
@@ -328,16 +327,16 @@ mod tests {
         book.mark_peer_success("test:18444");
 
         let temp_file = if cfg!(windows) {
-            std::env::temp_dir().join("bitquan_peers_test.json")
+            std::env::temp_dir().join("bitquan_peers_test.json").to_string_lossy().to_string()
         } else {
-            PathBuf::from("/tmp/bitquan_peers_test.json")
+            "/tmp/bitquan_peers_test.json".to_string()
         };
 
         // Save
-        book.save_to_file(temp_file.to_str().unwrap()).unwrap();
+        book.save_to_file(&temp_file).unwrap();
 
         // Load
-        let loaded = PeerBook::load_from_file(temp_file.to_str().unwrap()).unwrap();
+        let loaded = PeerBook::load_from_file(&temp_file).unwrap();
 
         assert_eq!(loaded.peer_count(), 1);
         assert!(loaded.get_peer("test:18444").is_some());
