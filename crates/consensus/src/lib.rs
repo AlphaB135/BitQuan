@@ -6,6 +6,7 @@ use bq_crypto::{CryptoError, CryptoRegistry};
 use thiserror::Error;
 
 mod asert;
+pub mod auto_recovery;
 mod checkpoint;
 mod difficulty;
 pub mod emergency;
@@ -19,6 +20,7 @@ pub mod utxo;
 mod tests;
 
 pub use asert::{asert_next_target, BurstGuardState, GuardContext};
+pub use auto_recovery::{AutoRecoveryConfig, AutoRecoveryManager, AutoRecoveryError, RecoveryStatus, RecoveryStatistics, BlockSnapshot, AnomalyReport, AnomalyType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager};
 pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
 pub use emergency::{EmergencyAction, EmergencyConfig, EmergencyError, EmergencyManager, EmergencyStatus};
