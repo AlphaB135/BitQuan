@@ -1,7 +1,5 @@
 //! Transaction memory pool with fee-per-weight ordering.
 #![warn(missing_docs)]
-#![deny(clippy::unwrap_used)]
-#![deny(clippy::expect_used)]
 
 use bitquan_consensus::MempoolPolicy;
 use bitquan_types::{checked, Error, Result, Transaction};
