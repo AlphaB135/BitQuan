@@ -1,33 +1,32 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use bitquan_network::protocol::{MessageEnvelope, MessageType};
-use bitquan_types::NetworkId;
+use bitquan_network::protocol::{MessageEnvelope, Message};
 
 fuzz_target!(|data: &[u8]| {
     // Fuzz network message envelope deserialization
     if !data.is_empty() && data.len() <= 10_000_000 {
         // Test deserialization doesn't panic
-        let _ = MessageEnvelope::deserialize(data, NetworkId::Devnet);
+        let _ = MessageEnvelope::deserialize(data);
         
-        // Test with different network IDs
-        let networks = [NetworkId::Mainnet, NetworkId::Testnet, NetworkId::Devnet];
-        for network in networks.iter() {
-            let _ = MessageEnvelope::deserialize(data, *network);
-        }
+        // Test creating envelope from message
+        let _ = MessageEnvelope::new(Message::VerAck);
     }
     
-    // Fuzz message type parsing
-    if data.len() >= 1 {
-        let msg_type = data[0];
-        // Test all possible message types
-        let _ = MessageType::from_u8(msg_type);
+    // Fuzz message creation
+    if data.len() >= 8 {
+        let nonce = u64::from_le_bytes([
+            data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]
+        ]);
+        // Test message creation doesn't panic
+        let _ = Message::Ping { nonce };
+        let _ = Message::Pong { nonce };
     }
     
     // Fuzz oversized messages (DoS protection)
     if data.len() > 10_000_000 {
         // Should handle oversized messages gracefully
-        let _ = MessageEnvelope::deserialize(&data[..10_000_000.min(data.len())], NetworkId::Devnet);
+        let _ = MessageEnvelope::deserialize(&data[..10_000_000.min(data.len())]);
     }
     
     // Fuzz malformed JSON payloads
