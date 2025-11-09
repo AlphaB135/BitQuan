@@ -64,7 +64,7 @@ jobs:
 
       - name: Test (nextest)
         if: steps.filter.outputs.rust == 'true'
-        run: cargo nextest run --workspace --profile ci
+        run: cargo nextest run --workspace
 
       - name: Coverage threshold (≥80% lines, no report)
         if: steps.filter.outputs.rust == 'true'

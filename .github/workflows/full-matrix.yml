@@ -40,7 +40,7 @@ jobs:
         run: cargo install cargo-nextest cargo-llvm-cov --locked
 
       - name: Test (nextest)
-        run: cargo nextest run --workspace --profile ci
+        run: cargo nextest run --workspace
 
       - name: Coverage (HTML + summary + lcov)
         if: runner.os == 'Linux'
