@@ -757,11 +757,11 @@ fn test_validate_block_weight_overflow() {
         }
         Err(ConsensusError::Signature(_)) => {
             // Signature verification would fail (expected for test data)
-            return; // This is an acceptable outcome
+            // This is an acceptable outcome
         }
         Err(ConsensusError::InvalidSignature(_)) => {
             // Invalid signature (expected for test data)
-            return; // This is an acceptable outcome
+            // This is an acceptable outcome
         }
         Ok(_) => panic!("Expected error for massive block"),
         Err(e) => panic!("Unexpected error: {:?}", e),

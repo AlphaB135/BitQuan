@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(memory.len(), size);
         
         // Test that we can write to and read from the memory
-        for (_i, byte) in memory.iter().enumerate() {
+        for byte in &memory {
             assert_eq!(*byte, 0);
         }
         
@@ -356,11 +356,7 @@ mod tests {
         let unequal_time = start.elapsed();
         
         // Times should be similar (within a reasonable margin)
-        let time_diff = if equal_time > unequal_time {
-            equal_time - unequal_time
-        } else {
-            unequal_time - equal_time
-        };
+        let time_diff = equal_time.abs_diff(unequal_time);
         
         // Allow significant variance on modern systems with CPU optimizations,
         // but still verify the function completes in reasonable time

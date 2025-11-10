@@ -391,10 +391,7 @@ mod tests {
         // Write some data to the block
         unsafe {
             let slice = block.as_slice_mut();
-            let size = slice.len();
-            for i in 0..size {
-                slice[i] = 0xFF;
-            }
+            slice.fill(0xFF);
         }
         
         // Verify data was written
