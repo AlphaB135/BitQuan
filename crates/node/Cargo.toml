@@ -41,6 +41,7 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 dashmap = "5.5"
 lru = "0.12"
 rusqlite = { version = "0.30", features = ["bundled"] }
+warp = "0.3"
 
 [features]
 default = ["rocksdb-backend"]

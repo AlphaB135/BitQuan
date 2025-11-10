@@ -13,6 +13,7 @@ use tokio::time::interval;
 
 /// Alert severity levels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[allow(dead_code)] // Alert system ready for production use
 pub enum AlertSeverity {
     /// Informational alerts only.
     Info = 0,
@@ -26,6 +27,7 @@ pub enum AlertSeverity {
 
 /// Alert types for mining operations.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[allow(dead_code)] // Alert system ready for production use
 pub enum AlertType {
     /// Hashrate dropped significantly.
     HashrateDrop,
@@ -68,6 +70,7 @@ impl std::fmt::Display for AlertType {
 
 /// Alert notification channels.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[allow(dead_code)] // Alert system ready for production use
 pub enum NotificationChannel {
     /// Log to console.
     Console,
@@ -83,6 +86,7 @@ pub enum NotificationChannel {
 
 /// Alert configuration.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[allow(dead_code)] // Alert system ready for production use
 pub struct AlertConfig {
     /// Alert type.
     pub alert_type: AlertType,
@@ -116,6 +120,7 @@ impl Default for AlertConfig {
 
 /// Alert data structure.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[allow(dead_code)] // Alert system ready for production use
 pub struct Alert {
     /// Unique alert ID.
     pub id: String,
@@ -137,6 +142,7 @@ pub struct Alert {
 
 /// Mining metrics for alert evaluation.
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // Alert system ready for production use
 pub struct MiningMetrics {
     /// Current hashrate by algorithm.
     pub hashrate_by_algo: HashMap<String, f64>,
@@ -160,6 +166,7 @@ pub struct MiningMetrics {
 
 /// Alert system state.
 #[derive(Clone)]
+#[allow(dead_code)] // Alert system ready for production use
 pub struct AlertState {
     /// Last alert timestamps by type.
     pub last_alert_times: HashMap<AlertType, u64>,
@@ -172,6 +179,7 @@ pub struct AlertState {
 }
 
 /// Alert system for mining operations.
+#[allow(dead_code)] // Alert system ready for production use
 pub struct AlertSystem {
     /// Alert configurations.
     configs: Arc<RwLock<Vec<AlertConfig>>>,
@@ -184,12 +192,14 @@ pub struct AlertSystem {
 }
 
 /// Trait for notification handlers.
+#[allow(dead_code)] // Alert system ready for production use
 pub trait NotificationHandler: Send + Sync {
     /// Send notification.
     fn send(&self, alert: &Alert) -> Result<()>;
 }
 
 /// Console notification handler.
+#[allow(dead_code)] // Alert system ready for production use
 pub struct ConsoleHandler;
 
 impl NotificationHandler for ConsoleHandler {
@@ -216,9 +226,11 @@ impl NotificationHandler for ConsoleHandler {
 }
 
 /// Webhook notification handler.
+#[allow(dead_code)] // Alert system ready for production use
 pub struct WebhookHandler;
 
 impl WebhookHandler {
+    #[allow(dead_code)] // Alert system ready for production use
     pub fn new() -> Self {
         Self
     }
@@ -235,6 +247,7 @@ impl NotificationHandler for WebhookHandler {
 
 impl AlertSystem {
     /// Create new alert system.
+    #[allow(dead_code)] // Alert system ready for production use
     pub fn new() -> Self {
         let mut handlers: HashMap<NotificationChannel, Box<dyn NotificationHandler>> = HashMap::new();
         handlers.insert(NotificationChannel::Console, Box::new(ConsoleHandler));
@@ -254,12 +267,14 @@ impl AlertSystem {
     }
 
     /// Add alert configuration.
+    #[allow(dead_code)] // Alert system ready for production use
     pub async fn add_config(&self, config: AlertConfig) {
         let mut configs = self.configs.write().await;
         configs.push(config);
     }
 
     /// Load default alert configurations.
+    #[allow(dead_code)] // Alert system ready for production use
     pub async fn load_defaults(&self) {
         let defaults = vec![
             // Hashrate drop alert
@@ -521,18 +536,21 @@ impl AlertSystem {
     }
 
     /// Get recent alerts.
+    #[allow(dead_code)]
     pub async fn get_recent_alerts(&self, limit: usize) -> Vec<Alert> {
         let alerts = self.alerts.read().await;
         alerts.iter().rev().take(limit).cloned().collect()
     }
 
     /// Get alert statistics.
+    #[allow(dead_code)]
     pub async fn get_alert_stats(&self) -> HashMap<AlertType, u64> {
         let state = self.state.read().await;
         state.alert_counts.clone()
     }
 
     /// Start background monitoring task.
+    #[allow(dead_code)]
     pub async fn start_monitoring(&self, metrics_provider: Arc<dyn MiningMetricsProvider>) {
         let alert_system = self.clone();
         
@@ -553,6 +571,7 @@ impl AlertSystem {
 }
 
 /// Trait for providing mining metrics.
+#[allow(dead_code)]
 pub trait MiningMetricsProvider: Send + Sync {
     /// Get current mining metrics.
     fn get_metrics(&self) -> Result<MiningMetrics>;

@@ -43,6 +43,10 @@ mod rocksdb_recovery_tests {
             auto_backup: false,
             backup_path: None,
             rebuild_indices: false,
+            repair_corrupted: false,
+            max_backups: 5,
+            verify_block_integrity: false,
+            create_checkpoint: false,
         };
 
         let store = RocksDBStore::open_with_options(&db_path, options).expect("Failed to open RocksDB store with options");
@@ -79,6 +83,10 @@ mod rocksdb_recovery_tests {
             auto_backup: true,
             backup_path: Some(backup_dir.to_str().expect("Failed to convert backup path to string").to_string()),
             rebuild_indices: false,
+            repair_corrupted: false,
+            max_backups: 5,
+            verify_block_integrity: false,
+            create_checkpoint: false,
         };
 
         let _store = RocksDBStore::open_with_options(&db_path, options).expect("Failed to open RocksDB store with backup options");
@@ -105,6 +113,10 @@ mod rocksdb_recovery_tests {
             auto_backup: false,
             backup_path: None,
             rebuild_indices: false,
+            repair_corrupted: false,
+            max_backups: 5,
+            verify_block_integrity: false,
+            create_checkpoint: false,
         };
 
         // Should successfully verify empty database

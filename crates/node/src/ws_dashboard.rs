@@ -466,7 +466,7 @@ mod tests {
         let json = serde_json::to_string(&stats).expect("Failed to serialize stats");
         assert!(json.contains("\"timestamp\":1730500000"));
         assert!(json.contains("\"active_miners\":14"));
-        assert!(json.contains("\"hashrate_total\":2.0e9"));
+        assert!(json.contains("\"hashrate_total\":2000000000.0"));
         assert!(json.contains("\"pool_efficiency\":97.3"));
     }
 
@@ -489,7 +489,7 @@ mod tests {
         let json = serde_json::to_string(&miner).expect("Failed to serialize miner info");
         assert!(json.contains("\"address\":\"miner1\""));
         assert!(json.contains("\"algo\":\"sha256d\""));
-        assert!(json.contains("\"hashrate\":2.86e8"));
+        assert!(json.contains("\"hashrate\":286000000.0"));
         assert!(json.contains("\"efficiency\":95.2"));
     }
 }

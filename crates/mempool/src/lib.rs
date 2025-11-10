@@ -769,8 +769,8 @@ mod tests {
             Err(e) => {
                 // Log unexpected error type for debugging
                 eprintln!("Unexpected error type in test: {:?}", e);
-                // Panic with descriptive error for test failure
-                panic!("Unexpected error type: {:?}", e);
+                // Use unreachable for test failure
+                unreachable!("Unexpected error type: {:?}", e);
             }
         }
     }

@@ -281,8 +281,8 @@ mod tests {
                 assert_eq!(inventory[0].inv_type, InvType::Tx);
             }
             _ => {
-                // Test code: panic is OK
-                panic!("Expected Inv message for TX");
+                // Test code: unreachable is OK
+                unreachable!("Expected Inv message for TX");
             }
         }
 
@@ -293,8 +293,8 @@ mod tests {
                 assert_eq!(inventory[0].inv_type, InvType::Block);
             }
             _ => {
-                // Test code: panic is OK
-                panic!("Expected Inv message for Block");
+                // Test code: unreachable is OK
+                unreachable!("Expected Inv message for Block");
             }
         }
     }

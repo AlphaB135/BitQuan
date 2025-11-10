@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bitquan-staging
+  labels:
+    environment: staging
+    project: bitquan
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bitquan-testnet
+  labels:
+    environment: testnet
+    project: bitquan
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bitquan-mainnet
+  labels:
+    environment: mainnet
+    project: bitquan
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bitquan-node
+  namespace: bitquan-staging
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bitquan-node
+  namespace: bitquan-testnet
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bitquan-node
+  namespace: bitquan-mainnet
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: bitquan-node-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bitquan-node-binding-staging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bitquan-node-role
+subjects:
+- kind: ServiceAccount
+  name: bitquan-node
+  namespace: bitquan-staging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bitquan-node-binding-testnet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bitquan-node-role
+subjects:
+- kind: ServiceAccount
+  name: bitquan-node
+  namespace: bitquan-testnet
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bitquan-node-binding-mainnet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bitquan-node-role
+subjects:
+- kind: ServiceAccount
+  name: bitquan-node
+  namespace: bitquan-mainnet

@@ -1,0 +1,130 @@
+# BitQuan Alerting Rules
+groups:
+  - name: bitquan_node_alerts
+    rules:
+      # Node health alerts
+      - alert: NodeDown
+        expr: up{job="bitquan-node"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "BitQuan node is down"
+          description: "BitQuan node has been down for more than 1 minute"
+
+      - alert: HighErrorRate
+        expr: rate(system_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second"
+
+      - alert: LowPeerCount
+        expr: network_peers_connected < 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low peer count"
+          description: "Only {{ $value }} peers connected, consider checking network connectivity"
+
+  - name: bitquan_mining_alerts
+    rules:
+      # Mining performance alerts
+      - alert: LowHashrate
+        expr: pow_hashrate_gauge < 1000000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low hashrate detected"
+          description: "Hashrate for {{ $labels.algo }} is {{ $value }} H/s"
+
+      - alert: NoBlocksMined
+        expr: increase(pow_mined_blocks_total[1h]) == 0
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No blocks mined"
+          description: "No blocks have been mined in the last hour"
+
+      - alert: HighBlockTime
+        expr: pow_block_time_seconds > 600
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High block time"
+          description: "Block time for {{ $labels.algo }} is {{ $value }} seconds"
+
+      - alert: PoolBalanceLow
+        expr: stratum_pool_balance_gauge < 1000000000  # Less than 0.01 BTC
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low pool balance"
+          description: "Pool balance is {{ $value }} satoshis"
+
+  - name: bitquan_system_alerts
+    rules:
+      # System resource alerts
+      - alert: HighMempoolSize
+        expr: bitquan_mempool_size > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High mempool size"
+          description: "Mempool has {{ $value }} pending transactions"
+
+      - alert: HighWebSocketConnections
+        expr: websocket_connections_active > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High WebSocket connections"
+          description: "{{ $value }} active WebSocket connections"
+
+      - alert: SystemUptimeTooShort
+        expr: system_uptime_seconds < 300
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Node recently restarted"
+          description: "Node uptime is {{ $value }} seconds"
+
+  - name: bitquan_performance_alerts
+    rules:
+      # Performance and availability alerts
+      - alert: DatabaseConnectionFailed
+        expr: up{job="bitquan-database"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection failed"
+          description: "Cannot connect to the database"
+
+      - alert: MiningPoolDown
+        expr: up{job="bitquan-pool"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mining pool is down"
+          description: "Mining pool service has been down for more than 1 minute"
+
+      - alert: StratumServerDown
+        expr: up{job="bitquan-stratum"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stratum server is down"
+          description: "Stratum server has been down for more than 1 minute"

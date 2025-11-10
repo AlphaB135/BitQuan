@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn test_known_mnemonic() {
         // Test with a known valid BIP39 phrase
-        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let helper = MnemonicHelper::from_phrase(phrase, None).expect("Failed to parse known mnemonic phrase");
 
         // Should be valid

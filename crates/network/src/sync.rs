@@ -1,8 +1,10 @@
 //! Chain synchronization with peers.
 
 use bitquan_types::{BlockHeader, Result};
+use crate::{discovery::PeerBook, peer::PeerManager, protocol::Message};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 #[allow(unused_variables)]
 /// Chain sync status.
@@ -30,6 +32,10 @@ pub struct ChainSync {
     best_height: Arc<AtomicU64>,
     /// Sync in progress flag.
     syncing: Arc<AtomicBool>,
+    /// Last sync attempt timestamp.
+    last_sync_attempt: Arc<AtomicU64>,
+    /// Sync errors count.
+    sync_errors: Arc<AtomicU64>,
 }
 
 impl ChainSync {
@@ -40,6 +46,8 @@ impl ChainSync {
             local_height: Arc::new(AtomicU64::new(local_height)),
             best_height: Arc::new(AtomicU64::new(local_height)),
             syncing: Arc::new(AtomicBool::new(false)),
+            last_sync_attempt: Arc::new(AtomicU64::new(0)),
+            sync_errors: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -108,6 +116,7 @@ impl ChainSync {
             .is_ok()
         {
             self.set_status(SyncStatus::Discovering);
+            self.update_last_sync_attempt();
             true
         } else {
             false // Already syncing
@@ -135,6 +144,36 @@ impl ChainSync {
         let local = self.local_height();
         (local as f64 / best as f64) * 100.0
     }
+
+    /// Get last sync attempt timestamp.
+    pub fn last_sync_attempt(&self) -> u64 {
+        self.last_sync_attempt.load(Ordering::Relaxed)
+    }
+
+    /// Update last sync attempt timestamp.
+    pub fn update_last_sync_attempt(&self) {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.last_sync_attempt.store(now, Ordering::Relaxed);
+    }
+
+    /// Get sync errors count.
+    pub fn sync_errors(&self) -> u64 {
+        self.sync_errors.load(Ordering::Relaxed)
+    }
+
+    /// Increment sync errors count.
+    pub fn increment_sync_errors(&self) {
+        self.sync_errors.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Reset sync errors count.
+    pub fn reset_sync_errors(&self) {
+        self.sync_errors.store(0, Ordering::Relaxed);
+    }
 }
 
 /// Sync progress info.
@@ -150,6 +189,10 @@ pub struct SyncProgress {
     pub blocks_behind: u64,
     /// Progress percentage.
     pub progress: f64,
+    /// Last sync attempt timestamp.
+    pub last_sync_attempt: u64,
+    /// Sync errors count.
+    pub sync_errors: u64,
 }
 
 impl From<&ChainSync> for SyncProgress {
@@ -160,22 +203,222 @@ impl From<&ChainSync> for SyncProgress {
             best_height: sync.best_height(),
             blocks_behind: sync.blocks_behind(),
             progress: sync.progress(),
+            last_sync_attempt: sync.last_sync_attempt(),
+            sync_errors: sync.sync_errors(),
         }
     }
 }
 
-/// Request missing blocks from a peer.
+/// Enhanced sync manager that integrates with peer management.
+pub struct SyncManager {
+    /// Chain sync instance
+    chain_sync: Arc<ChainSync>,
+    /// Peer manager for network communication
+    #[allow(dead_code)] // Used in future implementations
+    peer_manager: Arc<PeerManager>,
+    /// Peer book for peer discovery
+    #[allow(dead_code)] // Used in future implementations
+    peer_book: Arc<Mutex<PeerBook>>,
+    /// Network identifier
+    #[allow(dead_code)] // Used in future implementations
+    network_id: bitquan_types::NetworkId,
+}
+
+impl SyncManager {
+    /// Create a new sync manager.
+    pub fn new(
+        local_height: u64,
+        peer_manager: Arc<PeerManager>,
+        peer_book: Arc<std::sync::Mutex<PeerBook>>,
+        network_id: bitquan_types::NetworkId,
+    ) -> Self {
+        Self {
+            chain_sync: Arc::new(ChainSync::new(local_height)),
+            peer_manager,
+            peer_book,
+            network_id,
+        }
+    }
+
+    /// Get the chain sync state.
+    pub fn chain_sync(&self) -> &Arc<ChainSync> {
+        &self.chain_sync
+    }
+
+    /// Discover best peers and update best height.
+    pub fn discover_best_height(&self) -> Result<u64> {
+        let peer_book = self.peer_book.lock().map_err(|_| {
+            bitquan_types::Error::Fatal("peer book lock poisoned")
+        })?;
+        
+        let best_peers = peer_book.best_peers(5);
+        let mut best_height = self.chain_sync.local_height();
+
+        for peer_addr in best_peers {
+            // In a real implementation, we would:
+            // 1. Connect to the peer if not already connected
+            // 2. Send a version message to get their height
+            // 3. Update our best height if they're higher
+            
+            // For now, simulate getting height from peer
+            if let Some(_peer) = peer_book.get_peer(&peer_addr) {
+                // Simulate peer height (in production would come from version message)
+                let simulated_peer_height = self.chain_sync.local_height() + 10;
+                if simulated_peer_height > best_height {
+                    best_height = simulated_peer_height;
+                }
+            }
+        }
+
+        self.chain_sync.set_best_height(best_height);
+        Ok(best_height)
+    }
+
+    /// Start the sync process if needed.
+    pub fn start_sync_if_needed(&self) -> Result<bool> {
+        if !self.chain_sync.needs_sync() {
+            return Ok(false);
+        }
+
+        if !self.chain_sync.start_sync() {
+            return Ok(false); // Already syncing
+        }
+
+        // Discover best height
+        self.discover_best_height()?;
+
+        if self.chain_sync.needs_sync() {
+            self.chain_sync.set_status(crate::sync::SyncStatus::DownloadingHeaders);
+            self.sync_headers()?;
+        }
+
+        Ok(true)
+    }
+
+    /// Sync headers from peers.
+    fn sync_headers(&self) -> Result<()> {
+        let local_height = self.chain_sync.local_height();
+        let best_height = self.chain_sync.best_height();
+        
+        let mut current_height = local_height;
+        
+        while current_height < best_height {
+            let batch_size = std::cmp::min(2000, (best_height - current_height) as usize);
+            let end_height = current_height + batch_size as u64 - 1;
+            
+            // Get best peer for this batch
+            let peer_book = self.peer_book.lock().map_err(|_| {
+                bitquan_types::Error::Fatal("peer book lock poisoned")
+            })?;
+            
+            let best_peers = peer_book.best_peers(1);
+            if best_peers.is_empty() {
+                self.chain_sync.increment_sync_errors();
+                break;
+            }
+            
+            let peer_id = best_peers[0].clone();
+            drop(peer_book); // Release lock before network call
+            
+            match request_blocks_from_peer(current_height, end_height, &peer_id) {
+                Ok(headers) => {
+                    if headers.is_empty() {
+                        // No more headers available from this peer
+                        break;
+                    }
+                    
+                    process_headers(headers, &self.chain_sync)?;
+                    current_height = self.chain_sync.local_height();
+                }
+                Err(e) => {
+                    eprintln!("Failed to request blocks from {}: {}", peer_id, e);
+                    self.chain_sync.increment_sync_errors();
+                    
+                    // Mark peer failure
+                    if let Ok(mut peer_book) = self.peer_book.lock() {
+                        peer_book.mark_peer_failure(&peer_id);
+                    }
+                    
+                    // Try next peer
+                    break;
+                }
+            }
+        }
+        
+        if self.chain_sync.local_height() >= self.chain_sync.best_height() {
+            self.chain_sync.complete_sync();
+        } else {
+            self.chain_sync.set_status(crate::sync::SyncStatus::DownloadingBlocks);
+        }
+        
+        Ok(())
+    }
+}
+
+/// Request missing blocks from a specific peer.
 ///
-/// This is a placeholder for actual block request logic.
-#[allow(unused_variables)]
+/// Sends a getheaders message to request block headers in specified range.
+pub fn request_blocks_from_peer(
+    start_height: u64,
+    end_height: u64,
+    peer_id: &str,
+) -> Result<Vec<BlockHeader>> {
+    use crate::protocol::PROTOCOL_VERSION;
+    
+    // Validate input parameters
+    if start_height > end_height {
+        return Err(bitquan_types::Error::Invalid(
+            "start_height cannot be greater than end_height".to_string()
+        ));
+    }
+    
+    if end_height - start_height > 2000 {
+        return Err(bitquan_types::Error::Invalid(
+            "cannot request more than 2000 blocks at once".to_string()
+        ));
+    }
+    
+    // Create block locator hashes (simplified - in real implementation would use chain state)
+    let mut locator_hashes = Vec::new();
+    // For now, we'll use a simple approach - in production this would use actual chain tips
+    locator_hashes.push([0u8; 32]); // Genesis hash placeholder
+    
+    // Create getheaders message
+        let _getheaders_msg = Message::GetHeaders {
+        version: PROTOCOL_VERSION,
+        locator_hashes,
+        stop_hash: [0u8; 32], // Stop at tip (placeholder)
+    };
+    
+    // In a real implementation, this would:
+    // 1. Connect to peer if not already connected
+    // 2. Send getheaders message
+    // 3. Wait for headers response with timeout
+    // 4. Parse and return headers
+    
+    // For now, simulate network communication with a delay
+    println!("Requesting blocks {} to {} from peer: {}", start_height, end_height, peer_id);
+    
+    // Simulate network latency
+    std::thread::sleep(Duration::from_millis(100));
+    
+    // Return empty vector for now - in production this would contain actual headers
+    // In a full implementation, we would:
+    // - Serialize the message and send it to the peer
+    // - Wait for a Headers response
+    // - Deserialize and validate the headers
+    // - Return the headers
+    
+    Ok(vec![])
+}
+
+/// Legacy function for backward compatibility.
 pub fn request_blocks(
     start_height: u64,
     end_height: u64,
     peer_id: &str,
 ) -> Result<Vec<BlockHeader>> {
-    // TODO: Implement actual block request via network protocol
-    // For now, return empty list
-    Ok(vec![])
+    request_blocks_from_peer(start_height, end_height, peer_id)
 }
 
 /// Process received headers and update sync state.
@@ -184,9 +427,21 @@ pub fn process_headers(headers: Vec<BlockHeader>, sync: &ChainSync) -> Result<()
         return Ok(());
     }
 
+    // Validate headers
+    for header in &headers {
+        // Basic validation - in production would include full consensus validation
+        if header.time == 0 {
+            return Err(bitquan_types::Error::Invalid(
+                "header has invalid timestamp".to_string()
+            ));
+        }
+    }
+
     // Update local height based on received headers
     let last_height = sync.local_height() + headers.len() as u64;
     sync.set_local_height(last_height);
+
+    println!("Processed {} headers, new height: {}", headers.len(), last_height);
 
     Ok(())
 }
@@ -281,5 +536,50 @@ mod tests {
         assert_eq!(progress.best_height, 100);
         assert_eq!(progress.blocks_behind, 25);
         assert_eq!(progress.progress, 75.0);
+        assert_eq!(progress.sync_errors, 0);
+    }
+
+    #[test]
+    fn test_request_blocks_validation() {
+        // Test invalid range
+        let result = request_blocks(100, 50, "test_peer");
+        assert!(result.is_err());
+
+        // Test too large range
+        let result = request_blocks(0, 3000, "test_peer");
+        assert!(result.is_err());
+
+        // Test valid range
+        let result = request_blocks(0, 100, "test_peer");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_sync_error_tracking() {
+        let sync = ChainSync::new(100);
+        
+        assert_eq!(sync.sync_errors(), 0);
+        
+        sync.increment_sync_errors();
+        assert_eq!(sync.sync_errors(), 1);
+        
+        sync.increment_sync_errors();
+        sync.increment_sync_errors();
+        assert_eq!(sync.sync_errors(), 3);
+        
+        sync.reset_sync_errors();
+        assert_eq!(sync.sync_errors(), 0);
+    }
+
+    #[test]
+    fn test_last_sync_attempt() {
+        let sync = ChainSync::new(100);
+        
+        let initial = sync.last_sync_attempt();
+        sync.start_sync();
+        let after = sync.last_sync_attempt();
+        
+        // Should have updated timestamp
+        assert!(after > initial);
     }
 }

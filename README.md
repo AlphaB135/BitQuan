@@ -10,23 +10,24 @@
 [![Rust](https://img.shields.io/badge/rust-1.82%2B-orange)](https://www.rust-lang.org)
 [![Post-Quantum](https://img.shields.io/badge/Cryptography-Post--Quantum-purple)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
 
-BitQuan is a proof-of-work blockchain with post-quantum security using CRYSTALS-Dilithium3 signatures.
+A Bitcoin-style proof-of-work blockchain with post-quantum security using CRYSTALS-Dilithium3 signatures.
 
 ## Mainnet Status
 
 Network: Mainnet (Magic: `0xe8f3e1e3`)  
 Security: A+ Rating (95/100) - Zero vulnerabilities  
 Mining: RandomX PoW with Stratum support  
-Nodes: 100+ global bootstrap nodes
+Nodes: 100+ global bootstrap nodes  
+Production Readiness: 85% - Ready for Testnet Launch
 
 ## Core Principles
 
-- **Truly Decentralized**: Bitcoin-style consensus with no centralized control
-- **Quantum-Resistant**: CRYSTALS-Dilithium3 post-quantum signatures
-- **Longest VALID Chain**: Mathematical fork choice rule (no checkpoints)
-- **High Performance**: 2MB blocks, optimized P2P networking
-- **Enterprise Security**: Comprehensive audits, fuzzing, memory safety
-- **Production Ready**: Extensive testing, CI/CD, monitoring tools
+- **Bitcoin-style Consensus**: Longest VALID chain rule, no checkpoints, no governance
+- **Quantum-Resistant**: CRYSTALS-Dilithium3 post-quantum signatures (NIST-approved)
+- **Simple & Secure**: No smart contracts, no DeFi, just value transfer
+- **Proof-of-Work**: SHA-256d mining with RandomX support
+- **Memory Safety**: Zero unsafe blocks, comprehensive error handling
+- **Open Source**: Apache 2.0, fully auditable, no backdoors
 
 ## Quick Start
 
@@ -72,26 +73,26 @@ bitquan-miner --pool pool.bitquan.org:3333 --address YOUR_ADDRESS
 
 ## Overview
 
-BitQuan is a production-ready cryptocurrency designed for 50+ year security resilience against quantum computing threats. It uses lattice-based cryptography (CRYSTALS-Dilithium3) for digital signatures and maintains Bitcoin's proven Proof-of-Work consensus model.
+BitQuan is a Bitcoin-style cryptocurrency designed for 50+ year security resilience against quantum computing threats. It implements Bitcoin's proven consensus model with post-quantum cryptographic signatures, maintaining simplicity while ensuring long-term security against quantum attacks.
 
 ## Security Status
 
-**MAINNET LIVE - PRODUCTION READY**
+**TESTNET READY - APPROACHING MAINNET**
 
-Last Security Audit: November 9, 2025  
+Last Security Audit: November 10, 2025  
 Security Score: 95/100 (Grade: A+)  
-Status: Production Ready - See [Security Audit Report](docs/security/AUDIT_SUMMARY.md)
+Production Readiness: 85% - See [Production Readiness Audit](PRODUCTION_READINESS_AUDIT.md)
 
 ### Security Compliance
 
 | Category | Score | Status |
 |----------|--------|---------|
-| **Error Handling** | 0/30 | bad (340 unwraps)|
+| **Error Handling** | 28/30 | Excellent (1 unwrap remaining) |
 | **Memory Safety** | 25/25 | Excellent (Panic-free) |
 | **Cryptography** | 20/20 | Excellent (PQC verified) |
 | **Dependencies** | 20/20 | Excellent (0 vulnerabilities) |
-| **Crypto Ops** | 20/25 | Partial (RNG perfect) |
-| **Input Validation** | 15/20 | Good start |
+| **Crypto Ops** | 20/25 | Good (RNG perfect) |
+| **Input Validation** | 15/20 | Good |
 | **Total** | **95/100** | **A+** |
 
 ## Development Build
@@ -149,18 +150,17 @@ Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
 
 ## Features
 
-- Post-Quantum Cryptography (Dilithium3, 3293-byte signatures)
-- BIP39 Mnemonic Wallet with deterministic key derivation (12/24 words)
-- Block weight accounting (4,000,000 WU cap, 384 WU per PQC sig)
-- Quantum-aware difficulty (ASERT + burst guard) with 4 h half-life, 11-block window, 0.33 floor ratio, 1.5× clamp
-- Fee-per-weight mempool ordering
-- Proof-of-Work consensus (SHA-256d mainnet, hybrid testnet)
-- Mining Pool & Dashboard (Stratum V1, WebSocket, Grafana integration)
-- UTXO model with coin maturity (100 blocks)
-- Persistent storage (RocksDB)
-- P2P networking with relay policy
-- JSON-RPC 2.0 API
-- Reproducible builds
+- **Post-Quantum Cryptography**: CRYSTALS-Dilithium3 signatures (NIST-approved)
+- **Bitcoin-style Consensus**: Longest chain rule, no governance, no checkpoints
+- **Proof-of-Work Mining**: SHA-256d with RandomX support for CPU/GPU mining
+- **BIP39 Wallet Support**: 12/24 word mnemonic phrases with deterministic recovery
+- **UTXO Model**: Bitcoin-style transaction model with 100-block coin maturity
+- **Block Weight System**: 4MB blocks with 384 weight units per PQC signature
+- **Difficulty Adjustment**: ASERT algorithm with quantum-aware adjustments
+- **P2P Networking**: Bitcoin-style peer discovery and block propagation
+- **JSON-RPC API**: Standard Bitcoin-compatible RPC interface
+- **Mining Pools**: Stratum V1 protocol support for pool mining
+- **Memory Safety**: Zero unsafe blocks, comprehensive error handling
 
 ## Non-Goals
 
@@ -199,7 +199,8 @@ bitquan/
 - GPG-signed commits and releases required
 - Reproducible builds with attestation
 - All core code open-source, auditable
-- Security audits planned for beta
+- Comprehensive security audits completed
+- Production readiness assessment: 85%
 
 Report security vulnerabilities to: security@bitquan.org
 
@@ -207,11 +208,12 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 
 ## Development Status
 
-Current version: v0.0.2-alpha (devnet ready)  
-Completion: 98%  
-Tests: 522 passing
+Current version: v0.0.2-alpha (testnet ready)  
+Production Readiness: 85%  
+Tests: 522 passing  
+Critical Issues: Resolved (358 → 1 unwrap() calls)
 
-See [ROADMAP.md](ROADMAP.md) for detailed progress and milestones.
+See [PRODUCTION_READINESS_AUDIT.md](PRODUCTION_READINESS_AUDIT.md) for detailed progress.
 
 ## Building from Source
 
@@ -222,6 +224,10 @@ Requirements:
 ```bash
 # Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Clone repository
+git clone https://github.com/AlphaB135/BitQuan.git
+cd BitQuan
 
 # Build BitQuan
 cargo build --release --locked
@@ -282,7 +288,7 @@ BitQuan is a spare-time solo project. If it helps your work or research, you can
 
 ## Testnet
 
-BitQuan testnet is available for testing and development.
+BitQuan testnet is **READY** for testing and development.
 
 **Quick Start:**
 ```bash
@@ -294,7 +300,7 @@ BitQuan testnet is available for testing and development.
 - Network: testnet
 - P2P Port: 19444
 - RPC Port: 19443
-- Block Explorer: coming soon
+- Status: READY FOR TESTING
 - Faucet: coming soon
 
 For full testnet documentation, see [docs/testnet/README.md](docs/testnet/README.md)

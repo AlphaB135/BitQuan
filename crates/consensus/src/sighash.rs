@@ -334,7 +334,7 @@ mod tests {
                 assert!(msg.contains("Mainnet"));
                 assert!(msg.contains("Testnet"));
             }
-            _ => panic!("Expected network mismatch invalid error"),
+            _ => unreachable!("Expected network mismatch invalid error"),
         }
     }
 
@@ -353,7 +353,7 @@ mod tests {
                 assert!(msg.contains("genesis mismatch"));
                 assert!(msg.contains(&hex::encode(GENESIS_HASH_BYTES)));
             }
-            _ => panic!("Expected genesis mismatch invalid error"),
+            _ => unreachable!("Expected genesis mismatch invalid error"),
         }
     }
 

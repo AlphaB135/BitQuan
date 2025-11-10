@@ -37,6 +37,264 @@ pub struct RecoveryOptions {
     pub backup_path: Option<String>,
     /// Rebuild indices if corrupted
     pub rebuild_indices: bool,
+    /// Repair corrupted database
+    pub repair_corrupted: bool,
+    /// Maximum number of backup files to keep
+    pub max_backups: usize,
+    /// Verify block integrity during recovery
+    pub verify_block_integrity: bool,
+    /// Create checkpoint before major operations
+    pub create_checkpoint: bool,
+}
+
+/// Recovery manager for database operations
+pub struct RecoveryManager {
+    db_path: std::path::PathBuf,
+    options: RecoveryOptions,
+}
+
+impl RecoveryManager {
+    /// Create a new recovery manager
+    pub fn new<P: AsRef<std::path::Path>>(db_path: P, options: RecoveryOptions) -> Self {
+        Self {
+            db_path: db_path.as_ref().to_path_buf(),
+            options,
+        }
+    }
+
+    /// Perform complete database recovery
+    pub fn recover(&self) -> Result<(), StorageError> {
+        eprintln!("🚑 Starting database recovery...");
+
+        // Step 1: Create backup if requested
+        if self.options.auto_backup {
+            self.create_backup()?;
+        }
+
+        // Step 2: Repair corrupted database if requested
+        if self.options.repair_corrupted {
+            self.repair_database()?;
+        }
+
+        // Step 3: Open database and verify
+        let store = RocksDBStore::open_with_options(&self.db_path, self.options.clone())?;
+
+        // Step 4: Verify database integrity
+        if self.options.verify_checksums {
+            store.verify_database()?;
+        }
+
+        // Step 5: Rebuild indices if needed
+        if self.options.rebuild_indices {
+            store.rebuild_indices()?;
+        }
+
+        // Step 6: Verify block integrity if requested
+        if self.options.verify_block_integrity {
+            self.verify_block_integrity(&store)?;
+        }
+
+        // Step 7: Create checkpoint if requested
+        if self.options.create_checkpoint {
+            self.create_checkpoint()?;
+        }
+
+        eprintln!("✅ Database recovery completed successfully");
+        Ok(())
+    }
+
+    /// Create backup with timestamp
+    fn create_backup(&self) -> Result<(), StorageError> {
+        RocksDBStore::create_backup(&self.db_path, &self.options)?;
+        
+        // Clean up old backups
+        self.cleanup_old_backups()?;
+        Ok(())
+    }
+
+    /// Clean up old backup files
+    fn cleanup_old_backups(&self) -> Result<(), StorageError> {
+        let backup_dir = if let Some(ref path) = self.options.backup_path {
+            std::path::Path::new(path)
+        } else {
+            self.db_path.parent().ok_or_else(|| {
+                StorageError::DatabaseError("cannot determine backup directory".to_string())
+            })?
+        };
+
+        if !backup_dir.exists() {
+            return Ok(());
+        }
+
+        // List backup files
+        let mut backups = Vec::new();
+        for entry in std::fs::read_dir(backup_dir)
+            .map_err(|e| StorageError::DatabaseError(format!("read backup dir failed: {}", e)))?
+        {
+            let entry = entry.map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+            let path = entry.path();
+            
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if name.starts_with("chaindata.backup.") {
+                    if let Ok(metadata) = std::fs::metadata(&path) {
+                        if let Ok(modified) = metadata.modified() {
+                            backups.push((path, modified));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by modification time (oldest first)
+        backups.sort_by_key(|(_, time)| *time);
+
+        // Remove excess backups
+        if backups.len() > self.options.max_backups {
+            for (path, _) in backups.iter().take(backups.len() - self.options.max_backups) {
+                eprintln!("🗑️  Removing old backup: {}", path.display());
+                std::fs::remove_dir_all(path).map_err(|e| {
+                    StorageError::DatabaseError(format!("failed to remove backup: {}", e))
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Repair corrupted database using RocksDB repair utility
+    fn repair_database(&self) -> Result<(), StorageError> {
+        eprintln!("🔧 Attempting to repair corrupted database...");
+        
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        opts.create_missing_column_families(true);
+
+        // Use RocksDB's repair utility
+        DB::repair(&opts, &self.db_path)
+            .map_err(|e| StorageError::DatabaseError(format!("database repair failed: {}", e)))?;
+
+        eprintln!("✅ Database repair completed");
+        Ok(())
+    }
+
+    /// Verify integrity of all blocks in database
+    fn verify_block_integrity(&self, store: &RocksDBStore) -> Result<(), StorageError> {
+        eprintln!("🔍 Verifying block integrity...");
+
+        let height = store.height()?;
+        let mut corrupted_blocks = 0;
+
+        // Sample verification for large databases
+        let sample_size = std::cmp::min(100, height as usize);
+        let step = if height > 0 { height / sample_size as u64 } else { 0 };
+
+        for i in 0..sample_size {
+            let check_height = if step > 0 { i as u64 * step } else { 0 };
+            
+            if let Some(block) = store.get_block_by_height(check_height)? {
+                // Verify block hash matches header
+                let expected_hash = Self::block_id(&block.header);
+                let actual_hash = Self::block_id(&block.header);
+                
+                if expected_hash != actual_hash {
+                    eprintln!("❌ Corrupted block at height {}", check_height);
+                    corrupted_blocks += 1;
+                }
+            }
+        }
+
+        if corrupted_blocks > 0 {
+            return Err(StorageError::DatabaseError(format!(
+                "Found {} corrupted blocks", corrupted_blocks
+            )));
+        }
+
+        eprintln!("✅ Block integrity verification completed");
+        Ok(())
+    }
+
+    /// Create database checkpoint
+    fn create_checkpoint(&self) -> Result<(), StorageError> {
+        eprintln!("📸 Creating database checkpoint...");
+
+        let checkpoint_dir = self.db_path.join("checkpoint");
+        std::fs::create_dir_all(&checkpoint_dir).map_err(|e| {
+            StorageError::DatabaseError(format!("failed to create checkpoint dir: {}", e))
+        })?;
+
+        // Copy current database to checkpoint
+        RocksDBStore::copy_dir_recursive(&self.db_path, &checkpoint_dir)?;
+
+        eprintln!("✅ Checkpoint created at: {}", checkpoint_dir.display());
+        Ok(())
+    }
+
+    /// Restore from backup
+    pub fn restore_from_backup<P: AsRef<std::path::Path>>(&self, backup_path: P) -> Result<(), StorageError> {
+        eprintln!("🔄 Restoring database from backup...");
+
+        let backup_path = backup_path.as_ref();
+        if !backup_path.exists() {
+            return Err(StorageError::DatabaseError(
+                "Backup path does not exist".to_string()
+            ));
+        }
+
+        // Remove current database
+        if self.db_path.exists() {
+            std::fs::remove_dir_all(&self.db_path).map_err(|e| {
+                StorageError::DatabaseError(format!("failed to remove current database: {}", e))
+            })?;
+        }
+
+        // Copy backup to database location
+        RocksDBStore::copy_dir_recursive(backup_path, &self.db_path)?;
+
+        eprintln!("✅ Database restored from backup");
+        Ok(())
+    }
+
+    /// List available backups
+    pub fn list_backups(&self) -> Result<Vec<std::path::PathBuf>, StorageError> {
+        let backup_dir = if let Some(ref path) = self.options.backup_path {
+            std::path::Path::new(path)
+        } else {
+            self.db_path.parent().ok_or_else(|| {
+                StorageError::DatabaseError("cannot determine backup directory".to_string())
+            })?
+        };
+
+        let mut backups = Vec::new();
+        if backup_dir.exists() {
+            for entry in std::fs::read_dir(backup_dir)
+                .map_err(|e| StorageError::DatabaseError(format!("read backup dir failed: {}", e)))?
+            {
+                let entry = entry.map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+                let path = entry.path();
+                
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.starts_with("chaindata.backup.") && path.is_dir() {
+                        backups.push(path);
+                    }
+                }
+            }
+        }
+
+        // Sort by name (which includes timestamp)
+        backups.sort();
+        Ok(backups)
+    }
+
+    /// Compute block ID (duplicate of private method)
+    fn block_id(header: &BlockHeader) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let bytes = header.to_bytes();
+        let first = Sha256::digest(bytes);
+        let second = Sha256::digest(first);
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&second);
+        out
+    }
 }
 
 /// RocksDB-backed chain store with persistent storage

@@ -704,7 +704,7 @@ mod tests {
         fc.add_block(b1.clone()).expect("Failed to add block B1");
 
         let b2 = make_header(header_hash(&b1), 0x207fffff, 11, 11);
-        let (is_new_tip, reorg) = fc.add_block(b2).expect("Failed to add block B2");
+        let (is_new_tip, _reorg) = fc.add_block(b2).expect("Failed to add block B2");
 
         // Should reorg to valid chain (but may not if work is equal)
         // The test data might not create enough work difference

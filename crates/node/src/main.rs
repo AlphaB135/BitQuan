@@ -61,6 +61,7 @@ fn invalid<T>(msg: impl Into<String>) -> Result<T> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PowMode {
     Hashcash,
+    #[allow(dead_code)]
     Mock,
     #[cfg(feature = "randomx")]
     RandomX,
@@ -1572,7 +1573,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let start_time = std::time::Instant::now();
 
         // Hybrid mining path
-        let (mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
+        let (_mined_header, _algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
             println!("Mining with algorithm: {}", algo.name());
@@ -2803,6 +2804,10 @@ fn verify_database(
         auto_backup: backup,
         backup_path: backup_path.map(|s| s.to_string()),
         rebuild_indices: rebuild,
+        repair_corrupted: false,
+        max_backups: 5,
+        verify_block_integrity: false,
+        create_checkpoint: false,
     };
 
     println!("Opening database with recovery options...");

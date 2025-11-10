@@ -1,5 +1,5 @@
 //! BitQuan cryptography utilities.
-#![cfg_attr(not(feature = "memory-locking"), forbid(unsafe_code))]
+#![cfg_attr(not(any(feature = "memory-locking", feature = "memory-security")), forbid(unsafe_code))]
 #![deny(missing_docs)]
 
 use std::collections::HashMap;
@@ -8,6 +8,7 @@ use bitquan_types::{SigAlgorithm, SignaturePayload, Transaction};
 use pqc_dilithium_seeded as dilithium;
 use thiserror::Error;
 
+pub mod constant_time;
 pub mod rng;
 pub mod wallet;
 

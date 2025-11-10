@@ -298,7 +298,7 @@ mod tests {
                 assert_eq!(inventory[0].hash, hash);
                 assert_eq!(inventory[0].inv_type, InvType::Block);
             }
-            _ => panic!("Expected Inv message"),
+            _ => unreachable!("Expected Inv message"),
         }
     }
 

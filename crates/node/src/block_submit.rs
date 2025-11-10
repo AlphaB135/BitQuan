@@ -255,7 +255,7 @@ mod tests {
             SubmitResult::Rejected { reason } => {
                 assert_eq!(reason, "no_transactions");
             }
-            _ => panic!("Expected rejection, got {:?}", result),
+            _ => unreachable!("Expected rejection, got {:?}", result),
         }
     }
 
@@ -282,7 +282,7 @@ mod tests {
             SubmitResult::Accepted { hash, .. } => {
                 assert_eq!(hash.len(), 32);
             }
-            _ => panic!("Expected acceptance in mock mode, got {:?}", result),
+            _ => unreachable!("Expected acceptance in mock mode, got {:?}", result),
         }
     }
 

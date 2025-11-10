@@ -9,6 +9,7 @@ description = "BitQuan cryptography utilities with deterministic RNG support."
 [features]
 deterministic_tests = []
 memory-locking = ["libc"]
+memory-security = ["memory-locking"]
 
 [dependencies]
 bitquan-types = { path = "../types", version = "0.1.0" }

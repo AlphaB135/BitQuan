@@ -1,0 +1,49 @@
+# Prometheus configuration for BitQuan monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # BitQuan node metrics
+  - job_name: 'bitquan-node'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # BitQuan mining pool metrics
+  - job_name: 'bitquan-pool'
+    static_configs:
+      - targets: ['localhost:8081']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # BitQuan stratum server metrics
+  - job_name: 'bitquan-stratum'
+    static_configs:
+      - targets: ['localhost:8082']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+# Alerting rules
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "bitquan_alerts.yml"
