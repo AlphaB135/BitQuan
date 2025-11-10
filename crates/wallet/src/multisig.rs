@@ -4,9 +4,11 @@
 //! from a set of N public keys to authorize a transaction.
 
 use bitquan_types::time;
+use bq_crypto::CryptoRegistry;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Multi-signature wallet configuration.
@@ -51,9 +53,19 @@ pub struct PendingMultisigTx {
 }
 
 /// Multi-signature wallet implementation.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct MultisigWallet {
     config: MultisigConfig,
+    crypto_registry: Arc<CryptoRegistry>,
+}
+
+impl std::fmt::Debug for MultisigWallet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MultisigWallet")
+            .field("config", &self.config)
+            .field("crypto_registry", &"<CryptoRegistry>")
+            .finish()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -157,7 +169,18 @@ impl MultisigConfig {
 impl MultisigWallet {
     /// Creates a new multisig wallet with the given configuration.
     pub fn new(config: MultisigConfig) -> Self {
-        Self { config }
+        Self { 
+            config,
+            crypto_registry: Arc::new(CryptoRegistry::default()),
+        }
+    }
+
+    /// Creates a new multisig wallet with custom crypto registry (for performance optimization).
+    pub fn with_registry(config: MultisigConfig, registry: Arc<CryptoRegistry>) -> Self {
+        Self { 
+            config,
+            crypto_registry: registry,
+        }
     }
 
     /// Returns the wallet configuration.
@@ -244,8 +267,17 @@ impl MultisigWallet {
         }
 
         // CRITICAL: Verify cryptographic validity of each signature
+        // First decode the raw transaction data
         let tx_data = hex::decode(&pending.tx_data)
             .map_err(|_| MultisigError::InvalidSignature)?;
+        
+        // CRITICAL FIX: Always hash the transaction data before signature verification
+        // Dilithium3 should sign a digest, not raw data (for security and performance)
+        let tx_hash = {
+            let mut hasher = Sha256::new();
+            hasher.update(&tx_data);
+            hasher.finalize()
+        };
         
         for sig in &pending.signatures {
             let signature_bytes = hex::decode(&sig.signature)
@@ -254,8 +286,8 @@ impl MultisigWallet {
             let pubkey_bytes = hex::decode(&sig.public_key)
                 .map_err(|_| MultisigError::InvalidSignature)?;
             
-            // Verify PQC signature using same logic as ScriptInterpreter
-            if !self.verify_pqc_signature(&signature_bytes, &pubkey_bytes, &tx_data)? {
+            // Verify PQC signature using the transaction HASH (not raw data)
+            if !self.verify_pqc_signature(&signature_bytes, &pubkey_bytes, &tx_hash)? {
                 return Err(MultisigError::InvalidSignature);
             }
         }
@@ -280,6 +312,7 @@ impl MultisigWallet {
     }
 
     /// Verifies a PQC signature using the same logic as ScriptInterpreter.
+    /// PERFORMANCE FIX: Uses cached registry instead of creating new one each time.
     fn verify_pqc_signature(
         &self,
         sig: &[u8],
@@ -287,7 +320,6 @@ impl MultisigWallet {
         message: &[u8],
     ) -> Result<bool, MultisigError> {
         use bitquan_types::SignaturePayload;
-        use bq_crypto::CryptoRegistry;
         use bitquan_types::SigAlgorithm;
         
         // Create signature payload
@@ -298,9 +330,8 @@ impl MultisigWallet {
             aux: None,
         };
 
-        // Get crypto registry and verify
-        let registry = CryptoRegistry::default();
-        let provider = registry
+        // PERFORMANCE FIX: Use cached registry instead of creating new one
+        let provider = self.crypto_registry
             .provider_for(SigAlgorithm::Dilithium3)
             .ok_or(MultisigError::InvalidSignature)?;
 
@@ -483,7 +514,6 @@ impl MultisigWalletManager {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use bitquan_types::SignaturePayload;
 
     fn sample_pubkeys() -> Vec<String> {
         vec![
