@@ -27,7 +27,7 @@ fn empty_message_rejected() {
 #[test]
 fn handshake_times_out() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind listener");
-    let addr = listener.local_addr().unwrap();
+    let addr = listener.local_addr().expect("Failed to get local address");
 
     let server = thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept");

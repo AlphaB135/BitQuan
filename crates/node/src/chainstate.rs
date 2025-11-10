@@ -148,7 +148,7 @@ mod tests {
         let block = dummy_block();
         let hash = [1u8; 32];
 
-        let height = state.append_block(&block, hash).unwrap();
+        let height = state.append_block(&block, hash).expect("Failed to append block");
         assert_eq!(height, 1);
         assert_eq!(state.get_height(), 1);
         assert_eq!(state.get_tip(), hash);
@@ -161,7 +161,7 @@ mod tests {
 
         for i in 0..10 {
             let hash = [i as u8; 32];
-            state.append_block(&block, hash).unwrap();
+            state.append_block(&block, hash).expect("Failed to append block");
         }
 
         assert_eq!(state.get_height(), 10);

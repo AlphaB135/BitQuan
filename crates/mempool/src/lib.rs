@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_mempool_insert() {
-        let mut mempool = Mempool::new().unwrap();
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
         let tx = create_test_tx(1, 2, 1);
 
         // Insert with sufficient fee
@@ -468,7 +468,8 @@ mod tests {
     fn rejects_tx_exceeding_scriptsize() {
         let mut policy = MempoolPolicy::standard();
         policy.max_scriptsize = 12;
-        let mut mempool = Mempool::with_policy(policy).unwrap();
+
+        let mut mempool = Mempool::with_policy(policy).expect("Failed to create mempool with policy");
 
         let mut tx = create_test_tx(1, 1, 1);
         tx.outputs[0].script_pubkey = vec![0u8; 32];
@@ -481,7 +482,7 @@ mod tests {
     fn rejects_tx_exceeding_inputs() {
         let mut policy = MempoolPolicy::standard();
         policy.max_inputs_per_tx = 2;
-        let mut mempool = Mempool::with_policy(policy).unwrap();
+        let mut mempool = Mempool::with_policy(policy).expect("Failed to create mempool with policy");
 
         let tx = create_test_tx(3, 1, 1);
         let err = mempool.insert(tx, 1_000).unwrap_err();
@@ -492,7 +493,7 @@ mod tests {
     fn rejects_tx_exceeding_sigops() {
         let mut policy = MempoolPolicy::standard();
         policy.max_sigops_per_tx = 2;
-        let mut mempool = Mempool::with_policy(policy).unwrap();
+        let mut mempool = Mempool::with_policy(policy).expect("Failed to create mempool with policy");
 
         let tx = create_test_tx(1, 1, 5);
         let err = mempool.insert(tx, 1_000).unwrap_err();
@@ -503,7 +504,7 @@ mod tests {
     fn test_mempool_min_fee_rate() {
         let mut policy = MempoolPolicy::standard();
         policy.min_relay_fee_per_wu = 10;
-        let mut mempool = Mempool::with_limits(policy, 1_000_000).unwrap();
+        let mut mempool = Mempool::with_limits(policy, 1_000_000).expect("Failed to create mempool with limits");
         let tx = create_test_tx(1, 2, 1);
 
         // Fee too low for min rate
@@ -516,16 +517,16 @@ mod tests {
 
     #[test]
     fn test_fee_per_weight_ordering() {
-        let mut mempool = Mempool::new().unwrap();
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
 
         let tx1 = create_test_tx(1, 2, 1);
         let tx2 = create_test_tx(1, 2, 1);
         let tx3 = create_test_tx(1, 2, 1);
 
         // Insert with different fees
-        mempool.insert(tx1, 1000).unwrap();
-        mempool.insert(tx2, 5000).unwrap(); // Highest fee
-        mempool.insert(tx3, 2000).unwrap();
+        mempool.insert(tx1, 1000).expect("Failed to insert tx1");
+        mempool.insert(tx2, 5000).expect("Failed to insert tx2"); // Highest fee
+        mempool.insert(tx3, 2000).expect("Failed to insert tx3");
 
         // Drain should return highest fee first
         let drained = mempool.drain_high_priority(1);
@@ -537,13 +538,13 @@ mod tests {
     fn test_mempool_eviction() {
         // Small mempool
         let policy = MempoolPolicy::standard();
-        let mut mempool = Mempool::with_limits(policy, 500).unwrap();
+        let mut mempool = Mempool::with_limits(policy, 500).expect("Failed to create mempool with limits");
 
         let tx1 = create_test_tx(1, 2, 1);
         let tx2 = create_test_tx(1, 2, 1);
 
         // Fill mempool
-        mempool.insert(tx1, 1000).unwrap();
+        mempool.insert(tx1, 1000).expect("Failed to insert tx1");
 
         // Insert higher fee tx should evict lower fee
         let result = mempool.insert(tx2, 5000);
@@ -554,13 +555,13 @@ mod tests {
     #[ignore] // TODO: Fix protected fee rate test logic
     fn test_protected_fee_rate() {
         let policy = MempoolPolicy::standard();
-        let mut mempool = Mempool::with_limits(policy, 1000).unwrap();
+        let mut mempool = Mempool::with_limits(policy, 1000).expect("Failed to create mempool with limits");
 
         let tx1 = create_test_tx(1, 2, 1);
         let weight = calculate_tx_weight(&tx1).expect("weight");
 
         // Insert with protected fee rate (>= 10)
-        mempool.insert(tx1, weight as u64 * 11).unwrap();
+        mempool.insert(tx1, weight as u64 * 11).expect("Failed to insert tx1 with protected fee");
 
         // Fill mempool more
         for _ in 0..5 {
@@ -578,13 +579,13 @@ mod tests {
 
     #[test]
     fn test_select_for_block() {
-        let mut mempool = Mempool::new().unwrap();
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
 
         let tx1 = create_test_tx(1, 2, 1);
         let tx2 = create_test_tx(1, 2, 1);
 
-        mempool.insert(tx1, 5000).unwrap();
-        mempool.insert(tx2, 3000).unwrap();
+        mempool.insert(tx1, 5000).expect("Failed to insert tx1");
+        mempool.insert(tx2, 3000).expect("Failed to insert tx2");
 
         let selected = mempool.select_for_block(4_000_000);
 
@@ -594,12 +595,12 @@ mod tests {
 
     #[test]
     fn test_weight_limit_enforcement() {
-        let mut mempool = Mempool::new().unwrap();
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
 
         let tx = create_test_tx(1, 2, 1);
         let weight = calculate_tx_weight(&tx).expect("weight");
 
-        mempool.insert(tx, 1000).unwrap();
+        mempool.insert(tx, 1000).expect("Failed to insert tx");
 
         // Select with very small weight limit
         let selected = mempool.select_for_block(weight / 2);
@@ -640,7 +641,7 @@ mod tests {
     #[test]
     fn test_overflow_in_size_bytes() {
         let policy = MempoolPolicy::standard();
-        let mut mempool = Mempool::with_limits(policy, usize::MAX).unwrap();
+        let mut mempool = Mempool::with_limits(policy, usize::MAX).expect("Failed to create mempool with max limits");
 
         // Force size_bytes to near max
         mempool.size_bytes = usize::MAX - 100;
@@ -678,7 +679,7 @@ mod tests {
     #[test]
     fn test_overflow_in_freed_bytes() {
         let policy = MempoolPolicy::standard();
-        let mut mempool = Mempool::with_limits(policy, 1000).unwrap();
+        let mut mempool = Mempool::with_limits(policy, 1000).expect("Failed to create mempool with limits");
 
         // Create a mock transaction that would cause overflow in freed calculation
         // This is hard to test directly, but we verify the code path exists
@@ -692,7 +693,7 @@ mod tests {
 
     #[test]
     fn test_len_overflow_protection() {
-        let mempool = Mempool::new().unwrap();
+        let mempool = Mempool::new().expect("Failed to create mempool");
 
         // len() now uses try_fold with checked_add
         // If it detects overflow, it returns usize::MAX as a safe fallback
@@ -705,13 +706,13 @@ mod tests {
 
     #[test]
     fn test_select_for_block_overflow_protection() {
-        let mut mempool = Mempool::new().unwrap();
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
 
         let tx1 = create_test_tx(1, 2, 1);
         let tx2 = create_test_tx(1, 2, 1);
 
-        mempool.insert(tx1, 5000).unwrap();
-        mempool.insert(tx2, 3000).unwrap();
+        mempool.insert(tx1, 5000).expect("Failed to insert tx1");
+        mempool.insert(tx2, 3000).expect("Failed to insert tx2");
 
         // Test with very large max_weight to ensure no overflow in accumulation
         let selected = mempool.select_for_block(usize::MAX);

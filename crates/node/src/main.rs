@@ -72,7 +72,14 @@ impl PowMode {
     fn parse(value: &str) -> Result<Self> {
         match value.to_ascii_lowercase().as_str() {
             "hashcash" | "sha256d" | "real" => Ok(PowMode::Hashcash),
-            "mock" | "dev-fast-pow" => Ok(PowMode::Mock),
+            "mock" | "dev-fast-pow" => {
+                #[cfg(debug_assertions)]
+                return Ok(PowMode::Mock);
+                #[cfg(not(debug_assertions))]
+                return invalid("mock PoW is only available in debug builds");
+            },
+            #[cfg(feature = "mainnet")]
+            "mock" | "dev-fast-pow" => invalid("mock PoW is disabled in mainnet builds"),
             #[cfg(feature = "randomx")]
             "randomx" => Ok(PowMode::RandomX),
             #[cfg(feature = "randomx")]

@@ -431,8 +431,8 @@ mod tests {
     #[test]
     fn target_bytes_monotonic_with_bits() {
         // Larger exponent -> larger target (easier)
-        let t1 = compact_to_target_bytes(0x1d00ffff).unwrap();
-        let t2 = compact_to_target_bytes(0x1f00ffff).unwrap();
+        let t1 = compact_to_target_bytes(0x1d00ffff).expect("Failed to convert bits to target bytes");
+        let t2 = compact_to_target_bytes(0x1f00ffff).expect("Failed to convert bits to target bytes");
         assert!(t1 < t2);
     }
 
@@ -466,7 +466,7 @@ mod tests {
         assert_eq!(engine.algo(), PowAlgo::Sha256d);
 
         let hdr = dummy_header();
-        let hash = engine.pow_hash(&hdr).unwrap();
+        let hash = engine.pow_hash(&hdr).expect("Failed to compute PoW hash");
         assert_eq!(hash.len(), 32);
     }
 
@@ -478,7 +478,7 @@ mod tests {
         assert_eq!(engine.algo(), PowAlgo::RandomX);
 
         let hdr = dummy_header();
-        let hash = engine.pow_hash(&hdr).unwrap();
+        let hash = engine.pow_hash(&hdr).expect("Failed to compute PoW hash");
         assert_eq!(hash.len(), 32);
     }
 
@@ -489,8 +489,8 @@ mod tests {
         let rx_engine = RandomXEngine::new(RandomXConfig::default());
 
         let hdr = dummy_header();
-        let sha_hash = sha_engine.pow_hash(&hdr).unwrap();
-        let rx_hash = rx_engine.pow_hash(&hdr).unwrap();
+        let sha_hash = sha_engine.pow_hash(&hdr).expect("Failed to compute SHA256d hash");
+        let rx_hash = rx_engine.pow_hash(&hdr).expect("Failed to compute RandomX hash");
 
         // Different algorithms should produce different hashes
         assert_ne!(sha_hash, rx_hash);

@@ -483,7 +483,7 @@ mod tests {
             MonitorEventType::BlockValidationFailed,
             "Test alert".to_string(),
             Some(1000),
-        ).unwrap()
+        ).expect("Failed to create test alert")
     }
 
     #[test]
@@ -515,7 +515,7 @@ mod tests {
             MonitorEventType::SystemError,
             malicious_message.to_string(),
             None,
-        ).unwrap();
+        ).expect("Failed to create alert with malicious message");
         assert!(!alert.message.contains('\x00'));
     }
 

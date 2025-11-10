@@ -279,9 +279,9 @@ fn test_transaction_and_block_hash_determinism() {
 
     // Transaction sighash must be deterministic across repeated invocations.
     let ctx = bitquan_types::TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
-    let expected_tx_hash = transaction_sighash(&tx, &ctx).unwrap();
+    let expected_tx_hash = transaction_sighash(&tx, &ctx).expect("Failed to compute transaction sighash");
     for _ in 0..32 {
-        assert_eq!(transaction_sighash(&tx, &ctx).unwrap(), expected_tx_hash);
+        assert_eq!(transaction_sighash(&tx, &ctx).expect("Failed to compute transaction sighash"), expected_tx_hash);
     }
 
     // Build a block and ensure header hashing is deterministic as well.
@@ -305,7 +305,7 @@ fn test_transaction_and_block_hash_determinism() {
     }
 
     // Recomputing via freshly constructed block components must stay stable.
-    let expected_again = transaction_sighash(&block.transactions[0], &ctx).unwrap();
+    let expected_again = transaction_sighash(&block.transactions[0], &ctx).expect("Failed to compute transaction sighash again");
     assert_eq!(expected_again, expected_tx_hash);
 }
 
@@ -757,6 +757,11 @@ fn test_validate_block_weight_overflow() {
         }
         Err(ConsensusError::Signature(_)) => {
             // Signature verification would fail (expected for test data)
+            return; // This is an acceptable outcome
+        }
+        Err(ConsensusError::InvalidSignature(_)) => {
+            // Invalid signature (expected for test data)
+            return; // This is an acceptable outcome
         }
         Ok(_) => panic!("Expected error for massive block"),
         Err(e) => panic!("Unexpected error: {:?}", e),

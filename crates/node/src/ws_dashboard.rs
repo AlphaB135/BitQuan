@@ -463,7 +463,7 @@ mod tests {
             pool_efficiency: 97.3,
         };
 
-        let json = serde_json::to_string(&stats).unwrap();
+        let json = serde_json::to_string(&stats).expect("Failed to serialize stats");
         assert!(json.contains("\"timestamp\":1730500000"));
         assert!(json.contains("\"active_miners\":14"));
         assert!(json.contains("\"hashrate_total\":2.0e9"));
@@ -486,7 +486,7 @@ mod tests {
             client_version: Some("BitQuan-Miner/1.0".to_string()),
         };
 
-        let json = serde_json::to_string(&miner).unwrap();
+        let json = serde_json::to_string(&miner).expect("Failed to serialize miner info");
         assert!(json.contains("\"address\":\"miner1\""));
         assert!(json.contains("\"algo\":\"sha256d\""));
         assert!(json.contains("\"hashrate\":2.86e8"));

@@ -248,10 +248,10 @@ mod tests {
         let hash = [1u8; 32];
 
         // First time should be new
-        assert!(filter.mark_block_seen(hash).unwrap());
+        assert!(filter.mark_block_seen(hash).expect("Failed to mark block as seen"));
 
         // Second time should be seen
-        assert!(!filter.mark_block_seen(hash).unwrap());
+        assert!(!filter.mark_block_seen(hash).expect("Failed to mark duplicate block"));
     }
 
     #[test]
@@ -266,7 +266,7 @@ mod tests {
 
         // Should clear and accept new items
         let new_hash = [99u8; 32];
-        assert!(filter.mark_block_seen(new_hash).unwrap());
+        assert!(filter.mark_block_seen(new_hash).expect("Failed to mark new block after capacity"));
     }
 
     #[test]
@@ -276,11 +276,11 @@ mod tests {
         let hash2 = [2u8; 32];
 
         // Mark blocks as received
-        assert!(propagator.mark_block_received(hash1).unwrap());
-        assert!(propagator.mark_block_received(hash2).unwrap());
-        assert!(!propagator.mark_block_received(hash1).unwrap()); // Duplicate
+        assert!(propagator.mark_block_received(hash1).expect("Failed to mark first block as received"));
+        assert!(propagator.mark_block_received(hash2).expect("Failed to mark second block as received"));
+        assert!(!propagator.mark_block_received(hash1).expect("Failed to mark duplicate block")); // Duplicate
 
-        let stats = propagator.stats().unwrap();
+        let stats = propagator.stats().expect("Failed to get propagator stats");
         assert_eq!(stats.blocks_received, 2);
         assert_eq!(stats.blocks_rejected, 1);
     }

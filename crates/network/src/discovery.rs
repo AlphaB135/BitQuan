@@ -336,10 +336,10 @@ mod tests {
         };
 
         // Save
-        book.save_to_file(&temp_file).unwrap();
+        book.save_to_file(&temp_file).expect("Failed to save peer book");
 
         // Load
-        let loaded = PeerBook::load_from_file(&temp_file).unwrap();
+        let loaded = PeerBook::load_from_file(&temp_file).expect("Failed to load peer book");
 
         assert_eq!(loaded.peer_count(), 1);
         assert!(loaded.get_peer("test:18444").is_some());

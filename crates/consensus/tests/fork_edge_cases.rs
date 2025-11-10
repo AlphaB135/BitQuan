@@ -22,18 +22,18 @@ fn test_tie_breaking_by_timestamp() {
     let mut fc = ForkChoice::new();
 
     let genesis = make_header([0u8; 32], 0x207fffff, 0);
-    fc.add_genesis(genesis.clone()).unwrap();
+    fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
     let genesis_hash = header_hash(&genesis);
 
     // Chain A: timestamp 100
     let mut a1 = make_header(genesis_hash, 0x207fffff, 1);
     a1.time = 100;
-    fc.add_block(a1).unwrap();
+    fc.add_block(a1).expect("Failed to add block a1");
 
     // Chain B: earlier timestamp 50 - should win
     let mut b1 = make_header(genesis_hash, 0x207fffff, 2);
     b1.time = 50;
-    let (is_new_tip, reorg) = fc.add_block(b1).unwrap();
+    let (is_new_tip, reorg) = fc.add_block(b1).expect("Failed to add block b1");
 
     assert!(is_new_tip, "Earlier timestamp should win tie-break");
     assert!(reorg.is_some());
@@ -44,13 +44,13 @@ fn test_deep_reorg_rejected() {
     let mut fc = ForkChoice::with_max_reorg(5);
 
     let genesis = make_header([0u8; 32], 0x207fffff, 0);
-    fc.add_genesis(genesis.clone()).unwrap();
+    fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
     let mut prev = header_hash(&genesis);
 
     // Build chain A with 10 blocks
     for i in 1..=10 {
         let header = make_header(prev, 0x207fffff, i);
-        fc.add_block(header.clone()).unwrap();
+        fc.add_block(header.clone()).expect("Failed to add block to chain A");
         prev = header_hash(&header);
     }
 
@@ -76,14 +76,14 @@ fn test_reorg_depth_tracking() {
     let mut fc = ForkChoice::new();
 
     let genesis = make_header([0u8; 32], 0x207fffff, 0);
-    fc.add_genesis(genesis.clone()).unwrap();
+    fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
     let genesis_hash = header_hash(&genesis);
 
     // Chain A: 3 blocks
     let mut prev_a = genesis_hash;
     for i in 1..=3 {
         let header = make_header(prev_a, 0x207fffff, i);
-        fc.add_block(header.clone()).unwrap();
+        fc.add_block(header.clone()).expect("Failed to add block to chain A");
         prev_a = header_hash(&header);
     }
 
@@ -93,7 +93,7 @@ fn test_reorg_depth_tracking() {
     let mut prev_b = genesis_hash;
     for i in 10..=13 {
         let header = make_header(prev_b, 0x207fffff, i);
-        let (is_tip, _reorg) = fc.add_block(header.clone()).unwrap();
+        let (is_tip, _reorg) = fc.add_block(header.clone()).expect("Failed to add block to chain B");
         prev_b = header_hash(&header);
 
         if is_tip && i == 13 {
@@ -119,14 +119,14 @@ fn test_reorg_over_100_blocks() {
     let mut fc = ForkChoice::new();
 
     let genesis = make_header([0u8; 32], 0x207fffff, 0);
-    fc.add_genesis(genesis.clone()).unwrap();
+    fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
     let genesis_hash = header_hash(&genesis);
 
     // Chain A: 150 blocks
     let mut prev_a = genesis_hash;
     for i in 1..=150 {
         let header = make_header(prev_a, 0x207fffff, i);
-        fc.add_block(header.clone()).unwrap();
+        fc.add_block(header.clone()).expect("Failed to add block to chain A");
         prev_a = header_hash(&header);
     }
 

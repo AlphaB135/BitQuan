@@ -13,14 +13,14 @@ fn test_jwt_auth_creation() {
         "Login should succeed with default admin user"
     );
 
-    let token_str = token.unwrap();
+    let token_str = token.expect("Failed to get login token");
     assert!(!token_str.is_empty(), "Token should not be empty");
 
     // Verify the token
     let claims = jwt_auth.verify_token(&token_str);
     assert!(claims.is_ok(), "Token verification should succeed");
 
-    let claims = claims.unwrap();
+    let claims = claims.expect("Failed to verify token claims");
     assert_eq!(claims.sub, "admin");
     assert_eq!(claims.role, "admin");
     assert!(!claims.is_expired(), "Token should not be expired");
@@ -32,7 +32,7 @@ fn test_jwt_auth_invalid_password() {
 
     let result = jwt_auth.login("admin", "wrongpassword");
     assert!(result.is_err(), "Login should fail with wrong password");
-    assert_eq!(result.unwrap_err(), "Invalid password");
+    assert_eq!(result.expect("Should return error for invalid password"), "Invalid password");
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn test_jwt_auth_invalid_user() {
 
     let result = jwt_auth.login("nonexistent", "anypassword");
     assert!(result.is_err(), "Login should fail with non-existent user");
-    assert_eq!(result.unwrap_err(), "User not found");
+    assert_eq!(result.expect("Should return error for non-existent user"), "User not found");
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn test_jwt_auth_add_user() {
     let token = jwt_auth.login("alice", "alicepass");
     assert!(token.is_ok(), "Login with new user should succeed");
 
-    let claims = jwt_auth.verify_token(&token.unwrap()).unwrap();
+    let claims = jwt_auth.verify_token(&token.expect("Failed to get login token")).expect("Failed to verify token claims");
     assert_eq!(claims.sub, "alice");
     assert_eq!(claims.role, "miner");
 }
@@ -96,7 +96,7 @@ fn test_jwt_token_verification_fails_with_wrong_secret() {
     let jwt_auth1 = JwtAuth::new("secret1");
     let jwt_auth2 = JwtAuth::new("secret2");
 
-    let token = jwt_auth1.login("admin", "admin123").unwrap();
+    let token = jwt_auth1.login("admin", "admin123").expect("Failed to login with admin credentials");
 
     // Token from jwt_auth1 should not verify with jwt_auth2
     let result = jwt_auth2.verify_token(&token);
@@ -109,8 +109,8 @@ fn test_jwt_token_verification_fails_with_wrong_secret() {
 #[test]
 fn test_jwt_token_claims_structure() {
     let jwt_auth = JwtAuth::new("test-secret");
-    let token = jwt_auth.login("admin", "admin123").unwrap();
-    let claims = jwt_auth.verify_token(&token).unwrap();
+    let token = jwt_auth.login("admin", "admin123").expect("Failed to login with admin credentials");
+    let claims = jwt_auth.verify_token(&token).expect("Failed to verify token claims");
 
     // Check all required fields
     assert!(
@@ -129,8 +129,8 @@ fn test_jwt_token_claims_structure() {
 #[test]
 fn test_jwt_admin_role_check() {
     let jwt_auth = JwtAuth::new("test-secret");
-    let token = jwt_auth.login("admin", "admin123").unwrap();
-    let claims = jwt_auth.verify_token(&token).unwrap();
+    let token = jwt_auth.login("admin", "admin123").expect("Failed to login with admin credentials");
+    let claims = jwt_auth.verify_token(&token).expect("Failed to verify token claims");
 
     assert!(claims.is_admin(), "Admin user should have admin role");
 }
@@ -140,7 +140,7 @@ fn test_jwt_refresh_token() {
     let jwt_auth = JwtAuth::new("test-secret");
 
     // Login with refresh token
-    let (access_token, refresh_token) = jwt_auth.login_with_refresh("admin", "admin123").unwrap();
+    let (access_token, refresh_token) = jwt_auth.login_with_refresh("admin", "admin123").expect("Failed to login with refresh token");
 
     assert!(!access_token.is_empty(), "Access token should not be empty");
     assert!(
@@ -149,20 +149,20 @@ fn test_jwt_refresh_token() {
     );
 
     // Verify access token
-    let access_claims = jwt_auth.verify_token(&access_token).unwrap();
+    let access_claims = jwt_auth.verify_token(&access_token).expect("Failed to verify access token claims");
     assert_eq!(access_claims.sub, "admin");
     assert!(!access_claims.is_refresh_token());
 
     // Verify refresh token
-    let refresh_claims = jwt_auth.verify_token(&refresh_token).unwrap();
+    let refresh_claims = jwt_auth.verify_token(&refresh_token).expect("Failed to verify refresh token claims");
     assert_eq!(refresh_claims.sub, "admin");
     assert!(refresh_claims.is_refresh_token());
 
     // Use refresh token to get new access token
-    let new_access_token = jwt_auth.refresh_token(&refresh_token).unwrap();
+    let new_access_token = jwt_auth.refresh_token(&refresh_token).expect("Failed to refresh token");
     assert!(!new_access_token.is_empty());
 
-    let new_claims = jwt_auth.verify_token(&new_access_token).unwrap();
+    let new_claims = jwt_auth.verify_token(&new_access_token).expect("Failed to verify new access token claims");
     assert_eq!(new_claims.sub, "admin");
     assert!(!new_claims.is_refresh_token());
 }
@@ -172,7 +172,7 @@ fn test_jwt_refresh_with_access_token_fails() {
     let jwt_auth = JwtAuth::new("test-secret");
 
     // Get regular access token
-    let access_token = jwt_auth.login("admin", "admin123").unwrap();
+    let access_token = jwt_auth.login("admin", "admin123").expect("Failed to login with admin credentials");
 
     // Try to refresh with access token (should fail)
     let result = jwt_auth.refresh_token(&access_token);
@@ -185,9 +185,9 @@ fn test_jwt_refresh_with_access_token_fails() {
 #[test]
 fn test_jwt_refresh_token_expiration() {
     let jwt_auth = JwtAuth::new("test-secret");
-    let (_, refresh_token) = jwt_auth.login_with_refresh("admin", "admin123").unwrap();
+    let (_, refresh_token) = jwt_auth.login_with_refresh("admin", "admin123").expect("Failed to login with refresh token");
 
-    let claims = jwt_auth.verify_token(&refresh_token).unwrap();
+    let claims = jwt_auth.verify_token(&refresh_token).expect("Failed to verify refresh token claims");
 
     // Refresh token should expire in 7 days (604800 seconds)
     let expected_lifetime = 604800;

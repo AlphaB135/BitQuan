@@ -39,7 +39,7 @@ fn test_mainnet_genesis_valid_json() {
     
     // Verify mainnet specific values
     assert_eq!(
-        genesis["network_id"].as_str().unwrap(),
+        genesis["network_id"].as_str().expect("network_id must be a string"),
         "mainnet",
         "network_id must be 'mainnet'"
     );
@@ -55,7 +55,7 @@ fn test_testnet_genesis_valid_json() {
 
     assert!(genesis["chain_id"].is_string(), "chain_id must be present");
     assert_eq!(
-        genesis["network_id"].as_str().unwrap(),
+        genesis["network_id"].as_str().expect("network_id must be a string"),
         "testnet",
         "network_id must be 'testnet'"
     );
@@ -65,9 +65,9 @@ fn test_testnet_genesis_valid_json() {
 fn test_mainnet_genesis_hash_format() {
     let content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
-    let genesis: Value = serde_json::from_str(&content).unwrap();
+    let genesis: Value = serde_json::from_str(&content).expect("Failed to parse mainnet genesis JSON");
 
-    let hash = genesis["genesis_hash"].as_str().unwrap();
+    let hash = genesis["genesis_hash"].as_str().expect("genesis_hash must be a string");
     
     // Genesis hash must be 64 hex characters (32 bytes)
     assert_eq!(hash.len(), 64, "Genesis hash must be 64 hex characters");
@@ -87,7 +87,7 @@ fn test_mainnet_genesis_hash_format() {
 fn test_mainnet_consensus_params() {
     let content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
-    let genesis: Value = serde_json::from_str(&content).unwrap();
+    let genesis: Value = serde_json::from_str(&content).expect("Failed to parse mainnet genesis JSON");
 
     let params = &genesis["consensus_params"];
     
@@ -98,7 +98,7 @@ fn test_mainnet_consensus_params() {
     
     // Mainnet should use SHA-256d
     assert_eq!(
-        params["pow_algo"].as_str().unwrap(),
+        params["pow_algo"].as_str().expect("pow_algo must be a string"),
         "sha256d",
         "Mainnet must use SHA-256d PoW"
     );
@@ -108,7 +108,7 @@ fn test_mainnet_consensus_params() {
 fn test_mainnet_pqc_signature_present() {
     let content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
-    let genesis: Value = serde_json::from_str(&content).unwrap();
+    let genesis: Value = serde_json::from_str(&content).expect("Failed to parse mainnet genesis JSON");
 
     let pqc_sig = &genesis["pqc_signature"];
     
@@ -117,7 +117,7 @@ fn test_mainnet_pqc_signature_present() {
     assert!(pqc_sig["signature"].is_string(), "PQC signature must be present");
     
     assert_eq!(
-        pqc_sig["algorithm"].as_str().unwrap(),
+        pqc_sig["algorithm"].as_str().expect("algorithm must be a string"),
         "dilithium3",
         "Must use Dilithium3 for genesis signing"
     );
@@ -129,7 +129,7 @@ fn test_mainnet_dns_seeds() {
         .expect("Failed to read mainnet genesis");
     let genesis: Value = serde_json::from_str(&content).unwrap();
 
-    let seeds = genesis["dns_seeds"].as_array().unwrap();
+    let seeds = genesis["dns_seeds"].as_array().expect("dns_seeds must be an array");
     
     assert!(
         seeds.len() >= 3,
@@ -137,7 +137,7 @@ fn test_mainnet_dns_seeds() {
     );
     
     for seed in seeds {
-        let seed_str = seed.as_str().unwrap();
+        let seed_str = seed.as_str().expect("seed must be a string");
         assert!(
             seed_str.contains(".bitquan.network"),
             "DNS seeds should use official domain"
@@ -149,9 +149,9 @@ fn test_mainnet_dns_seeds() {
 fn test_mainnet_bootstrap_peers() {
     let content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
-    let genesis: Value = serde_json::from_str(&content).unwrap();
+    let genesis: Value = serde_json::from_str(&content).expect("Failed to parse mainnet genesis JSON");
 
-    let peers = genesis["bootstrap_peers"].as_array().unwrap();
+    let peers = genesis["bootstrap_peers"].as_array().expect("bootstrap_peers must be an array");
     
     assert!(
         peers.len() >= 2,
@@ -159,7 +159,7 @@ fn test_mainnet_bootstrap_peers() {
     );
     
     for peer in peers {
-        let peer_str = peer.as_str().unwrap();
+        let peer_str = peer.as_str().expect("peer must be a string");
         assert!(
             peer_str.contains(':'),
             "Bootstrap peer must include port: {}",
@@ -172,16 +172,16 @@ fn test_mainnet_bootstrap_peers() {
 fn test_mainnet_min_client_version() {
     let content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
-    let genesis: Value = serde_json::from_str(&content).unwrap();
+    let genesis: Value = serde_json::from_str(&content).expect("Failed to parse mainnet genesis JSON");
 
-    let version = genesis["min_client_version"].as_str().unwrap();
+    let version = genesis["min_client_version"].as_str().expect("min_client_version must be a string");
     
     // Version should be in semver format
     let parts: Vec<&str> = version.split('.').collect();
     assert_eq!(parts.len(), 3, "Version must be in semver format (X.Y.Z)");
     
     // For mainnet launch, should be >= 1.0.0
-    let major: u32 = parts[0].parse().unwrap();
+    let major: u32 = parts[0].parse().expect("Failed to parse major version");
     assert!(major >= 1, "Mainnet requires version >= 1.0.0");
 }
 
@@ -189,7 +189,7 @@ fn test_mainnet_min_client_version() {
 fn test_testnet_allows_premine() {
     let content = fs::read_to_string("genesis/testnet.json")
         .expect("Failed to read testnet genesis");
-    let genesis: Value = serde_json::from_str(&content).unwrap();
+    let genesis: Value = serde_json::from_str(&content).expect("Failed to parse testnet genesis JSON");
 
     // Testnet may have premine for development
     if let Some(premine) = genesis.get("premine") {
@@ -201,10 +201,10 @@ fn test_testnet_allows_premine() {
 fn test_mainnet_no_premine() {
     let content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
-    let genesis: Value = serde_json::from_str(&content).unwrap();
+    let genesis: Value = serde_json::from_str(&content).expect("Failed to parse mainnet genesis JSON");
 
     let premine = &genesis["premine"];
-    let total = premine["total_amount"].as_u64().unwrap();
+    let total = premine["total_amount"].as_u64().expect("total_amount must be a number");
     
     assert_eq!(
         total, 0,
@@ -216,7 +216,7 @@ fn test_mainnet_no_premine() {
 fn test_genesis_block_structure() {
     let content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
-    let genesis: Value = serde_json::from_str(&content).unwrap();
+    let genesis: Value = serde_json::from_str(&content).expect("Failed to parse mainnet genesis JSON");
 
     let block = &genesis["genesis_block"];
     

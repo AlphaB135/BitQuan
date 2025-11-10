@@ -601,9 +601,9 @@ mod tests {
         for &val in &values {
             let compact = CompactUint::from(val);
             let mut buf = Vec::new();
-            compact.encode(&mut buf).unwrap();
+            compact.encode(&mut buf).expect("Failed to encode compact uint");
 
-            let decoded = CompactUint::decode(&mut &buf[..]).unwrap();
+            let decoded = CompactUint::decode(&mut &buf[..]).expect("Failed to decode compact uint");
             assert_eq!(decoded.value(), val);
         }
     }
@@ -661,9 +661,9 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        tx.encode(&mut buf).unwrap();
+        tx.encode(&mut buf).expect("Failed to encode transaction");
 
-        let decoded = Transaction::decode(&mut &buf[..]).unwrap();
+        let decoded = Transaction::decode(&mut &buf[..]).expect("Failed to decode transaction");
         assert_eq!(decoded.version, tx.version);
         assert_eq!(decoded.inputs.len(), tx.inputs.len());
         assert_eq!(decoded.outputs.len(), tx.outputs.len());
@@ -684,10 +684,10 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        header.encode(&mut buf).unwrap();
+        header.encode(&mut buf).expect("Failed to encode block header");
         assert_eq!(buf.len(), 117); // Fixed header size (with algo_id)
 
-        let decoded = BlockHeader::decode(&mut &buf[..]).unwrap();
+        let decoded = BlockHeader::decode(&mut &buf[..]).expect("Failed to decode block header");
         assert_eq!(decoded.version, header.version);
         assert_eq!(decoded.time, header.time);
         assert_eq!(decoded.nonce, header.nonce);
@@ -722,9 +722,9 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        block.encode(&mut buf).unwrap();
+        block.encode(&mut buf).expect("Failed to encode block");
 
-        let decoded = Block::decode(&mut &buf[..]).unwrap();
+        let decoded = Block::decode(&mut &buf[..]).expect("Failed to decode block");
         assert_eq!(decoded.transactions.len(), block.transactions.len());
     }
 }

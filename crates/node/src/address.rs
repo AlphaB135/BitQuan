@@ -161,7 +161,7 @@ mod tests {
         let address = encode_bech32m(&hash);
         assert!(address.starts_with("bq1"));
 
-        let decoded = decode_bech32m(&address).unwrap();
+        let decoded = decode_bech32m(&address).expect("Failed to decode bech32m address");
         assert_eq!(decoded, hash);
     }
 
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_inspect_legacy_q_address() {
-        let hrp = Hrp::parse(HRP_MAINNET_LEGACY).unwrap();
+        let hrp = Hrp::parse(HRP_MAINNET_LEGACY).expect("Failed to parse legacy HRP");
         let hash = [0x44; 32];
         let legacy = bech32::encode::<Bech32m>(hrp, &hash).expect("encode legacy");
         let info = inspect(&legacy).expect("legacy address should validate");
@@ -191,7 +191,7 @@ mod tests {
     fn test_inspect_rejects_wrong_hrp() {
         let hash = [0x22; 32];
         let wrong_address =
-            bech32::encode::<Bech32m>(Hrp::parse("x").unwrap(), &hash).expect("encode");
+            bech32::encode::<Bech32m>(Hrp::parse("x").expect("Failed to parse HRP"), &hash).expect("encode");
         let err = inspect(&wrong_address).unwrap_err();
         assert!(
             err.contains("unsupported HRP"),

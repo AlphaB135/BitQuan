@@ -559,7 +559,7 @@ mod tests {
             serde_json::json!(1),
         );
         assert!(response.result.is_some());
-        assert_eq!(response.result.unwrap(), 12345);
+        assert_eq!(response.result.expect("Response should have result"), 12345);
     }
 
     #[test]
@@ -572,6 +572,6 @@ mod tests {
             serde_json::json!(1),
         );
         assert!(response.error.is_some());
-        assert_eq!(response.error.unwrap().code, error_codes::METHOD_NOT_FOUND);
+        assert_eq!(response.error.expect("Response should have error").code, error_codes::METHOD_NOT_FOUND);
     }
 }

@@ -340,7 +340,7 @@ mod tests {
             .add_input([0x01; 32], 0, 50_000_000)
             .add_output(vec![0x76, 0xa9, 0x14], 40_000_000)
             .build_unsigned()
-            .unwrap();
+            .expect("Failed to build unsigned transaction");
 
         assert_eq!(tx.inputs.len(), 1);
         assert_eq!(tx.outputs.len(), 1);
@@ -353,10 +353,10 @@ mod tests {
             .add_input([0x42; 32], 0, 100)
             .add_output(vec![0x00], 50)
             .build_unsigned()
-            .unwrap();
+            .expect("Failed to build unsigned transaction");
 
         let ctx = TxContext::new(tx.network, tx.genesis_hash);
-        let hash = compute_sighash_with_context(&tx, &ctx, 0).unwrap();
+        let hash = compute_sighash_with_context(&tx, &ctx, 0).expect("Failed to compute sighash");
         assert_ne!(hash, [0u8; 32]);
     }
 
@@ -368,7 +368,7 @@ mod tests {
             .add_input([0x42; 32], 0, 100)
             .add_output(vec![0x00], 50)
             .build_unsigned()
-            .unwrap();
+            .expect("Failed to build unsigned transaction with context");
 
         assert_eq!(tx.network, NetworkId::Mainnet);
         assert_eq!(tx.genesis_hash, GENESIS_HASH_BYTES);
@@ -382,7 +382,7 @@ mod tests {
             .add_input([0x42; 32], 0, 100)
             .add_output(vec![0x00], 50)
             .build_unsigned()
-            .unwrap();
+            .expect("Failed to build unsigned transaction for devnet");
 
         // Try to compute sighash with mainnet context
         let wrong_ctx = TxContext::mainnet(GENESIS_HASH_BYTES);
@@ -403,7 +403,7 @@ mod tests {
             .add_input(input, 0, 100)
             .add_output(output.clone(), 50)
             .build_unsigned()
-            .unwrap();
+            .expect("Failed to build unsigned transaction for devnet");
 
         // Build transaction for mainnet (same data, different network)
         let tx_mainnet = TransactionBuilder::new()
@@ -411,13 +411,13 @@ mod tests {
             .add_input(input, 0, 100)
             .add_output(output, 50)
             .build_unsigned()
-            .unwrap();
+            .expect("Failed to build unsigned transaction for mainnet");
 
         let ctx_devnet = TxContext::new(NetworkId::Devnet, GENESIS_HASH_BYTES);
         let ctx_mainnet = TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
 
-        let hash_devnet = compute_sighash_with_context(&tx_devnet, &ctx_devnet, 0).unwrap();
-        let hash_mainnet = compute_sighash_with_context(&tx_mainnet, &ctx_mainnet, 0).unwrap();
+        let hash_devnet = compute_sighash_with_context(&tx_devnet, &ctx_devnet, 0).expect("Failed to compute devnet sighash");
+        let hash_mainnet = compute_sighash_with_context(&tx_mainnet, &ctx_mainnet, 0).expect("Failed to compute mainnet sighash");
 
         // Same transaction data but different networks should produce different hashes
         assert_ne!(hash_devnet, hash_mainnet);
@@ -436,7 +436,7 @@ mod tests {
             .add_input(input, 0, 100)
             .add_output(output.clone(), 50)
             .build_unsigned()
-            .unwrap();
+            .expect("Failed to build unsigned transaction with genesis1");
 
         // Build transaction with genesis2
         let tx2 = TransactionBuilder::new()
@@ -444,13 +444,13 @@ mod tests {
             .add_input(input, 0, 100)
             .add_output(output, 50)
             .build_unsigned()
-            .unwrap();
+            .expect("Failed to build unsigned transaction with genesis2");
 
         let ctx1 = TxContext::new(NetworkId::Devnet, genesis1);
         let ctx2 = TxContext::new(NetworkId::Devnet, genesis2);
 
-        let hash1 = compute_sighash_with_context(&tx1, &ctx1, 0).unwrap();
-        let hash2 = compute_sighash_with_context(&tx2, &ctx2, 0).unwrap();
+        let hash1 = compute_sighash_with_context(&tx1, &ctx1, 0).expect("Failed to compute sighash with genesis1");
+        let hash2 = compute_sighash_with_context(&tx2, &ctx2, 0).expect("Failed to compute sighash with genesis2");
 
         // Same transaction data but different genesis should produce different hashes
         assert_ne!(hash1, hash2);
@@ -492,7 +492,7 @@ mod tests {
         ];
 
         let selected =
-            select_coins(&utxos, 25_000_000, 1, CoinSelection::SmallestSufficient).unwrap();
+            select_coins(&utxos, 25_000_000, 1, CoinSelection::SmallestSufficient).expect("Failed to select coins");
         assert!(!selected.is_empty());
 
         // Use saturating_add to prevent overflow when summing coin values
@@ -527,7 +527,7 @@ mod overflow_tests {
         assert!(result.is_ok());
 
         // Should select one coin (sufficient)
-        let selected = result.unwrap();
+        let selected = result.expect("Failed to get selected coins");
         assert!(!selected.is_empty());
     }
 

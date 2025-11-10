@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_dns_seed_parse() {
-        let seed = DnsSeed::parse("seed.example.com:8333").unwrap();
+        let seed = DnsSeed::parse("seed.example.com:8333").expect("Failed to parse DNS seed");
         assert_eq!(seed.hostname, "seed.example.com");
         assert_eq!(seed.port, 8333);
     }

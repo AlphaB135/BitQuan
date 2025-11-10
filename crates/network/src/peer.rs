@@ -659,7 +659,7 @@ mod tests {
     fn test_peer_manager_height_update() {
         let pm = PeerManager::new(10);
         pm.update_height(42);
-        assert_eq!(*pm.current_height.lock().unwrap(), 42);
+        assert_eq!(*pm.current_height.lock().expect("Failed to lock current height"), 42);
     }
 
     #[test]
@@ -674,8 +674,8 @@ mod tests {
     #[test]
     fn test_ban_score_threshold() {
         use std::net::TcpListener;
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind TCP listener");
+        let addr = listener.local_addr().expect("Failed to get local address");
 
         std::thread::spawn(move || {
             if let Ok((stream, _)) = listener.accept() {
@@ -683,8 +683,8 @@ mod tests {
             }
         });
 
-        let stream = TcpStream::connect(addr).unwrap();
-        let mut peer = Peer::new(stream, addr).unwrap();
+        let stream = TcpStream::connect(addr).expect("Failed to connect to test server");
+        let mut peer = Peer::new(stream, addr).expect("Failed to create peer");
 
         assert_eq!(peer.ban_score, 0);
         assert!(!peer.should_ban());

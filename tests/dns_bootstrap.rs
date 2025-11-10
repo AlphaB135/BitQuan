@@ -92,7 +92,7 @@ fn test_seed_domains_use_standard_ports() {
 
         let parts: Vec<&str> = line.split(':').collect();
         if parts.len() == 2 {
-            let port: u16 = parts[1].parse().unwrap();
+            let port: u16 = parts[1].parse().expect("Failed to parse port number");
             
             // Mainnet typically uses 8333, testnet uses 18333
             if line.contains("testnet") {
@@ -118,8 +118,8 @@ fn test_genesis_json_matches_dns_seeds() {
     let mainnet_content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
     
-    let mainnet_json: serde_json::Value = serde_json::from_str(&mainnet_content).unwrap();
-    let dns_seeds = mainnet_json["dns_seeds"].as_array().unwrap();
+    let mainnet_json: serde_json::Value = serde_json::from_str(&mainnet_content).expect("Failed to parse mainnet genesis JSON");
+    let dns_seeds = mainnet_json["dns_seeds"].as_array().expect("dns_seeds must be an array");
 
     // Extract mainnet seeds from dns_seeds.txt
     let file_mainnet_seeds: Vec<String> = seeds_content
@@ -131,13 +131,13 @@ fn test_genesis_json_matches_dns_seeds() {
         })
         .map(|line| {
             // Extract just domain without port
-            line.split(':').next().unwrap().to_string()
+            line.split(':').next().expect("Seed should contain colon").to_string()
         })
         .collect();
 
     // Check that genesis.json DNS seeds are present in dns_seeds.txt
     for seed in dns_seeds {
-        let seed_str = seed.as_str().unwrap();
+        let seed_str = seed.as_str().expect("Seed must be a string");
         let found = file_mainnet_seeds.iter().any(|fs| fs.contains(seed_str));
         assert!(
             found,
@@ -163,7 +163,7 @@ fn test_dns_bootstrap_mock_resolution() {
     for seed in valid_seeds {
         let parts: Vec<&str> = seed.split(':').collect();
         let domain = parts[0];
-        let port = parts[1].parse::<u16>().unwrap();
+        let port = parts[1].parse::<u16>().expect("Failed to parse port number");
         
         // Validate that we can construct socket address format
         let socket_addr_str = format!("{}:{}", domain, port);
@@ -179,19 +179,19 @@ fn test_dns_bootstrap_mock_resolution() {
 #[test]
 fn test_bootstrap_peer_connectivity_check() {
     // Integration test: verify bootstrap peer configuration
-    let mainnet = fs::read_to_string("genesis/mainnet.json").unwrap();
-    let genesis: serde_json::Value = serde_json::from_str(&mainnet).unwrap();
+    let mainnet = fs::read_to_string("genesis/mainnet.json").expect("Failed to read mainnet genesis");
+    let genesis: serde_json::Value = serde_json::from_str(&mainnet).expect("Failed to parse mainnet genesis JSON");
 
-    let bootstrap_peers = genesis["bootstrap_peers"].as_array().unwrap();
+    let bootstrap_peers = genesis["bootstrap_peers"].as_array().expect("bootstrap_peers must be an array");
 
     for peer in bootstrap_peers {
-        let peer_str = peer.as_str().unwrap();
+        let peer_str = peer.as_str().expect("Peer must be a string");
         let parts: Vec<&str> = peer_str.split(':').collect();
         
         assert_eq!(parts.len(), 2, "Bootstrap peer must be host:port format");
         
         let _host = parts[0];
-        let port = parts[1].parse::<u16>().unwrap();
+        let port = parts[1].parse::<u16>().expect("Failed to parse port number");
         
         assert!(
             port > 0 && port < 65536,

@@ -413,7 +413,7 @@ pub fn calculate_block_weight(block: &Block) -> Result<usize, ConsensusError> {
 pub(crate) fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
     use bitquan_types::CompactUint;
     // Total bytes (base + witness) - return 0 on error (deprecated anyway)
-    let total = block.serialized_size_hint().unwrap_or(0) as u64;
+    let total = block.serialized_size_hint().unwrap_or_else(|_| 0) as u64;
     // Approximate witness bytes from tx structure (count prefix + witnesses)
     let mut witness_bytes: u64 = 0;
     for tx in &block.transactions {
@@ -494,7 +494,7 @@ pub fn validate_transaction_signatures(
 }
 
 /// Validates block header according to Bitcoin-style rules
-fn validate_block_header(block: &Block, height: u64, params: &ConsensusParams) -> Result<(), ConsensusError> {
+fn validate_block_header(block: &Block, height: u64, _params: &ConsensusParams) -> Result<(), ConsensusError> {
     let header = &block.header;
     
     // Genesis block has no parent
@@ -502,7 +502,9 @@ fn validate_block_header(block: &Block, height: u64, params: &ConsensusParams) -
         // Validate timestamp is not too far in the future (2 hours tolerance)
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|_| ConsensusError::InvalidSignature(
+                "System time is before Unix epoch".to_string()
+            ))?
             .as_secs();
         
         if u64::from(header.time) > current_time + 7200 {

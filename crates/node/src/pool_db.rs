@@ -308,13 +308,13 @@ mod tests {
 
     #[test]
     fn test_database_creation() {
-        let db = PoolDatabase::memory().unwrap();
-        assert_eq!(db.total_rewards().unwrap(), 0);
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
+        assert_eq!(db.total_rewards().expect("Failed to get total rewards"), 0);
     }
 
     #[test]
     fn test_block_insertion_and_retrieval() {
-        let db = PoolDatabase::memory().unwrap();
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
 
         let block = BlockRecord {
             hash: "abc123".to_string(),
@@ -324,32 +324,32 @@ mod tests {
             timestamp: 1234567890,
         };
 
-        db.insert_block(&block).unwrap();
+        db.insert_block(&block).expect("Failed to insert block");
 
-        let retrieved = db.get_block("abc123").unwrap().unwrap();
+        let retrieved = db.get_block("abc123").expect("Failed to get block").expect("Block not found");
         assert_eq!(retrieved.height, 100);
         assert_eq!(retrieved.miner_id, "miner1");
     }
 
     #[test]
     fn test_miner_reward_accumulation() {
-        let db = PoolDatabase::memory().unwrap();
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
 
-        db.update_miner_reward("miner1", 1000).unwrap();
-        db.update_miner_reward("miner1", 2000).unwrap();
+        db.update_miner_reward("miner1", 1000).expect("Failed to update miner reward");
+        db.update_miner_reward("miner1", 2000).expect("Failed to update miner reward");
 
-        let total = db.get_miner_reward("miner1").unwrap();
+        let total = db.get_miner_reward("miner1").expect("Failed to get miner reward");
         assert_eq!(total, 3000);
     }
 
     #[test]
     fn test_total_rewards() {
-        let db = PoolDatabase::memory().unwrap();
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
 
-        db.update_miner_reward("miner1", 1000).unwrap();
-        db.update_miner_reward("miner2", 2000).unwrap();
+        db.update_miner_reward("miner1", 1000).expect("Failed to update miner reward");
+        db.update_miner_reward("miner2", 2000).expect("Failed to update miner reward");
 
-        let total = db.total_rewards().unwrap();
+        let total = db.total_rewards().expect("Failed to get total rewards");
         assert_eq!(total, 3000);
     }
 }

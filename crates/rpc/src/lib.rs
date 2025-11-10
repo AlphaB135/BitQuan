@@ -208,7 +208,7 @@ mod tests {
     #[test]
     fn test_request_deserialization() {
         let json = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
-        let req: JsonRpcRequest = serde_json::from_str(json).unwrap();
+        let req: JsonRpcRequest = serde_json::from_str(json).expect("Failed to deserialize JSON-RPC request");
         assert_eq!(req.method, "getblockcount");
         assert_eq!(req.id, 1);
     }
@@ -219,7 +219,7 @@ mod tests {
             serde_json::Value::Number(1.into()),
             serde_json::json!({"height": 12345}),
         );
-        let json = serde_json::to_string(&resp).unwrap();
+        let json = serde_json::to_string(&resp).expect("Failed to serialize response");
         assert!(json.contains("\"result\""));
         assert!(json.contains("12345"));
     }
@@ -231,7 +231,7 @@ mod tests {
             error_codes::METHOD_NOT_FOUND,
             "Method not found".to_string(),
         );
-        let json = serde_json::to_string(&resp).unwrap();
+        let json = serde_json::to_string(&resp).expect("Failed to serialize error response");
         assert!(json.contains("\"error\""));
         assert!(json.contains("-32601"));
     }

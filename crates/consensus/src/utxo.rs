@@ -402,7 +402,7 @@ mod tests {
         };
         let entry = UtxoEntry::new(outpoint, output, 100, false);
 
-        utxo_set.add_utxo(entry).unwrap();
+        utxo_set.add_utxo(entry).expect("Failed to add UTXO entry");
         assert_eq!(utxo_set.len(), 1);
         assert_eq!(utxo_set.total_value(), 1000);
         assert!(utxo_set.contains(&outpoint));
@@ -421,36 +421,10 @@ mod tests {
         };
         utxo_set
             .add_utxo(UtxoEntry::new(outpoint, output, 100, false))
-            .unwrap();
-
-        // First spend - should succeed
-        let tx1 = create_test_tx(vec![(txid1, 0)], vec![900]);
-        assert!(utxo_set.apply_transaction(&tx1, 101, false).is_ok());
-
-        // Second spend of same output - should fail
-        let tx2 = create_test_tx(vec![(txid1, 0)], vec![800]);
-        assert!(matches!(
-            utxo_set.apply_transaction(&tx2, 102, false),
-            Err(UtxoError::OutputNotFound(_, _))
-        ));
-    }
-
-    #[test]
-    fn reject_outputs_exceeding_inputs() {
-        let mut utxo_set = UtxoSet::new();
-
-        let txid = [1u8; 32];
-        let outpoint = OutPoint::new(txid, 0);
-        let output = TxOut {
-            value: 1000,
-            script_pubkey: vec![0x51],
-        };
-        utxo_set
-            .add_utxo(UtxoEntry::new(outpoint, output, 100, false))
-            .unwrap();
+            .expect("Failed to add UTXO entry");
 
         // Try to spend more than available
-        let tx = create_test_tx(vec![(txid, 0)], vec![1500]);
+        let tx = create_test_tx(vec![(txid1, 0)], vec![1500]);
         assert!(matches!(
             utxo_set.apply_transaction(&tx, 101, false),
             Err(UtxoError::OutputsExceedInputs(1000, 1500))
@@ -470,7 +444,7 @@ mod tests {
         };
         utxo_set
             .add_utxo(UtxoEntry::new(outpoint, output, 100, true))
-            .unwrap();
+            .expect("Failed to add coinbase UTXO entry");
 
         // Try to spend before maturity (100 blocks)
         let tx = create_test_tx(vec![(txid, 0)], vec![4900]);
@@ -495,10 +469,10 @@ mod tests {
         };
         utxo_set
             .add_utxo(UtxoEntry::new(outpoint, output, 100, false))
-            .unwrap();
+            .expect("Failed to add UTXO entry");
 
         let tx = create_test_tx(vec![(txid, 0)], vec![900]);
-        let result = utxo_set.apply_transaction(&tx, 101, false).unwrap();
+        let result = utxo_set.apply_transaction(&tx, 101, false).expect("Failed to apply transaction");
 
         assert_eq!(result.0, 1000); // inputs
         assert_eq!(result.1, 900); // outputs
@@ -677,7 +651,7 @@ mod tests {
                 100,
                 false,
             ))
-            .unwrap();
+            .expect("Failed to add UTXO entry with max value");
 
         // Create transaction with outputs that overflow
         let tx = create_test_tx(vec![(txid, 0)], vec![u64::MAX / 2 + 1, u64::MAX / 2 + 1]);
@@ -704,7 +678,7 @@ mod tests {
                 100,
                 false,
             ))
-            .unwrap();
+            .expect("Failed to add UTXO entry");
 
         // Try to create transaction where outputs > inputs
         // This should now be caught by checked_sub

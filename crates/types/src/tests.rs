@@ -49,7 +49,7 @@ fn witness_json_roundtrip() {
 #[test]
 fn signature_count_matches_witness_items() {
     let tx = sample_tx();
-    assert_eq!(tx.signature_count().unwrap(), 1);
+    assert_eq!(tx.signature_count().expect("Failed to get signature count"), 1);
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn block_weight_accounts_for_signatures() {
     let weight = crate::count_signatures(&block) * alpha as u64;
     assert_eq!(crate::count_signatures(&block), 1);
     // Serialized size hint >= header size; just ensure signature term is added as expected
-    let block_size = block.serialized_size_hint().unwrap() as u64;
+    let block_size = block.serialized_size_hint().expect("Failed to get block serialized size") as u64;
     assert!(block_size + weight >= weight);
 }
 
@@ -212,9 +212,9 @@ fn test_normal_tx_size_calculations_still_work() {
     assert!(tx.witness_size_hint().is_ok());
     assert!(tx.signature_count().is_ok());
 
-    let size = tx.serialized_size_hint().unwrap();
-    let witness_size = tx.witness_size_hint().unwrap();
-    let sig_count = tx.signature_count().unwrap();
+    let size = tx.serialized_size_hint().expect("Failed to get transaction size");
+    let witness_size = tx.witness_size_hint().expect("Failed to get witness size");
+    let sig_count = tx.signature_count().expect("Failed to get signature count");
 
     assert!(size > 0);
     assert!(witness_size > 0);

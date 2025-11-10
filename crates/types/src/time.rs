@@ -18,7 +18,7 @@ mod tests {
 
     #[test]
     fn unix_timestamp_is_monotonic_or_zero() {
-        let ts = unix_timestamp().unwrap();
+        let ts = unix_timestamp().expect("System time should be available");
         // We can't assert an exact value, but it should be reasonable.
         assert!(ts > 0);
     }

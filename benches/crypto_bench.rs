@@ -24,7 +24,7 @@ fn bench_verify_signature(c: &mut Criterion) {
         network_id: NetworkId::Mainnet,
         genesis_hash: [0u8; 32],
     };
-    let signature = sign(&keypair, &tx, &ctx).unwrap();
+    let signature = sign(&keypair, &tx, &ctx).expect("Failed to sign transaction");
     
     c.bench_function("verify_signature", |b| {
         b.iter(|| {

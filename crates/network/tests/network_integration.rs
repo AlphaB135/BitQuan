@@ -35,13 +35,13 @@ fn test_broadcast_block_to_peers() {
     assert!(propagator.should_propagate_block(block_hash));
 
     // Mark as propagated
-    propagator.mark_block_propagated(block_hash).unwrap();
+    propagator.mark_block_propagated(block_hash).expect("Failed to mark block as propagated");
 
     // Should not propagate again
     assert!(!propagator.should_propagate_block(block_hash));
 
     // Check stats
-    let stats = propagator.stats().unwrap();
+    let stats = propagator.stats().expect("Failed to get propagator stats");
     assert_eq!(stats.blocks_broadcast, 1);
 }
 
@@ -52,16 +52,16 @@ fn test_duplicate_block_filtering() {
     let hash2 = [2u8; 32];
 
     // Receive first block
-    assert!(propagator.mark_block_received(hash1).unwrap());
+    assert!(propagator.mark_block_received(hash1).expect("Failed to mark first block as received"));
 
     // Receive second block
-    assert!(propagator.mark_block_received(hash2).unwrap());
+    assert!(propagator.mark_block_received(hash2).expect("Failed to mark second block as received"));
 
-    // Try to receive hash1 again (duplicate)
-    assert!(!propagator.mark_block_received(hash1).unwrap());
+    // Try to receive first block again
+    assert!(!propagator.mark_block_received(hash1).expect("Failed to mark duplicate block"));
 
     // Check stats
-    let stats = propagator.stats().unwrap();
+    let stats = propagator.stats().expect("Failed to get propagator stats");
     assert_eq!(stats.blocks_received, 2);
     assert_eq!(stats.blocks_rejected, 1);
 }
@@ -110,7 +110,7 @@ fn test_metrics_update_on_block_event() {
     }
 
     // Check metrics
-    let stats = propagator.stats().unwrap();
+    let stats = propagator.stats().expect("Failed to get propagator stats");
     assert_eq!(stats.blocks_received, 10);
     assert_eq!(stats.blocks_rejected, 0);
 
@@ -120,7 +120,7 @@ fn test_metrics_update_on_block_event() {
         let _ = propagator.mark_block_propagated(hash);
     }
 
-    let stats = propagator.stats().unwrap();
+    let stats = propagator.stats().expect("Failed to get propagator stats after broadcast");
     assert_eq!(stats.blocks_broadcast, 5);
 }
 
@@ -241,10 +241,10 @@ fn test_peer_book_persistence() {
     let temp_path = std::env::temp_dir().join("bitquan_network_test.json");
 
     // Save
-    book.save_to_file(temp_path.to_str().unwrap()).unwrap();
+    book.save_to_file(temp_path.to_str().expect("Failed to convert temp path to string")).expect("Failed to save peer book");
 
     // Load
-    let loaded = PeerBook::load_from_file(temp_path.to_str().unwrap()).unwrap();
+    let loaded = PeerBook::load_from_file(temp_path.to_str().expect("Failed to convert temp path to string")).expect("Failed to load peer book");
 
     assert_eq!(loaded.peer_count(), 1);
     assert!(loaded.get_peer("persistent:18444").is_some());
@@ -262,12 +262,12 @@ fn test_propagation_stats_reset() {
         let _ = propagator.mark_block_received([i; 32]);
     }
 
-    let stats = propagator.stats().unwrap();
+    let stats = propagator.stats().expect("Failed to get propagator stats");
     assert_eq!(stats.blocks_received, 5);
 
     // Reset
-    propagator.reset_stats().unwrap();
+    propagator.reset_stats().expect("Failed to reset propagator stats");
 
-    let stats = propagator.stats().unwrap();
+    let stats = propagator.stats().expect("Failed to get propagator stats after reset");
     assert_eq!(stats.blocks_received, 0);
 }

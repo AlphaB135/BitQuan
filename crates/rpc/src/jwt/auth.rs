@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn test_jwt_login() {
         let jwt = JwtAuth::new("test-secret");
-        let token = jwt.login("admin", "admin123").unwrap();
+        let token = jwt.login("admin", "admin123").expect("Failed to login with admin credentials");
         assert!(!token.is_empty());
     }
 }

@@ -146,9 +146,9 @@ mod tests {
     fn digest_changes_with_witness() {
         let mut tx = tx_for_network(NetworkId::Devnet);
         let ctx = ctx_for_network(NetworkId::Devnet);
-        let original = transaction_sighash(&tx, &ctx).unwrap();
+        let original = transaction_sighash(&tx, &ctx).expect("Failed to compute original sighash");
         tx.witnesses[0].signatures[0].signature[0] ^= 0xFF;
-        let mutated = transaction_sighash(&tx, &ctx).unwrap();
+        let mutated = transaction_sighash(&tx, &ctx).expect("Failed to compute mutated sighash");
         assert_ne!(original, mutated);
     }
 
@@ -156,9 +156,9 @@ mod tests {
     fn digest_changes_with_lock_time() {
         let mut tx = tx_for_network(NetworkId::Devnet);
         let ctx = ctx_for_network(NetworkId::Devnet);
-        let original = transaction_sighash(&tx, &ctx).unwrap();
+        let original = transaction_sighash(&tx, &ctx).expect("Failed to compute original sighash");
         tx.lock_time = 42;
-        let mutated = transaction_sighash(&tx, &ctx).unwrap();
+        let mutated = transaction_sighash(&tx, &ctx).expect("Failed to compute mutated sighash");
         assert_ne!(original, mutated);
     }
 
@@ -168,22 +168,22 @@ mod tests {
             &tx_for_network(NetworkId::Mainnet),
             &ctx_for_network(NetworkId::Mainnet),
         )
-        .unwrap();
+        .expect("Failed to compute mainnet sighash");
         let testnet = transaction_sighash(
             &tx_for_network(NetworkId::Testnet),
             &ctx_for_network(NetworkId::Testnet),
         )
-        .unwrap();
+        .expect("Failed to compute testnet sighash");
         let devnet = transaction_sighash(
             &tx_for_network(NetworkId::Devnet),
             &ctx_for_network(NetworkId::Devnet),
         )
-        .unwrap();
+        .expect("Failed to compute devnet sighash");
         let regtest = transaction_sighash(
             &tx_for_network(NetworkId::Regtest),
             &ctx_for_network(NetworkId::Regtest),
         )
-        .unwrap();
+        .expect("Failed to compute regtest sighash");
 
         assert_ne!(mainnet, testnet);
         assert_ne!(mainnet, devnet);
@@ -197,8 +197,8 @@ mod tests {
     fn digest_deterministic_same_network() {
         let tx = tx_for_network(NetworkId::Mainnet);
         let ctx = ctx_for_network(NetworkId::Mainnet);
-        let hash1 = transaction_sighash(&tx, &ctx).unwrap();
-        let hash2 = transaction_sighash(&tx, &ctx).unwrap();
+        let hash1 = transaction_sighash(&tx, &ctx).expect("Failed to compute first sighash");
+        let hash2 = transaction_sighash(&tx, &ctx).expect("Failed to compute second sighash");
         assert_eq!(hash1, hash2);
     }
 
@@ -209,22 +209,22 @@ mod tests {
         let tx = tx_for_network(NetworkId::Mainnet);
 
         // Expected hashes for sample_tx() on each network
-        let mainnet_hash = transaction_sighash(&tx, &ctx_for_network(NetworkId::Mainnet)).unwrap();
+        let mainnet_hash = transaction_sighash(&tx, &ctx_for_network(NetworkId::Mainnet)).expect("Failed to compute mainnet sighash");
         let testnet_hash = transaction_sighash(
             &tx_for_network(NetworkId::Testnet),
             &ctx_for_network(NetworkId::Testnet),
         )
-        .unwrap();
+        .expect("Failed to compute testnet sighash");
         let devnet_hash = transaction_sighash(
             &tx_for_network(NetworkId::Devnet),
             &ctx_for_network(NetworkId::Devnet),
         )
-        .unwrap();
+        .expect("Failed to compute devnet sighash");
         let regtest_hash = transaction_sighash(
             &tx_for_network(NetworkId::Regtest),
             &ctx_for_network(NetworkId::Regtest),
         )
-        .unwrap();
+        .expect("Failed to compute regtest sighash");
 
         // Golden vectors updated for TxContext (2025-11-02)
         // These ensure determinism across implementations
@@ -274,7 +274,7 @@ mod tests {
     fn regression_test_sighash_stability() {
         let tx = tx_for_network(NetworkId::Mainnet);
         let ctx = ctx_for_network(NetworkId::Mainnet);
-        let hash = transaction_sighash(&tx, &ctx).unwrap();
+        let hash = transaction_sighash(&tx, &ctx).expect("Failed to compute sighash");
 
         // This hash was computed with the current implementation
         // Any change to this value indicates a breaking protocol change
@@ -285,7 +285,7 @@ mod tests {
         assert_eq!(expected.len(), 64, "Hash must be 32 bytes (64 hex chars)");
 
         // Verify consistency
-        let hash2 = transaction_sighash(&tx, &ctx).unwrap();
+        let hash2 = transaction_sighash(&tx, &ctx).expect("Failed to compute second sighash");
         assert_eq!(hash, hash2, "Sighash must be deterministic");
     }
 
@@ -366,7 +366,7 @@ mod tests {
         let ctx1 = TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
         let ctx2 = TxContext::new(NetworkId::Mainnet, [0xAAu8; 32]);
 
-        let _hash1 = transaction_sighash(&tx1, &ctx1).unwrap();
+        let _hash1 = transaction_sighash(&tx1, &ctx1).expect("Failed to compute sighash with ctx1");
 
         // This will fail validation because tx2 still has GENESIS_HASH_BYTES
         let result2 = transaction_sighash(&tx2, &ctx2);
@@ -379,13 +379,13 @@ mod tests {
         let tx = tx_for_network(NetworkId::Mainnet);
         let ctx_mainnet = ctx_for_network(NetworkId::Mainnet);
 
-        let hash = transaction_sighash(&tx, &ctx_mainnet).unwrap();
+        let hash = transaction_sighash(&tx, &ctx_mainnet).expect("Failed to compute sighash with mainnet context");
 
         // Hash should be different from old implementation (without magic bytes)
         assert_eq!(hash.len(), 32);
 
         // Verify determinism
-        let hash2 = transaction_sighash(&tx, &ctx_mainnet).unwrap();
+        let hash2 = transaction_sighash(&tx, &ctx_mainnet).expect("Failed to compute second sighash");
         assert_eq!(hash, hash2);
     }
 
@@ -395,7 +395,7 @@ mod tests {
         let tx = tx_for_network(NetworkId::Mainnet);
         let ctx = ctx_for_network(NetworkId::Mainnet);
 
-        let hash = transaction_sighash(&tx, &ctx).unwrap();
+        let hash = transaction_sighash(&tx, &ctx).expect("Failed to compute sighash");
 
         // The hash should be deterministic and different from any previous version
         // that didn't include the domain separator
@@ -409,7 +409,7 @@ mod tests {
         let main_ctx = ctx_for_network(NetworkId::Mainnet);
         let test_ctx = ctx_for_network(NetworkId::Testnet);
 
-        let main_hash = transaction_sighash(&tx, &main_ctx).unwrap();
+        let main_hash = transaction_sighash(&tx, &main_ctx).expect("Failed to compute mainnet sighash");
         assert_eq!(main_hash.len(), 32);
 
         // Attempt to reuse the same transaction on a different network should fail

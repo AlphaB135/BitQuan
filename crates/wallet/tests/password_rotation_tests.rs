@@ -91,10 +91,10 @@ fn test_multiple_password_rotations() {
 
     // Rotate through multiple passwords
     for i in 0..passwords.len() - 1 {
-        keystore = rotate_keystore(&keystore, passwords[i], passwords[i + 1], 8192, 1, 1).unwrap();
+        keystore = rotate_keystore(&keystore, passwords[i], passwords[i + 1], 8192, 1, 1).expect("Failed to rotate keystore");
 
         // Verify new password works
-        let decrypted = decrypt_keystore(&keystore, passwords[i + 1]).unwrap();
+        let decrypted = decrypt_keystore(&keystore, passwords[i + 1]).expect("Failed to decrypt with new password");
         assert_eq!(decrypted, data);
 
         // Verify old password no longer works

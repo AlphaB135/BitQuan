@@ -316,9 +316,9 @@ mod tests {
             Network::Testnet,
             Some("Test Backup".to_string()),
         )
-        .unwrap();
+        .expect("Failed to create wallet backup");
 
-        let restored = backup.restore(password).unwrap();
+        let restored = backup.restore(password).expect("Failed to restore wallet backup");
         assert_eq!(restored, wallet_data);
     }
 
@@ -326,7 +326,7 @@ mod tests {
     fn test_wrong_password_fails() {
         let wallet_data = b"test wallet data";
         let backup =
-            WalletBackup::create(wallet_data, "correct_password", Network::Mainnet, None).unwrap();
+            WalletBackup::create(wallet_data, "correct_password", Network::Mainnet, None).expect("Failed to create backup");
 
         let result = backup.restore("wrong_password");
         assert!(result.is_err());
@@ -339,12 +339,12 @@ mod tests {
         let password = "backup_password";
 
         let mut backup =
-            WalletBackup::create(wallet_data, password, Network::Devnet, None).unwrap();
+            WalletBackup::create(wallet_data, password, Network::Devnet, None).expect("Failed to create backup");
 
         // Tamper with ciphertext
         let mut ciphertext_bytes = general_purpose::STANDARD
             .decode(&backup.ciphertext)
-            .unwrap();
+            .expect("Failed to decode ciphertext");
         ciphertext_bytes[0] ^= 0xFF;
         backup.ciphertext = general_purpose::STANDARD.encode(&ciphertext_bytes);
 
@@ -365,16 +365,16 @@ mod tests {
             Network::Testnet,
             Some("File Test".to_string()),
         )
-        .unwrap();
+        .expect("Failed to create backup");
 
-        backup.save(&temp_path).unwrap();
-        let loaded = WalletBackup::load(&temp_path).unwrap();
+        backup.save(&temp_path).expect("Failed to save backup file");
+        let loaded = WalletBackup::load(&temp_path).expect("Failed to load backup file");
 
         assert_eq!(backup.version, loaded.version);
         assert_eq!(backup.network, loaded.network);
         assert_eq!(backup.label, loaded.label);
 
-        let restored = loaded.restore(password).unwrap();
+        let restored = loaded.restore(password).expect("Failed to restore backup");
         assert_eq!(restored, wallet_data);
 
         std::fs::remove_file(&temp_path).ok();
@@ -386,7 +386,7 @@ mod tests {
         let password = "password";
 
         let mut backup =
-            WalletBackup::create(wallet_data, password, Network::Mainnet, None).unwrap();
+            WalletBackup::create(wallet_data, password, Network::Mainnet, None).expect("Failed to create backup");
 
         backup.version = 999; // Future version
 
@@ -403,7 +403,7 @@ mod tests {
 
         let backup =
             WalletBackup::create(wallet_data, password, Network::Mainnet, Some(label.clone()))
-                .unwrap();
+                .expect("Failed to create backup with metadata");
 
         assert_eq!(backup.version, WalletBackup::CURRENT_VERSION);
         assert_eq!(backup.network, Network::Mainnet);

@@ -308,7 +308,7 @@ mod tests {
             DEFAULT_TIME_COST,
             DEFAULT_PARALLELISM,
         );
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("Failed to create temp directory");
         let p = dir.path().join("keystore.json");
         write_keystore_file_atomic(&p, &ks).expect("write");
         let ks2 = read_keystore_file(&p).expect("read");
@@ -323,7 +323,7 @@ mod tests {
         let mut ks_bad = ks.clone();
         let mut c = general_purpose::STANDARD
             .decode(&ks_bad.ciphertext_b64)
-            .unwrap();
+            .expect("Failed to decode ciphertext");
         c[0] ^= 0xFF;
         ks_bad.ciphertext_b64 = general_purpose::STANDARD.encode(&c);
         assert!(decrypt_keystore(&ks_bad, "pw").is_err());
@@ -384,21 +384,21 @@ mod tests {
 #[test]
 fn corrupted_file_handling() {
     use tempfile::tempdir;
-    let dir = tempdir().unwrap();
+    let dir = tempdir().expect("Failed to create temp directory");
     let path = dir.path().join("corrupt.keystore");
 
     // Invalid JSON
-    std::fs::write(&path, b"{invalid}").unwrap();
+    std::fs::write(&path, b"{invalid}").expect("Failed to write invalid JSON");
     assert!(read_keystore_file(&path).is_err());
 
     // Truncated valid keystore
     let ks = encrypt_keystore(b"test", "pw", None, 8 * 1024, 1, 1);
-    let json = ks.to_json().unwrap();
-    std::fs::write(&path, &json[..json.len() / 2]).unwrap();
+    let json = ks.to_json().expect("Failed to serialize keystore");
+    std::fs::write(&path, &json[..json.len() / 2]).expect("Failed to write truncated keystore");
     assert!(read_keystore_file(&path).is_err());
 
     // Missing required fields
-    std::fs::write(&path, r#"{"version": 1}"#).unwrap();
+    std::fs::write(&path, r#"{"version": 1}"#).expect("Failed to write incomplete keystore");
     assert!(read_keystore_file(&path).is_err());
 }
 

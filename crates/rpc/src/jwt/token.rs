@@ -59,8 +59,8 @@ mod tests {
     #[test]
     fn test_token_roundtrip() {
         let gen = TokenGenerator::new("test-secret");
-        let token = gen.generate("alice", "admin").unwrap();
-        let claims = gen.verify(&token).unwrap();
+        let token = gen.generate("alice", "admin").expect("Failed to generate token");
+        let claims = gen.verify(&token).expect("Failed to verify token");
         assert_eq!(claims.sub, "alice");
     }
 }

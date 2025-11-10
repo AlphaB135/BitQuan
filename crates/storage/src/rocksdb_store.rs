@@ -596,8 +596,8 @@ mod tests {
 
     #[test]
     fn test_rocksdb_store_basic() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let mut store = RocksDBStore::open(temp_dir.path()).unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
+        let mut store = RocksDBStore::open(temp_dir.path()).expect("Failed to open RocksDB store");
 
         // Create genesis block
         let coinbase = Transaction {
@@ -636,44 +636,44 @@ mod tests {
         };
 
         // Insert block
-        store.insert_block(block.clone()).unwrap();
+        store.insert_block(block.clone()).expect("Failed to insert block");
 
         // Verify height
-        assert_eq!(store.height().unwrap(), 1);
+        assert_eq!(store.height().expect("Failed to get store height"), 1);
 
         // Verify tip
-        let tip = store.tip().unwrap().unwrap();
+        let tip = store.tip().expect("Failed to get tip").expect("Tip is None");
         assert_eq!(tip.time, header.time);
 
         // Get block by height
-        let retrieved = store.get_block_by_height(1).unwrap().unwrap();
+        let retrieved = store.get_block_by_height(1).expect("Failed to get block by height").expect("Block is None");
         assert_eq!(retrieved.header.time, header.time);
 
         // Get transaction
         let txid = coinbase.txid();
-        let tx = store.get_transaction(&txid).unwrap().unwrap();
+        let tx = store.get_transaction(&txid).expect("Failed to get transaction").expect("Transaction is None");
         assert_eq!(tx.version, coinbase.version);
     }
 
     #[test]
     fn test_utxo_operations() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let mut store = RocksDBStore::open(temp_dir.path()).unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
+        let mut store = RocksDBStore::open(temp_dir.path()).expect("Failed to open RocksDB store");
 
         let outpoint = b"test_outpoint_123";
         let data = b"utxo_data";
 
         // Put UTXO
-        store.put_utxo(outpoint, data).unwrap();
+        store.put_utxo(outpoint, data).expect("Failed to put UTXO");
 
         // Get UTXO
-        let retrieved = store.get_utxo(outpoint).unwrap().unwrap();
+        let retrieved = store.get_utxo(outpoint).expect("Failed to get UTXO").expect("UTXO is None");
         assert_eq!(retrieved, data);
 
         // Delete UTXO
-        store.delete_utxo(outpoint).unwrap();
+        store.delete_utxo(outpoint).expect("Failed to delete UTXO");
 
         // Verify deleted
-        assert!(store.get_utxo(outpoint).unwrap().is_none());
+        assert!(store.get_utxo(outpoint).expect("Failed to get UTXO after deletion").is_none());
     }
 }

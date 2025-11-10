@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_reward_halving_logic() {
-        let db = PoolDatabase::memory().unwrap();
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
         let engine = RewardEngine::new(db);
 
         // Block 0: full reward
@@ -292,13 +292,13 @@ mod tests {
 
     #[test]
     fn test_credit_and_settle_rewards() {
-        let db = PoolDatabase::memory().unwrap();
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(db);
 
-        engine.credit_miner("miner1", 1000).unwrap();
-        engine.credit_miner("miner1", 2000).unwrap();
+        engine.credit_miner("miner1", 1000).expect("Failed to credit miner1 with 1000");
+        engine.credit_miner("miner1", 2000).expect("Failed to credit miner1 with 2000");
 
-        let total = engine.get_miner_reward("miner1").unwrap();
+        let total = engine.get_miner_reward("miner1").expect("Failed to get miner1 reward");
         assert_eq!(total, 3000);
 
         assert_eq!(engine.total_distributed(), 3000);
@@ -306,30 +306,30 @@ mod tests {
 
     #[test]
     fn test_record_block() {
-        let db = PoolDatabase::memory().unwrap();
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(db);
 
         let block = dummy_block(100);
         let hash = [1u8; 32];
 
-        let reward = engine.record_block(&block, hash, 100, "miner1").unwrap();
+        let reward = engine.record_block(&block, hash, 100, "miner1").expect("Failed to record block");
         assert!(reward > 0);
 
-        let miner_reward = engine.get_miner_reward("miner1").unwrap();
+        let miner_reward = engine.get_miner_reward("miner1").expect("Failed to get miner reward");
         assert_eq!(miner_reward, reward);
     }
 
     #[test]
     fn test_pool_balance_metrics() {
-        let db = PoolDatabase::memory().unwrap();
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(db);
 
         let block = dummy_block(0);
         let hash = [1u8; 32];
 
-        engine.record_block(&block, hash, 0, "miner1").unwrap();
+        engine.record_block(&block, hash, 0, "miner1").expect("Failed to record block");
 
-        let stats = engine.get_pool_stats().unwrap();
+        let stats = engine.get_pool_stats().expect("Failed to get pool stats");
         assert!(stats.total_rewards > 0);
         assert_eq!(stats.miner_count, 1);
         assert_eq!(stats.block_count, 1);
@@ -337,15 +337,15 @@ mod tests {
 
     #[test]
     fn test_record_payout() {
-        let db = PoolDatabase::memory().unwrap();
+        let db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(db);
 
         let payout_id = engine
             .record_payout("miner1", 1000, Some("tx123".to_string()))
-            .unwrap();
+            .expect("Failed to record payout");
         assert!(!payout_id.is_empty());
 
-        let payouts = engine.list_payouts(10).unwrap();
+        let payouts = engine.list_payouts(10).expect("Failed to list payouts");
         assert_eq!(payouts.len(), 1);
         assert_eq!(payouts[0].amount, 1000);
     }

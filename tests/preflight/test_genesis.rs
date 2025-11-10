@@ -24,13 +24,13 @@ fn test_genesis_verify_mainnet_ok() {
     
     // Verify network_id is mainnet
     assert_eq!(
-        genesis["network_id"].as_str().unwrap(),
+        genesis["network_id"].as_str().expect("network_id must be a string"),
         "mainnet",
         "network_id must be 'mainnet'"
     );
     
     // Verify genesis hash format (64 hex chars)
-    let hash = genesis["genesis_hash"].as_str().unwrap();
+    let hash = genesis["genesis_hash"].as_str().expect("genesis_hash must be a string");
     assert_eq!(hash.len(), 64, "Genesis hash must be 64 characters");
     assert!(
         hash.chars().all(|c| c.is_ascii_hexdigit()),
@@ -55,7 +55,7 @@ fn test_genesis_verify_testnet_ok() {
     
     // Verify network_id is testnet
     assert_eq!(
-        genesis["network_id"].as_str().unwrap(),
+        genesis["network_id"].as_str().expect("network_id must be a string"),
         "testnet",
         "network_id must be 'testnet'"
     );
@@ -80,7 +80,7 @@ fn test_genesis_consensus_params() {
     
     // Verify pow_algo is sha256d for mainnet
     assert_eq!(
-        params["pow_algo"].as_str().unwrap(),
+        params["pow_algo"].as_str().expect("pow_algo must be a string"),
         "sha256d",
         "Mainnet must use sha256d"
     );

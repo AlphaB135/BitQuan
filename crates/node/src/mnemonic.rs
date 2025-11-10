@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_generate_mnemonic_12_words() {
-        let mnemonic = generate_mnemonic(12).unwrap();
+        let mnemonic = generate_mnemonic(12).expect("Failed to generate 12-word mnemonic");
         let phrase = mnemonic.to_string();
         let words: Vec<&str> = phrase.split_whitespace().collect();
 
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_generate_mnemonic_24_words() {
-        let mnemonic = generate_mnemonic(24).unwrap();
+        let mnemonic = generate_mnemonic(24).expect("Failed to generate 24-word mnemonic");
         let phrase = mnemonic.to_string();
         let words: Vec<&str> = phrase.split_whitespace().collect();
 
@@ -187,11 +187,11 @@ mod tests {
 
     #[test]
     fn test_mnemonic_roundtrip() {
-        let helper = MnemonicHelper::generate().unwrap();
+        let helper = MnemonicHelper::generate().expect("Failed to generate mnemonic helper");
         let phrase = helper.phrase();
 
         // Parse it back
-        let restored = MnemonicHelper::from_phrase(&phrase, None).unwrap();
+        let restored = MnemonicHelper::from_phrase(&phrase, None).expect("Failed to restore mnemonic from phrase");
 
         // Should generate same seed
         assert_eq!(helper.seed, restored.seed);
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_validate_mnemonic() {
-        let helper = MnemonicHelper::generate().unwrap();
+        let helper = MnemonicHelper::generate().expect("Failed to generate mnemonic helper");
         let phrase = helper.phrase();
 
         // Valid phrase
@@ -218,30 +218,30 @@ mod tests {
 
     #[test]
     fn test_passphrase_changes_seed() {
-        let helper1 = MnemonicHelper::generate().unwrap();
+        let helper1 = MnemonicHelper::generate().expect("Failed to generate mnemonic helper");
         let phrase = helper1.phrase();
 
         // Same phrase, no passphrase
-        let helper2 = MnemonicHelper::from_phrase(&phrase, None).unwrap();
+        let helper2 = MnemonicHelper::from_phrase(&phrase, None).expect("Failed to restore mnemonic without passphrase");
         assert_eq!(helper1.seed, helper2.seed);
 
         // Same phrase, with passphrase
-        let helper3 = MnemonicHelper::from_phrase(&phrase, Some("password123")).unwrap();
+        let helper3 = MnemonicHelper::from_phrase(&phrase, Some("password123")).expect("Failed to restore mnemonic with passphrase");
         assert_ne!(helper1.seed, helper3.seed);
     }
 
     #[test]
     fn test_mnemonic_to_keypair_deterministic() {
         // Generate mnemonic
-        let helper = MnemonicHelper::generate().unwrap();
+        let helper = MnemonicHelper::generate().expect("Failed to generate mnemonic helper");
         let phrase = helper.phrase();
 
         // Derive keypair twice from same mnemonic
-        let kp1 = helper.to_keypair().unwrap();
+        let kp1 = helper.to_keypair().expect("Failed to derive keypair from mnemonic");
 
         // Recover from same mnemonic
-        let helper2 = MnemonicHelper::from_phrase(&phrase, None).unwrap();
-        let kp2 = helper2.to_keypair().unwrap();
+        let helper2 = MnemonicHelper::from_phrase(&phrase, None).expect("Failed to restore mnemonic from phrase");
+        let kp2 = helper2.to_keypair().expect("Failed to derive keypair from restored mnemonic");
 
         // Should produce identical keypairs
         assert_eq!(kp1.public_key, kp2.public_key);
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_word_list() {
-        let helper = MnemonicHelper::generate().unwrap();
+        let helper = MnemonicHelper::generate().expect("Failed to generate mnemonic helper");
         let words = helper.words();
 
         assert_eq!(words.len(), 12);
@@ -264,8 +264,8 @@ mod tests {
     #[test]
     fn test_known_mnemonic() {
         // Test with a known valid BIP39 phrase
-        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-        let helper = MnemonicHelper::from_phrase(phrase, None).unwrap();
+        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let helper = MnemonicHelper::from_phrase(phrase, None).expect("Failed to parse known mnemonic phrase");
 
         // Should be valid
         assert_eq!(helper.words().len(), 12);
@@ -274,12 +274,12 @@ mod tests {
 
     #[test]
     fn test_different_indices_produce_different_keys() {
-        let helper = MnemonicHelper::generate().unwrap();
+        let helper = MnemonicHelper::generate().expect("Failed to generate mnemonic helper");
 
         // Derive keys at different indices
-        let kp0 = seed_to_keypair_with_index(&helper.seed, 0).unwrap();
-        let kp1 = seed_to_keypair_with_index(&helper.seed, 1).unwrap();
-        let kp2 = seed_to_keypair_with_index(&helper.seed, 2).unwrap();
+        let kp0 = seed_to_keypair_with_index(&helper.seed, 0).expect("Failed to derive keypair at index 0");
+        let kp1 = seed_to_keypair_with_index(&helper.seed, 1).expect("Failed to derive keypair at index 1");
+        let kp2 = seed_to_keypair_with_index(&helper.seed, 2).expect("Failed to derive keypair at index 2");
 
         // All keys should be different
         assert_ne!(kp0.public_key, kp1.public_key);
@@ -293,12 +293,12 @@ mod tests {
 
     #[test]
     fn test_same_index_produces_same_key_deterministically() {
-        let helper = MnemonicHelper::generate().unwrap();
+        let helper = MnemonicHelper::generate().expect("Failed to generate mnemonic helper");
 
         // Derive same key index multiple times
-        let kp1 = seed_to_keypair_with_index(&helper.seed, 5).unwrap();
-        let kp2 = seed_to_keypair_with_index(&helper.seed, 5).unwrap();
-        let kp3 = seed_to_keypair_with_index(&helper.seed, 5).unwrap();
+        let kp1 = seed_to_keypair_with_index(&helper.seed, 5).expect("Failed to derive keypair first time");
+        let kp2 = seed_to_keypair_with_index(&helper.seed, 5).expect("Failed to derive keypair second time");
+        let kp3 = seed_to_keypair_with_index(&helper.seed, 5).expect("Failed to derive keypair third time");
 
         // All should be identical
         assert_eq!(kp1.public_key, kp2.public_key);
@@ -312,12 +312,12 @@ mod tests {
         let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
         // Same phrase, no passphrase
-        let helper1 = MnemonicHelper::from_phrase(phrase, None).unwrap();
-        let kp1 = helper1.to_keypair().unwrap();
+        let helper1 = MnemonicHelper::from_phrase(phrase, None).expect("Failed to parse phrase without passphrase");
+        let kp1 = helper1.to_keypair().expect("Failed to derive keypair without passphrase");
 
         // Same phrase, with passphrase
-        let helper2 = MnemonicHelper::from_phrase(phrase, Some("my_secret_passphrase")).unwrap();
-        let kp2 = helper2.to_keypair().unwrap();
+        let helper2 = MnemonicHelper::from_phrase(phrase, Some("my_secret_passphrase")).expect("Failed to parse phrase with passphrase");
+        let kp2 = helper2.to_keypair().expect("Failed to derive keypair with passphrase");
 
         // Keys should be completely different
         assert_ne!(kp1.public_key, kp2.public_key);
@@ -330,14 +330,14 @@ mod tests {
         let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
         // Derive key multiple times
-        let helper1 = MnemonicHelper::from_phrase(phrase, None).unwrap();
-        let kp1 = helper1.to_keypair().unwrap();
+        let helper1 = MnemonicHelper::from_phrase(phrase, None).expect("Failed to parse phrase first time");
+        let kp1 = helper1.to_keypair().expect("Failed to derive keypair first time");
 
-        let helper2 = MnemonicHelper::from_phrase(phrase, None).unwrap();
-        let kp2 = helper2.to_keypair().unwrap();
+        let helper2 = MnemonicHelper::from_phrase(phrase, None).expect("Failed to parse phrase second time");
+        let kp2 = helper2.to_keypair().expect("Failed to derive keypair second time");
 
-        let helper3 = MnemonicHelper::from_phrase(phrase, None).unwrap();
-        let kp3 = helper3.to_keypair().unwrap();
+        let helper3 = MnemonicHelper::from_phrase(phrase, None).expect("Failed to parse phrase third time");
+        let kp3 = helper3.to_keypair().expect("Failed to derive keypair third time");
 
         // All derivations should produce identical keys
         assert_eq!(kp1.public_key, kp2.public_key);

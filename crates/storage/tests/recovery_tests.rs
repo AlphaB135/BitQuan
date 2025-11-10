@@ -24,16 +24,16 @@ mod rocksdb_recovery_tests {
 
     #[test]
     fn test_basic_open_and_verify() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory");
         let db_path = temp_dir.path().join("chaindata");
 
         // Create database
         {
-            let mut store = RocksDBStore::open(&db_path).unwrap();
+            let mut store = RocksDBStore::open(&db_path).expect("Failed to open RocksDB store");
             // Insert multiple blocks to test verification
             for i in 0..5 {
                 let block = create_test_block(i);
-                store.insert_block(block).unwrap();
+                store.insert_block(block).expect("Failed to insert test block");
             }
         }
 
@@ -45,8 +45,8 @@ mod rocksdb_recovery_tests {
             rebuild_indices: false,
         };
 
-        let store = RocksDBStore::open_with_options(&db_path, options).unwrap();
-        let stats = store.get_stats().unwrap();
+        let store = RocksDBStore::open_with_options(&db_path, options).expect("Failed to open RocksDB store with options");
+        let stats = store.get_stats().expect("Failed to get store statistics");
 
         assert_eq!(
             stats.height, 5,
@@ -60,32 +60,32 @@ mod rocksdb_recovery_tests {
 
     #[test]
     fn test_auto_backup() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory");
         let db_path = temp_dir.path().join("chaindata");
         let backup_dir = temp_dir.path().join("backups");
 
-        std::fs::create_dir_all(&backup_dir).unwrap();
+        std::fs::create_dir_all(&backup_dir).expect("Failed to create backup directory");
 
         // Create database with some data
         {
-            let mut store = RocksDBStore::open(&db_path).unwrap();
+            let mut store = RocksDBStore::open(&db_path).expect("Failed to open RocksDB store");
             let block = create_test_block(0);
-            store.insert_block(block).unwrap();
+            store.insert_block(block).expect("Failed to insert test block");
         }
 
         // Open with auto-backup
         let options = RecoveryOptions {
             verify_checksums: false,
             auto_backup: true,
-            backup_path: Some(backup_dir.to_str().unwrap().to_string()),
+            backup_path: Some(backup_dir.to_str().expect("Failed to convert backup path to string").to_string()),
             rebuild_indices: false,
         };
 
-        let _store = RocksDBStore::open_with_options(&db_path, options).unwrap();
+        let _store = RocksDBStore::open_with_options(&db_path, options).expect("Failed to open RocksDB store with backup options");
 
         // Check that backup was created
         let entries: Vec<_> = std::fs::read_dir(&backup_dir)
-            .unwrap()
+            .expect("Failed to read backup directory")
             .filter_map(|e| e.ok())
             .collect();
 
@@ -97,7 +97,7 @@ mod rocksdb_recovery_tests {
 
     #[test]
     fn test_verify_empty_database() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory");
         let db_path = temp_dir.path().join("chaindata");
 
         let options = RecoveryOptions {
@@ -111,8 +111,8 @@ mod rocksdb_recovery_tests {
         let result = RocksDBStore::open_with_options(&db_path, options);
         assert!(result.is_ok(), "Empty database should verify successfully");
 
-        let store = result.unwrap();
-        let stats = store.get_stats().unwrap();
+        let store = result.expect("Failed to open empty database");
+        let stats = store.get_stats().expect("Failed to get store statistics");
         assert_eq!(stats.height, 0);
     }
 }

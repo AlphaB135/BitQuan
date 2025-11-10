@@ -331,7 +331,7 @@ mod tests {
 
         // Script: push 1, verify it's true
         let script = vec![OpCode::True as u8];
-        let result = interp.execute(&script, &[]).unwrap();
+        let result = interp.execute(&script, &[]).expect("Failed to execute script");
 
         assert!(result);
     }
@@ -342,7 +342,7 @@ mod tests {
         let mut interp = ScriptInterpreter::new(registry);
 
         let script = vec![OpCode::False as u8];
-        let result = interp.execute(&script, &[]).unwrap();
+        let result = interp.execute(&script, &[]).expect("Failed to execute script");
 
         assert!(!result);
     }
@@ -354,7 +354,7 @@ mod tests {
 
         // Push 1, duplicate, verify stack has 2 items
         let script = vec![OpCode::True as u8, OpCode::Dup as u8];
-        interp.execute(&script, &[]).unwrap();
+        interp.execute(&script, &[]).expect("Failed to execute script");
 
         assert_eq!(interp.stack.len(), 2);
         assert_eq!(interp.stack[0], vec![1]);
@@ -375,7 +375,7 @@ mod tests {
             0x04,
             OpCode::Hash256 as u8,
         ];
-        interp.execute(&script, &[]).unwrap();
+        interp.execute(&script, &[]).expect("Failed to execute script");
 
         assert_eq!(interp.stack.len(), 1);
         assert_eq!(interp.stack[0].len(), 32); // SHA-256 hash
@@ -411,7 +411,7 @@ mod tests {
 
         // Try to push more than MAX_STACK_SIZE items
         for _ in 0..MAX_STACK_SIZE {
-            interp.push(vec![1]).unwrap();
+            interp.push(vec![1]).expect("Failed to push to stack");
         }
 
         let result = interp.push(vec![1]);

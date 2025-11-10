@@ -248,7 +248,7 @@ mod tests {
         let submitter = BlockSubmitter::mock(NetworkId::Testnet);
         let block = dummy_block();
 
-        let result = submitter.submit(&block, None).await.unwrap();
+        let result = submitter.submit(&block, None).await.expect("Failed to submit block");
 
         // Should reject blocks with no transactions
         match result {
@@ -276,7 +276,7 @@ mod tests {
             witnesses: vec![],
         });
 
-        let result = submitter.submit(&block, Some("test_miner")).await.unwrap();
+        let result = submitter.submit(&block, Some("test_miner")).await.expect("Failed to submit block with miner");
 
         match result {
             SubmitResult::Accepted { hash, .. } => {

@@ -105,9 +105,9 @@ mod tests {
         assert!(tx.witness_size_hint().is_ok());
         assert!(tx.signature_count().is_ok());
 
-        let size = tx.serialized_size_hint().unwrap();
-        let witness_size = tx.witness_size_hint().unwrap();
-        let sig_count = tx.signature_count().unwrap();
+        let size = tx.serialized_size_hint().expect("Failed to get transaction size");
+        let witness_size = tx.witness_size_hint().expect("Failed to get witness size");
+        let sig_count = tx.signature_count().expect("Failed to get signature count");
 
         assert!(size > 0);
         assert!(witness_size > 0);
@@ -183,6 +183,6 @@ mod tests {
         // Should successfully count signatures
         let result = tx.signature_count();
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 10000);
+        assert_eq!(result.expect("Failed to get signature count"), 10000);
     }
 }

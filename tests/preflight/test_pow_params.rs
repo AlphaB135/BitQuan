@@ -70,8 +70,8 @@ fn test_pow_difficulty_params() {
         "max_difficulty_bits required"
     );
     
-    let min_bits = params["min_difficulty_bits"].as_u64().unwrap();
-    let max_bits = params["max_difficulty_bits"].as_u64().unwrap();
+    let min_bits = params["min_difficulty_bits"].as_u64().expect("min_difficulty_bits must be a number");
+    let max_bits = params["max_difficulty_bits"].as_u64().expect("max_difficulty_bits must be a number");
     
     assert!(
         max_bits >= min_bits,
@@ -125,8 +125,8 @@ fn test_pow_subsidy_params() {
         "subsidy_halving_interval required"
     );
     
-    let initial_subsidy = params["initial_subsidy"].as_u64().unwrap();
-    let halving_interval = params["subsidy_halving_interval"].as_u64().unwrap();
+    let initial_subsidy = params["initial_subsidy"].as_u64().expect("initial_subsidy must be a number");
+    let halving_interval = params["subsidy_halving_interval"].as_u64().expect("subsidy_halving_interval must be a number");
     
     assert!(initial_subsidy > 0, "initial_subsidy must be positive");
     assert!(halving_interval > 0, "subsidy_halving_interval must be positive");
