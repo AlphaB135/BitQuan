@@ -248,7 +248,7 @@ pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
     use sha3::{Digest, Keccak256};
     let mut hasher = Keccak256::new();
     hasher.update(b"Ethash-placeholder-");
-    hasher.update(&cache_size.to_le_bytes());
+    hasher.update(cache_size.to_le_bytes());
     hasher.update(preimage);
     let result = hasher.finalize();
     let mut out = [0u8; 32];

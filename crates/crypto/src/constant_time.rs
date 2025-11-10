@@ -135,8 +135,7 @@ impl SecureAllocator {
     /// On Unix systems with memory-locking feature, attempts to lock the memory
     /// to prevent swapping. Falls back to regular allocation if locking fails.
     pub fn allocate(size: usize) -> Result<Vec<u8>, std::io::Error> {
-        let mut vec = Vec::with_capacity(size);
-        vec.resize(size, 0);
+        let vec = vec![0; size];
         
         #[cfg(all(unix, feature = "memory-locking"))]
         {

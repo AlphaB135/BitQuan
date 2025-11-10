@@ -363,8 +363,8 @@ async fn handle_enhanced_connection(
     
     // Parse HTTP request
     if request.starts_with("GET") {
-        let lines: Vec<&str> = request.lines().collect();
-        let request_line = lines.get(0).unwrap_or(&"");
+        let mut lines = request.lines();
+        let request_line = lines.next().unwrap_or("");
         
         if request_line.contains("GET /api/stats") {
             // REST API endpoint for current stats

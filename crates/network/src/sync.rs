@@ -379,9 +379,8 @@ pub fn request_blocks_from_peer(
     }
     
     // Create block locator hashes (simplified - in real implementation would use chain state)
-    let mut locator_hashes = Vec::new();
     // For now, we'll use a simple approach - in production this would use actual chain tips
-    locator_hashes.push([0u8; 32]); // Genesis hash placeholder
+    let locator_hashes = vec![[0u8; 32]]; // Genesis hash placeholder
     
     // Create getheaders message
         let _getheaders_msg = Message::GetHeaders {

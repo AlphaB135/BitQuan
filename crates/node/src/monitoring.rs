@@ -190,11 +190,11 @@ impl MonitoringSystem {
 
         // Mining metrics
         output.push_str(&self.mining_metrics.format_prometheus());
-        output.push_str("\n");
+        output.push('\n');
 
         // RPC metrics
         output.push_str(&self.rpc_metrics.export_prometheus("mainnet"));
-        output.push_str("\n");
+        output.push('\n');
 
         // HTTP metrics
         output.push_str("# HELP http_requests_total Total HTTP requests handled\n");
@@ -275,9 +275,7 @@ impl MonitoringSystem {
             .and_then(|monitoring: Arc<MonitoringSystem>| async move {
                 monitoring.record_http_request();
                 let health = monitoring.get_health_status().await;
-                let status = if health.status == "healthy" {
-                    warp::http::StatusCode::OK
-                } else if health.status == "degraded" {
+                let status = if health.status == "healthy" || health.status == "degraded" {
                     warp::http::StatusCode::OK
                 } else {
                     warp::http::StatusCode::SERVICE_UNAVAILABLE

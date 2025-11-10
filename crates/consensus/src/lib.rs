@@ -413,7 +413,7 @@ pub fn calculate_block_weight(block: &Block) -> Result<usize, ConsensusError> {
 pub(crate) fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
     use bitquan_types::CompactUint;
     // Total bytes (base + witness) - return 0 on error (deprecated anyway)
-    let total = block.serialized_size_hint().unwrap_or_else(|_| 0) as u64;
+    let total = block.serialized_size_hint().unwrap_or(0) as u64;
     // Approximate witness bytes from tx structure (count prefix + witnesses)
     let mut witness_bytes: u64 = 0;
     for tx in &block.transactions {
