@@ -18,6 +18,7 @@ fn hybrid_miner_switches_algos() {
         match miner.select_algorithm(i) {
             PowAlgo::Sha256d => sha256d_count += 1,
             PowAlgo::RandomX => randomx_count += 1,
+            PowAlgo::Ethash => {} // Not used in this test
         }
     }
 

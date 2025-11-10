@@ -1616,7 +1616,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         // Hybrid mining path
-        let (_mined_header, _algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
+        #[allow(unused_variables)]
+        let (_mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
             
@@ -2182,7 +2183,7 @@ async fn wallet_send(
         use bitquan_storage::RocksDBStore;
         use std::path::Path;
         
-        let storage = RocksDBStore::open(Path::new(&format!("{}/chainstate", std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))))
+        let _storage = RocksDBStore::open(Path::new(&format!("{}/chainstate", std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))))
             .map_err(|e| Error::Invalid(format!("failed to open storage: {e}")))?;
 
         // Get sender script
