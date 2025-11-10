@@ -32,7 +32,7 @@ fn test_jwt_auth_invalid_password() {
 
     let result = jwt_auth.login("admin", "wrongpassword");
     assert!(result.is_err(), "Login should fail with wrong password");
-    assert_eq!(result.expect("Should return error for invalid password"), "Invalid password");
+    assert_eq!(result.unwrap_err(), "Invalid password");
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn test_jwt_auth_invalid_user() {
 
     let result = jwt_auth.login("nonexistent", "anypassword");
     assert!(result.is_err(), "Login should fail with non-existent user");
-    assert_eq!(result.expect("Should return error for non-existent user"), "User not found");
+    assert_eq!(result.unwrap_err(), "User not found");
 }
 
 #[test]
