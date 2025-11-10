@@ -146,6 +146,64 @@ pub fn encrypt_keystore(
     }
 }
 
+pub fn encrypt_keypair_with_params(
+    plaintext: &[u8],
+    password: &str,
+    meta: Option<serde_json::Value>,
+    mem_kib: u32,
+    time_cost: u32,
+    parallelism: u8,
+) -> KeystoreFile {
+    let pw = SecretVec::new(password.as_bytes().to_vec());
+
+    let mut salt = vec![0u8; SALT_LEN];
+    OsRng.fill_bytes(&mut salt);
+
+    let mut nonce_bytes = vec![0u8; NONCE_LEN];
+    OsRng.fill_bytes(&mut nonce_bytes);
+
+    let mut key_bytes = derive_key(&pw, &salt, mem_kib, time_cost, parallelism);
+
+    #[allow(deprecated)]
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(key);
+    #[allow(deprecated)]
+    let nonce = Nonce::from_slice(&nonce_bytes);
+
+    // SAFETY: AES-GCM encryption can only fail if key/nonce are wrong size, which are fixed at 32/12 bytes
+    #[allow(clippy::expect_used)]
+    let ciphertext = cipher
+        .encrypt(
+            nonce,
+            Payload {
+                msg: plaintext,
+                aad: b"",
+            },
+        )
+        .expect("encryption failure");
+
+    key_bytes.zeroize();
+
+    let created = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0); // Fallback to epoch if clock is wrong
+    KeystoreFile {
+        magic: MAGIC.to_string(),
+        version: CURRENT_VERSION,
+        created,
+        kdf: KdfParams {
+            mem_kib,
+            time_cost,
+            parallelism,
+            salt_b64: general_purpose::STANDARD.encode(&salt),
+        },
+        nonce_b64: general_purpose::STANDARD.encode(&nonce_bytes),
+        ciphertext_b64: general_purpose::STANDARD.encode(&ciphertext),
+        meta,
+    }
+}
+
 pub fn decrypt_keystore(ks: &KeystoreFile, password: &str) -> Result<Vec<u8>, String> {
     if ks.magic != MAGIC {
         return Err(format!(

@@ -8,9 +8,9 @@ use bitquan_types::{BlockHeader, Result};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-/// Minimum compact bits permitted on dev/test networks (hardest difficulty).
-pub const DEVNET_MIN_BITS: u32 = 0x1d00ffff;
-/// Maximum compact bits permitted on dev/test networks (easiest difficulty).
+/// Minimum compact bits permitted (hardest difficulty - mainnet level).
+pub const DEVNET_MIN_BITS: u32 = 0x1c00ffff;
+/// Maximum compact bits permitted (easiest difficulty - for development).
 pub const DEVNET_MAX_BITS: u32 = 0x207fffff;
 
 /// Proof-of-Work algorithm identifier.

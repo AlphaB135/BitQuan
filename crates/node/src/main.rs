@@ -119,6 +119,42 @@ fn ensure_pow_allowed(pow_mode: PowMode, network: NetworkId) -> Result<()> {
     Ok(())
 }
 
+/// Load difficulty_bits from network config file
+fn load_difficulty_from_config(network: NetworkId) -> Result<u32> {
+    let config_file = match network {
+        NetworkId::Mainnet => "config/mainnet.toml",
+        NetworkId::Testnet => "config/testnet.toml",
+        NetworkId::Devnet => "config/devnet.toml",
+        NetworkId::Regtest => return Ok(0x207fffff), // Regtest uses easiest difficulty
+    };
+
+    // Try to read the config file
+    let content = std::fs::read_to_string(config_file).unwrap_or_default();
+    
+    // Simple parser to find difficulty_bits line
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("difficulty_bits") {
+            if let Some(value_part) = trimmed.split('=').nth(1) {
+                let value = value_part.trim().trim_matches('"').trim();
+                if let Some(hex_str) = value.strip_prefix("0x") {
+                    if let Ok(bits) = u32::from_str_radix(hex_str, 16) {
+                        return Ok(bits);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Fallback to defaults if config not found or invalid
+    Ok(match network {
+        NetworkId::Mainnet => 0x1c00ffff,
+        NetworkId::Testnet => 0x1d00ffff,
+        NetworkId::Devnet => 0x207fffff,
+        NetworkId::Regtest => 0x207fffff,
+    })
+}
+
 /// Parse hybrid weights from CLI string format "sha256d:1,randomx:2".
 fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowAlgo, f32)>> {
     use bitquan_consensus::pow::PowAlgo;
@@ -211,8 +247,8 @@ enum Commands {
         /// Hex-encoded script_pubkey for coinbase payout.
         #[arg(long, default_value = "76a9140088ac")]
         payout_script_hex: String,
-        /// Compact bits target (e.g., 0x207fffff for very easy target).
-        #[arg(long, default_value_t = 0x207fffff)]
+        /// Compact bits target (e.g., 0x1c00ffff for mainnet difficulty).
+        #[arg(long, default_value_t = 0x1c00ffff)]
         bits: u32,
         /// Network to target (mainnet|testnet|devnet|regtest).
         #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
@@ -264,10 +300,13 @@ enum Commands {
         /// Algorithm (dilithium3, falcon512, sphincs)
         #[arg(long, default_value = "dilithium3")]
         algo: String,
+        /// Network to target (mainnet|testnet|devnet|regtest)
+        #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
+        network: String,
         /// Output file for keypair (optional)
         #[arg(long)]
         output: Option<String>,
-        /// Password to encrypt the keystore (interactive prompt if not provided)
+        /// Password to encrypt keystore (interactive prompt if not provided)
         #[arg(long)]
         password: Option<String>,
     },
@@ -716,9 +755,10 @@ fn main() -> Result<()> {
         }
         Commands::WalletGen {
             algo,
+            network,
             output,
             password,
-        } => wallet_gen(&algo, output.as_deref(), password.as_deref()),
+        } => wallet_gen(&algo, &network, output.as_deref(), password.as_deref()),
         Commands::WalletGenMnemonic {
             words,
             output,
@@ -1252,7 +1292,7 @@ fn mine_once(
         let (anchor_bits, anchor_time) = if let Ok(Some(tip)) = store.tip() {
             (tip.bits, tip.time as u64)
         } else {
-            (0x207fffff, now as u64)
+            (0x1c00ffff, now as u64)
         };
         let mut state = DifficultyState::new(0, anchor_time, anchor_bits, 0);
         bits = state.update(1, time as u64, &params);
@@ -1392,6 +1432,14 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
     let mut last_timestamp: Option<i64> = None;
     let mut bits = bits_override;
     let allow_mock = matches!(pow_mode, PowMode::Mock);
+    
+    // Load difficulty from config file if not overridden
+    if bits == 0 {
+        bits = load_difficulty_from_config(network)?;
+        println!("Loaded difficulty from config: 0x{:08x} for {:?}", bits, network);
+    } else {
+        println!("Using override difficulty: 0x{:08x}", bits);
+    }
 
     println!("BitQuan Continuous Miner");
     println!("Data directory: {}", datadir);
@@ -1459,15 +1507,6 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                     history.push_back(log);
                 }
             }
-            if bits == 0 {
-                bits = s
-                    .tip()
-                    .map_err(|e| Error::Invalid(format!("storage tip error: {e}")))?
-                    .map(|tip| tip.bits)
-                    .unwrap_or(0x207fffff);
-            }
-        } else if bits == 0 {
-            bits = 0x207fffff;
         }
     }
 
@@ -1488,7 +1527,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?
         };
 
-        println!("\n[Block #{}] Mining...", height + 1);
+        print!("Block #{} ", height + 1);
 
         // Get current time
         let now = std::time::SystemTime::now()
@@ -1564,25 +1603,31 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             algo_id: 0,
         };
 
-        println!("Mining block #{} ...", height + 1);
-        println!("Target bits: 0x{:08x}", bits);
-        println!("Block reward: {} qbits", subsidy);
-
-        // Mining loop
+        // Mining loop with real-time progress
         found.store(false, Ordering::Relaxed);
         let start_time = std::time::Instant::now();
+        let mut last_update = std::time::Instant::now();
+        let update_interval = std::time::Duration::from_millis(100); // Update every 100ms
+        
+        // Initial display
+        print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: 0 | H/s: 0.00\x1b[0m", 
+               height + 1, bits, subsidy);
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         // Hybrid mining path
         let (_mined_header, _algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
-            println!("Mining with algorithm: {}", algo.name());
+            
+            // Update display for hybrid mining
+            print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Algo: {} | Hashes: 0 | H/s: 0.00\x1b[0m", 
+                   height + 1, bits, subsidy, algo.name());
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
             match hybrid_miner.mine_block_attempt(header.clone(), max_nonce, algo)? {
                 Some(h) => (Some(h), Some(algo)),
                 None => {
-                    println!(
-                        "No solution found in {} attempts with {}",
+                    println!("\r\x1b[31m✗ No solution found in {} attempts with {}\x1b[0m",
                         max_nonce,
                         algo.name()
                     );
@@ -1608,11 +1653,22 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             for n in 0..max_nonce {
                 header.nonce = n;
                 let pow_valid = if allow_mock {
-                    header.nonce == 0 || header.bits >= DEVNET_MAX_BITS
+                    // Only allow mock if bits are very easy (for testing only)
+                    header.bits >= DEVNET_MAX_BITS
                 } else {
                     check_header_pow(&header)
                         .map_err(|e| Error::Invalid(format!("pow verification failed: {e}")))?
                 };
+
+                // Update progress display every 100ms
+                if last_update.elapsed() >= update_interval {
+                    let elapsed = start_time.elapsed();
+                    let hashrate = (n as f64) / elapsed.as_secs_f64();
+                    print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: {} | H/s: {:.2}\x1b[0m", 
+                           height + 1, bits, subsidy, n, hashrate);
+                    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                    last_update = std::time::Instant::now();
+                }
 
                 if pow_valid {
                     solution_found = true;
@@ -1622,7 +1678,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             }
 
             if !solution_found {
-                println!("No solution found in {} attempts", max_nonce);
+                println!("\r\x1b[31m✗ No solution found in {} attempts\x1b[0m", max_nonce);
                 continue;
             }
 
@@ -1633,25 +1689,62 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let elapsed = start_time.elapsed();
         let hashrate = (n as f64) / elapsed.as_secs_f64();
 
+        // Clear the mining line and show result with color based on hashrate
+        let hash_str = hex::encode(id);
+        let elapsed_str = format!("{:.2}", elapsed.as_secs_f64());
+        let hashrate_str = format!("{:.2}", hashrate);
+        
+        // Determine color based on hashrate (real mining vs mock/easy)
+        let color_code = if hashrate > 0.0 {
+            "\x1b[32m"  // Green for real mining
+        } else {
+            "\x1b[37m"  // White/gray for mock/easy blocks
+        };
+        
+        // Calculate padding to align "Total" at consistent position
+        // Target position: around column 120 (adjust as needed)
+        let base_line_length = 100; // Approximate length of base info
+        let current_length = format!("✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s",
+            height + 1, n, hash_str, elapsed_str, hashrate_str).len();
+        let padding_needed = if current_length < base_line_length {
+            base_line_length - current_length
+        } else {
+            5 // Minimum padding
+        };
+        let padding = " ".repeat(padding_needed);
+        
         #[cfg(feature = "randomx")]
         if let Some(algo) = algo_used {
-            println!(
-                "\nFOUND! Block #{} | Algo: {} | Nonce: {}",
+            print!("\r{}✓ FOUND Block #{} | Algo: {} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
+                color_code,
                 height + 1,
                 algo.name(),
-                n
+                n,
+                hash_str,
+                elapsed_str,
+                hashrate_str,
+                padding
             );
         } else {
-            println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
+            print!("\r{}✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
+                color_code,
+                height + 1,
+                n,
+                hash_str,
+                elapsed_str,
+                hashrate_str,
+                padding
+            );
         }
         #[cfg(not(feature = "randomx"))]
-        println!("\nFOUND! Block #{} | Nonce: {}", height + 1, n);
-
-        println!("Hash: {}", hex::encode(id));
-        println!(
-            "Time: {:.2}s | Hashrate: {:.2} H/s",
-            elapsed.as_secs_f64(),
-            hashrate
+        print!("\r{}✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
+            color_code,
+            height + 1,
+            n,
+            hash_str,
+            elapsed_str,
+            hashrate_str,
+            padding
         );
 
         let block = Block {
@@ -1702,7 +1795,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let height_delta = block_height as i64 - anchor.height as i64;
         let time_delta = block_time - anchor.timestamp;
         let expected_time = params.difficulty.target_block_time as f64 * height_delta.max(1) as f64;
-        let average = if height_delta > 0 {
+        let _average = if height_delta > 0 {
             time_delta as f64 / height_delta as f64
         } else {
             params.difficulty.target_block_time as f64
@@ -1721,28 +1814,27 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 .ok_or(Error::Overflow("guard count overflow"))?;
         }
 
-        let next_target = asert_next_target(anchor.target, height_delta, time_delta, &params, None);
-        let mut next_bits = target_to_compact(next_target);
-        if next_bits == 0 {
-            next_bits = block_bits;
+        // Use config difficulty for early blocks (before ASERT kicks in)
+        // This ensures network starts with the intended difficulty
+        const DIFFICULTY_ADJUSTMENT_START: u64 = 144; // ~1 day of blocks
+        
+        if block_height < DIFFICULTY_ADJUSTMENT_START {
+            // Keep using config difficulty for first blocks
+            let config_bits = load_difficulty_from_config(network)?;
+            bits = config_bits;
+        } else {
+            // Use ASERT difficulty adjustment after sufficient history
+            let next_target = asert_next_target(anchor.target, height_delta, time_delta, &params, None);
+            let mut next_bits = target_to_compact(next_target);
+            if next_bits == 0 {
+                next_bits = block_bits;
+            }
+            next_bits = clamp_bits_within_bounds(next_bits);
+            bits = next_bits;
         }
-        next_bits = clamp_bits_within_bounds(next_bits);
-
-        println!(
-            "[ASERT] height={} guard={} window={} avg={:.2}s ratio={:.3} target=0x{:08x} next_bits=0x{:08x}",
-            block_height,
-            if guard_triggered { "ON " } else { "off" },
-            height_delta,
-            average,
-            ratio,
-            block_bits,
-            next_bits
-        );
-
-        bits = next_bits;
 
         let total = blocks_mined.fetch_add(1, Ordering::Relaxed) + 1;
-        println!("Saved to DB | Session total: {}", total);
+        println!(" | Total: {}", total);
         found.store(true, Ordering::Relaxed);
 
         if let Some(limit) = limit_blocks {
@@ -1754,10 +1846,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         }
 
         if !found.load(Ordering::Relaxed) {
-            println!(
-                "\nNo valid nonce in {} tries, adjusting difficulty...",
-                max_nonce
-            );
+            print!("\r\x1b[33mNo valid nonce in {} tries, adjusting difficulty...\x1b[0m\n", max_nonce);
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
             bits = (bits & 0x00ff_ffff) | ((((bits >> 24) + 1) & 0xff) << 24);
             bits = clamp_bits_within_bounds(bits);
         }
@@ -1785,12 +1875,13 @@ fn mine_continuous(_options: MiningOptions<'_>) -> Result<()> {
 }
 
 /// Generate a wallet keypair with encrypted storage
-fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> Result<()> {
+fn wallet_gen(algo: &str, network: &str, output_path: Option<&str>, password: Option<&str>) -> Result<()> {
     use std::path::Path;
     use wallet::{address, WalletKeypair};
 
     println!("BitQuan Wallet Generator");
     println!("Algorithm: {}", algo);
+    println!("Network: {}", network);
 
     if algo != "dilithium3" {
         return invalid("Only 'dilithium3' is supported currently");
@@ -1827,11 +1918,21 @@ fn wallet_gen(algo: &str, output_path: Option<&str>, password: Option<&str>) -> 
     let serializable = keypair.to_serializable();
     let json = serde_json::to_string_pretty(&serializable)?;
 
-    // Encrypt and save
-    let keystore_file = keystore::encrypt_keypair(&json, &password, &address_str)
+    // Add network prefix to address for clear identification
+    let network_address = format!("{}:{}", network, address_str);
+
+    // Encrypt and save using existing function with network-prefixed address
+    let keystore_file = keystore::encrypt_keypair(&json, &password, &network_address)
         .map_err(|e| Error::Invalid(format!("keystore encrypt failed: {e}")))?;
 
-    let path = output_path.unwrap_or("wallet.keystore");
+    let default_filename = match network {
+        "mainnet" => "mainnet-wallet.keystore",
+        "testnet" => "testnet-wallet.keystore", 
+        "devnet" => "devnet-wallet.keystore",
+        "regtest" => "regtest-wallet.keystore",
+        _ => "wallet.keystore",
+    };
+    let path = output_path.unwrap_or(default_filename);
     keystore::save_keystore(&keystore_file, Path::new(path))
         .map_err(|e| Error::Invalid(format!("keystore save failed: {e}")))?;
 

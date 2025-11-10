@@ -7,6 +7,7 @@ repository = "https://github.com/alphab/BitQuan"
 description = "BitQuan cryptography utilities with deterministic RNG support."
 
 [features]
+default = ["memory-security"]
 deterministic_tests = []
 memory-locking = ["libc"]
 memory-security = ["memory-locking"]

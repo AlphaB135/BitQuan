@@ -7,8 +7,8 @@ use sha2::{Digest, Sha256};
 /// Jan 1, 2025 00:00:00 UTC
 pub const GENESIS_TIME: u32 = 1735689600;
 
-/// Genesis block bits (very easy difficulty for initial mining)
-pub const GENESIS_BITS: u32 = 0x207fffff;
+/// Genesis block bits (mainnet difficulty)
+pub const GENESIS_BITS: u32 = 0x1c00ffff;
 
 /// Genesis block version
 pub const GENESIS_VERSION: i32 = 1;

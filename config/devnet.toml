@@ -16,15 +16,15 @@ rpc_port = 29443
 # Bootstrap nodes (empty for devnet)
 bootstrap_nodes = []
 
-# Initial difficulty (easiest for development)
-difficulty_bits = "0x1e00ffff"
+# Initial difficulty (easy for development/testing)
+difficulty_bits = "0x207fffff"
 
-# Block target time (60 seconds = 1 minute for faster testing)
-block_interval_seconds = 60
+# Block target time (120 seconds = 2 minutes for balanced testing)
+block_interval_seconds = 120
 
 [consensus]
 # ASERT difficulty adjustment parameters
-asert_half_life = 3600  # 1 hour in seconds for faster adjustment
+asert_half_life = 7200  # 2 hours in seconds for balanced adjustment
 
 # BurstGuard parameters
 burst_guard_enabled = true
@@ -55,10 +55,10 @@ auth_enabled = false  # Disabled for devnet
 coinbase_maturity = 10  # Shorter for devnet
 
 # Block reward (in satoshis / qbits)
-initial_block_reward = 50000000000  # 500 BQ for faster testing
+initial_block_reward = 5000000000  # 50 BQ (same as testnet)
 
 # Halving interval (blocks)
-halving_interval = 21000  # Shorter for devnet
+halving_interval = 210000  # Same as testnet
 
 # Hybrid mining configuration
 hybrid_mining_enabled = true

@@ -8,7 +8,7 @@
     "timestamp": 1735689600,
     "prev_block_hash": "0000000000000000000000000000000000000000000000000000000000000000",
     "merkle_root": "ed5925efa52574a89f56b2e63e4341ab57f812c197f058828272a99755004e3f",
-    "bits": 545259519,
+    "bits": 469827583,
     "nonce": 2,
     "pow_algo": "hashcash",
     "transactions": [
@@ -41,7 +41,7 @@
     "initial_subsidy": 5000000000,
     "pow_algo": "hashcash",
     "min_difficulty_bits": 486604799,
-    "max_difficulty_bits": 503382015
+    "max_difficulty_bits": 469827583
   },
   "premine": {
     "total_amount": 0,
