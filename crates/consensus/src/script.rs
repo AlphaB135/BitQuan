@@ -72,8 +72,10 @@ pub enum OpCode {
     True = 0x51,
     /// Duplicate top stack item.
     Dup = 0x76,
-    /// Hash top stack item with SHA-256.
+    /// Hash top stack item with SHA-256d (legacy).
     Hash256 = 0xaa,
+    /// Hash top stack item with BLAKE3 (quantum-safe, high-performance).
+    HashBLAKE3 = 0xaf,
     /// Verify PQC signature (Dilithium).
     CheckSigPQC = 0xac,
     /// Verify and leave result on stack.
@@ -91,6 +93,7 @@ impl OpCode {
             0x51 => Some(OpCode::True),
             0x76 => Some(OpCode::Dup),
             0xaa => Some(OpCode::Hash256),
+            0xaf => Some(OpCode::HashBLAKE3),
             0xac => Some(OpCode::CheckSigPQC),
             0xad => Some(OpCode::CheckSigPQCVerify),
             _ => None,
@@ -211,6 +214,14 @@ impl ScriptInterpreter {
                     let data = self.pop()?;
                     let hash = sha256d(&data);
                     self.push(hash.to_vec())?;
+                }
+
+                OpCode::HashBLAKE3 => {
+                    let data = self.pop()?;
+                    let mut hasher = blake3::Hasher::new();
+                    hasher.update(&data);
+                    let hash = hasher.finalize().as_bytes().to_vec();
+                    self.push(hash)?;
                 }
 
                 OpCode::CheckSigPQC | OpCode::CheckSigPQCVerify => {
@@ -379,6 +390,26 @@ mod tests {
 
         assert_eq!(interp.stack.len(), 1);
         assert_eq!(interp.stack[0].len(), 32); // SHA-256 hash
+    }
+
+    #[test]
+    fn script_hash_blake3() {
+        let registry = CryptoRegistry::default();
+        let mut interp = ScriptInterpreter::new(registry);
+
+        // Push data, hash it with BLAKE3
+        let script = vec![
+            0x04, // Push 4 bytes
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            OpCode::HashBLAKE3 as u8,
+        ];
+        interp.execute(&script, &[]).expect("Failed to execute script");
+
+        assert_eq!(interp.stack.len(), 1);
+        assert_eq!(interp.stack[0].len(), 32); // BLAKE3 hash
     }
 
     #[test]

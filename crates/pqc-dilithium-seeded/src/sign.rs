@@ -11,7 +11,7 @@ pub fn crypto_sign_keypair(
   let mut init_seed = [0u8; SEEDBYTES];
   match seed {
     Some(x) => init_seed.copy_from_slice(x),
-    None => randombytes(&mut init_seed, SEEDBYTES),
+    None => randombytes_conditioned(&mut init_seed), // ✅ Quantum-safe entropy conditioning
   };
   let mut seedbuf = [0u8; 2 * SEEDBYTES + CRHBYTES];
   let mut tr = [0u8; SEEDBYTES];

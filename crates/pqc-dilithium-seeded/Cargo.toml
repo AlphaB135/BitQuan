@@ -42,6 +42,10 @@ optional = true
 version = "0.8.5"
 features = ["getrandom"]
 
+[dependencies.sha3]
+version = "0.10"
+features = ["std"]
+
 [dependencies.rand_core]
 version = "0.6.4"
 default-features = false

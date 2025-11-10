@@ -17,6 +17,7 @@ bitquan-types = { path = "../types", version = "0.1.0" }
 thiserror.workspace = true
 sha2.workspace = true
 sha3 = "0.10"
+blake3 = "1.5"
 hex.workspace = true
 serde.workspace = true
 clap.workspace = true
