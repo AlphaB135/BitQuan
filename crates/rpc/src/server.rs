@@ -1734,6 +1734,10 @@ mod tests {
             Err(RpcError::InternalError("not found".to_string()))
         }
 
+        fn submittransaction(&self, _tx_hex: String) -> std::result::Result<String, RpcError> {
+            Ok("test_txid_server".to_string())
+        }
+
         fn getbestblockhash(&self) -> std::result::Result<String, RpcError> {
             Ok("test".to_string())
         }

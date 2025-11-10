@@ -22,8 +22,8 @@ bootstrap_nodes = [
     "node2.bitquan.dev:19444",
 ]
 
-# Initial difficulty (easier than mainnet for testing)
-difficulty_bits = "0x1d00ffff"
+# Initial difficulty (very easy for testnet testing)
+difficulty_bits = "0x207fffff"
 
 # Block target time (600 seconds = 10 minutes)
 block_interval_seconds = 600

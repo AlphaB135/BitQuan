@@ -128,13 +128,38 @@ impl WalletKeypair {
 
     /// Creates from serializable format.
     #[allow(dead_code)]
-    pub fn from_serializable(_data: &SerializableKeypair) -> Result<Self> {
-        // Cannot reconstruct keypair from serialized format
-        // with current pqc_dilithium 0.2 API
-        // User must generate a new keypair instead
-        Err(Error::Invalid(
-            "Keypair reconstruction not supported - please generate a new keypair".to_string(),
-        ))
+    pub fn from_serializable(data: &SerializableKeypair) -> Result<Self> {
+        // Reconstruct keypair from serialized hex data
+        let public_key = hex::decode(&data.public_key)
+            .map_err(|e| Error::Invalid(format!("invalid public key hex: {e}")))?;
+        let secret_key = hex::decode(&data.secret_key)
+            .map_err(|e| Error::Invalid(format!("invalid secret key hex: {e}")))?;
+
+        // Validate key sizes
+        if public_key.len() != PUBLICKEYBYTES {
+            return Err(Error::Invalid(format!(
+                "public key must be {} bytes, got {}",
+                PUBLICKEYBYTES, public_key.len()
+            )));
+        }
+        if secret_key.len() != SECRETKEYBYTES {
+            return Err(Error::Invalid(format!(
+                "secret key must be {} bytes, got {}",
+                SECRETKEYBYTES, secret_key.len()
+            )));
+        }
+
+        // Convert to arrays
+        let mut pub_array = [0u8; PUBLICKEYBYTES];
+        let mut sec_array = [0u8; SECRETKEYBYTES];
+        pub_array.copy_from_slice(&public_key);
+        sec_array.copy_from_slice(&secret_key);
+
+        Ok(WalletKeypair {
+            algorithm: WalletAlgorithm::Dilithium3,
+            public_key: pub_array.to_vec(),
+            secret_key: sec_array.to_vec(),
+        })
     }
 
     /// Returns the public key hash (for address generation).
@@ -152,35 +177,24 @@ impl WalletKeypair {
     /// Saves keypair to a file (warning: stores in JSON - not encrypted!).
     #[allow(dead_code)]
     pub fn save_to_file(&self, path: &Path) -> Result<()> {
-        // For development: serialize keys as hex
-        #[derive(Serialize)]
-        struct KeypairFile {
-            algorithm: WalletAlgorithm,
-            public_key_len: usize,
-            secret_key_len: usize,
-            note: String,
-        }
-
-        let data = KeypairFile {
-            algorithm: self.algorithm,
-            public_key_len: PUBLICKEYBYTES,
-            secret_key_len: SECRETKEYBYTES,
-            note: "BitQuan Dilithium3 Keypair - Keep Secret!".to_string(),
-        };
-
+        let data = self.to_serializable();
         let json = serde_json::to_string_pretty(&data)?;
         fs::write(path, json)?;
-        println!("⚠️  Note: Full key serialization not yet implemented");
-        println!("⚠️  Generate new keypair each session for now");
+        println!("⚠️  WARNING: Keypair saved as unencrypted JSON!");
+        println!("⚠️  This is for development only - use encrypted keystore for production!");
         Ok(())
     }
 
     /// Loads keypair from a file.
     #[allow(dead_code)]
-    pub fn load_from_file(_path: &Path) -> Result<Self> {
-        Err(Error::Invalid(
-            "Keypair loading not yet implemented - generate new keypair for now".to_string(),
-        ))
+    pub fn load_from_file(path: &Path) -> Result<Self> {
+        let json = fs::read_to_string(path)
+            .map_err(|e| Error::Invalid(format!("failed to read keypair file: {e}")))?;
+        
+        let data: SerializableKeypair = serde_json::from_str(&json)
+            .map_err(|e| Error::Invalid(format!("failed to parse keypair file: {e}")))?;
+        
+        Self::from_serializable(&data)
     }
 
     /// Exports public key only (safe to share).

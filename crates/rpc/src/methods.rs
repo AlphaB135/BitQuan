@@ -179,6 +179,9 @@ pub trait RpcMethods {
     /// Get transaction by txid
     fn gettransaction(&self, txid: String) -> Result<TxInfo, RpcError>;
 
+    /// Submit transaction to network
+    fn submittransaction(&self, tx_hex: String) -> Result<String, RpcError>;
+
     /// Get best block hash
     fn getbestblockhash(&self) -> Result<String, RpcError>;
 
@@ -322,6 +325,27 @@ pub fn dispatch_call<T: RpcMethods>(
                 }
             } else {
                 JsonRpcResponse::error(id, error_codes::INVALID_PARAMS, "expected txid".to_string())
+            }
+        }
+
+        "submittransaction" => {
+            if let Some(tx_hex) = params
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+            {
+                match handler.submittransaction(tx_hex.to_string()) {
+                    Ok(txid) => JsonRpcResponse::success(id, serde_json::json!(txid)),
+                    Err(e) => {
+                        JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
+                    }
+                }
+            } else {
+                JsonRpcResponse::error(
+                    id,
+                    error_codes::INVALID_PARAMS,
+                    "expected transaction hex".to_string(),
+                )
             }
         }
 
@@ -489,6 +513,10 @@ mod tests {
 
         fn gettransaction(&self, _txid: String) -> Result<TxInfo, RpcError> {
             Err(RpcError::InternalError("not found".to_string()))
+        }
+
+        fn submittransaction(&self, _tx_hex: String) -> Result<String, RpcError> {
+            Ok("test_txid_1234567890abcdef".to_string())
         }
 
         fn getbestblockhash(&self) -> Result<String, RpcError> {
