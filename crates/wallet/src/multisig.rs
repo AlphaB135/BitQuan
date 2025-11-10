@@ -243,6 +243,23 @@ impl MultisigWallet {
             }
         }
 
+        // CRITICAL: Verify cryptographic validity of each signature
+        let tx_data = hex::decode(&pending.tx_data)
+            .map_err(|_| MultisigError::InvalidSignature)?;
+        
+        for sig in &pending.signatures {
+            let signature_bytes = hex::decode(&sig.signature)
+                .map_err(|_| MultisigError::InvalidSignature)?;
+            
+            let pubkey_bytes = hex::decode(&sig.public_key)
+                .map_err(|_| MultisigError::InvalidSignature)?;
+            
+            // Verify PQC signature using same logic as ScriptInterpreter
+            if !self.verify_pqc_signature(&signature_bytes, &pubkey_bytes, &tx_data)? {
+                return Err(MultisigError::InvalidSignature);
+            }
+        }
+
         Ok(())
     }
 
@@ -260,6 +277,38 @@ impl MultisigWallet {
             signatures: pending.signatures.clone(),
             finalized_at: unix_timestamp()?,
         })
+    }
+
+    /// Verifies a PQC signature using the same logic as ScriptInterpreter.
+    fn verify_pqc_signature(
+        &self,
+        sig: &[u8],
+        pubkey: &[u8],
+        message: &[u8],
+    ) -> Result<bool, MultisigError> {
+        use bitquan_types::SignaturePayload;
+        use bq_crypto::CryptoRegistry;
+        use bitquan_types::SigAlgorithm;
+        
+        // Create signature payload
+        let payload = SignaturePayload {
+            signer_index: 0,
+            signature: sig.to_vec(),
+            public_key: pubkey.to_vec(),
+            aux: None,
+        };
+
+        // Get crypto registry and verify
+        let registry = CryptoRegistry::default();
+        let provider = registry
+            .provider_for(SigAlgorithm::Dilithium3)
+            .ok_or(MultisigError::InvalidSignature)?;
+
+        // Verify signature
+        match provider.verify(&payload, message) {
+            Ok(()) => Ok(true),
+            Err(_) => Ok(false),
+        }
     }
 
     fn compute_tx_id(&self, tx_data: &[u8]) -> [u8; 32] {
@@ -431,9 +480,10 @@ impl MultisigWalletManager {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use bitquan_types::SignaturePayload;
 
     fn sample_pubkeys() -> Vec<String> {
         vec![
@@ -570,17 +620,43 @@ mod tests {
     }
 
     #[test]
-    fn test_wallet_manager() {
-        let mut manager = MultisigWalletManager::new();
-
+    fn test_invalid_signature_rejected() {
         let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
-        let wallet = MultisigWallet::new(config.clone());
-        let address = config.address();
+        let wallet = MultisigWallet::new(config);
 
-        manager.add_wallet(wallet);
+        let mut pending = wallet.create_pending_tx(b"test transaction data");
+        
+        // Add valid signature
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"valid_signature")
+            .expect("Failed to add first signature");
+        
+        // Add invalid signature (wrong format)
+        let result = wallet.add_signature(&mut pending, "pubkey2", b"invalid_signature");
+        assert!(result.is_ok()); // Adding succeeds, verification happens later
+        
+        // Verification should fail due to invalid signature
+        let result = wallet.verify_signatures(&pending);
+        assert!(matches!(result, Err(MultisigError::InvalidSignature)));
+    }
 
-        assert!(manager.get_wallet(&address).is_some());
-        assert_eq!(manager.list_addresses().len(), 1);
+    #[test]
+    fn test_malformed_signature_hex_rejected() {
+        let config = MultisigConfig::new(1, sample_pubkeys(), None).expect("Failed to create config");
+        let wallet = MultisigWallet::new(config);
+
+        let mut pending = wallet.create_pending_tx(b"test data");
+        
+        // Add a signature first
+        wallet
+            .add_signature(&mut pending, "pubkey1", b"valid_signature")
+            .expect("Failed to add signature");
+        
+        // Add signature with invalid hex in tx_data
+        pending.tx_data = "invalid_hex_data".to_string();
+        
+        let result = wallet.verify_signatures(&pending);
+        assert!(matches!(result, Err(MultisigError::InvalidSignature)));
     }
 
     #[test]

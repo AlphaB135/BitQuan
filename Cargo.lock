@@ -3263,6 +3263,7 @@ dependencies = [
  "argon2",
  "base64 0.22.1",
  "bitquan-types",
+ "bq-crypto",
  "hex",
  "rand 0.8.5",
  "rpassword",
