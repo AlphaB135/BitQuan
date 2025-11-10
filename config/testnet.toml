@@ -8,7 +8,7 @@ id = "testnet"
 
 # Genesis block hash (auto-generated from genesis.json)
 # This uniquely identifies the testnet chain
-genesis_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+genesis_hash = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
 
 # Network ports
 # Note: Changed from 18444/18443 to avoid conflict with Bitcoin testnet
@@ -24,7 +24,7 @@ bootstrap_nodes = [
     "seed.testnet.bitquan.org:19444",
 ]
 
-# Initial difficulty (very easy for testnet testing)
+# Initial difficulty (extremely easy for testnet testing)
 difficulty_bits = "0x207fffff"
 
 # Block target time (600 seconds = 10 minutes)

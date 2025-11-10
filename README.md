@@ -10,7 +10,7 @@
 [![Rust](https://img.shields.io/badge/rust-1.82%2B-orange)](https://www.rust-lang.org)
 [![Post-Quantum](https://img.shields.io/badge/Cryptography-Post--Quantum-purple)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
 
-A Bitcoin-style proof-of-work blockchain with post-quantum security using CRYSTALS-Dilithium3 signatures.
+A proof-of-work blockchain with post-quantum security using CRYSTALS-Dilithium3 signatures.
 
 ## Mainnet Status
 
@@ -22,7 +22,7 @@ Production Readiness: 85% - Ready for Testnet Launch
 
 ## Core Principles
 
-- **Bitcoin-style Consensus**: Longest VALID chain rule, no checkpoints, no governance
+- **Proven Consensus**: Longest VALID chain rule, no checkpoints, no governance
 - **Quantum-Resistant**: CRYSTALS-Dilithium3 post-quantum signatures (NIST-approved)
 - **Simple & Secure**: No smart contracts, no DeFi, just value transfer
 - **Proof-of-Work**: SHA-256d mining with RandomX support
@@ -73,7 +73,7 @@ bitquan-miner --pool pool.bitquan.org:3333 --address YOUR_ADDRESS
 
 ## Overview
 
-BitQuan is a Bitcoin-style cryptocurrency designed for 50+ year security resilience against quantum computing threats. It implements Bitcoin's proven consensus model with post-quantum cryptographic signatures, maintaining simplicity while ensuring long-term security against quantum attacks.
+BitQuan is a cryptocurrency designed for 50+ year security resilience against quantum computing threats. It implements a proven consensus model with post-quantum cryptographic signatures, maintaining simplicity while ensuring long-term security against quantum attacks.
 
 ## Security Status
 
@@ -151,14 +151,14 @@ Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
 ## Features
 
 - **Post-Quantum Cryptography**: CRYSTALS-Dilithium3 signatures (NIST-approved)
-- **Bitcoin-style Consensus**: Longest chain rule, no governance, no checkpoints
+- **Proven Consensus**: Longest chain rule, no governance, no checkpoints
 - **Proof-of-Work Mining**: SHA-256d with RandomX support for CPU/GPU mining
 - **BIP39 Wallet Support**: 12/24 word mnemonic phrases with deterministic recovery
-- **UTXO Model**: Bitcoin-style transaction model with 100-block coin maturity
+- **UTXO Model**: Transaction model with 100-block coin maturity
 - **Block Weight System**: 4MB blocks with 384 weight units per PQC signature
 - **Difficulty Adjustment**: ASERT algorithm with quantum-aware adjustments
-- **P2P Networking**: Bitcoin-style peer discovery and block propagation
-- **JSON-RPC API**: Standard Bitcoin-compatible RPC interface
+- **P2P Networking**: Peer discovery and block propagation
+- **JSON-RPC API**: Standard RPC interface
 - **Mining Pools**: Stratum V1 protocol support for pool mining
 - **Memory Safety**: Zero unsafe blocks, comprehensive error handling
 
@@ -173,7 +173,7 @@ BitQuan intentionally does **NOT** include:
 - **Experimental Cryptography**: Only peer-reviewed, NIST-approved algorithms
 - **Marketing Gimmicks**: No promises of "moon", "get rich quick", or unrealistic TPS claims
 
-**Philosophy**: BitQuan does one thing well — quantum-resistant value transfer with Bitcoin-level simplicity and 50+ year security.
+**Philosophy**: BitQuan does one thing well — quantum-resistant value transfer with simplicity and 50+ year security.
 
 ## Repository Structure
 
