@@ -88,8 +88,7 @@ impl RewardEngine {
 
         // For now, estimate fees based on transaction count
         // In production, this would use UTXO set to calculate inputs
-        let estimated_fees = block.transactions.len() as u64 * 1000; // 1000 satoshis per tx
-        estimated_fees
+        block.transactions.len() as u64 * 1000 // 1000 satoshis per tx
     }
 
     /// Credit reward to miner account.

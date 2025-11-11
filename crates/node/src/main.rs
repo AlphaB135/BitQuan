@@ -73,6 +73,7 @@ impl PowMode {
     fn parse(value: &str) -> Result<Self> {
         match value.to_ascii_lowercase().as_str() {
             "hashcash" | "sha256d" | "real" => Ok(PowMode::Hashcash),
+            #[cfg(not(feature = "mainnet"))]
             "mock" | "dev-fast-pow" => {
                 #[cfg(debug_assertions)]
                 return Ok(PowMode::Mock);
@@ -2250,7 +2251,7 @@ async fn wallet_send(
         let tx_bytes = tx_json.as_bytes();
 
         // Sign transaction
-        let signature = keypair.sign(&tx_bytes)
+        let signature = keypair.sign(tx_bytes)
             .map_err(|e| Error::Invalid(format!("failed to sign tx: {e}")))?;
 
         // Add witness (simplified)
@@ -2258,7 +2259,7 @@ async fn wallet_send(
         signed_tx.witnesses = vec![bitquan_types::Witness {
             signatures: vec![bitquan_types::SignaturePayload {
                 signer_index: 0,
-                signature: signature,
+                signature,
                 public_key: keypair.public_key.clone(),
                 aux: None,
             }],

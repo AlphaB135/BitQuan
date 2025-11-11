@@ -338,14 +338,14 @@ mod tests {
         // Collect selections to verify distribution
         let mut sha256d_count = 0;
         let mut randomx_count = 0;
-        let mut ethash_count = 0;
+        let mut _ethash_count = 0;
 
         for i in 0..100 {
             match miner.select_algorithm(i) {
                 PowAlgo::Sha256d => sha256d_count += 1,
                 #[cfg(feature = "randomx")]
                 PowAlgo::RandomX => randomx_count += 1,
-                PowAlgo::Ethash => ethash_count += 1,
+                PowAlgo::Ethash => _ethash_count += 1,
             }
         }
 

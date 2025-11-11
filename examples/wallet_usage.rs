@@ -118,7 +118,7 @@ fn cache_monitoring_example() -> Result<(), Box<dyn std::error::Error>> {
     
     // Decrypt all to populate cache
     for (i, ks) in keystores.iter().enumerate() {
-        decrypt_keystore(ks, &passwords[i])?;
+        decrypt_keystore(ks, passwords[i])?;
     }
     
     // Monitor cache statistics

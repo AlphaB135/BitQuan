@@ -212,7 +212,7 @@ impl BlockSubmitter {
     /// - Merkle root verification
     /// - Timestamp checks
     /// - Basic transaction structure validation
-    /// Note: Full UTXO validation requires blockchain state
+    /// - Note: Full UTXO validation requires blockchain state
     pub fn validate_block_full(&self, block: &Block) -> Result<bool> {
         // Verify merkle root matches transactions
         let calculated_merkle = block.compute_merkle_root();

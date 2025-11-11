@@ -76,7 +76,7 @@ fn compute_sighash(tx: &Transaction, ctx: &TxContext) -> [u8; 32] {
     // Hash outputs
     for output in &tx.outputs {
         hasher.update(output.value.to_le_bytes());
-        hasher.update(&(output.script_pubkey.len() as u64).to_le_bytes());
+        hasher.update((output.script_pubkey.len() as u64).to_le_bytes());
         hasher.update(&output.script_pubkey);
     }
     
