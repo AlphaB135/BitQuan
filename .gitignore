@@ -25,3 +25,7 @@ forks/
 *-e
 *.tmp
 .DS_Store
+
+# Wallet files
+*.json
+crates/wallet/*.json
