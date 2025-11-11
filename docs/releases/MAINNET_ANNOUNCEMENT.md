@@ -16,7 +16,10 @@
 **Genesis File:** [`genesis/mainnet.json`](../genesis/mainnet.json)
 
 **Consensus:**
-- **PoW Algorithm:** SHA-256d (dual-SHA-256, Bitcoin-compatible)
+- **PoW Algorithm:** Hybrid mining
+  - SHA-256d (ASIC-friendly) - Available from genesis
+  - RandomX (CPU-friendly) - Available from block 10,000
+  - Ethash (GPU-friendly) - Available from block 10,000
 - **Target Block Time:** 600 seconds (10 minutes)
 - **Difficulty Adjustment:** ASERT (aserti3-2d), 2016-block window
 - **Initial Subsidy:** 50 BQ (5,000,000,000 satoshis)
@@ -62,7 +65,7 @@ curl -X POST http://localhost:8332 \
 ### Stratum Mining Pool
 
 **Default:** `stratum+tcp://localhost:3333`  
-**Supported Algorithms:** SHA-256d only (RandomX is testnet-only)
+**Supported Algorithms:** SHA-256d (block 0+), RandomX & Ethash (block 10,000+)
 
 **Miner Connection:**
 ```bash
@@ -216,7 +219,7 @@ Testnet allows:
 
 ### Breaking Changes from Testnet
 
-1. **PoW Algorithm:** Mainnet enforces SHA-256d only. RandomX is disabled.
+1. **PoW Algorithm:** Mainnet starts with SHA-256d only, enables hybrid mining (RandomX + Ethash) at block 10,000.
 2. **Network ID:** Separate chain (mainnet txs incompatible with testnet).
 3. **Genesis Block:** Different genesis hash and initial state.
 

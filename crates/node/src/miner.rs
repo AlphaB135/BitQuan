@@ -1,13 +1,10 @@
 //! Hybrid Mining Controller with weighted algorithm switching and metrics.
 
-use bitquan_consensus::pow::{PowAlgo, PowEngine, Sha256dEngine};
+use bitquan_consensus::pow::{PowAlgo, PowEngine, Sha256dEngine, RandomXEngine};
 use bitquan_types::{BlockHeader, NetworkId, Result};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-
-#[cfg(feature = "randomx")]
-use bitquan_consensus::pow::RandomXEngine;
 
 /// Hybrid miner capable of mining multiple PoW algorithms concurrently.
 #[allow(dead_code)] // Active component; unused fields reserved for Phase 8
@@ -155,7 +152,6 @@ impl HybridMiner {
                 PowAlgo::Sha256d => {
                     engines.push(Arc::new(Sha256dEngine));
                 }
-                #[cfg(feature = "randomx")]
                 PowAlgo::RandomX => {
                     use bitquan_consensus::pow::{RandomXConfig, RandomXMode};
                     let config = RandomXConfig {

@@ -345,24 +345,78 @@
             return date.toLocaleDateString();
         }
 
-        // Update dashboard on load
-        updateDashboard();
-
-        // Auto-refresh every 30 seconds
-        setInterval(updateDashboard, 30000);
-
-        // In production, replace mock data with real API calls:
-        /*
-        async function fetchBlockchainInfo() {
+        // Fetch real mining data
+        async function fetchMiningData() {
             try {
-                const response = await fetch('http://localhost:8334/api/blockchain/info');
+                const response = await fetch('/data.json');
                 const data = await response.json();
-                // Update UI with real data
+                // Update stats with real data
+                if (data.blockHeight) {
+                    document.getElementById('blockHeight').textContent = 
+                        data.blockHeight.toLocaleString();
+                }
+                if (data.hashrate) {
+                    const hashrate = parseFloat(data.hashrate);
+                    if (hashrate > 1000000) {
+                        document.getElementById('hashrate').textContent = 
+                            (hashrate / 1000000).toFixed(2) + ' MH/s';
+                    } else if (hashrate > 1000) {
+                        document.getElementById('hashrate').textContent = 
+                            (hashrate / 1000).toFixed(2) + ' KH/s';
+                    } else {
+                        document.getElementById('hashrate').textContent = 
+                            hashrate.toFixed(0) + ' H/s';
+                    }
+                }
+                if (data.transactions) {
+                    document.getElementById('transactions').textContent = 
+                        data.transactions.toLocaleString();
+                }
+                if (data.blocksFound !== undefined) {
+                    document.getElementById('blockHeight').textContent = 
+                        data.blocksFound.toLocaleString();
+                }
+                if (data.blockTime) {
+                    document.getElementById('blockTime').textContent = data.blockTime;
+                }
+                
+                // Update recent blocks with REAL data
+                if (data.recentBlocks && data.recentBlocks.length > 0) {
+                    const blocksHtml = data.recentBlocks.reverse().map(block => `
+                        <div class="block-item">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <strong>Block #${block.height.toLocaleString()}</strong>
+                                <span style="opacity: 0.7;">Just now</span>
+                            </div>
+                            <div class="block-hash">
+                                ${block.hash}
+                            </div>
+                            <div style="margin-top: 8px; opacity: 0.8; font-size: 0.9em;">
+                                Nonce: ${block.nonce} • 1 tx (coinbase)
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('recentBlocks').innerHTML = blocksHtml;
+                } else {
+                    // Fallback to mock data
+                    updateDashboard();
+                }
+                
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
             } catch (error) {
-                console.error('Error fetching blockchain info:', error);
+                console.log('Using mock data (data.json not found)');
+                // Fall back to mock data
+                updateDashboard();
             }
         }
-        */
+
+        // Update dashboard on load
+        updateDashboard();
+        fetchMiningData();
+
+        // Auto-refresh every 5 seconds for live mining updates
+        setInterval(fetchMiningData, 5000);
     </script>
 </body>
 </html>

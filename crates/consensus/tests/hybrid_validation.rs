@@ -17,22 +17,25 @@ fn dummy_header(algo_id: u8) -> BlockHeader {
 }
 
 #[test]
-fn mainnet_rejects_randomx() {
+fn mainnet_hybrid_activation() {
     let params = PowSetParams::mainnet();
 
-    // Pre-activation: only SHA-256d allowed
+    // Pre-activation (before block 10000): only SHA-256d allowed
     assert!(params.is_algo_allowed(PowAlgo::Sha256d, 0));
-    #[cfg(feature = "randomx")]
     assert!(!params.is_algo_allowed(PowAlgo::RandomX, 0));
+    assert!(!params.is_algo_allowed(PowAlgo::Ethash, 0));
 
-    // Post "activation" (which is at u64::MAX, so never): still only SHA-256d
-    assert!(params.is_algo_allowed(PowAlgo::Sha256d, 1_000_000));
-    #[cfg(feature = "randomx")]
-    assert!(!params.is_algo_allowed(PowAlgo::RandomX, 1_000_000));
+    // Post-activation (block 10000+): all algorithms allowed
+    assert!(params.is_algo_allowed(PowAlgo::Sha256d, 10000));
+    assert!(params.is_algo_allowed(PowAlgo::RandomX, 10000));
+    assert!(params.is_algo_allowed(PowAlgo::Ethash, 10000));
+
+    assert!(params.is_algo_allowed(PowAlgo::Sha256d, 15000));
+    assert!(params.is_algo_allowed(PowAlgo::RandomX, 15000));
+    assert!(params.is_algo_allowed(PowAlgo::Ethash, 15000));
 }
 
 #[test]
-#[cfg(feature = "randomx")]
 fn testnet_hybrid_activation() {
     let params = PowSetParams::testnet_hybrid();
 
@@ -48,7 +51,6 @@ fn testnet_hybrid_activation() {
 }
 
 #[test]
-#[cfg(feature = "randomx")]
 fn devnet_hybrid_from_genesis() {
     let params = PowSetParams::devnet_hybrid();
 
@@ -74,7 +76,6 @@ fn sha256d_header_validation() {
 }
 
 #[test]
-#[cfg(feature = "randomx")]
 fn randomx_header_validation() {
     let config = RandomXConfig::default();
     let engine = RandomXEngine::new(config);

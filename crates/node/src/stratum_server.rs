@@ -2,7 +2,7 @@
 //!
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
 
-use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, PowAlgo};
+use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, randomx_pow_hash, target_from_bits, PowAlgo};
 use bitquan_types::{Block, Error, NetworkId, Result};
 use dashmap::DashMap;
 use lru::LruCache;
@@ -1275,7 +1275,6 @@ fn verify_share_pow_sync(
     // 4) Compute PoW hash according to algorithm
     let pow_hash = match algo {
         PowAlgo::Sha256d => sha256d_pow_hash(&preimage),
-        #[cfg(feature = "randomx")]
         PowAlgo::RandomX => {
             // Use cryptographically secure seed derived from genesis hash
             let mut seed = [0u8; 32];

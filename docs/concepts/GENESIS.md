@@ -111,7 +111,7 @@ Before mainnet v1.0.0 launch, the following must be verified:
 
 1. ✅ Genesis hash matches documented value exactly
 2. ✅ Consensus parameters are locked (no runtime modification)
-3. ✅ PoW algorithm is SHA-256d only (hybrid disabled)
+3. ✅ PoW algorithm supports hybrid mining (SHA-256d from genesis, RandomX/Ethash at block 10,000)
 4. ✅ DNS seeds resolve and respond (≥60% threshold, 5s TCP probe)
 5. ✅ Genesis file is byte-for-byte reproducible
 

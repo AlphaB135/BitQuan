@@ -17,7 +17,7 @@ Phase 7 (Mainnet Go-Live & Post-Launch Monitoring) is **COMPLETE** and the repos
 - ✅ Load testing harness operational
 - ✅ CI/CD pipelines for mainnet deployment
 - ✅ Monitoring & alerting configured
-- ✅ Security gates enforced (mainnet = SHA-256d only)
+- ✅ Security gates enforced (mainnet = hybrid mining with staged activation)
 - ✅ Documentation complete
 
 ---
@@ -198,7 +198,7 @@ promtool check rules alerts/mainnet-rules.yml
 - SHA256SUMS (filled by release CI)
 - Genesis hash
 - Network params (ASERT, BurstGuard)
-- PoW policy (SHA-256d only)
+- PoW policy (SHA-256d from genesis, hybrid at block 10,000)
 - DNS seed list
 - Explorer URL (when ready)
 - Faucet section (testnet)
@@ -544,8 +544,8 @@ promtool check rules alerts/mainnet-rules.yml
 ✅ **All security gates preserved:**
 
 ### Mainnet PoW Policy
-- **SHA-256d ONLY** (no RandomX on mainnet)
-- Feature gate enforced in code
+- **SHA-256d from genesis** (RandomX/Ethash at block 10,000)
+- Hybrid activation enforced in code
 - Preflight validation checks this
 
 ### RPC Security

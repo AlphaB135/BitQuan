@@ -340,10 +340,10 @@ algorithm_weights = "sha256d:1,ethash:1,randomx:1"
 
 ## Security Considerations
 
-### Mainnet Restrictions
-- **RandomX**: Disabled on mainnet (testnet/devnet only)
-- **SHA-256d**: Always enabled (primary consensus)
-- **Ethash**: Enabled on all networks
+### Mainnet Algorithm Availability
+- **SHA-256d**: Available from genesis (block 0+)
+- **RandomX**: Available from block 10,000+
+- **Ethash**: Available from block 10,000+
 
 ### Network Protection
 - **Burst Guard**: Prevents 51% attacks across all algorithms

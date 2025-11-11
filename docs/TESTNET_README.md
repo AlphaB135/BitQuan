@@ -11,7 +11,7 @@ This document provides detailed instructions for running BitQuan testnet nodes w
 | Devnet   | ✅ Yes    | ✅ Yes    | ✅ Yes       |
 | Regtest  | ✅ Yes    | ✅ Yes    | ✅ Yes       |
 
-**Mainnet uses SHA-256d exclusively.** RandomX is strictly forbidden at the consensus level for maximum security and ASIC compatibility.
+**Mainnet supports hybrid mining:** SHA-256d from genesis, RandomX & Ethash enabled at block 10,000 for inclusive mining participation.
 
 ## Building with RandomX Support
 
@@ -130,11 +130,11 @@ curl -s http://localhost:9090/metrics | grep pow_hashrate_gauge
 
 ## Troubleshooting
 
-### Error: "RandomX disabled on mainnet"
+### Error: "RandomX not yet activated on mainnet"
 
-**Cause:** Attempted to use `--pow randomx` or `--pow hybrid` on mainnet.
+**Cause:** Attempted to use RandomX before block 10,000 activation height.
 
-**Solution:** Mainnet only supports SHA-256d. Use testnet/devnet for hybrid mining.
+**Solution:** Wait for block 10,000+ or use SHA-256d mining before activation.
 
 ```bash
 # ❌ Wrong

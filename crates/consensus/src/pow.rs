@@ -19,8 +19,7 @@ pub const DEVNET_MAX_BITS: u32 = 0x207fffff;
 pub enum PowAlgo {
     /// SHA-256d (double SHA-256) - Bitcoin-style PoW (ASIC-friendly).
     Sha256d = 0,
-    /// RandomX - CPU-friendly memory-hard PoW (testnet-only, feature-gated).
-    #[cfg(feature = "randomx")]
+    /// RandomX - CPU-friendly memory-hard PoW.
     RandomX = 1,
     /// Ethash - GPU-friendly PoW (Ethereum-style).
     Ethash = 2,
@@ -31,7 +30,6 @@ impl PowAlgo {
     pub fn from_u8(value: u8) -> Option<Self> {
         match value {
             0 => Some(PowAlgo::Sha256d),
-            #[cfg(feature = "randomx")]
             1 => Some(PowAlgo::RandomX),
             2 => Some(PowAlgo::Ethash),
             _ => None,
@@ -47,7 +45,6 @@ impl PowAlgo {
     pub fn name(&self) -> &'static str {
         match self {
             PowAlgo::Sha256d => "sha256d",
-            #[cfg(feature = "randomx")]
             PowAlgo::RandomX => "randomx",
             PowAlgo::Ethash => "ethash",
         }
@@ -119,13 +116,11 @@ impl PowEngine for Sha256dEngine {
     }
 }
 
-/// RandomX PoW engine (feature-gated, testnet-only).
-#[cfg(feature = "randomx")]
+/// RandomX PoW engine.
 pub struct RandomXEngine {
     _config: RandomXConfig,
 }
 
-#[cfg(feature = "randomx")]
 impl RandomXEngine {
     /// Create a new RandomX engine with the given configuration.
     pub fn new(config: RandomXConfig) -> Self {
@@ -133,7 +128,6 @@ impl RandomXEngine {
     }
 }
 
-#[cfg(feature = "randomx")]
 impl PowEngine for RandomXEngine {
     fn algo(&self) -> PowAlgo {
         PowAlgo::RandomX
@@ -158,8 +152,7 @@ impl PowEngine for RandomXEngine {
     }
 }
 
-/// Computes RandomX PoW hash (feature-gated, exposed for Stratum).
-#[cfg(feature = "randomx")]
+/// Computes RandomX PoW hash (exposed for Stratum).
 pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
     // RandomX integration pending implementation
     // For now, use a placeholder that combines SHA-256 with header data and seed
@@ -175,7 +168,6 @@ pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
 }
 
 /// RandomX configuration.
-#[cfg(feature = "randomx")]
 #[derive(Clone, Debug)]
 pub struct RandomXConfig {
     /// Cache mode: fast or full.
@@ -184,7 +176,6 @@ pub struct RandomXConfig {
     pub seed: [u8; 32],
 }
 
-#[cfg(feature = "randomx")]
 impl Default for RandomXConfig {
     fn default() -> Self {
         Self {
@@ -195,7 +186,6 @@ impl Default for RandomXConfig {
 }
 
 /// RandomX cache mode.
-#[cfg(feature = "randomx")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RandomXMode {
     /// Fast mode (less memory, faster init).
@@ -422,7 +412,6 @@ mod tests {
         assert_eq!(PowAlgo::from_u8(255), None);
 
         assert_eq!(PowAlgo::Sha256d.to_u8(), 0);
-        #[cfg(feature = "randomx")]
         assert_eq!(PowAlgo::RandomX.to_u8(), 1);
     }
 
@@ -483,7 +472,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "randomx")]
     fn randomx_and_sha256d_produce_different_hashes() {
         let sha_engine = Sha256dEngine;
         let rx_engine = RandomXEngine::new(RandomXConfig::default());

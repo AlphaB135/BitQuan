@@ -84,7 +84,7 @@ scripts/preflight/preflight.sh \
 - Build reproducibility
 - RPC security guards (TLS/JWT)
 - Metrics availability
-- PoW parameters (mainnet = SHA-256d only)
+- PoW parameters (mainnet = SHA-256d from genesis, hybrid at block 10,000)
 
 **Output**: `preflight_report.md`, `preflight_raw_logs.txt`
 
@@ -172,7 +172,7 @@ promtool check rules alerts/mainnet-rules.yml
 ## 🔐 Security Gates
 
 ### Mainnet Invariants
-✅ **PoW Algorithm**: SHA-256d only (RandomX disabled)  
+✅ **PoW Algorithm**: SHA-256d from genesis, RandomX/Ethash at block 10,000  
 ✅ **RPC Auth**: TLS + JWT (no Basic Auth)  
 ✅ **Rate Limiting**: Enabled (CORS, CSRF, request quotas)  
 ✅ **Mock PoW**: Forbidden on mainnet (returns error)

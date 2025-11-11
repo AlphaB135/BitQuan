@@ -27,7 +27,7 @@ stratum+tcp://pool2.bitquan.org:3334  # Backup pool
 stratum+tcp://pool1.bitquan.org:3335  # GPU-focused
 stratum+tcp://pool2.bitquan.org:3335  # Backup pool
 
-# RandomX pools (testnet only)
+# RandomX pools (mainnet enabled at block 10,000)
 stratum+tcp://pool1.bitquan.org:3336  # CPU-focused
 stratum+tcp://pool2.bitquan.org:3336  # Backup pool
 

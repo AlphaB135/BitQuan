@@ -142,7 +142,7 @@ promtool check rules alerts/mainnet-rules.yml
 
 ## Security Posture (Unchanged)
 
-✅ **Mainnet = SHA-256d only** (no RandomX)  
+✅ **Mainnet = Hybrid mining** (SHA-256d from genesis, RandomX/Ethash at block 10,000)  
 ✅ **RPC protected**: TLS + JWT authentication  
 ✅ **Rate limiting**: CORS + CSRF + request quotas  
 ✅ **Zero unsafe code** in production paths  

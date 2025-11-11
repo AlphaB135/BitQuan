@@ -160,7 +160,7 @@ block_processing_duration_seconds
 
 | Check | Requirement | Status | Notes |
 |-------|-------------|--------|-------|
-| Mainnet algo lock | SHA-256d only, hybrid forbidden | 🔄 | Critical |
+| Mainnet algo lock | SHA-256d from genesis, hybrid at block 10,000 | 🔄 | Critical |
 | Testnet hybrid | Hybrid allowed if configured | 🔄 | Required |
 | ASERT params | Half-life and targets correct | 🔄 | Critical |
 | Difficulty bits | Min/max values within spec | 🔄 | Required |

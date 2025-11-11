@@ -185,7 +185,10 @@ Yes! BitQuan uses CRYSTALS-Dilithium3 signatures, which are resistant to attacks
 
 ### Can I mine BitQuan?
 
-Yes! Mainnet uses SHA-256d (compatible with Bitcoin ASIC miners). Testnet supports hybrid mining with RandomX for CPU miners.
+Yes! Mainnet supports hybrid mining:
+- SHA-256d (ASIC miners) - Available from genesis
+- RandomX (CPU miners) - Available from block 10,000+
+- Ethash (GPU miners) - Available from block 10,000+
 
 ### Where can I get testnet coins?
 

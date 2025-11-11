@@ -86,17 +86,20 @@ pub struct PowSetParams {
 }
 
 impl PowSetParams {
-    /// Mainnet configuration (SHA-256d only, hybrid disabled).
+    /// Mainnet configuration (all algorithms enabled, hybrid activated at block 10000).
     pub fn mainnet() -> Self {
         Self {
-            activated_height: u64::MAX, // Never activate hybrid on mainnet
-            allowed_algos: vec![pow::PowAlgo::Sha256d],
+            activated_height: 10000, // Activate hybrid mining at block 10000
+            allowed_algos: vec![
+                pow::PowAlgo::Sha256d,
+                pow::PowAlgo::RandomX,
+                pow::PowAlgo::Ethash,
+            ],
             default_algo: pow::PowAlgo::Sha256d,
         }
     }
 
     /// Testnet configuration (hybrid enabled at height 1000).
-    #[cfg(feature = "randomx")]
     pub fn testnet_hybrid() -> Self {
         Self {
             activated_height: 1000,
@@ -110,7 +113,6 @@ impl PowSetParams {
     }
 
     /// Devnet configuration (hybrid enabled from genesis).
-    #[cfg(feature = "randomx")]
     pub fn devnet_hybrid() -> Self {
         Self {
             activated_height: 0,
@@ -164,7 +166,6 @@ impl ConsensusParams {
     }
 
     /// Returns testnet configuration with hybrid PoW enabled.
-    #[cfg(feature = "randomx")]
     pub fn testnet_hybrid() -> Self {
         Self {
             block_weight_cap: 4_000_000,
@@ -177,7 +178,6 @@ impl ConsensusParams {
     }
 
     /// Returns devnet configuration with hybrid PoW enabled.
-    #[cfg(feature = "randomx")]
     pub fn devnet_hybrid() -> Self {
         Self {
             block_weight_cap: 4_000_000,
