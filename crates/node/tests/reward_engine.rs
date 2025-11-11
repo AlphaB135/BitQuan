@@ -249,12 +249,14 @@ fn test_payout_recording() {
 
 #[test]
 fn test_database_persistence() {
-    // Use a temporary file for this test
-    let temp_path = format!("/tmp/bitquan_test_{}.db", std::process::id());
+    // Use a temporary file for this test (cross-platform)
+    let temp_dir = std::env::temp_dir();
+    let temp_path = temp_dir.join(format!("bitquan_test_{}.db", std::process::id()));
+    let temp_path_str = temp_path.to_str().expect("Failed to convert path");
 
     // Scope 1: Create and populate database
     {
-        let db = PoolDatabase::open(&temp_path).expect("Failed to open database");
+        let db = PoolDatabase::open(temp_path_str).expect("Failed to open database");
         let mut engine = RewardEngine::new(db);
 
         engine
@@ -267,7 +269,7 @@ fn test_database_persistence() {
 
     // Scope 2: Reopen database and verify data persists
     {
-        let db = PoolDatabase::open(&temp_path).expect("Failed to reopen database");
+        let db = PoolDatabase::open(temp_path_str).expect("Failed to reopen database");
         let engine = RewardEngine::new(db);
 
         const FEE: u64 = 1000;
