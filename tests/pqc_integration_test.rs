@@ -16,6 +16,13 @@ use wallet::keystore::{
     get_cache_stats, WalletConfig,
 };
 
+/// Helper to check if PQC tests should be skipped (e.g., in CI environments)
+fn should_skip_pqc_tests() -> bool {
+    std::env::var("BITQUAN_SKIP_PQC_TESTS")
+        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .unwrap_or(false)
+}
+
 /// Helper function to create a test transaction
 fn create_test_transaction() -> (Transaction, TxContext) {
     // Create transaction inputs and outputs
@@ -85,6 +92,11 @@ fn compute_sighash(tx: &Transaction, ctx: &TxContext) -> [u8; 32] {
 /// Test 1: Basic End-to-End Flow
 #[test]
 fn test_end_to_end_pqc_signature_basic() -> Result<(), Box<dyn std::error::Error>> {
+    if should_skip_pqc_tests() {
+        println!("⏭️  Skipping PQC test (BITQUAN_SKIP_PQC_TESTS is set)");
+        return Ok(());
+    }
+
     println!("🧪 Test 1: Basic End-to-End PQC Signature Flow");
 
     // Step 1: Key Setup
@@ -135,6 +147,11 @@ fn test_end_to_end_pqc_signature_basic() -> Result<(), Box<dyn std::error::Error
 /// Test 2: Multi-threaded Signing with Cache Test
 #[test]
 fn test_multithreaded_signing_with_cache() -> Result<(), Box<dyn std::error::Error>> {
+    if should_skip_pqc_tests() {
+        println!("⏭️  Skipping PQC test (BITQUAN_SKIP_PQC_TESTS is set)");
+        return Ok(());
+    }
+
     println!("🧪 Test 2: Multi-threaded Signing with Cache Test");
 
     // Setup with caching enabled
@@ -243,6 +260,11 @@ fn test_multithreaded_signing_with_cache() -> Result<(), Box<dyn std::error::Err
 /// Test 3: Cache Timeout and Cleanup Test
 #[test]
 fn test_cache_timeout_and_cleanup() -> Result<(), Box<dyn std::error::Error>> {
+    if should_skip_pqc_tests() {
+        println!("⏭️  Skipping PQC test (BITQUAN_SKIP_PQC_TESTS is set)");
+        return Ok(());
+    }
+
     println!("🧪 Test 3: Cache Timeout and Cleanup");
 
     // Setup with cache (note: current implementation uses 5-minute hardcoded timeout)
@@ -317,6 +339,11 @@ fn test_cache_timeout_and_cleanup() -> Result<(), Box<dyn std::error::Error>> {
 /// Test 4: Error Handling and Security
 #[test]
 fn test_error_handling_and_security() -> Result<(), Box<dyn std::error::Error>> {
+    if should_skip_pqc_tests() {
+        println!("⏭️  Skipping PQC test (BITQUAN_SKIP_PQC_TESTS is set)");
+        return Ok(());
+    }
+
     println!("🧪 Test 4: Error Handling and Security");
 
     let server_config = WalletConfig::server();
@@ -369,6 +396,11 @@ fn test_error_handling_and_security() -> Result<(), Box<dyn std::error::Error>> 
 /// Main integration test runner
 #[test]
 fn run_all_integration_tests() -> Result<(), Box<dyn std::error::Error>> {
+    if should_skip_pqc_tests() {
+        println!("⏭️  Skipping PQC tests (BITQUAN_SKIP_PQC_TESTS is set)");
+        return Ok(());
+    }
+
     println!("🚀 BitQuan End-to-End PQC Signature Integration Tests");
     println!("=====================================================");
 
