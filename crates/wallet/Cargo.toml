@@ -24,6 +24,7 @@ hex.workspace = true
 lazy_static = "1.4"
 bitquan-types = { path = "../types", version = "0.1.0" }
 bq-crypto = { path = "../crypto", version = "0.0.1" }
+pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1" }
 
 [dev-dependencies]
 tempfile = "3.12"
@@ -39,3 +40,11 @@ cli = ["rpassword"]
 [[example]]
 name = "cli_demo"
 required-features = ["cli"]
+
+[[example]]
+name = "wallet_usage"
+path = "../../examples/wallet_usage.rs"
+
+[[test]]
+name = "pqc_integration_test"
+path = "../../tests/pqc_integration_test.rs"
