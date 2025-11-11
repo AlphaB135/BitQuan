@@ -4,8 +4,7 @@ global:
   evaluation_interval: 15s
 
 rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  - "bitquan_alerts.yml"
 
 scrape_configs:
   # BitQuan node metrics
@@ -43,7 +42,3 @@ alerting:
     - static_configs:
         - targets:
           # - alertmanager:9093
-
-# Load rules once and periodically evaluate them
-rule_files:
-  - "bitquan_alerts.yml"
