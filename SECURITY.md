@@ -86,10 +86,10 @@ All production code has been audited for unsafe error handling patterns:
 
 | Crate | unwrap/expect in Prod | Status | Notes |
 |-------|----------------------|--------|-------|
-| node | 3 | ✅ Justified | HRP encoding constants (compile-time validated) |
-| consensus | 0 | ✅ Clean | Test-only panics |
-| wallet | 0 | ✅ Clean | Test-only unwraps |
-| mempool | 1 | ✅ Justified | Default trait limitation documented |
+| node | 3 | [DONE] Justified | HRP encoding constants (compile-time validated) |
+| consensus | 0 | [DONE] Clean | Test-only panics |
+| wallet | 0 | [DONE] Clean | Test-only unwraps |
+| mempool | 1 | [DONE] Justified | Default trait limitation documented |
 
 All remaining `unwrap()`/`expect()` calls have explicit SAFETY comments explaining why they cannot fail.
 
@@ -160,13 +160,13 @@ See `.github/workflows/audit.yml` for CI configuration.
 - Dependency tree: `cargo tree --all-features`
 
 **Key Security Properties**:
-1. ✅ All RNG uses OsRng (cryptographically secure)
-2. ✅ Cross-network replay protection via network_id + genesis_hash
-3. ✅ Post-quantum signatures (Dilithium3)
-4. ✅ Zero clippy warnings in production code
-5. ✅ Comprehensive error handling (no unwrap/expect in critical paths)
-6. ✅ TLS 1.3 encryption for all RPC communications
-7. ✅ JWT-based authentication with Argon2id password hashing
+1. [DONE] All RNG uses OsRng (cryptographically secure)
+2. [DONE] Cross-network replay protection via network_id + genesis_hash
+3. [DONE] Post-quantum signatures (Dilithium3)
+4. [DONE] Zero clippy warnings in production code
+5. [DONE] Comprehensive error handling (no unwrap/expect in critical paths)
+6. [DONE] TLS 1.3 encryption for all RPC communications
+7. [DONE] JWT-based authentication with Argon2id password hashing
 
 ## RPC Security Architecture
 
@@ -363,12 +363,12 @@ scripts/preflight/preflight.sh --network mainnet --release-tag v1.0.0
 ```
 
 **Pass Criteria**:
-- ✅ TLS handshake completes successfully
-- ✅ Invalid JWT tokens rejected (401)
-- ✅ Metrics counter increments for validation events
-- ✅ All required security headers present
-- ✅ HSTS max-age ≥ 31536000 (1 year)
-- ✅ CSP header restricts content sources
+- [DONE] TLS handshake completes successfully
+- [DONE] Invalid JWT tokens rejected (401)
+- [DONE] Metrics counter increments for validation events
+- [DONE] All required security headers present
+- [DONE] HSTS max-age ≥ 31536000 (1 year)
+- [DONE] CSP header restricts content sources
 
 **CI Integration**:
 Preflight validation runs automatically in `.github/workflows/preflight.yml` on:

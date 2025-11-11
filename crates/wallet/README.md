@@ -116,7 +116,7 @@ let loaded = read_keystore_file("./data/keystore.json")?;
 
 ## Security Notes
 
-⚠️ **Critical Practices**:
+[WARNING] **Critical Practices**:
 1. **Never commit keystore files to git** - add `*.keystore` and `keystore.json` to `.gitignore`
 2. **Secure backups**: Store encrypted keystores offline (USB, paper backup of password)
 3. **Password strength**: Use passphrase ≥ 5 words or password manager-generated 16+ chars

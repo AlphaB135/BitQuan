@@ -31,7 +31,7 @@ Thanks for helping secure BitQuan for the next 50+ years.
 - JWT tokens, API keys
 - Any secret material
 
-### ✅ Safe Logging Patterns
+### [DONE] Safe Logging Patterns
 
 ```rust
 // Use fingerprints for debugging
@@ -59,7 +59,7 @@ See [LOGGING_POLICY.md](docs/LOGGING_POLICY.md) for details.
 
 ### File Naming
 
-**✅ DO:**
+**[DONE] DO:**
 - Use `snake_case.rs` for all Rust files
   - Examples: `transaction.rs`, `block_index.rs`, `tx_builder.rs`
 - Use `lib.rs` for crate entry points
@@ -100,10 +100,10 @@ mod tests;
 **Use `pub(crate)` for internal APIs:**
 
 ```rust
-// ✅ Good - internal helper hidden from external users
+// [DONE] Good - internal helper hidden from external users
 pub(crate) fn internal_validation_helper(...) -> Result<()> { ... }
 
-// ✅ Good - public stable API
+// [DONE] Good - public stable API
 pub fn validate_transaction(...) -> Result<()> { ... }
 
 // ❌ Bad - exposes internal details

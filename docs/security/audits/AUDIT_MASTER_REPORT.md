@@ -18,7 +18,7 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 
 | Category | Rating | Critical Issues | Status |
 |----------|--------|----------------|---------|
-| **Cryptographic Implementation** | B+ (82/100) | 2 P0, 1 P1 | 🔴 ACTION REQUIRED |
+| **Cryptographic Implementation** | B+ (82/100) | 2 P0, 1 P1 | [CRITICAL] ACTION REQUIRED |
 | **Code Safety & Memory** | A- (88/100) | 0 P0, 3 P1 | 🟡 IMPROVEMENTS NEEDED |
 | **Dependencies & Supply Chain** | B+ (85/100) | 0 P0, 2 P1 | 🟡 IMPROVEMENTS NEEDED |
 | **CI/CD & Operational Security** | A- (89/100) | 0 P0, 4 P1 | 🟡 IMPROVEMENTS NEEDED |
@@ -38,13 +38,13 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 
 ### 1. Cryptographic Implementation (B+ - 82/100)
 
-#### ✅ **Strengths**
+#### [DONE] **Strengths**
 - **Post-Quantum Security**: NIST-compliant Dilithium3 implementation
 - **Key Derivation**: OWASP-compliant Argon2id parameters
 - **Constant-Time Operations**: Proper implementation in critical paths
 - **Randomness Generation**: Secure OsRng usage throughout
 
-#### 🔴 **Critical Issues**
+#### [CRITICAL] **Critical Issues**
 
 **P0-1: Missing Zeroization for PQC Keypairs**
 - **Location**: `crates/pqc-dilithium-seeded/src/api.rs:7`
@@ -58,7 +58,7 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 - **Impact**: Predictable mining, potential manipulation
 - **Fix**: Replace with `OsRng` and derive seed from consensus
 
-#### ⚠️ **High Priority Issues**
+#### [WARNING] **High Priority Issues**
 
 **P1-1: Potential Timing Vulnerability**
 - **Location**: `crates/pqc-dilithium-seeded/src/sign.rs:242`
@@ -69,13 +69,13 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 
 ### 2. Code Safety & Memory (A- - 88/100)
 
-#### ✅ **Strengths**
+#### [DONE] **Strengths**
 - **Memory Safety**: Minimal unsafe code (2 instances, well-justified)
 - **Error Handling**: Excellent Result<T, Error> patterns
 - **Memory Protection**: Unix mlock() for sensitive data
 - **Type Safety**: Strong Rust type system usage
 
-#### ⚠️ **High Priority Issues**
+#### [WARNING] **High Priority Issues**
 
 **P1-1: Production Panic Points** (8 instances)
 - **Locations**: Mempool, block submit, consensus, network modules
@@ -93,12 +93,12 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 
 ### 3. Dependencies & Supply Chain (B+ - 85/100)
 
-#### ✅ **Strengths**
+#### [DONE] **Strengths**
 - **CVE Security**: Zero vulnerabilities in 357 dependencies
 - **Supply Chain**: Verified sources, no unknown dependencies
 - **Build Reproducibility**: Cargo.lock ensures deterministic builds
 
-#### ⚠️ **High Priority Issues**
+#### [WARNING] **High Priority Issues**
 
 **P1-1: License Compliance**
 - **Issue**: Zlib and CDLA-Permissive-2.0 licenses not allowed
@@ -114,13 +114,13 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 
 ### 4. CI/CD & Operational Security (A- - 89/100)
 
-#### ✅ **Strengths**
+#### [DONE] **Strengths**
 - **Secret Management**: No hardcoded secrets in production
 - **Build Reproducibility**: SLSA provenance, GPG signing
 - **Version Pinning**: All actions use pinned versions
 - **Advanced Features**: SBOM generation, checksum verification
 
-#### ⚠️ **High Priority Issues**
+#### [WARNING] **High Priority Issues**
 
 **P1-1: Missing --locked Flag** (5 instances)
 - **Location**: `audit.yml` cargo install commands
@@ -142,12 +142,12 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 
 ### 5. Fuzzing & Stress Testing (B+ - 82/100)
 
-#### ✅ **Strengths**
+#### [DONE] **Strengths**
 - **Active Infrastructure**: 4 fuzz targets using libfuzzer-sys
 - **Critical Coverage**: Transaction, script, block, mempool testing
 - **Proper Limits**: Reasonable input size constraints
 
-#### ⚠️ **High Priority Issues**
+#### [WARNING] **High Priority Issues**
 
 **P1-1: Missing Network Fuzzer**
 - **Target**: `MessageEnvelope::deserialize()`
@@ -172,8 +172,8 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 
 | Risk Category | Level | Mitigation Status |
 |---------------|-------|------------------|
-| **Cryptographic Risk** | HIGH | 🔴 Requires immediate fixes |
-| **Memory Safety Risk** | LOW | ✅ Well controlled |
+| **Cryptographic Risk** | HIGH | [CRITICAL] Requires immediate fixes |
+| **Memory Safety Risk** | LOW | [DONE] Well controlled |
 | **Supply Chain Risk** | MEDIUM | 🟡 License compliance needed |
 | **Operational Risk** | MEDIUM | 🟡 Workflow fixes needed |
 | **Network Security Risk** | MEDIUM | 🟡 Fuzzing gaps exist |
@@ -277,22 +277,22 @@ BitQuan demonstrates strong security foundations with post-quantum cryptography,
 
 | Standard | Compliance | Status |
 |----------|-------------|---------|
-| **NIST PQC** | ✅ Dilithium3 implementation | COMPLIANT |
-| **OWASP KDF** | ✅ Argon2id parameters | COMPLIANT |
-| **CVE Security** | ✅ Zero vulnerabilities | COMPLIANT |
-| **Supply Chain** | ⚠️ License issues | NEEDS FIX |
-| **Memory Safety** | ✅ Rust guarantees | COMPLIANT |
-| **Fuzzing Coverage** | ⚠️ Critical gaps | NEEDS FIX |
+| **NIST PQC** | [DONE] Dilithium3 implementation | COMPLIANT |
+| **OWASP KDF** | [DONE] Argon2id parameters | COMPLIANT |
+| **CVE Security** | [DONE] Zero vulnerabilities | COMPLIANT |
+| **Supply Chain** | [WARNING] License issues | NEEDS FIX |
+| **Memory Safety** | [DONE] Rust guarantees | COMPLIANT |
+| **Fuzzing Coverage** | [WARNING] Critical gaps | NEEDS FIX |
 
 ### Blockchain Security Standards
 
 | Requirement | Status | Evidence |
 |-------------|---------|----------|
-| **Consensus Safety** | ✅ | Robust validation logic |
-| **Network Security** | ⚠️ | Missing fuzzing coverage |
-| **Key Management** | 🔴 | Missing zeroization |
-| **Transaction Security** | ⚠️ | Limited deserialization testing |
-| **Mining Security** | 🔴 | Predictable randomness |
+| **Consensus Safety** | [DONE] | Robust validation logic |
+| **Network Security** | [WARNING] | Missing fuzzing coverage |
+| **Key Management** | [CRITICAL] | Missing zeroization |
+| **Transaction Security** | [WARNING] | Limited deserialization testing |
+| **Mining Security** | [CRITICAL] | Predictable randomness |
 
 ---
 
