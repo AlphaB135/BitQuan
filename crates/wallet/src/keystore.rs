@@ -47,6 +47,11 @@ pub const DEFAULT_MEM_KIB: u32 = 65536;
 pub const DEFAULT_TIME_COST: u32 = 3;
 pub const DEFAULT_PARALLELISM: u8 = 1;
 
+/// Get adaptive default parameters based on detected hardware
+pub fn adaptive_default_params() -> (u32, u32, u8) {
+    KdfProfile::Adaptive.params()
+}
+
 /// Hardware capability detection for adaptive KDF
 #[derive(Debug, Clone, Copy)]
 pub enum HardwareProfile {
@@ -159,17 +164,39 @@ pub enum KdfProfile {
     Medium,
     Light,
     Mobile,
+    Adaptive, // New profile that auto-detects hardware
 }
 
 impl KdfProfile {
+    /// Get KDF parameters based on profile and hardware capabilities
     pub fn params(&self) -> (u32, u32, u8) {
-        let parallelism = optimal_parallelism();
         match self {
-            KdfProfile::Tight => (65536, 3, parallelism),
-            KdfProfile::Medium => (32768, 3, parallelism),
-            KdfProfile::Light => (16384, 3, parallelism),
-            KdfProfile::Mobile => (8192, 3, parallelism.min(2)), // Mobile devices cap at 2 threads
+            KdfProfile::Adaptive => {
+                let hw = HardwareProfile::detect();
+                (hw.optimal_memory_cost(), hw.optimal_time_cost(), hw.optimal_parallelism())
+            }
+            KdfProfile::Tight => {
+                let hw = HardwareProfile::detect();
+                (65536, 3, hw.optimal_parallelism())
+            }
+            KdfProfile::Medium => {
+                let hw = HardwareProfile::detect();
+                (32768, 2, hw.optimal_parallelism())
+            }
+            KdfProfile::Light => {
+                let hw = HardwareProfile::detect();
+                (16384, 2, hw.optimal_parallelism())
+            }
+            KdfProfile::Mobile => {
+                // Mobile profile is conservative regardless of hardware
+                (8192, 1, 2)
+            }
         }
+    }
+    
+    /// Get adaptive KDF parameters with custom hardware override
+    pub fn adaptive_params_with_hardware(hw: HardwareProfile) -> (u32, u32, u8) {
+        (hw.optimal_memory_cost(), hw.optimal_time_cost(), hw.optimal_parallelism())
     }
 }
 
@@ -192,6 +219,27 @@ fn derive_key(
         .hash_password_into(password.expose_secret(), salt, &mut key)
         .expect("Argon2 derive failed");
     key
+}
+
+/// Encrypt keystore with adaptive parameters (recommended for new wallets)
+pub fn encrypt_keystore_adaptive(
+    plaintext: &[u8],
+    password: &str,
+    meta: Option<serde_json::Value>,
+) -> KeystoreFile {
+    let (mem_kib, time_cost, parallelism) = adaptive_default_params();
+    encrypt_keystore(plaintext, password, meta, mem_kib, time_cost, parallelism)
+}
+
+/// Encrypt keystore with specific KDF profile
+pub fn encrypt_keystore_with_profile(
+    plaintext: &[u8],
+    password: &str,
+    meta: Option<serde_json::Value>,
+    profile: KdfProfile,
+) -> KeystoreFile {
+    let (mem_kib, time_cost, parallelism) = profile.params();
+    encrypt_keystore(plaintext, password, meta, mem_kib, time_cost, parallelism)
 }
 
 pub fn encrypt_keystore(
@@ -469,16 +517,58 @@ mod tests {
 
     #[test]
     fn kdf_profile_params() {
-        let optimal = optimal_parallelism();
+        let hw = HardwareProfile::detect();
+        let optimal = hw.optimal_parallelism();
+        
+        // Test Tight profile
         let (mem, time, par) = KdfProfile::Tight.params();
         assert_eq!(mem, 65536);
         assert_eq!(time, 3);
         assert_eq!(par, optimal);
 
+        // Test Mobile profile (always conservative)
         let (mem, time, par) = KdfProfile::Mobile.params();
         assert_eq!(mem, 8192);
-        assert_eq!(time, 3);
-        assert_eq!(par, optimal.min(2)); // Mobile caps at 2 threads
+        assert_eq!(time, 1);
+        assert_eq!(par, 2);
+        
+        // Test Adaptive profile (should match hardware)
+        let (mem, time, par) = KdfProfile::Adaptive.params();
+        assert_eq!(mem, hw.optimal_memory_cost());
+        assert_eq!(time, hw.optimal_time_cost());
+        assert_eq!(par, hw.optimal_parallelism());
+    }
+    
+    #[test]
+    fn hardware_profile_detection() {
+        let hw = HardwareProfile::detect();
+        
+        // Verify hardware detection produces reasonable values
+        let parallelism = hw.optimal_parallelism();
+        let memory = hw.optimal_memory_cost();
+        let time = hw.optimal_time_cost();
+        
+        assert!(parallelism >= 1 && parallelism <= 8);
+        assert!(memory >= 8192 && memory <= 65536);
+        assert!(time >= 1 && time <= 3);
+    }
+    
+    #[test]
+    fn adaptive_encryption_roundtrip() {
+        let secret = b"adaptive-encryption-test";
+        let password = "test-password";
+        let meta = Some(json!({"adaptive": true}));
+        
+        // Test adaptive encryption
+        let ks = encrypt_keystore_adaptive(secret, password, meta.clone());
+        let pt = decrypt_keystore(&ks, password).expect("adaptive decrypt should work");
+        assert_eq!(pt, secret);
+        
+        // Verify adaptive parameters were used
+        let (expected_mem, expected_time, expected_par) = adaptive_default_params();
+        assert_eq!(ks.kdf.mem_kib, expected_mem);
+        assert_eq!(ks.kdf.time_cost, expected_time);
+        assert_eq!(ks.kdf.parallelism, expected_par);
     }
 
     #[test]
