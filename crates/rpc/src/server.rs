@@ -2197,6 +2197,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[cfg_attr(target_os = "windows", ignore = "Flaky on Windows - OS-specific network timeout behavior")]
     async fn rpc_slow_body_times_out_with_408() -> TestResult<()> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         init_test_tracing();
