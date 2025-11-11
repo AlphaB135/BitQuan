@@ -42,22 +42,38 @@ fn test_reward_halving_logic() {
     // Block 0: full reward (50 BQ + fees)
     let block0 = dummy_block(0);
     let reward0 = engine.calculate_reward(&block0, 0);
-    assert_eq!(reward0, 50_0000_0000 + FEE, "Initial reward should be 50 BQ + fees");
+    assert_eq!(
+        reward0,
+        50_0000_0000 + FEE,
+        "Initial reward should be 50 BQ + fees"
+    );
 
     // Block 210,000: first halving (25 BQ + fees)
     let block1 = dummy_block(210_000);
     let reward1 = engine.calculate_reward(&block1, 210_000);
-    assert_eq!(reward1, 25_0000_0000 + FEE, "First halving should be 25 BQ + fees");
+    assert_eq!(
+        reward1,
+        25_0000_0000 + FEE,
+        "First halving should be 25 BQ + fees"
+    );
 
     // Block 420,000: second halving (12.5 BQ + fees)
     let block2 = dummy_block(420_000);
     let reward2 = engine.calculate_reward(&block2, 420_000);
-    assert_eq!(reward2, 12_5000_0000 + FEE, "Second halving should be 12.5 BQ + fees");
+    assert_eq!(
+        reward2,
+        12_5000_0000 + FEE,
+        "Second halving should be 12.5 BQ + fees"
+    );
 
     // Block 630,000: third halving (6.25 BQ + fees)
     let block3 = dummy_block(630_000);
     let reward3 = engine.calculate_reward(&block3, 630_000);
-    assert_eq!(reward3, 6_2500_0000 + FEE, "Third halving should be 6.25 BQ + fees");
+    assert_eq!(
+        reward3,
+        6_2500_0000 + FEE,
+        "Third halving should be 6.25 BQ + fees"
+    );
 }
 
 #[test]
@@ -158,7 +174,11 @@ fn test_miner_reward_accumulation() {
     let reward = engine
         .get_miner_reward("miner_alpha")
         .expect("Failed to get miner reward");
-    assert_eq!(reward, (50_0000_0000 + FEE) * 3, "Miner should have 3x rewards");
+    assert_eq!(
+        reward,
+        (50_0000_0000 + FEE) * 3,
+        "Miner should have 3x rewards"
+    );
 
     // Check block records
     let blocks = engine
