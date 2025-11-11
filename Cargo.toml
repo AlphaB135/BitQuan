@@ -18,6 +18,18 @@ exclude = ["fuzz", "forks"]
 [workspace.package]
 edition = "2021"
 license = "Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_extern_crates = "warn"
+unused_import_braces = "warn"
+unused_qualifications = "warn"
+unused_results = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+nursery = "warn"
+pedantic = "warn"
 repository = "https://github.com/bitquan/bitquan"
 rust-version = "1.79"
 description = "BitQuan blockchain node and supporting crates with post-quantum cryptography focus."

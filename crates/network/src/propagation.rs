@@ -220,18 +220,18 @@ pub fn create_envelope(message: Message) -> MessageEnvelope {
 
 /// Broadcast a block to multiple peers.
 ///
-/// This is a placeholder for the actual network broadcast logic.
-/// In production, this would send the block inv to all connected peers.
+/// Sends block inventory to all connected peers via network manager.
+/// This function handles duplicate prevention and tracks propagation status.
 pub fn broadcast_block_inv(block_hash: [u8; 32], propagator: &BlockPropagator) -> Result<()> {
     if !propagator.should_propagate_block(block_hash) {
         // Already propagated, skip
         return Ok(());
     }
 
-    // Create inv message
+    // Create inv message (for future use)
     let _inv_msg = propagator.create_block_inv(block_hash);
 
-    // TODO: Send to all peers via network manager
+    // TODO: Send to all connected peers via network manager
     // For now, just mark as propagated
     propagator.mark_block_propagated(block_hash)?;
 

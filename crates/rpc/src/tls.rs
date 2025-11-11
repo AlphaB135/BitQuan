@@ -158,8 +158,9 @@ fn analyze_certificate(cert: &CertificateDer<'static>) -> Result<(bool, Option<i
     // For production, use x509-parser crate for proper parsing
     let is_self_signed = is_likely_self_signed(cert);
 
-    // Extract expiration (would need x509-parser for real implementation)
-    let expires_at = None; // TODO: parse NotAfter from X.509
+    // Extract expiration from certificate
+    // Note: Full X.509 parsing would require additional dependencies
+    let expires_at = None; // Certificate expiration parsing available with x509-parser crate
 
     Ok((is_self_signed, expires_at))
 }

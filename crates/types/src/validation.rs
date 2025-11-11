@@ -226,7 +226,7 @@ pub fn validate_block_structure(block: &Block, current_time: u32) -> Result<(), 
 }
 
 /// Checks if a transaction is a coinbase transaction
-fn is_coinbase(tx: &Transaction) -> bool {
+pub fn is_coinbase(tx: &Transaction) -> bool {
     if tx.inputs.len() != 1 {
         return false;
     }

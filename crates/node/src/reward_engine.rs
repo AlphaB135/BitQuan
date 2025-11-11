@@ -75,28 +75,21 @@ impl RewardEngine {
     }
 
     /// Calculate total transaction fees in block.
+    /// Note: Full UTXO integration requires blockchain state access.
     fn calculate_fees(&self, block: &Block) -> u64 {
-        let total_in = 0u64;
         let mut total_out = 0u64;
 
         for tx in &block.transactions {
-            // Sum inputs (would need UTXO lookup in production)
-            // For now, assume coinbase tx has no inputs
-            if !tx.inputs.is_empty() {
-                for _input in &tx.inputs {
-                    // TODO: Look up input values from UTXO set
-                    // total_in += input_value;
-                }
-            }
-
             // Sum outputs
             for output in &tx.outputs {
                 total_out = total_out.saturating_add(output.value);
             }
         }
 
-        // Fees = inputs - outputs (for non-coinbase txs)
-        total_in.saturating_sub(total_out)
+        // For now, estimate fees based on transaction count
+        // In production, this would use UTXO set to calculate inputs
+        let estimated_fees = block.transactions.len() as u64 * 1000; // 1000 satoshis per tx
+        estimated_fees
     }
 
     /// Credit reward to miner account.

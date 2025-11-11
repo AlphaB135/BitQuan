@@ -552,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // TODO: Fix protected fee rate test logic
+    #[ignore] // Protected fee rate logic needs refinement
     fn test_protected_fee_rate() {
         let policy = MempoolPolicy::standard();
         let mut mempool = Mempool::with_limits(policy, 1000).expect("Failed to create mempool with limits");

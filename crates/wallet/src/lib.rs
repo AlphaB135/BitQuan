@@ -12,7 +12,7 @@
 //! ## Quick Start
 //! 
 //! ```rust
-//! use bitquan_wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore};
+//! use wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore};
 //! 
 //! // Encrypt with adaptive parameters (recommended for most users)
 //! let keystore = encrypt_keystore_adaptive(
@@ -38,7 +38,7 @@
 //! For server or mobile deployments, use `WalletConfig`:
 //! 
 //! ```rust
-//! use bitquan_wallet::keystore::{WalletConfig, encrypt_keystore_with_config};
+//! use wallet::keystore::{WalletConfig, encrypt_keystore_with_config};
 //! use std::time::Duration;
 //! 
 //! // Server configuration (high security, no caching)
@@ -53,8 +53,7 @@
 //!     "password",
 //!     None,
 //!     &mobile_config,
-//! )?;
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! );
 //! ```
 //! 
 //! ## Security Features
@@ -69,7 +68,7 @@
 //! Monitor cache usage in production:
 //! 
 //! ```rust
-//! use bitquan_wallet::keystore::{get_cache_stats, get_cache_memory_usage};
+//! use wallet::keystore::{get_cache_stats, get_cache_memory_usage};
 //! 
 //! let stats = get_cache_stats();
 //! let memory_bytes = get_cache_memory_usage();

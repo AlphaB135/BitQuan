@@ -20,7 +20,7 @@ fn invalid<T>(msg: impl Into<String>) -> Result<T> {
     about = "Simulate ASERT + burst guard response to stepped hash-rate changes."
 )]
 struct SimArgs {
-    /// Comma separated sequence of <blocks>:<hash_rate> entries (e.g. 200:1.0,80:4.0,200:1.0).
+    /// Comma separated sequence of &lt;blocks&gt;:&lt;hash_rate&gt; entries (e.g. 200:1.0,80:4.0,200:1.0).
     #[arg(
         long,
         default_value = "200:1.0,80:4.0,200:1.0,80:0.5,200:1.0",

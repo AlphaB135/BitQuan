@@ -208,14 +208,38 @@ impl BlockSubmitter {
 
     /// Validate block against consensus rules (extended check).
     ///
-    /// This is a placeholder for full block validation including:
-    /// - Transaction validity
+    /// Full block validation including:
     /// - Merkle root verification
     /// - Timestamp checks
-    /// - Etc.
-    pub fn validate_block_full(&self, _block: &Block) -> Result<bool> {
-        // TODO: Implement full block validation
-        // For now, rely on PoW check only
+    /// - Basic transaction structure validation
+    /// Note: Full UTXO validation requires blockchain state
+    pub fn validate_block_full(&self, block: &Block) -> Result<bool> {
+        // Verify merkle root matches transactions
+        let calculated_merkle = block.compute_merkle_root();
+        if calculated_merkle != block.header.merkle_root {
+            return Err(bitquan_types::Error::Invalid("Merkle root mismatch".to_string()));
+        }
+        
+        // Validate timestamp (not too far in future)
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        
+        if block.header.time > (now + 7200) as u32 { // 2 hours future tolerance
+            return Err(bitquan_types::Error::Invalid("Block timestamp too far in future".to_string()));
+        }
+        
+        // Basic transaction validation
+        for tx in &block.transactions {
+            if tx.inputs.is_empty() && !bitquan_types::validation::is_coinbase(tx) {
+                return Err(bitquan_types::Error::Invalid("Non-coinbase transaction has no inputs".to_string()));
+            }
+            if tx.outputs.is_empty() {
+                return Err(bitquan_types::Error::Invalid("Transaction has no outputs".to_string()));
+            }
+        }
+        
         Ok(true)
     }
 }

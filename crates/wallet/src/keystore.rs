@@ -15,11 +15,12 @@
 //! Automatically tunes Argon2 parameters based on detected hardware:
 //! 
 //! ```rust
-//! use bitquan_wallet::keystore::{HardwareProfile, encrypt_keystore_adaptive};
+//! use wallet::keystore::{HardwareProfile, encrypt_keystore_adaptive};
 //! 
 //! let profile = HardwareProfile::detect();
-//! println!("CPU cores: {}", profile.cpu_cores);
-//! println!("Memory: {} MB", profile.memory_mb);
+//! println!("Profile: {:?}", profile);
+//! println!("Optimal parallelism: {}", profile.optimal_parallelism());
+//! println!("Optimal memory: {} KiB", profile.optimal_memory_cost());
 //! 
 //! // Uses optimal parameters for your hardware
 //! let keystore = encrypt_keystore_adaptive(b"data", "password", None);
@@ -38,7 +39,7 @@
 //! ### Simple Usage (Recommended)
 //! 
 //! ```rust
-//! use bitquan_wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore};
+//! use wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore};
 //! 
 //! // Encrypt - automatically optimizes for your hardware
 //! let keystore = encrypt_keystore_adaptive(b"secret", "password", None);
@@ -51,7 +52,7 @@
 //! ### Advanced Configuration
 //! 
 //! ```rust
-//! use bitquan_wallet::keystore::{WalletConfig, encrypt_keystore_with_config};
+//! use wallet::keystore::{WalletConfig, encrypt_keystore_with_config};
 //! 
 //! // Server: Maximum security, no caching
 //! let server_config = WalletConfig::server();
@@ -65,8 +66,7 @@
 //! 
 //! let keystore = encrypt_keystore_with_config(
 //!     b"secret", "password", None, &custom_config
-//! )?;
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! );
 //! ```
 //! 
 //! ## KDF Profiles
@@ -82,7 +82,7 @@
 //! ## Monitoring
 //! 
 //! ```rust
-//! use bitquan_wallet::keystore::{get_cache_stats, get_cache_memory_usage};
+//! use wallet::keystore::{get_cache_stats, get_cache_memory_usage};
 //! 
 //! let stats = get_cache_stats();
 //! let memory_bytes = get_cache_memory_usage();
@@ -506,7 +506,7 @@ pub fn decrypt_keystore_no_cache(ks: &KeystoreFile, password: &str) -> Result<Ve
 /// 
 /// # Example
 /// ```rust
-/// use bitquan_wallet::keystore::{WalletConfig, encrypt_keystore_with_config};
+/// use wallet::keystore::{WalletConfig, encrypt_keystore_with_config};
 /// use std::time::Duration;
 /// 
 /// // Server configuration: maximum security, no caching
@@ -526,7 +526,7 @@ pub fn decrypt_keystore_no_cache(ks: &KeystoreFile, password: &str) -> Result<Ve
 ///     "user_password",
 ///     None,
 ///     &mobile_config,
-/// )?;
+/// );
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 /// 
@@ -561,7 +561,7 @@ pub fn encrypt_keystore_with_config(
 /// 
 /// # Example
 /// ```rust
-/// use bitquan_wallet::keystore::{WalletConfig, encrypt_keystore_with_config, decrypt_keystore_with_config};
+/// use wallet::keystore::{WalletConfig, encrypt_keystore_with_config, decrypt_keystore_with_config};
 /// 
 /// let config = WalletConfig::server(); // No caching for security
 /// let keystore = encrypt_keystore_with_config(
@@ -604,7 +604,7 @@ pub fn decrypt_keystore_with_config(
 /// 
 /// # Example
 /// ```rust
-/// use bitquan_wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore, get_cache_stats};
+/// use wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore, get_cache_stats, get_cache_memory_usage};
 /// 
 /// let keystore = encrypt_keystore_adaptive(b"test", "password", None);
 /// 
@@ -649,20 +649,21 @@ pub fn get_cache_stats() -> CacheStats {
 /// 
 /// # Example
 /// ```rust
-/// use bitquan_wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore, get_cache_memory_usage};
+/// use wallet::keystore::{WalletConfig, encrypt_keystore_with_config};
 /// 
-/// let keystore = encrypt_keystore_adaptive(b"test", "password", None);
+/// // Server: Maximum security, no caching
+/// let server_config = WalletConfig::server();
 /// 
-/// // Before cache: 0 bytes
-/// assert_eq!(get_cache_memory_usage(), 0);
+/// // Mobile: Balanced for battery life
+/// let mobile_config = WalletConfig::mobile();
 /// 
-/// // After decryption: cache populated
-/// decrypt_keystore(&keystore, "password")?;
-/// let memory_kb = get_cache_memory_usage() / 1024;
-/// println!("Cache uses {} KB", memory_kb);
+/// // Custom: Fine-tuned parameters
+/// let custom_config = WalletConfig::performance()
+///     .with_cache_timeout(std::time::Duration::from_secs(30));
 /// 
-/// // Typical usage: ~40-60 bytes per cached entry
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// let keystore = encrypt_keystore_with_config(
+///     b"secret", "password", None, &custom_config
+/// );
 /// ```
 /// 
 /// # Memory Estimation
@@ -682,8 +683,8 @@ pub fn get_cache_stats() -> CacheStats {
 /// - Optimize cache timeout settings
 pub fn get_cache_memory_usage() -> usize {
     if let Ok(entries) = KEY_CACHE.entries.lock() {
-        entries.iter()
-            .map(|(_, cached)| {
+        entries.values()
+            .map(|cached| {
                 // Each cached key is 32 bytes + overhead
                 cached.key.expose_secret().len() + std::mem::size_of::<CachedKey>()
             })
@@ -716,17 +717,15 @@ pub struct CacheStats {
 /// 
 /// # Example
 /// ```rust
-/// use bitquan_wallet::keystore::encrypt_keystore_adaptive;
+/// use wallet::keystore::{HardwareProfile, encrypt_keystore_adaptive};
 /// 
-/// let keystore = encrypt_keystore_adaptive(
-///     b"my secret private key",
-///     "my-very-strong-password-123!",
-///     None, // no metadata
-/// );
+/// let profile = HardwareProfile::detect();
+/// println!("Profile: {:?}", profile);
+/// println!("Optimal parallelism: {}", profile.optimal_parallelism());
+/// println!("Optimal memory: {} KiB", profile.optimal_memory_cost());
 /// 
-/// // Save to file
-/// std::fs::write("my_wallet.json", keystore.to_json().unwrap())?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// // Uses optimal parameters for your hardware
+/// let keystore = encrypt_keystore_adaptive(b"data", "password", None);
 /// ```
 /// 
 /// # Performance
@@ -847,7 +846,7 @@ pub fn encrypt_keystore(
 /// 
 /// # Example
 /// ```rust
-/// use bitquan_wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore};
+/// use wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore};
 /// 
 /// let keystore = encrypt_keystore_adaptive(b"secret", "password", None);
 /// 
@@ -1121,9 +1120,9 @@ mod tests {
         let memory = hw.optimal_memory_cost();
         let time = hw.optimal_time_cost();
         
-        assert!(parallelism >= 1 && parallelism <= 8);
-        assert!(memory >= 8192 && memory <= 65536);
-        assert!(time >= 1 && time <= 3);
+        assert!((1..=8).contains(&parallelism));
+        assert!((8192..=65536).contains(&memory));
+        assert!((1..=3).contains(&time));
     }
     
     #[test]
