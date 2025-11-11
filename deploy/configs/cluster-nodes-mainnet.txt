@@ -1,0 +1,12 @@
+# BitQuan Mainnet Cluster Nodes
+# Format: user@host or host (will use DEPLOY_USER env var)
+# Lines starting with # are comments
+
+# Example nodes (replace with actual mainnet nodes):
+# mainnet1.bitquan.io
+# mainnet2.bitquan.io
+# mainnet3.bitquan.io
+
+# Add your mainnet nodes here
+# user@mainnet1.example.com
+# user@mainnet2.example.com
