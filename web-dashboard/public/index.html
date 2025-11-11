@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitQuan Testnet Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            background: #00ff88;
+            color: #000;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 15px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-title {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-icon {
+            font-size: 1.5em;
+        }
+
+        .card-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .card-label {
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .recent-blocks {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .block-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #00ff88;
+        }
+
+        .block-hash {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            opacity: 0.8;
+            word-break: break-all;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px 0;
+            opacity: 0.8;
+        }
+
+        .links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .link-btn {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #fff;
+            transition: background 0.3s;
+        }
+
+        .link-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 1.2em;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 BitQuan Testnet</h1>
+            <p class="subtitle">First Post-Quantum Secure Blockchain</p>
+            <div class="status-badge">🟢 LIVE</div>
+        </header>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">
+                    <span class="card-icon">📦</span>
+                    Block Height
+                </div>
+                <div class="card-value" id="blockHeight">-</div>
+                <div class="card-label">Latest Block</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span class="card-icon">⚡</span>
+                    Hashrate
+                </div>
+                <div class="card-value" id="hashrate">-</div>
+                <div class="card-label">Network Power</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span class="card-icon">💎</span>
+                    Difficulty
+                </div>
+                <div class="card-value" id="difficulty">-</div>
+                <div class="card-label">Mining Difficulty</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span class="card-icon">🌐</span>
+                    Active Nodes
+                </div>
+                <div class="card-value" id="nodes">1</div>
+                <div class="card-label">Connected Peers</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span class="card-icon">💸</span>
+                    Transactions
+                </div>
+                <div class="card-value" id="transactions">-</div>
+                <div class="card-label">Total Tx Count</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span class="card-icon">⏱️</span>
+                    Block Time
+                </div>
+                <div class="card-value" id="blockTime">~10m</div>
+                <div class="card-label">Average Time</div>
+            </div>
+        </div>
+
+        <div class="recent-blocks">
+            <h2>📋 Recent Blocks</h2>
+            <div id="recentBlocks">
+                <div class="loading">Loading blocks...</div>
+            </div>
+        </div>
+
+        <div class="links">
+            <a href="https://github.com/AlphaB135/BitQuan" class="link-btn" target="_blank">
+                💻 GitHub
+            </a>
+            <a href="https://github.com/AlphaB135/BitQuan/blob/main/docs/TESTER_GUIDE.md" class="link-btn" target="_blank">
+                📖 Tester Guide
+            </a>
+            <a href="https://github.com/AlphaB135/BitQuan/issues" class="link-btn" target="_blank">
+                🐛 Report Bug
+            </a>
+            <a href="http://localhost:3000" class="link-btn">
+                📊 Grafana
+            </a>
+        </div>
+
+        <div class="footer">
+            <p>BitQuan Testnet v1.0.0</p>
+            <p>⚠️ Testnet coins have NO VALUE - For testing only!</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">
+                Built with ❤️ by the BitQuan Team | 
+                Last updated: <span id="lastUpdate">-</span>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Mock data for now - replace with real API calls
+        const mockBlocks = [
+            {
+                height: 5,
+                hash: '00000075ee7006d2c26520ea02635cd9dd76eaa1a7bbb9ae6c76c70a51655cac',
+                time: new Date(Date.now() - 1000 * 60 * 5),
+                txCount: 1
+            },
+            {
+                height: 4,
+                hash: '0000005a5401f7fab008bcf3bf0e029a5c561e9eac26f91a0756b3ca8068051a',
+                time: new Date(Date.now() - 1000 * 60 * 15),
+                txCount: 1
+            },
+            {
+                height: 3,
+                hash: '000000f625f00f5220d37847136d98faaf1b63ea062c193720ef4b8c83c2e154',
+                time: new Date(Date.now() - 1000 * 60 * 25),
+                txCount: 1
+            },
+            {
+                height: 2,
+                hash: '0000000e9b9cc72970534622aac761777a64fc79acde128127998a9a5d8dc336',
+                time: new Date(Date.now() - 1000 * 60 * 35),
+                txCount: 1
+            },
+            {
+                height: 1,
+                hash: '00000036cc13ea830b4418b44a2882d25868515846728896f3ba74a24af4e41d',
+                time: new Date(Date.now() - 1000 * 60 * 45),
+                txCount: 1
+            }
+        ];
+
+        function updateDashboard() {
+            // Update stats
+            document.getElementById('blockHeight').textContent = '5';
+            document.getElementById('hashrate').textContent = '~500 KH/s';
+            document.getElementById('difficulty').textContent = 'Low';
+            document.getElementById('transactions').textContent = '5';
+            
+            // Update recent blocks
+            const blocksHtml = mockBlocks.map(block => `
+                <div class="block-item">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <strong>Block #${block.height}</strong>
+                        <span style="opacity: 0.7;">${formatTime(block.time)}</span>
+                    </div>
+                    <div class="block-hash">
+                        ${block.hash}
+                    </div>
+                    <div style="margin-top: 8px; opacity: 0.8; font-size: 0.9em;">
+                        Transactions: ${block.txCount}
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('recentBlocks').innerHTML = blocksHtml;
+            
+            // Update timestamp
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        function formatTime(date) {
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000); // seconds
+            
+            if (diff < 60) return `${diff}s ago`;
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+            return date.toLocaleDateString();
+        }
+
+        // Update dashboard on load
+        updateDashboard();
+
+        // Auto-refresh every 30 seconds
+        setInterval(updateDashboard, 30000);
+
+        // In production, replace mock data with real API calls:
+        /*
+        async function fetchBlockchainInfo() {
+            try {
+                const response = await fetch('http://localhost:8334/api/blockchain/info');
+                const data = await response.json();
+                // Update UI with real data
+            } catch (error) {
+                console.error('Error fetching blockchain info:', error);
+            }
+        }
+        */
+    </script>
+</body>
+</html>
