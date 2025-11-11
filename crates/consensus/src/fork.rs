@@ -124,8 +124,6 @@ impl ForkChoice {
         self.invalid_blocks.get(hash)
     }
 
-
-
     /// Adds the genesis block.
     pub fn add_genesis(&mut self, header: BlockHeader) -> Result<(), ForkError> {
         let node = BlockNode::new(header, 0, 0.0);
@@ -157,7 +155,7 @@ impl ForkChoice {
         if let Some(_reason) = self.is_invalid(&hash) {
             return Err(ForkError::InvalidWork); // Invalid blocks are rejected
         }
-        
+
         // Check if parent is marked invalid
         if let Some(_reason) = self.is_invalid(&header.prev_block) {
             return Err(ForkError::InvalidWork); // Children of invalid blocks are rejected
@@ -173,8 +171,6 @@ impl ForkChoice {
         // Calculate height and work
         let height = parent.height + 1;
         let parent_work = parent.chain_work;
-
-
 
         // Create new node
         let mut node = BlockNode::new(header, height, 0.0);
@@ -460,7 +456,8 @@ mod tests {
 
         // Genesis
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
+        fc.add_genesis(genesis.clone())
+            .expect("Failed to add genesis block");
         let genesis_hash = header_hash(&genesis);
 
         // Chain A: genesis -> A1 -> A2
@@ -511,7 +508,8 @@ mod tests {
         let mut fc = ForkChoice::new();
 
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis).expect("Failed to add genesis block");
+        fc.add_genesis(genesis)
+            .expect("Failed to add genesis block");
 
         // Try to add block with unknown parent
         let orphan = make_header([99u8; 32], 0x207fffff, 1, 1);
@@ -525,7 +523,8 @@ mod tests {
         let mut fc = ForkChoice::new();
 
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
+        fc.add_genesis(genesis.clone())
+            .expect("Failed to add genesis block");
         let genesis_hash = header_hash(&genesis);
 
         let block1 = make_header(genesis_hash, 0x207fffff, 1, 1);
@@ -541,14 +540,16 @@ mod tests {
         let mut fc = ForkChoice::with_max_reorg(2);
 
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
+        fc.add_genesis(genesis.clone())
+            .expect("Failed to add genesis block");
         let genesis_hash = header_hash(&genesis);
 
         // Build main chain: 3 blocks
         let mut prev = genesis_hash;
         for i in 1..=3 {
             let block = make_header(prev, 0x207fffff, i as u32, i);
-            fc.add_block(block.clone()).expect("Failed to add block to main chain");
+            fc.add_block(block.clone())
+                .expect("Failed to add block to main chain");
             prev = header_hash(&block);
         }
 
@@ -572,14 +573,16 @@ mod tests {
         let mut fc = ForkChoice::with_max_reorg(10);
 
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
+        fc.add_genesis(genesis.clone())
+            .expect("Failed to add genesis block");
         let genesis_hash = header_hash(&genesis);
 
         // Build main chain: 5 blocks
         let mut prev = genesis_hash;
         for i in 1..=5 {
             let block = make_header(prev, 0x207fffff, i as u32, i);
-            fc.add_block(block.clone()).expect("Failed to add block to main chain");
+            fc.add_block(block.clone())
+                .expect("Failed to add block to main chain");
             prev = header_hash(&block);
         }
         assert_eq!(fc.height(), 5);
@@ -588,7 +591,9 @@ mod tests {
         let mut prev = genesis_hash;
         for i in 10..=15 {
             let block = make_header(prev, 0x207fffff, i as u32, i);
-            let (is_tip, reorg) = fc.add_block(block.clone()).expect("Failed to add block to competing chain");
+            let (is_tip, reorg) = fc
+                .add_block(block.clone())
+                .expect("Failed to add block to competing chain");
 
             if i == 15 {
                 assert!(is_tip);
@@ -608,14 +613,16 @@ mod tests {
         let mut fc = ForkChoice::with_max_reorg(10);
 
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
+        fc.add_genesis(genesis.clone())
+            .expect("Failed to add genesis block");
         let genesis_hash = header_hash(&genesis);
 
         // Chain A: 2 blocks
         let mut prev_a = genesis_hash;
         for i in 1..=2 {
             let block = make_header(prev_a, 0x207fffff, i as u32, i);
-            fc.add_block(block.clone()).expect("Failed to add block to chain A");
+            fc.add_block(block.clone())
+                .expect("Failed to add block to chain A");
             prev_a = header_hash(&block);
         }
         assert_eq!(fc.height(), 2);
@@ -624,7 +631,8 @@ mod tests {
         let mut prev_b = genesis_hash;
         for i in 10..=12 {
             let block = make_header(prev_b, 0x207fffff, i as u32, i);
-            fc.add_block(block.clone()).expect("Failed to add block to chain B");
+            fc.add_block(block.clone())
+                .expect("Failed to add block to chain B");
             prev_b = header_hash(&block);
         }
         assert_eq!(fc.height(), 3);
@@ -633,7 +641,8 @@ mod tests {
         let mut prev_c = genesis_hash;
         for i in 20..=23 {
             let block = make_header(prev_c, 0x207fffff, i as u32, i);
-            fc.add_block(block.clone()).expect("Failed to add block to chain C");
+            fc.add_block(block.clone())
+                .expect("Failed to add block to chain C");
             prev_c = header_hash(&block);
         }
         assert_eq!(fc.height(), 4);
@@ -644,7 +653,8 @@ mod tests {
         let mut fc = ForkChoice::new();
 
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
+        fc.add_genesis(genesis.clone())
+            .expect("Failed to add genesis block");
         let genesis_hash = header_hash(&genesis);
 
         // Chain A: 2 blocks
@@ -677,7 +687,8 @@ mod tests {
         let mut fc = ForkChoice::new();
 
         let genesis = make_header([0u8; 32], 0x207fffff, 0, 0);
-        fc.add_genesis(genesis.clone()).expect("Failed to add genesis block");
+        fc.add_genesis(genesis.clone())
+            .expect("Failed to add genesis block");
         let genesis_hash = header_hash(&genesis);
 
         // Build chain: genesis -> A1 -> A2

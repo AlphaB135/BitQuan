@@ -266,20 +266,23 @@ mod tests {
         let db = PoolDatabase::memory().expect("Failed to create memory database");
         let engine = RewardEngine::new(db);
 
+        // Fee estimation: 1 tx * 1000 satoshis
+        const FEE: u64 = 1000;
+
         // Block 0: full reward
         let block0 = dummy_block(0);
         let reward0 = engine.calculate_reward(&block0, 0);
-        assert_eq!(reward0, INITIAL_REWARD);
+        assert_eq!(reward0, INITIAL_REWARD + FEE);
 
         // Block 210,000: first halving
         let block1 = dummy_block(210_000);
         let reward1 = engine.calculate_reward(&block1, 210_000);
-        assert_eq!(reward1, INITIAL_REWARD / 2);
+        assert_eq!(reward1, INITIAL_REWARD / 2 + FEE);
 
         // Block 420,000: second halving
         let block2 = dummy_block(420_000);
         let reward2 = engine.calculate_reward(&block2, 420_000);
-        assert_eq!(reward2, INITIAL_REWARD / 4);
+        assert_eq!(reward2, INITIAL_REWARD / 4 + FEE);
     }
 
     #[test]
@@ -287,10 +290,16 @@ mod tests {
         let db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(db);
 
-        engine.credit_miner("miner1", 1000).expect("Failed to credit miner1 with 1000");
-        engine.credit_miner("miner1", 2000).expect("Failed to credit miner1 with 2000");
+        engine
+            .credit_miner("miner1", 1000)
+            .expect("Failed to credit miner1 with 1000");
+        engine
+            .credit_miner("miner1", 2000)
+            .expect("Failed to credit miner1 with 2000");
 
-        let total = engine.get_miner_reward("miner1").expect("Failed to get miner1 reward");
+        let total = engine
+            .get_miner_reward("miner1")
+            .expect("Failed to get miner1 reward");
         assert_eq!(total, 3000);
 
         assert_eq!(engine.total_distributed(), 3000);
@@ -304,10 +313,14 @@ mod tests {
         let block = dummy_block(100);
         let hash = [1u8; 32];
 
-        let reward = engine.record_block(&block, hash, 100, "miner1").expect("Failed to record block");
+        let reward = engine
+            .record_block(&block, hash, 100, "miner1")
+            .expect("Failed to record block");
         assert!(reward > 0);
 
-        let miner_reward = engine.get_miner_reward("miner1").expect("Failed to get miner reward");
+        let miner_reward = engine
+            .get_miner_reward("miner1")
+            .expect("Failed to get miner reward");
         assert_eq!(miner_reward, reward);
     }
 
@@ -319,7 +332,9 @@ mod tests {
         let block = dummy_block(0);
         let hash = [1u8; 32];
 
-        engine.record_block(&block, hash, 0, "miner1").expect("Failed to record block");
+        engine
+            .record_block(&block, hash, 0, "miner1")
+            .expect("Failed to record block");
 
         let stats = engine.get_pool_stats().expect("Failed to get pool stats");
         assert!(stats.total_rewards > 0);

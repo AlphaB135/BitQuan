@@ -340,10 +340,10 @@ impl WsDashboard {
                         } else {
                             100.0
                         };
-                        
+
                         // Estimate individual miner hashrate
                         let hashrate = estimate_miner_hashrate(session);
-                        
+
                         MinerInfo {
                             address: session.address.clone(),
                             algo: session.algo.name().to_string(),

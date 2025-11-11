@@ -152,6 +152,9 @@ mod tests {
         // Should now be available
         let cached = manager.get_template().await;
         assert!(cached.is_some());
-        assert_eq!(cached.expect("Template should be available").algo, PowAlgo::Sha256d);
+        assert_eq!(
+            cached.expect("Template should be available").algo,
+            PowAlgo::Sha256d
+        );
     }
 }

@@ -8,5 +8,5 @@ pub mod secure_types;
 
 pub use encryption::{EncryptedData, Encryptor};
 pub use keystore::{Keystore, KeystoreError};
-pub use secure_memory_pool::{SecureMemoryManager, SecureMemoryPool, MemoryPoolStats};
+pub use secure_memory_pool::{MemoryPoolStats, SecureMemoryManager, SecureMemoryPool};
 pub use secure_types::{SecurePrivateKey, SecureString};

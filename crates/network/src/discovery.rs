@@ -336,7 +336,8 @@ mod tests {
         };
 
         // Save
-        book.save_to_file(&temp_file).expect("Failed to save peer book");
+        book.save_to_file(&temp_file)
+            .expect("Failed to save peer book");
 
         // Load
         let loaded = PeerBook::load_from_file(&temp_file).expect("Failed to load peer book");

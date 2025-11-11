@@ -469,7 +469,8 @@ mod tests {
         let mut policy = MempoolPolicy::standard();
         policy.max_scriptsize = 12;
 
-        let mut mempool = Mempool::with_policy(policy).expect("Failed to create mempool with policy");
+        let mut mempool =
+            Mempool::with_policy(policy).expect("Failed to create mempool with policy");
 
         let mut tx = create_test_tx(1, 1, 1);
         tx.outputs[0].script_pubkey = vec![0u8; 32];
@@ -482,7 +483,8 @@ mod tests {
     fn rejects_tx_exceeding_inputs() {
         let mut policy = MempoolPolicy::standard();
         policy.max_inputs_per_tx = 2;
-        let mut mempool = Mempool::with_policy(policy).expect("Failed to create mempool with policy");
+        let mut mempool =
+            Mempool::with_policy(policy).expect("Failed to create mempool with policy");
 
         let tx = create_test_tx(3, 1, 1);
         let err = mempool.insert(tx, 1_000).unwrap_err();
@@ -493,7 +495,8 @@ mod tests {
     fn rejects_tx_exceeding_sigops() {
         let mut policy = MempoolPolicy::standard();
         policy.max_sigops_per_tx = 2;
-        let mut mempool = Mempool::with_policy(policy).expect("Failed to create mempool with policy");
+        let mut mempool =
+            Mempool::with_policy(policy).expect("Failed to create mempool with policy");
 
         let tx = create_test_tx(1, 1, 5);
         let err = mempool.insert(tx, 1_000).unwrap_err();
@@ -504,7 +507,8 @@ mod tests {
     fn test_mempool_min_fee_rate() {
         let mut policy = MempoolPolicy::standard();
         policy.min_relay_fee_per_wu = 10;
-        let mut mempool = Mempool::with_limits(policy, 1_000_000).expect("Failed to create mempool with limits");
+        let mut mempool =
+            Mempool::with_limits(policy, 1_000_000).expect("Failed to create mempool with limits");
         let tx = create_test_tx(1, 2, 1);
 
         // Fee too low for min rate
@@ -538,7 +542,8 @@ mod tests {
     fn test_mempool_eviction() {
         // Small mempool
         let policy = MempoolPolicy::standard();
-        let mut mempool = Mempool::with_limits(policy, 500).expect("Failed to create mempool with limits");
+        let mut mempool =
+            Mempool::with_limits(policy, 500).expect("Failed to create mempool with limits");
 
         let tx1 = create_test_tx(1, 2, 1);
         let tx2 = create_test_tx(1, 2, 1);
@@ -555,13 +560,16 @@ mod tests {
     #[ignore] // Protected fee rate logic needs refinement
     fn test_protected_fee_rate() {
         let policy = MempoolPolicy::standard();
-        let mut mempool = Mempool::with_limits(policy, 1000).expect("Failed to create mempool with limits");
+        let mut mempool =
+            Mempool::with_limits(policy, 1000).expect("Failed to create mempool with limits");
 
         let tx1 = create_test_tx(1, 2, 1);
         let weight = calculate_tx_weight(&tx1).expect("weight");
 
         // Insert with protected fee rate (>= 10)
-        mempool.insert(tx1, weight as u64 * 11).expect("Failed to insert tx1 with protected fee");
+        mempool
+            .insert(tx1, weight as u64 * 11)
+            .expect("Failed to insert tx1 with protected fee");
 
         // Fill mempool more
         for _ in 0..5 {
@@ -641,7 +649,8 @@ mod tests {
     #[test]
     fn test_overflow_in_size_bytes() {
         let policy = MempoolPolicy::standard();
-        let mut mempool = Mempool::with_limits(policy, usize::MAX).expect("Failed to create mempool with max limits");
+        let mut mempool = Mempool::with_limits(policy, usize::MAX)
+            .expect("Failed to create mempool with max limits");
 
         // Force size_bytes to near max
         mempool.size_bytes = usize::MAX - 100;
@@ -679,7 +688,8 @@ mod tests {
     #[test]
     fn test_overflow_in_freed_bytes() {
         let policy = MempoolPolicy::standard();
-        let mut mempool = Mempool::with_limits(policy, 1000).expect("Failed to create mempool with limits");
+        let mut mempool =
+            Mempool::with_limits(policy, 1000).expect("Failed to create mempool with limits");
 
         // Create a mock transaction that would cause overflow in freed calculation
         // This is hard to test directly, but we verify the code path exists

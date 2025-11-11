@@ -472,7 +472,9 @@ mod tests {
             .expect("Failed to add UTXO entry");
 
         let tx = create_test_tx(vec![(txid, 0)], vec![900]);
-        let result = utxo_set.apply_transaction(&tx, 101, false).expect("Failed to apply transaction");
+        let result = utxo_set
+            .apply_transaction(&tx, 101, false)
+            .expect("Failed to apply transaction");
 
         assert_eq!(result.0, 1000); // inputs
         assert_eq!(result.1, 900); // outputs

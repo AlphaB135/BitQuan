@@ -600,6 +600,9 @@ mod tests {
             serde_json::json!(1),
         );
         assert!(response.error.is_some());
-        assert_eq!(response.error.expect("Response should have error").code, error_codes::METHOD_NOT_FOUND);
+        assert_eq!(
+            response.error.expect("Response should have error").code,
+            error_codes::METHOD_NOT_FOUND
+        );
     }
 }

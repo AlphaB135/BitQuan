@@ -106,7 +106,7 @@ impl RecoveryManager {
     /// Create backup with timestamp
     fn create_backup(&self) -> Result<(), StorageError> {
         RocksDBStore::create_backup(&self.db_path, &self.options)?;
-        
+
         // Clean up old backups
         self.cleanup_old_backups()?;
         Ok(())
@@ -133,7 +133,7 @@ impl RecoveryManager {
         {
             let entry = entry.map_err(|e| StorageError::DatabaseError(e.to_string()))?;
             let path = entry.path();
-            
+
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 if name.starts_with("chaindata.backup.") {
                     if let Ok(metadata) = std::fs::metadata(&path) {
@@ -150,7 +150,10 @@ impl RecoveryManager {
 
         // Remove excess backups
         if backups.len() > self.options.max_backups {
-            for (path, _) in backups.iter().take(backups.len() - self.options.max_backups) {
+            for (path, _) in backups
+                .iter()
+                .take(backups.len() - self.options.max_backups)
+            {
                 eprintln!("🗑️  Removing old backup: {}", path.display());
                 std::fs::remove_dir_all(path).map_err(|e| {
                     StorageError::DatabaseError(format!("failed to remove backup: {}", e))
@@ -164,7 +167,7 @@ impl RecoveryManager {
     /// Repair corrupted database using RocksDB repair utility
     fn repair_database(&self) -> Result<(), StorageError> {
         eprintln!("🔧 Attempting to repair corrupted database...");
-        
+
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
@@ -186,16 +189,20 @@ impl RecoveryManager {
 
         // Sample verification for large databases
         let sample_size = std::cmp::min(100, height as usize);
-        let step = if height > 0 { height / sample_size as u64 } else { 0 };
+        let step = if height > 0 {
+            height / sample_size as u64
+        } else {
+            0
+        };
 
         for i in 0..sample_size {
             let check_height = if step > 0 { i as u64 * step } else { 0 };
-            
+
             if let Some(block) = store.get_block_by_height(check_height)? {
                 // Verify block hash matches header
                 let expected_hash = Self::block_id(&block.header);
                 let actual_hash = Self::block_id(&block.header);
-                
+
                 if expected_hash != actual_hash {
                     eprintln!("❌ Corrupted block at height {}", check_height);
                     corrupted_blocks += 1;
@@ -205,7 +212,8 @@ impl RecoveryManager {
 
         if corrupted_blocks > 0 {
             return Err(StorageError::DatabaseError(format!(
-                "Found {} corrupted blocks", corrupted_blocks
+                "Found {} corrupted blocks",
+                corrupted_blocks
             )));
         }
 
@@ -230,13 +238,16 @@ impl RecoveryManager {
     }
 
     /// Restore from backup
-    pub fn restore_from_backup<P: AsRef<std::path::Path>>(&self, backup_path: P) -> Result<(), StorageError> {
+    pub fn restore_from_backup<P: AsRef<std::path::Path>>(
+        &self,
+        backup_path: P,
+    ) -> Result<(), StorageError> {
         eprintln!("🔄 Restoring database from backup...");
 
         let backup_path = backup_path.as_ref();
         if !backup_path.exists() {
             return Err(StorageError::DatabaseError(
-                "Backup path does not exist".to_string()
+                "Backup path does not exist".to_string(),
             ));
         }
 
@@ -266,12 +277,12 @@ impl RecoveryManager {
 
         let mut backups = Vec::new();
         if backup_dir.exists() {
-            for entry in std::fs::read_dir(backup_dir)
-                .map_err(|e| StorageError::DatabaseError(format!("read backup dir failed: {}", e)))?
-            {
+            for entry in std::fs::read_dir(backup_dir).map_err(|e| {
+                StorageError::DatabaseError(format!("read backup dir failed: {}", e))
+            })? {
                 let entry = entry.map_err(|e| StorageError::DatabaseError(e.to_string()))?;
                 let path = entry.path();
-                
+
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                     if name.starts_with("chaindata.backup.") && path.is_dir() {
                         backups.push(path);
@@ -632,17 +643,17 @@ impl RocksDBStore {
         // Get current chain tip
         let current_height = self.height()?;
         let mut pruned = 0u64;
-        
+
         // For now, implement basic orphan detection
         // In a full implementation, this would track chain tips and remove stale branches
         let max_depth = 7;
-        
+
         if current_height > max_depth {
             // Mark blocks older than max_depth as candidates for pruning
             // This is a simplified implementation
             pruned = 0; // No actual pruning until chain reorg handling is implemented
         }
-        
+
         eprintln!("✅ Pruned {} orphan blocks", pruned);
         Ok(pruned)
     }
@@ -904,22 +915,33 @@ mod tests {
         };
 
         // Insert block
-        store.insert_block(block.clone()).expect("Failed to insert block");
+        store
+            .insert_block(block.clone())
+            .expect("Failed to insert block");
 
         // Verify height
         assert_eq!(store.height().expect("Failed to get store height"), 1);
 
         // Verify tip
-        let tip = store.tip().expect("Failed to get tip").expect("Tip is None");
+        let tip = store
+            .tip()
+            .expect("Failed to get tip")
+            .expect("Tip is None");
         assert_eq!(tip.time, header.time);
 
         // Get block by height
-        let retrieved = store.get_block_by_height(1).expect("Failed to get block by height").expect("Block is None");
+        let retrieved = store
+            .get_block_by_height(1)
+            .expect("Failed to get block by height")
+            .expect("Block is None");
         assert_eq!(retrieved.header.time, header.time);
 
         // Get transaction
         let txid = coinbase.txid();
-        let tx = store.get_transaction(&txid).expect("Failed to get transaction").expect("Transaction is None");
+        let tx = store
+            .get_transaction(&txid)
+            .expect("Failed to get transaction")
+            .expect("Transaction is None");
         assert_eq!(tx.version, coinbase.version);
     }
 
@@ -935,13 +957,19 @@ mod tests {
         store.put_utxo(outpoint, data).expect("Failed to put UTXO");
 
         // Get UTXO
-        let retrieved = store.get_utxo(outpoint).expect("Failed to get UTXO").expect("UTXO is None");
+        let retrieved = store
+            .get_utxo(outpoint)
+            .expect("Failed to get UTXO")
+            .expect("UTXO is None");
         assert_eq!(retrieved, data);
 
         // Delete UTXO
         store.delete_utxo(outpoint).expect("Failed to delete UTXO");
 
         // Verify deleted
-        assert!(store.get_utxo(outpoint).expect("Failed to get UTXO after deletion").is_none());
+        assert!(store
+            .get_utxo(outpoint)
+            .expect("Failed to get UTXO after deletion")
+            .is_none());
     }
 }

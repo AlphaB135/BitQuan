@@ -1287,7 +1287,6 @@ fn verify_share_pow_sync(
             let config = EthashConfig::default();
             ethash_pow_hash(&preimage, &config.cache_size)
         }
-
     };
 
     // 5) Derive target from template bits

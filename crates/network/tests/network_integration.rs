@@ -35,7 +35,9 @@ fn test_broadcast_block_to_peers() {
     assert!(propagator.should_propagate_block(block_hash));
 
     // Mark as propagated
-    propagator.mark_block_propagated(block_hash).expect("Failed to mark block as propagated");
+    propagator
+        .mark_block_propagated(block_hash)
+        .expect("Failed to mark block as propagated");
 
     // Should not propagate again
     assert!(!propagator.should_propagate_block(block_hash));
@@ -52,13 +54,19 @@ fn test_duplicate_block_filtering() {
     let hash2 = [2u8; 32];
 
     // Receive first block
-    assert!(propagator.mark_block_received(hash1).expect("Failed to mark first block as received"));
+    assert!(propagator
+        .mark_block_received(hash1)
+        .expect("Failed to mark first block as received"));
 
     // Receive second block
-    assert!(propagator.mark_block_received(hash2).expect("Failed to mark second block as received"));
+    assert!(propagator
+        .mark_block_received(hash2)
+        .expect("Failed to mark second block as received"));
 
     // Try to receive first block again
-    assert!(!propagator.mark_block_received(hash1).expect("Failed to mark duplicate block"));
+    assert!(!propagator
+        .mark_block_received(hash1)
+        .expect("Failed to mark duplicate block"));
 
     // Check stats
     let stats = propagator.stats().expect("Failed to get propagator stats");
@@ -120,7 +128,9 @@ fn test_metrics_update_on_block_event() {
         let _ = propagator.mark_block_propagated(hash);
     }
 
-    let stats = propagator.stats().expect("Failed to get propagator stats after broadcast");
+    let stats = propagator
+        .stats()
+        .expect("Failed to get propagator stats after broadcast");
     assert_eq!(stats.blocks_broadcast, 5);
 }
 
@@ -241,10 +251,20 @@ fn test_peer_book_persistence() {
     let temp_path = std::env::temp_dir().join("bitquan_network_test.json");
 
     // Save
-    book.save_to_file(temp_path.to_str().expect("Failed to convert temp path to string")).expect("Failed to save peer book");
+    book.save_to_file(
+        temp_path
+            .to_str()
+            .expect("Failed to convert temp path to string"),
+    )
+    .expect("Failed to save peer book");
 
     // Load
-    let loaded = PeerBook::load_from_file(temp_path.to_str().expect("Failed to convert temp path to string")).expect("Failed to load peer book");
+    let loaded = PeerBook::load_from_file(
+        temp_path
+            .to_str()
+            .expect("Failed to convert temp path to string"),
+    )
+    .expect("Failed to load peer book");
 
     assert_eq!(loaded.peer_count(), 1);
     assert!(loaded.get_peer("persistent:18444").is_some());
@@ -266,8 +286,12 @@ fn test_propagation_stats_reset() {
     assert_eq!(stats.blocks_received, 5);
 
     // Reset
-    propagator.reset_stats().expect("Failed to reset propagator stats");
+    propagator
+        .reset_stats()
+        .expect("Failed to reset propagator stats");
 
-    let stats = propagator.stats().expect("Failed to get propagator stats after reset");
+    let stats = propagator
+        .stats()
+        .expect("Failed to get propagator stats after reset");
     assert_eq!(stats.blocks_received, 0);
 }

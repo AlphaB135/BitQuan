@@ -210,7 +210,7 @@ impl NotificationHandler for ConsoleHandler {
             AlertSeverity::Error => "ERROR",
             AlertSeverity::Critical => "CRITICAL",
         };
-        
+
         println!(
             "[{}] {} [{}] {}",
             severity_str,
@@ -220,7 +220,7 @@ impl NotificationHandler for ConsoleHandler {
             alert.alert_type,
             alert.message
         );
-        
+
         Ok(())
     }
 }
@@ -249,9 +249,13 @@ impl AlertSystem {
     /// Create new alert system.
     #[allow(dead_code)] // Alert system ready for production use
     pub fn new() -> Self {
-        let mut handlers: HashMap<NotificationChannel, Box<dyn NotificationHandler>> = HashMap::new();
+        let mut handlers: HashMap<NotificationChannel, Box<dyn NotificationHandler>> =
+            HashMap::new();
         handlers.insert(NotificationChannel::Console, Box::new(ConsoleHandler));
-        handlers.insert(NotificationChannel::Webhook("default".to_string()), Box::new(WebhookHandler::new()));
+        handlers.insert(
+            NotificationChannel::Webhook("default".to_string()),
+            Box::new(WebhookHandler::new()),
+        );
 
         Self {
             configs: Arc::new(RwLock::new(Vec::new())),
@@ -282,7 +286,8 @@ impl AlertSystem {
                 alert_type: AlertType::HashrateDrop,
                 severity: AlertSeverity::Warning,
                 channels: vec![NotificationChannel::Console],
-                message_template: "Hashrate dropped by {drop_percent}% for algorithm {algorithm}".to_string(),
+                message_template: "Hashrate dropped by {drop_percent}% for algorithm {algorithm}"
+                    .to_string(),
                 cooldown_seconds: 600,
                 thresholds: {
                     let mut t = HashMap::new();
@@ -361,8 +366,12 @@ impl AlertSystem {
             .as_secs();
 
         // Update history
-        state.hashrate_history.push((current_time, metrics.total_hashrate));
-        state.efficiency_history.push((current_time, metrics.efficiency));
+        state
+            .hashrate_history
+            .push((current_time, metrics.total_hashrate));
+        state
+            .efficiency_history
+            .push((current_time, metrics.efficiency));
 
         // Keep only last 100 data points
         if state.hashrate_history.len() > 100 {
@@ -384,10 +393,15 @@ impl AlertSystem {
             if self.should_trigger_alert(config, metrics, &state).await? {
                 let alert = self.generate_alert(config, metrics, current_time).await?;
                 self.send_alert(&alert).await?;
-                
+
                 // Update state
-                state.last_alert_times.insert(config.alert_type.clone(), current_time);
-                *state.alert_counts.entry(config.alert_type.clone()).or_insert(0) += 1;
+                state
+                    .last_alert_times
+                    .insert(config.alert_type.clone(), current_time);
+                *state
+                    .alert_counts
+                    .entry(config.alert_type.clone())
+                    .or_insert(0) += 1;
             }
         }
 
@@ -409,12 +423,16 @@ impl AlertSystem {
                             .duration_since(UNIX_EPOCH)
                             .unwrap_or_default()
                             .as_secs();
-                        
+
                         // Find hashrate from time window ago
                         let target_time = current_time - time_window as u64;
-                        if let Some((_, old_hashrate)) = state.hashrate_history.iter()
-                            .find(|(t, _)| *t >= target_time) {
-                            let drop_percent_actual = ((old_hashrate - metrics.total_hashrate) / old_hashrate) * 100.0;
+                        if let Some((_, old_hashrate)) = state
+                            .hashrate_history
+                            .iter()
+                            .find(|(t, _)| *t >= target_time)
+                        {
+                            let drop_percent_actual =
+                                ((old_hashrate - metrics.total_hashrate) / old_hashrate) * 100.0;
                             return Ok(drop_percent_actual >= drop_percent);
                         }
                     }
@@ -456,10 +474,22 @@ impl AlertSystem {
         timestamp: u64,
     ) -> Result<Alert> {
         let mut context = HashMap::new();
-        context.insert("total_hashrate".to_string(), serde_json::Value::String(metrics.total_hashrate.to_string()));
-        context.insert("efficiency".to_string(), serde_json::Value::String(metrics.efficiency.to_string()));
-        context.insert("rejection_rate".to_string(), serde_json::Value::String(metrics.rejection_rate.to_string()));
-        context.insert("active_miners".to_string(), serde_json::Value::String(metrics.active_miners.to_string()));
+        context.insert(
+            "total_hashrate".to_string(),
+            serde_json::Value::String(metrics.total_hashrate.to_string()),
+        );
+        context.insert(
+            "efficiency".to_string(),
+            serde_json::Value::String(metrics.efficiency.to_string()),
+        );
+        context.insert(
+            "rejection_rate".to_string(),
+            serde_json::Value::String(metrics.rejection_rate.to_string()),
+        );
+        context.insert(
+            "active_miners".to_string(),
+            serde_json::Value::String(metrics.active_miners.to_string()),
+        );
 
         let message = self.format_message(&config.message_template, metrics, &context);
 
@@ -485,11 +515,17 @@ impl AlertSystem {
         context: &HashMap<String, serde_json::Value>,
     ) -> String {
         let mut message = template.to_string();
-        
+
         // Replace common variables
-        message = message.replace("{total_hashrate}", &format!("{:.2}", metrics.total_hashrate));
+        message = message.replace(
+            "{total_hashrate}",
+            &format!("{:.2}", metrics.total_hashrate),
+        );
         message = message.replace("{efficiency}", &format!("{:.1}", metrics.efficiency));
-        message = message.replace("{rejection_rate}", &format!("{:.1}", metrics.rejection_rate));
+        message = message.replace(
+            "{rejection_rate}",
+            &format!("{:.1}", metrics.rejection_rate),
+        );
         message = message.replace("{active_miners}", &metrics.active_miners.to_string());
 
         // Replace context variables
@@ -514,7 +550,7 @@ impl AlertSystem {
         {
             let mut alerts = self.alerts.write().await;
             alerts.push(alert.clone());
-            
+
             // Keep only last 1000 alerts
             if alerts.len() > 1000 {
                 alerts.remove(0);
@@ -553,13 +589,13 @@ impl AlertSystem {
     #[allow(dead_code)]
     pub async fn start_monitoring(&self, metrics_provider: Arc<dyn MiningMetricsProvider>) {
         let alert_system = self.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(30)); // Check every 30 seconds
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Ok(metrics) = metrics_provider.get_metrics() {
                     if let Err(e) = alert_system.evaluate_metrics(&metrics).await {
                         eprintln!("Alert evaluation error: {}", e);
@@ -612,7 +648,7 @@ mod tests {
     async fn test_alert_system_creation() {
         let alert_system = AlertSystem::new();
         alert_system.load_defaults().await;
-        
+
         let configs = alert_system.configs.read().await;
         assert!(!configs.is_empty());
     }
@@ -621,7 +657,7 @@ mod tests {
     async fn test_alert_generation() {
         let alert_system = AlertSystem::new();
         alert_system.load_defaults().await;
-        
+
         let metrics = MiningMetrics {
             hashrate_by_algo: HashMap::new(),
             total_hashrate: 1e9,

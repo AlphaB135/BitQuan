@@ -318,15 +318,17 @@ mod tests {
         )
         .expect("Failed to create wallet backup");
 
-        let restored = backup.restore(password).expect("Failed to restore wallet backup");
+        let restored = backup
+            .restore(password)
+            .expect("Failed to restore wallet backup");
         assert_eq!(restored, wallet_data);
     }
 
     #[test]
     fn test_wrong_password_fails() {
         let wallet_data = b"test wallet data";
-        let backup =
-            WalletBackup::create(wallet_data, "correct_password", Network::Mainnet, None).expect("Failed to create backup");
+        let backup = WalletBackup::create(wallet_data, "correct_password", Network::Mainnet, None)
+            .expect("Failed to create backup");
 
         let result = backup.restore("wrong_password");
         assert!(result.is_err());
@@ -338,8 +340,8 @@ mod tests {
         let wallet_data = b"test wallet data";
         let password = "backup_password";
 
-        let mut backup =
-            WalletBackup::create(wallet_data, password, Network::Devnet, None).expect("Failed to create backup");
+        let mut backup = WalletBackup::create(wallet_data, password, Network::Devnet, None)
+            .expect("Failed to create backup");
 
         // Tamper with ciphertext
         let mut ciphertext_bytes = general_purpose::STANDARD
@@ -385,8 +387,8 @@ mod tests {
         let wallet_data = b"test data";
         let password = "password";
 
-        let mut backup =
-            WalletBackup::create(wallet_data, password, Network::Mainnet, None).expect("Failed to create backup");
+        let mut backup = WalletBackup::create(wallet_data, password, Network::Mainnet, None)
+            .expect("Failed to create backup");
 
         backup.version = 999; // Future version
 

@@ -169,7 +169,7 @@ impl MultisigConfig {
 impl MultisigWallet {
     /// Creates a new multisig wallet with the given configuration.
     pub fn new(config: MultisigConfig) -> Self {
-        Self { 
+        Self {
             config,
             crypto_registry: Arc::new(CryptoRegistry::default()),
         }
@@ -177,7 +177,7 @@ impl MultisigWallet {
 
     /// Creates a new multisig wallet with custom crypto registry (for performance optimization).
     pub fn with_registry(config: MultisigConfig, registry: Arc<CryptoRegistry>) -> Self {
-        Self { 
+        Self {
             config,
             crypto_registry: registry,
         }
@@ -268,9 +268,8 @@ impl MultisigWallet {
 
         // CRITICAL: Verify cryptographic validity of each signature
         // First decode the raw transaction data
-        let tx_data = hex::decode(&pending.tx_data)
-            .map_err(|_| MultisigError::InvalidSignature)?;
-        
+        let tx_data = hex::decode(&pending.tx_data).map_err(|_| MultisigError::InvalidSignature)?;
+
         // CRITICAL FIX: Always hash the transaction data before signature verification
         // Dilithium3 should sign a digest, not raw data (for security and performance)
         let tx_hash = {
@@ -278,14 +277,14 @@ impl MultisigWallet {
             hasher.update(&tx_data);
             hasher.finalize()
         };
-        
+
         for sig in &pending.signatures {
-            let signature_bytes = hex::decode(&sig.signature)
-                .map_err(|_| MultisigError::InvalidSignature)?;
-            
-            let pubkey_bytes = hex::decode(&sig.public_key)
-                .map_err(|_| MultisigError::InvalidSignature)?;
-            
+            let signature_bytes =
+                hex::decode(&sig.signature).map_err(|_| MultisigError::InvalidSignature)?;
+
+            let pubkey_bytes =
+                hex::decode(&sig.public_key).map_err(|_| MultisigError::InvalidSignature)?;
+
             // Verify PQC signature using the transaction HASH (not raw data)
             if !self.verify_pqc_signature(&signature_bytes, &pubkey_bytes, &tx_hash)? {
                 return Err(MultisigError::InvalidSignature);
@@ -319,9 +318,9 @@ impl MultisigWallet {
         pubkey: &[u8],
         message: &[u8],
     ) -> Result<bool, MultisigError> {
-        use bitquan_types::SignaturePayload;
         use bitquan_types::SigAlgorithm;
-        
+        use bitquan_types::SignaturePayload;
+
         // Create signature payload
         let payload = SignaturePayload {
             signer_index: 0,
@@ -331,7 +330,8 @@ impl MultisigWallet {
         };
 
         // PERFORMANCE FIX: Use cached registry instead of creating new one
-        let provider = self.crypto_registry
+        let provider = self
+            .crypto_registry
             .provider_for(SigAlgorithm::Dilithium3)
             .ok_or(MultisigError::InvalidSignature)?;
 
@@ -511,9 +511,9 @@ impl MultisigWalletManager {
     }
 }
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
     fn sample_pubkeys() -> Vec<String> {
         vec![
@@ -525,7 +525,8 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_multisig_config_creation() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), Some("Test".to_string())).expect("Failed to create multisig config");
+        let config = MultisigConfig::new(2, sample_pubkeys(), Some("Test".to_string()))
+            .expect("Failed to create multisig config");
         assert_eq!(config.required_sigs, 2);
         assert_eq!(config.total_signers, 3);
         assert_eq!(config.config_type(), "2-of-3");
@@ -553,20 +554,24 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_multisig_address_generation() {
-        let config1 = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config1");
-        let config2 = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config2");
+        let config1 =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config1");
+        let config2 =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config2");
 
         // Same config should generate same address
         assert_eq!(config1.address(), config2.address());
 
         // Different config should generate different address
-        let config3 = MultisigConfig::new(3, sample_pubkeys(), None).expect("Failed to create config3");
+        let config3 =
+            MultisigConfig::new(3, sample_pubkeys(), None).expect("Failed to create config3");
         assert_ne!(config1.address(), config3.address());
     }
 
     #[test]
     fn test_is_signer() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         assert!(config.is_signer("pubkey1"));
         assert!(config.is_signer("pubkey2"));
         assert!(config.is_signer("pubkey3"));
@@ -575,7 +580,8 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_create_pending_tx() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let tx_data = b"sample transaction data";
@@ -588,27 +594,33 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_add_signature() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let mut pending = wallet.create_pending_tx(b"tx data");
 
         // Add first signature
         let sig1 = b"signature1";
-        wallet.add_signature(&mut pending, "pubkey1", sig1).expect("Failed to add first signature");
+        wallet
+            .add_signature(&mut pending, "pubkey1", sig1)
+            .expect("Failed to add first signature");
         assert_eq!(pending.signature_count(), 1);
         assert!(!pending.is_complete());
 
         // Add second signature
         let sig2 = b"signature2";
-        wallet.add_signature(&mut pending, "pubkey2", sig2).expect("Failed to add second signature");
+        wallet
+            .add_signature(&mut pending, "pubkey2", sig2)
+            .expect("Failed to add second signature");
         assert_eq!(pending.signature_count(), 2);
         assert!(pending.is_complete());
     }
 
     #[test]
     fn test_duplicate_signature_rejected() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let mut pending = wallet.create_pending_tx(b"tx data");
@@ -623,7 +635,8 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_unknown_signer_rejected() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let mut pending = wallet.create_pending_tx(b"tx data");
@@ -634,7 +647,8 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_finalize_transaction() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let mut pending = wallet.create_pending_tx(b"tx data");
@@ -651,20 +665,21 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_invalid_signature_rejected() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let mut pending = wallet.create_pending_tx(b"test transaction data");
-        
+
         // Add valid signature
         wallet
             .add_signature(&mut pending, "pubkey1", b"valid_signature")
             .expect("Failed to add first signature");
-        
+
         // Add invalid signature (wrong format)
         let result = wallet.add_signature(&mut pending, "pubkey2", b"invalid_signature");
         assert!(result.is_ok()); // Adding succeeds, verification happens later
-        
+
         // Verification should fail due to invalid signature
         let result = wallet.verify_signatures(&pending);
         assert!(matches!(result, Err(MultisigError::InvalidSignature)));
@@ -672,19 +687,20 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_malformed_signature_hex_rejected() {
-        let config = MultisigConfig::new(1, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(1, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let mut pending = wallet.create_pending_tx(b"test data");
-        
+
         // Add a signature first
         wallet
             .add_signature(&mut pending, "pubkey1", b"valid_signature")
             .expect("Failed to add signature");
-        
+
         // Add signature with invalid hex in tx_data
         pending.tx_data = "invalid_hex_data".to_string();
-        
+
         let result = wallet.verify_signatures(&pending);
         assert!(matches!(result, Err(MultisigError::InvalidSignature)));
     }
@@ -693,7 +709,8 @@ impl MultisigWalletManager {
     fn test_manager_pending_txs() {
         let mut manager = MultisigWalletManager::new();
 
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let pending = wallet.create_pending_tx(b"tx data");
@@ -709,7 +726,8 @@ impl MultisigWalletManager {
 
     #[test]
     fn test_already_complete_error() {
-        let config = MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
+        let config =
+            MultisigConfig::new(2, sample_pubkeys(), None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let mut pending = wallet.create_pending_tx(b"tx data");

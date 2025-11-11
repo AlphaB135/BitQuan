@@ -601,9 +601,12 @@ mod tests {
         for &val in &values {
             let compact = CompactUint::from(val);
             let mut buf = Vec::new();
-            compact.encode(&mut buf).expect("Failed to encode compact uint");
+            compact
+                .encode(&mut buf)
+                .expect("Failed to encode compact uint");
 
-            let decoded = CompactUint::decode(&mut &buf[..]).expect("Failed to decode compact uint");
+            let decoded =
+                CompactUint::decode(&mut &buf[..]).expect("Failed to decode compact uint");
             assert_eq!(decoded.value(), val);
         }
     }
@@ -684,7 +687,9 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        header.encode(&mut buf).expect("Failed to encode block header");
+        header
+            .encode(&mut buf)
+            .expect("Failed to encode block header");
         assert_eq!(buf.len(), 117); // Fixed header size (with algo_id)
 
         let decoded = BlockHeader::decode(&mut &buf[..]).expect("Failed to decode block header");

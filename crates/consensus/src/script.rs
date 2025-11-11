@@ -342,7 +342,9 @@ mod tests {
 
         // Script: push 1, verify it's true
         let script = vec![OpCode::True as u8];
-        let result = interp.execute(&script, &[]).expect("Failed to execute script");
+        let result = interp
+            .execute(&script, &[])
+            .expect("Failed to execute script");
 
         assert!(result);
     }
@@ -353,7 +355,9 @@ mod tests {
         let mut interp = ScriptInterpreter::new(registry);
 
         let script = vec![OpCode::False as u8];
-        let result = interp.execute(&script, &[]).expect("Failed to execute script");
+        let result = interp
+            .execute(&script, &[])
+            .expect("Failed to execute script");
 
         assert!(!result);
     }
@@ -365,7 +369,9 @@ mod tests {
 
         // Push 1, duplicate, verify stack has 2 items
         let script = vec![OpCode::True as u8, OpCode::Dup as u8];
-        interp.execute(&script, &[]).expect("Failed to execute script");
+        interp
+            .execute(&script, &[])
+            .expect("Failed to execute script");
 
         assert_eq!(interp.stack.len(), 2);
         assert_eq!(interp.stack[0], vec![1]);
@@ -386,7 +392,9 @@ mod tests {
             0x04,
             OpCode::Hash256 as u8,
         ];
-        interp.execute(&script, &[]).expect("Failed to execute script");
+        interp
+            .execute(&script, &[])
+            .expect("Failed to execute script");
 
         assert_eq!(interp.stack.len(), 1);
         assert_eq!(interp.stack[0].len(), 32); // SHA-256 hash
@@ -406,7 +414,9 @@ mod tests {
             0x04,
             OpCode::HashBLAKE3 as u8,
         ];
-        interp.execute(&script, &[]).expect("Failed to execute script");
+        interp
+            .execute(&script, &[])
+            .expect("Failed to execute script");
 
         assert_eq!(interp.stack.len(), 1);
         assert_eq!(interp.stack[0].len(), 32); // BLAKE3 hash

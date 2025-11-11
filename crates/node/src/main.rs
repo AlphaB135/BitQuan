@@ -79,7 +79,7 @@ impl PowMode {
                 return Ok(PowMode::Mock);
                 #[cfg(not(debug_assertions))]
                 return invalid("mock PoW is only available in debug builds");
-            },
+            }
             #[cfg(feature = "mainnet")]
             "mock" | "dev-fast-pow" => invalid("mock PoW is disabled in mainnet builds"),
             #[cfg(feature = "randomx")]
@@ -111,9 +111,7 @@ fn ensure_pow_allowed(pow_mode: PowMode, network: NetworkId) -> Result<()> {
     #[cfg(feature = "randomx")]
     {
         // Allow hybrid mining on mainnet for multi-algorithm support
-        if matches!(pow_mode, PowMode::RandomX)
-            && matches!(network, NetworkId::Mainnet)
-        {
+        if matches!(pow_mode, PowMode::RandomX) && matches!(network, NetworkId::Mainnet) {
             return invalid("RandomX only mode is disabled on mainnet (use hybrid)");
         }
     }
@@ -131,7 +129,7 @@ fn load_difficulty_from_config(network: NetworkId) -> Result<u32> {
 
     // Try to read the config file
     let content = std::fs::read_to_string(config_file).unwrap_or_default();
-    
+
     // Simple parser to find difficulty_bits line
     for line in content.lines() {
         let trimmed = line.trim();
@@ -146,7 +144,7 @@ fn load_difficulty_from_config(network: NetworkId) -> Result<u32> {
             }
         }
     }
-    
+
     // Fallback to defaults if config not found or invalid
     Ok(match network {
         NetworkId::Mainnet => 0x1c00ffff,
@@ -1434,11 +1432,14 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
     let mut last_timestamp: Option<i64> = None;
     let mut bits = bits_override;
     let allow_mock = matches!(pow_mode, PowMode::Mock);
-    
+
     // Load difficulty from config file if not overridden
     if bits == 0 {
         bits = load_difficulty_from_config(network)?;
-        println!("Loaded difficulty from config: 0x{:08x} for {:?}", bits, network);
+        println!(
+            "Loaded difficulty from config: 0x{:08x} for {:?}",
+            bits, network
+        );
     } else {
         println!("Using override difficulty: 0x{:08x}", bits);
     }
@@ -1610,7 +1611,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let start_time = std::time::Instant::now();
         let mut last_update = std::time::Instant::now();
         let update_interval = std::time::Duration::from_millis(100); // Update every 100ms
-        
+
         // Initial display
         print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: 0 | H/s: 0.00\x1b[0m", 
                height + 1, bits, subsidy);
@@ -1621,7 +1622,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let (_mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
-            
+
             // Update display for hybrid mining
             print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Algo: {} | Hashes: 0 | H/s: 0.00\x1b[0m", 
                    height + 1, bits, subsidy, algo.name());
@@ -1630,7 +1631,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             match hybrid_miner.mine_block_attempt(header.clone(), max_nonce, algo)? {
                 Some(h) => (Some(h), Some(algo)),
                 None => {
-                    println!("\r\x1b[31m✗ No solution found in {} attempts with {}\x1b[0m",
+                    println!(
+                        "\r\x1b[31m✗ No solution found in {} attempts with {}\x1b[0m",
                         max_nonce,
                         algo.name()
                     );
@@ -1642,8 +1644,10 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         };
 
         // Standard SHA-256d mining path
-        let (mined_header, _algo_used): (Option<bitquan_types::BlockHeader>, Option<bitquan_consensus::pow::PowAlgo>) =
-            (None, None);
+        let (mined_header, _algo_used): (
+            Option<bitquan_types::BlockHeader>,
+            Option<bitquan_consensus::pow::PowAlgo>,
+        ) = (None, None);
 
         let (header, n) = if let Some(h) = mined_header {
             let nonce = h.nonce;
@@ -1681,7 +1685,10 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             }
 
             if !solution_found {
-                println!("\r\x1b[31m✗ No solution found in {} attempts\x1b[0m", max_nonce);
+                println!(
+                    "\r\x1b[31m✗ No solution found in {} attempts\x1b[0m",
+                    max_nonce
+                );
                 continue;
             }
 
@@ -1696,29 +1703,37 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let hash_str = hex::encode(id);
         let elapsed_str = format!("{:.2}", elapsed.as_secs_f64());
         let hashrate_str = format!("{:.2}", hashrate);
-        
+
         // Determine color based on hashrate (real mining vs mock/easy)
         let color_code = if hashrate > 0.0 {
-            "\x1b[32m"  // Green for real mining
+            "\x1b[32m" // Green for real mining
         } else {
-            "\x1b[37m"  // White/gray for mock/easy blocks
+            "\x1b[37m" // White/gray for mock/easy blocks
         };
-        
+
         // Calculate padding to align "Total" at consistent position
         // Target position: around column 120 (adjust as needed)
         let base_line_length = 100; // Approximate length of base info
-        let current_length = format!("✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s",
-            height + 1, n, hash_str, elapsed_str, hashrate_str).len();
+        let current_length = format!(
+            "✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s",
+            height + 1,
+            n,
+            hash_str,
+            elapsed_str,
+            hashrate_str
+        )
+        .len();
         let padding_needed = if current_length < base_line_length {
             base_line_length - current_length
         } else {
             5 // Minimum padding
         };
         let padding = " ".repeat(padding_needed);
-        
+
         #[cfg(feature = "randomx")]
         if let Some(algo) = algo_used {
-            print!("\r{}✓ FOUND Block #{} | Algo: {} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
+            print!(
+                "\r{}✓ FOUND Block #{} | Algo: {} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
                 color_code,
                 height + 1,
                 algo.name(),
@@ -1729,7 +1744,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 padding
             );
         } else {
-            print!("\r{}✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
+            print!(
+                "\r{}✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
                 color_code,
                 height + 1,
                 n,
@@ -1740,7 +1756,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             );
         }
         #[cfg(not(feature = "randomx"))]
-        print!("\r{}✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
+        print!(
+            "\r{}✓ FOUND Block #{} | Nonce: {} | Hash: {} | {}s | {} H/s{}\x1b[0m",
             color_code,
             height + 1,
             n,
@@ -1820,14 +1837,15 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         // Use config difficulty for early blocks (before ASERT kicks in)
         // This ensures network starts with the intended difficulty
         const DIFFICULTY_ADJUSTMENT_START: u64 = 144; // ~1 day of blocks
-        
+
         if block_height < DIFFICULTY_ADJUSTMENT_START {
             // Keep using config difficulty for first blocks
             let config_bits = load_difficulty_from_config(network)?;
             bits = config_bits;
         } else {
             // Use ASERT difficulty adjustment after sufficient history
-            let next_target = asert_next_target(anchor.target, height_delta, time_delta, &params, None);
+            let next_target =
+                asert_next_target(anchor.target, height_delta, time_delta, &params, None);
             let mut next_bits = target_to_compact(next_target);
             if next_bits == 0 {
                 next_bits = block_bits;
@@ -1849,7 +1867,10 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         }
 
         if !found.load(Ordering::Relaxed) {
-            print!("\r\x1b[33mNo valid nonce in {} tries, adjusting difficulty...\x1b[0m\n", max_nonce);
+            print!(
+                "\r\x1b[33mNo valid nonce in {} tries, adjusting difficulty...\x1b[0m\n",
+                max_nonce
+            );
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
             bits = (bits & 0x00ff_ffff) | ((((bits >> 24) + 1) & 0xff) << 24);
             bits = clamp_bits_within_bounds(bits);
@@ -1878,7 +1899,12 @@ fn mine_continuous(_options: MiningOptions<'_>) -> Result<()> {
 }
 
 /// Generate a wallet keypair with encrypted storage
-fn wallet_gen(algo: &str, network: &str, output_path: Option<&str>, password: Option<&str>) -> Result<()> {
+fn wallet_gen(
+    algo: &str,
+    network: &str,
+    output_path: Option<&str>,
+    password: Option<&str>,
+) -> Result<()> {
     use std::path::Path;
     use wallet::{address, WalletKeypair};
 
@@ -1930,7 +1956,7 @@ fn wallet_gen(algo: &str, network: &str, output_path: Option<&str>, password: Op
 
     let default_filename = match network {
         "mainnet" => "mainnet-wallet.keystore",
-        "testnet" => "testnet-wallet.keystore", 
+        "testnet" => "testnet-wallet.keystore",
         "devnet" => "devnet-wallet.keystore",
         "regtest" => "regtest-wallet.keystore",
         _ => "wallet.keystore",
@@ -2073,7 +2099,8 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
         .map_err(|e| Error::Invalid(format!("keypair reconstruction failed: {e}")))?;
 
     // Sign the message
-    let signature = keypair.sign(&message)
+    let signature = keypair
+        .sign(&message)
         .map_err(|e| Error::Invalid(format!("signing failed: {e}")))?;
 
     println!("\n✅ Message signed successfully!");
@@ -2183,9 +2210,12 @@ async fn wallet_send(
     {
         use bitquan_storage::RocksDBStore;
         use std::path::Path;
-        
-        let _storage = RocksDBStore::open(Path::new(&format!("{}/chainstate", std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))))
-            .map_err(|e| Error::Invalid(format!("failed to open storage: {e}")))?;
+
+        let _storage = RocksDBStore::open(Path::new(&format!(
+            "{}/chainstate",
+            std::env::var("HOME").unwrap_or_else(|_| ".".to_string())
+        )))
+        .map_err(|e| Error::Invalid(format!("failed to open storage: {e}")))?;
 
         // Get sender script
         let sender_info = address::inspect(&data.address)
@@ -2207,7 +2237,8 @@ async fn wallet_send(
         if send_amount + fee > total_available {
             return invalid(format!(
                 "Insufficient funds: available {} qbits, need {} qbits",
-                total_available, send_amount + fee
+                total_available,
+                send_amount + fee
             ));
         }
 
@@ -2218,7 +2249,7 @@ async fn wallet_send(
             sequence: u32::MAX,
             script_sig: Vec::new(),
         };
-        
+
         let output = bitquan_types::TxOut {
             value: send_amount,
             script_pubkey: to_script,
@@ -2251,7 +2282,8 @@ async fn wallet_send(
         let tx_bytes = tx_json.as_bytes();
 
         // Sign transaction
-        let signature = keypair.sign(tx_bytes)
+        let signature = keypair
+            .sign(tx_bytes)
             .map_err(|e| Error::Invalid(format!("failed to sign tx: {e}")))?;
 
         // Add witness (simplified)
@@ -2268,7 +2300,11 @@ async fn wallet_send(
         println!();
         println!("✅ Transaction created and signed!");
         println!("📤 To: {}", to_address);
-        println!("💰 Amount: {} qbits ({:.8} BQ)", amount, amount as f64 / 100_000_000.0);
+        println!(
+            "💰 Amount: {} qbits ({:.8} BQ)",
+            amount,
+            amount as f64 / 100_000_000.0
+        );
         println!("🔧 Fee: {} qbits", fee);
         println!("🔄 Change: {} qbits", change_amount);
         println!();
@@ -2280,16 +2316,19 @@ async fn wallet_send(
 
         // Broadcast transaction via RPC
         println!("📡 Broadcasting transaction...");
-        
+
         // Convert transaction to hex for RPC submission
         let tx_hex = hex::encode(tx_json.as_bytes());
-        
+
         // Create RPC client and submit transaction
         match submit_transaction_rpc(&tx_hex).await {
             Ok(txid) => {
                 println!("✅ Transaction broadcast successfully!");
                 println!("🔗 Transaction ID: {}", txid);
-                println!("📊 View on explorer (when available): https://explorer.bitquan.org/tx/{}", txid);
+                println!(
+                    "📊 View on explorer (when available): https://explorer.bitquan.org/tx/{}",
+                    txid
+                );
             }
             Err(e) => {
                 println!("❌ Failed to broadcast transaction: {}", e);
@@ -2849,7 +2888,7 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
 /// Submit transaction via RPC to local node
 async fn submit_transaction_rpc(tx_hex: &str) -> Result<String> {
     use serde_json::json;
-    
+
     let rpc_url = "http://127.0.0.1:29443";
     let payload = json!({
         "jsonrpc": "2.0",
@@ -2857,7 +2896,7 @@ async fn submit_transaction_rpc(tx_hex: &str) -> Result<String> {
         "params": [tx_hex],
         "id": 1
     });
-    
+
     let client = reqwest::Client::new();
     let response = client
         .post(rpc_url)
@@ -2867,25 +2906,28 @@ async fn submit_transaction_rpc(tx_hex: &str) -> Result<String> {
         .send()
         .await
         .map_err(|e| Error::Invalid(format!("RPC connection failed: {}", e)))?;
-    
+
     if !response.status().is_success() {
-        return Err(Error::Invalid(format!("RPC server returned status: {}", response.status())));
+        return Err(Error::Invalid(format!(
+            "RPC server returned status: {}",
+            response.status()
+        )));
     }
-    
+
     let rpc_response: serde_json::Value = response
         .json()
         .await
         .map_err(|e| Error::Invalid(format!("failed to parse RPC response: {}", e)))?;
-    
+
     if let Some(error) = rpc_response.get("error") {
         return Err(Error::Invalid(format!("RPC error: {}", error)));
     }
-    
+
     let txid = rpc_response
         .get("result")
         .and_then(|v| v.as_str())
         .ok_or_else(|| Error::Invalid("invalid RPC response: missing result".to_string()))?;
-    
+
     Ok(txid.to_string())
 }
 

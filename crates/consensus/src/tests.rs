@@ -279,9 +279,13 @@ fn test_transaction_and_block_hash_determinism() {
 
     // Transaction sighash must be deterministic across repeated invocations.
     let ctx = bitquan_types::TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
-    let expected_tx_hash = transaction_sighash(&tx, &ctx).expect("Failed to compute transaction sighash");
+    let expected_tx_hash =
+        transaction_sighash(&tx, &ctx).expect("Failed to compute transaction sighash");
     for _ in 0..32 {
-        assert_eq!(transaction_sighash(&tx, &ctx).expect("Failed to compute transaction sighash"), expected_tx_hash);
+        assert_eq!(
+            transaction_sighash(&tx, &ctx).expect("Failed to compute transaction sighash"),
+            expected_tx_hash
+        );
     }
 
     // Build a block and ensure header hashing is deterministic as well.
@@ -305,7 +309,8 @@ fn test_transaction_and_block_hash_determinism() {
     }
 
     // Recomputing via freshly constructed block components must stay stable.
-    let expected_again = transaction_sighash(&block.transactions[0], &ctx).expect("Failed to compute transaction sighash again");
+    let expected_again = transaction_sighash(&block.transactions[0], &ctx)
+        .expect("Failed to compute transaction sighash again");
     assert_eq!(expected_again, expected_tx_hash);
 }
 
@@ -873,5 +878,3 @@ fn test_validate_transaction_signatures_genesis_mismatch() {
     let result = validate_transaction_signatures(&tx, &ctx, &registry);
     assert!(result.is_err());
 }
-
-

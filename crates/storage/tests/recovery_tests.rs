@@ -33,7 +33,9 @@ mod rocksdb_recovery_tests {
             // Insert multiple blocks to test verification
             for i in 0..5 {
                 let block = create_test_block(i);
-                store.insert_block(block).expect("Failed to insert test block");
+                store
+                    .insert_block(block)
+                    .expect("Failed to insert test block");
             }
         }
 
@@ -49,7 +51,8 @@ mod rocksdb_recovery_tests {
             create_checkpoint: false,
         };
 
-        let store = RocksDBStore::open_with_options(&db_path, options).expect("Failed to open RocksDB store with options");
+        let store = RocksDBStore::open_with_options(&db_path, options)
+            .expect("Failed to open RocksDB store with options");
         let stats = store.get_stats().expect("Failed to get store statistics");
 
         assert_eq!(
@@ -74,14 +77,21 @@ mod rocksdb_recovery_tests {
         {
             let mut store = RocksDBStore::open(&db_path).expect("Failed to open RocksDB store");
             let block = create_test_block(0);
-            store.insert_block(block).expect("Failed to insert test block");
+            store
+                .insert_block(block)
+                .expect("Failed to insert test block");
         }
 
         // Open with auto-backup
         let options = RecoveryOptions {
             verify_checksums: false,
             auto_backup: true,
-            backup_path: Some(backup_dir.to_str().expect("Failed to convert backup path to string").to_string()),
+            backup_path: Some(
+                backup_dir
+                    .to_str()
+                    .expect("Failed to convert backup path to string")
+                    .to_string(),
+            ),
             rebuild_indices: false,
             repair_corrupted: false,
             max_backups: 5,
@@ -89,7 +99,8 @@ mod rocksdb_recovery_tests {
             create_checkpoint: false,
         };
 
-        let _store = RocksDBStore::open_with_options(&db_path, options).expect("Failed to open RocksDB store with backup options");
+        let _store = RocksDBStore::open_with_options(&db_path, options)
+            .expect("Failed to open RocksDB store with backup options");
 
         // Check that backup was created
         let entries: Vec<_> = std::fs::read_dir(&backup_dir)

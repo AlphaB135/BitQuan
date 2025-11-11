@@ -298,7 +298,8 @@ mod tests {
         // Create transaction spending it
         let tx = create_test_tx([0x01; 32], 0, vec![(50, vec![0x00]), (40, vec![0x01])]);
 
-        set.apply_transaction(&tx, 2).expect("Failed to apply transaction to UTXO set");
+        set.apply_transaction(&tx, 2)
+            .expect("Failed to apply transaction to UTXO set");
 
         // Original UTXO should be removed
         assert!(!set.contains(&[0x01; 32], 0));

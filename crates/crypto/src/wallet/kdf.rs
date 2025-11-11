@@ -114,8 +114,12 @@ mod tests {
         let password = SecureString::new("correct horse battery".to_owned());
         let salt = [42u8; 32];
 
-        let key1 = kdf.derive_key(&password, &salt).expect("Failed to derive key with same salt");
-        let key2 = kdf.derive_key(&password, &salt).expect("Failed to derive key with same salt");
+        let key1 = kdf
+            .derive_key(&password, &salt)
+            .expect("Failed to derive key with same salt");
+        let key2 = kdf
+            .derive_key(&password, &salt)
+            .expect("Failed to derive key with same salt");
 
         assert_eq!(key1, key2);
     }
@@ -127,8 +131,12 @@ mod tests {
         let salt1 = [1u8; 32];
         let salt2 = [2u8; 32];
 
-        let key1 = kdf.derive_key(&password, &salt1).expect("Failed to derive key with salt1");
-        let key2 = kdf.derive_key(&password, &salt2).expect("Failed to derive key with salt2");
+        let key1 = kdf
+            .derive_key(&password, &salt1)
+            .expect("Failed to derive key with salt1");
+        let key2 = kdf
+            .derive_key(&password, &salt2)
+            .expect("Failed to derive key with salt2");
 
         assert_ne!(key1, key2);
     }

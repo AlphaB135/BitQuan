@@ -191,7 +191,8 @@ mod tests {
     fn test_inspect_rejects_wrong_hrp() {
         let hash = [0x22; 32];
         let wrong_address =
-            bech32::encode::<Bech32m>(Hrp::parse("x").expect("Failed to parse HRP"), &hash).expect("encode");
+            bech32::encode::<Bech32m>(Hrp::parse("x").expect("Failed to parse HRP"), &hash)
+                .expect("encode");
         let err = inspect(&wrong_address).unwrap_err();
         assert!(
             err.contains("unsupported HRP"),

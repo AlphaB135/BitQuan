@@ -139,13 +139,15 @@ impl WalletKeypair {
         if public_key.len() != PUBLICKEYBYTES {
             return Err(Error::Invalid(format!(
                 "public key must be {} bytes, got {}",
-                PUBLICKEYBYTES, public_key.len()
+                PUBLICKEYBYTES,
+                public_key.len()
             )));
         }
         if secret_key.len() != SECRETKEYBYTES {
             return Err(Error::Invalid(format!(
                 "secret key must be {} bytes, got {}",
-                SECRETKEYBYTES, secret_key.len()
+                SECRETKEYBYTES,
+                secret_key.len()
             )));
         }
 
@@ -190,10 +192,10 @@ impl WalletKeypair {
     pub fn load_from_file(path: &Path) -> Result<Self> {
         let json = fs::read_to_string(path)
             .map_err(|e| Error::Invalid(format!("failed to read keypair file: {e}")))?;
-        
+
         let data: SerializableKeypair = serde_json::from_str(&json)
             .map_err(|e| Error::Invalid(format!("failed to parse keypair file: {e}")))?;
-        
+
         Self::from_serializable(&data)
     }
 
@@ -356,7 +358,8 @@ mod tests {
 
     #[test]
     fn test_keypair_generation() {
-        let keypair = WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+        let keypair =
+            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         // With session-based storage, we don't check exact sizes
         assert!(!keypair.public_key.is_empty());
         assert!(!keypair.secret_key.is_empty());
@@ -370,7 +373,8 @@ mod tests {
             return;
         }
 
-        let keypair = WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+        let keypair =
+            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         let message = b"Hello, BitQuan!";
 
         let signature = keypair.sign(message).expect("Failed to sign message");
@@ -387,7 +391,8 @@ mod tests {
             return;
         }
 
-        let keypair = WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+        let keypair =
+            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         let message = b"Test message";
 
         let signature = keypair.sign(message).expect("Failed to sign message");
@@ -399,7 +404,8 @@ mod tests {
 
     #[test]
     fn test_address_encoding() {
-        let keypair = WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+        let keypair =
+            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         let pubkey_hash = keypair.public_key_hash();
 
         let address = address::encode(&pubkey_hash);
@@ -417,7 +423,8 @@ mod tests {
 
     #[test]
     fn test_address_validation() {
-        let keypair = WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+        let keypair =
+            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         let pubkey_hash = keypair.public_key_hash();
         let address = address::encode(&pubkey_hash);
 
@@ -468,7 +475,8 @@ mod tests {
 
     #[test]
     fn test_public_key_hash() {
-        let keypair = WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+        let keypair =
+            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         let hash1 = keypair.public_key_hash();
         let hash2 = keypair.public_key_hash();
 
@@ -485,7 +493,8 @@ mod tests {
 
     #[test]
     fn serializable_contains_hex_keys() {
-        let keypair = WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+        let keypair =
+            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         let serializable = keypair.to_serializable();
         assert_eq!(serializable.public_key.len(), PUBLICKEYBYTES * 2);
         assert_eq!(serializable.secret_key.len(), SECRETKEYBYTES * 2);
@@ -495,7 +504,8 @@ mod tests {
     fn dilithium_key_entropy() {
         let mut seen = HashSet::new();
         for _ in 0..128 {
-        let keypair = WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+            let keypair = WalletKeypair::generate_dilithium3()
+                .expect("Failed to generate Dilithium3 keypair");
             seen.insert(keypair.public_key.clone());
         }
         assert!(seen.len() > 120);

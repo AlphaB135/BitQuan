@@ -659,7 +659,12 @@ mod tests {
     fn test_peer_manager_height_update() {
         let pm = PeerManager::new(10);
         pm.update_height(42);
-        assert_eq!(*pm.current_height.lock().expect("Failed to lock current height"), 42);
+        assert_eq!(
+            *pm.current_height
+                .lock()
+                .expect("Failed to lock current height"),
+            42
+        );
     }
 
     #[test]

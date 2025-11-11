@@ -105,7 +105,9 @@ mod tests {
         assert!(tx.witness_size_hint().is_ok());
         assert!(tx.signature_count().is_ok());
 
-        let size = tx.serialized_size_hint().expect("Failed to get transaction size");
+        let size = tx
+            .serialized_size_hint()
+            .expect("Failed to get transaction size");
         let witness_size = tx.witness_size_hint().expect("Failed to get witness size");
         let sig_count = tx.signature_count().expect("Failed to get signature count");
 

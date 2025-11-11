@@ -20,7 +20,9 @@ fn test_subnet_diversity_enforcement() {
 
 #[test]
 fn test_anchor_peers_config() {
-    let anchor: SocketAddr = "127.0.0.1:8333".parse().expect("Failed to parse socket address");
+    let anchor: SocketAddr = "127.0.0.1:8333"
+        .parse()
+        .expect("Failed to parse socket address");
 
     let config = EclipseConfig {
         max_peers_per_subnet: 2,

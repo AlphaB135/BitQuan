@@ -127,14 +127,14 @@ impl RpcMethods for NodeRpcHandler {
         // Decode transaction from hex
         let tx_bytes = Vec::from_hex(&tx_hex)
             .map_err(|_| RpcError::InvalidParams("transaction must be hex-encoded".into()))?;
-        
+
         // Parse transaction (for now, assume it's JSON format)
         let tx: Transaction = serde_json::from_slice(&tx_bytes)
             .map_err(|e| RpcError::InvalidParams(format!("failed to parse transaction: {}", e)))?;
-        
+
         // Calculate transaction ID
         let txid = hex::encode(tx.txid());
-        
+
         // For now, just validate and return the txid
         // In a full implementation, this would:
         // 1. Validate transaction syntax
@@ -142,7 +142,7 @@ impl RpcMethods for NodeRpcHandler {
         // 3. Check inputs/outputs
         // 4. Add to mempool
         // 5. Broadcast to peers
-        
+
         Ok(txid)
     }
 

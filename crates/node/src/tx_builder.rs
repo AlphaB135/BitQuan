@@ -416,8 +416,10 @@ mod tests {
         let ctx_devnet = TxContext::new(NetworkId::Devnet, GENESIS_HASH_BYTES);
         let ctx_mainnet = TxContext::new(NetworkId::Mainnet, GENESIS_HASH_BYTES);
 
-        let hash_devnet = compute_sighash_with_context(&tx_devnet, &ctx_devnet, 0).expect("Failed to compute devnet sighash");
-        let hash_mainnet = compute_sighash_with_context(&tx_mainnet, &ctx_mainnet, 0).expect("Failed to compute mainnet sighash");
+        let hash_devnet = compute_sighash_with_context(&tx_devnet, &ctx_devnet, 0)
+            .expect("Failed to compute devnet sighash");
+        let hash_mainnet = compute_sighash_with_context(&tx_mainnet, &ctx_mainnet, 0)
+            .expect("Failed to compute mainnet sighash");
 
         // Same transaction data but different networks should produce different hashes
         assert_ne!(hash_devnet, hash_mainnet);
@@ -449,8 +451,10 @@ mod tests {
         let ctx1 = TxContext::new(NetworkId::Devnet, genesis1);
         let ctx2 = TxContext::new(NetworkId::Devnet, genesis2);
 
-        let hash1 = compute_sighash_with_context(&tx1, &ctx1, 0).expect("Failed to compute sighash with genesis1");
-        let hash2 = compute_sighash_with_context(&tx2, &ctx2, 0).expect("Failed to compute sighash with genesis2");
+        let hash1 = compute_sighash_with_context(&tx1, &ctx1, 0)
+            .expect("Failed to compute sighash with genesis1");
+        let hash2 = compute_sighash_with_context(&tx2, &ctx2, 0)
+            .expect("Failed to compute sighash with genesis2");
 
         // Same transaction data but different genesis should produce different hashes
         assert_ne!(hash1, hash2);
@@ -491,8 +495,8 @@ mod tests {
             Utxo::new([0x03; 32], 0, 30_000_000, vec![]),
         ];
 
-        let selected =
-            select_coins(&utxos, 25_000_000, 1, CoinSelection::SmallestSufficient).expect("Failed to select coins");
+        let selected = select_coins(&utxos, 25_000_000, 1, CoinSelection::SmallestSufficient)
+            .expect("Failed to select coins");
         assert!(!selected.is_empty());
 
         // Use saturating_add to prevent overflow when summing coin values

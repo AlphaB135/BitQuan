@@ -1,16 +1,16 @@
 //! Comprehensive monitoring and health check system for BitQuan
-//! 
+//!
 //! This module provides:
 //! - Prometheus metrics endpoint
 //! - Health check endpoints
 //! - System status monitoring
 //! - Performance metrics collection
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use warp::{Filter, Reply};
 
@@ -101,12 +101,14 @@ impl MonitoringSystem {
     /// Record WebSocket connection
     pub fn record_websocket_connection(&self) {
         self.websocket_connections.fetch_add(1, Ordering::Relaxed);
-        self.websocket_connections_active.fetch_add(1, Ordering::Relaxed);
+        self.websocket_connections_active
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Record WebSocket disconnection
     pub fn record_websocket_disconnection(&self) {
-        self.websocket_connections_active.fetch_sub(1, Ordering::Relaxed);
+        self.websocket_connections_active
+            .fetch_sub(1, Ordering::Relaxed);
     }
 
     /// Record system error
@@ -280,10 +282,7 @@ impl MonitoringSystem {
                 } else {
                     warp::http::StatusCode::SERVICE_UNAVAILABLE
                 };
-                Ok::<_, warp::Rejection>(warp::reply::with_status(
-                    health.status,
-                    status,
-                ))
+                Ok::<_, warp::Rejection>(warp::reply::with_status(health.status, status))
             });
 
         let performance_route = warp::path("performance")
@@ -306,51 +305,69 @@ impl MonitoringSystem {
         let monitoring = self.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Check database connectivity
                 let db_start = Instant::now();
                 // In a real implementation, this would check actual database connectivity
                 let db_healthy = true; // Placeholder
                 let db_response_time = db_start.elapsed().as_millis() as u64;
-                
-                monitoring.update_component_health(
-                    "database".to_string(),
-                    if db_healthy { "healthy".to_string() } else { "unhealthy".to_string() },
-                    Some(db_response_time),
-                    None,
-                    None,
-                ).await;
+
+                monitoring
+                    .update_component_health(
+                        "database".to_string(),
+                        if db_healthy {
+                            "healthy".to_string()
+                        } else {
+                            "unhealthy".to_string()
+                        },
+                        Some(db_response_time),
+                        None,
+                        None,
+                    )
+                    .await;
 
                 // Check network connectivity
                 let network_start = Instant::now();
                 // In a real implementation, this would check network connectivity
                 let network_healthy = true; // Placeholder
                 let network_response_time = network_start.elapsed().as_millis() as u64;
-                
-                monitoring.update_component_health(
-                    "network".to_string(),
-                    if network_healthy { "healthy".to_string() } else { "degraded".to_string() },
-                    Some(network_response_time),
-                    None,
-                    None,
-                ).await;
+
+                monitoring
+                    .update_component_health(
+                        "network".to_string(),
+                        if network_healthy {
+                            "healthy".to_string()
+                        } else {
+                            "degraded".to_string()
+                        },
+                        Some(network_response_time),
+                        None,
+                        None,
+                    )
+                    .await;
 
                 // Check mining pool status
                 let pool_start = Instant::now();
                 // In a real implementation, this would check pool status
                 let pool_healthy = true; // Placeholder
                 let pool_response_time = pool_start.elapsed().as_millis() as u64;
-                
-                monitoring.update_component_health(
-                    "mining_pool".to_string(),
-                    if pool_healthy { "healthy".to_string() } else { "unhealthy".to_string() },
-                    Some(pool_response_time),
-                    None,
-                    None,
-                ).await;
+
+                monitoring
+                    .update_component_health(
+                        "mining_pool".to_string(),
+                        if pool_healthy {
+                            "healthy".to_string()
+                        } else {
+                            "unhealthy".to_string()
+                        },
+                        Some(pool_response_time),
+                        None,
+                        None,
+                    )
+                    .await;
 
                 // Update performance metrics (placeholder values)
                 let performance_metrics = PerformanceMetrics {
@@ -362,8 +379,10 @@ impl MonitoringSystem {
                     open_file_descriptors: 256,
                     thread_count: 42,
                 };
-                
-                monitoring.update_performance_metrics(performance_metrics).await;
+
+                monitoring
+                    .update_performance_metrics(performance_metrics)
+                    .await;
             }
         });
     }
@@ -408,7 +427,12 @@ mod tests {
 
         assert_eq!(monitoring.http_requests_total.load(Ordering::Relaxed), 1);
         assert_eq!(monitoring.websocket_connections.load(Ordering::Relaxed), 1);
-        assert_eq!(monitoring.websocket_connections_active.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            monitoring
+                .websocket_connections_active
+                .load(Ordering::Relaxed),
+            1
+        );
         assert_eq!(monitoring.system_errors_total.load(Ordering::Relaxed), 1);
     }
 

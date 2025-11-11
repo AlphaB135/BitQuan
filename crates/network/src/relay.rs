@@ -244,11 +244,19 @@ mod tests {
             hash,
         };
 
-        manager.announce(&inv).expect("Failed to announce inventory");
-        assert!(manager.has_announced(&hash).expect("Failed to check if announced"));
+        manager
+            .announce(&inv)
+            .expect("Failed to announce inventory");
+        assert!(manager
+            .has_announced(&hash)
+            .expect("Failed to check if announced"));
 
-        manager.mark_relayed(hash).expect("Failed to mark as relayed");
-        assert!(manager.was_relayed(&hash).expect("Failed to check if relayed"));
+        manager
+            .mark_relayed(hash)
+            .expect("Failed to mark as relayed");
+        assert!(manager
+            .was_relayed(&hash)
+            .expect("Failed to check if relayed"));
     }
 
     #[test]

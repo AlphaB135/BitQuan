@@ -208,7 +208,8 @@ mod tests {
     #[test]
     fn test_request_deserialization() {
         let json = r#"{"jsonrpc":"2.0","method":"getblockcount","params":[],"id":1}"#;
-        let req: JsonRpcRequest = serde_json::from_str(json).expect("Failed to deserialize JSON-RPC request");
+        let req: JsonRpcRequest =
+            serde_json::from_str(json).expect("Failed to deserialize JSON-RPC request");
         assert_eq!(req.method, "getblockcount");
         assert_eq!(req.id, 1);
     }

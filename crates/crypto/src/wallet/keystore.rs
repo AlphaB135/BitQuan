@@ -118,8 +118,11 @@ mod tests {
 
         let private = SecurePrivateKey::new(vec![1, 2, 3, 4]);
         let password = SecureString::new("s3cr3t".into());
-        let keystore = Keystore::new(&private, &password, "bq1testaddr".into()).expect("Failed to create keystore");
-        keystore.save_to_file(&path).expect("Failed to save keystore");
+        let keystore = Keystore::new(&private, &password, "bq1testaddr".into())
+            .expect("Failed to create keystore");
+        keystore
+            .save_to_file(&path)
+            .expect("Failed to save keystore");
 
         let loaded = Keystore::load_from_file(&path).expect("Failed to load keystore");
         assert_eq!(loaded.address, "bq1testaddr");
@@ -132,7 +135,8 @@ mod tests {
     fn wrong_password_fails() {
         let private = SecurePrivateKey::new(vec![9, 9, 9]);
         let password = SecureString::new("goodpass".into());
-        let keystore = Keystore::new(&private, &password, "addr".into()).expect("Failed to create keystore");
+        let keystore =
+            Keystore::new(&private, &password, "addr".into()).expect("Failed to create keystore");
 
         let wrong = SecureString::new("badpass".into());
         let err = keystore.unlock(&wrong).unwrap_err();

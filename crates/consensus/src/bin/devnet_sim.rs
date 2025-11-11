@@ -90,7 +90,6 @@ impl fmt::Display for SegmentStats {
     }
 }
 
-
 fn main() -> Result<()> {
     let args = SimArgs::parse();
     let segments = parse_pattern(&args.pattern)?;

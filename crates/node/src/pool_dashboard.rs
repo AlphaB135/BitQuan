@@ -3,8 +3,8 @@
 //! Provides a complete web-based dashboard for monitoring mining operations
 //! with real-time updates via WebSocket and REST API.
 
-use crate::ws_dashboard::{PoolStats, MinerInfo, DashboardConfig};
-use crate::stratum_server::{StratumMetrics, MinerSession};
+use crate::stratum_server::{MinerSession, StratumMetrics};
+use crate::ws_dashboard::{DashboardConfig, MinerInfo, PoolStats};
 use bitquan_consensus::pow::PowAlgo;
 use bitquan_types::Result;
 use dashmap::DashMap;
@@ -33,7 +33,7 @@ impl PoolDashboard {
     pub fn new(config: DashboardConfig) -> Self {
         let (stats_tx, _) = broadcast::channel(100);
         let (miners_tx, _) = broadcast::channel(100);
-        
+
         Self {
             config,
             stats_tx,
@@ -69,15 +69,12 @@ impl PoolDashboard {
                     let stats_rx = self.stats_tx.subscribe();
                     let miners_rx = self.miners_tx.subscribe();
                     let history = Arc::clone(&self.history);
-                    
+
                     tokio::spawn(async move {
-                        if let Err(e) = handle_enhanced_connection(
-                            stream, 
-                            addr, 
-                            stats_rx, 
-                            miners_rx,
-                            history
-                        ).await {
+                        if let Err(e) =
+                            handle_enhanced_connection(stream, addr, stats_rx, miners_rx, history)
+                                .await
+                        {
                             eprintln!("Dashboard: Connection error {}: {}", addr, e);
                         }
                     });
@@ -102,7 +99,7 @@ impl PoolDashboard {
 
         tokio::spawn(async move {
             let mut ticker = interval(Duration::from_secs(interval_secs));
-            
+
             loop {
                 ticker.tick().await;
 
@@ -136,7 +133,7 @@ impl PoolDashboard {
                         shares_ok_sha256d + shares_ok_ethash
                     }
                 };
-                
+
                 let shares_rejected = {
                     #[cfg(feature = "randomx")]
                     {
@@ -151,7 +148,7 @@ impl PoolDashboard {
                 // Enhanced hashrate calculations
                 let hashrate_sha256d = estimate_enhanced_hashrate(&peers, PowAlgo::Sha256d);
                 let hashrate_ethash = estimate_enhanced_hashrate(&peers, PowAlgo::Ethash);
-                
+
                 #[cfg(feature = "randomx")]
                 let hashrate_randomx = estimate_enhanced_hashrate(&peers, PowAlgo::RandomX);
 
@@ -274,9 +271,9 @@ impl PoolDashboard {
                         } else {
                             100.0
                         };
-                        
+
                         let hashrate = estimate_enhanced_miner_hashrate(session);
-                        
+
                         MinerInfo {
                             address: session.address.clone(),
                             algo: session.algo.name().to_string(),
@@ -311,7 +308,11 @@ impl PoolDashboard {
     pub async fn get_history(&self, limit: Option<usize>) -> Vec<PoolStats> {
         let history = self.history.read().await;
         let limit = limit.unwrap_or(100);
-        let start = if history.len() > limit { history.len() - limit } else { 0 };
+        let start = if history.len() > limit {
+            history.len() - limit
+        } else {
+            0
+        };
         history[start..].to_vec()
     }
 }
@@ -330,10 +331,10 @@ fn estimate_enhanced_miner_hashrate(session: &MinerSession) -> f64 {
     // Enhanced estimation considering recent share rate and difficulty
     let target_share_time = 15.0; // Target time between shares
     let difficulty_factor = session.difficulty;
-    
+
     // Base hashrate estimation: difficulty * 2^32 / target_share_time
     let base_hashrate = difficulty_factor * 4_294_967_296.0 / target_share_time;
-    
+
     // Apply efficiency factor based on share acceptance rate
     let total_shares = session.get_accepted() + session.get_rejected();
     let efficiency = if total_shares > 0 {
@@ -341,7 +342,7 @@ fn estimate_enhanced_miner_hashrate(session: &MinerSession) -> f64 {
     } else {
         1.0
     };
-    
+
     base_hashrate * efficiency
 }
 
@@ -353,24 +354,24 @@ async fn handle_enhanced_connection(
     mut miners_rx: broadcast::Receiver<Vec<MinerInfo>>,
     history: Arc<tokio::sync::RwLock<Vec<PoolStats>>>,
 ) -> Result<()> {
-
-    
     let mut buffer = [0; 4096];
-    let n = stream.read(&mut buffer).await
+    let n = stream
+        .read(&mut buffer)
+        .await
         .map_err(|e| bitquan_types::Error::Invalid(format!("read error: {}", e)))?;
-    
+
     let request = String::from_utf8_lossy(&buffer[..n]);
-    
+
     // Parse HTTP request
     if request.starts_with("GET") {
         let mut lines = request.lines();
         let request_line = lines.next().unwrap_or("");
-        
+
         if request_line.contains("GET /api/stats") {
             // REST API endpoint for current stats
             let history_guard = history.read().await;
             let current_stats = history_guard.last();
-            
+
             let response = if let Some(stats) = current_stats {
                 let json = serde_json::to_string(stats)
                     .map_err(|e| bitquan_types::Error::Invalid(format!("json error: {}", e)))?;
@@ -378,43 +379,48 @@ async fn handle_enhanced_connection(
             } else {
                 format_http_response(404, "application/json", "{\"error\":\"no data\"}")
             };
-            
-            stream.write_all(response.as_bytes()).await
+
+            stream
+                .write_all(response.as_bytes())
+                .await
                 .map_err(|e| bitquan_types::Error::Invalid(format!("write error: {}", e)))?;
-                
         } else if request_line.contains("GET /api/history") {
             // REST API endpoint for historical data
             let history_guard = history.read().await;
             let json = serde_json::to_string(&*history_guard)
                 .map_err(|e| bitquan_types::Error::Invalid(format!("json error: {}", e)))?;
             let response = format_http_response(200, "application/json", &json);
-            
-            stream.write_all(response.as_bytes()).await
+
+            stream
+                .write_all(response.as_bytes())
+                .await
                 .map_err(|e| bitquan_types::Error::Invalid(format!("write error: {}", e)))?;
-                
         } else if request_line.contains("GET /api/miners") {
             // REST API endpoint for current miners
             let mut miners = Vec::new();
             while let Ok(miner_list) = miners_rx.try_recv() {
                 miners = miner_list;
             }
-            
+
             let json = serde_json::to_string(&miners)
                 .map_err(|e| bitquan_types::Error::Invalid(format!("json error: {}", e)))?;
             let response = format_http_response(200, "application/json", &json);
-            
-            stream.write_all(response.as_bytes()).await
+
+            stream
+                .write_all(response.as_bytes())
+                .await
                 .map_err(|e| bitquan_types::Error::Invalid(format!("write error: {}", e)))?;
-                
         } else if request_line.contains("GET /ws") {
             // WebSocket endpoint for real-time updates
             let response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n";
-            stream.write_all(response.as_bytes()).await
+            stream
+                .write_all(response.as_bytes())
+                .await
                 .map_err(|e| bitquan_types::Error::Invalid(format!("write error: {}", e)))?;
-            
+
             // Stream real-time updates
             let (_, mut writer) = stream.into_split();
-            
+
             loop {
                 tokio::select! {
                     Ok(stats) = stats_rx.recv() => {
@@ -439,11 +445,13 @@ async fn handle_enhanced_connection(
             // Serve main dashboard HTML
             let html = get_dashboard_html();
             let response = format_http_response(200, "text/html", &html);
-            stream.write_all(response.as_bytes()).await
+            stream
+                .write_all(response.as_bytes())
+                .await
                 .map_err(|e| bitquan_types::Error::Invalid(format!("write error: {}", e)))?;
         }
     }
-    
+
     println!("Dashboard: Connection closed {}", addr);
     Ok(())
 }
@@ -453,7 +461,13 @@ fn format_http_response(status: u16, content_type: &str, body: &str) -> String {
     format!(
         "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n{}",
         status,
-        if status == 200 { "OK" } else if status == 404 { "Not Found" } else { "Error" },
+        if status == 200 {
+            "OK"
+        } else if status == 404 {
+            "Not Found"
+        } else {
+            "Error"
+        },
         content_type,
         body.len(),
         body
@@ -645,7 +659,7 @@ mod tests {
         let base_hashrate = difficulty * 4_294_967_296.0 / 15.0;
         let efficiency = 0.95;
         let expected = base_hashrate * efficiency;
-        
+
         assert!(expected > 0.0, "Enhanced hashrate should be positive");
     }
 

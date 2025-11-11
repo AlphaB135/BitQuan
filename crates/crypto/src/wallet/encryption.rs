@@ -151,8 +151,12 @@ mod tests {
         let password = SecureString::new("my-password".into());
         let plaintext = b"super secret bytes";
 
-        let encrypted = encryptor.encrypt(plaintext, &password).expect("Failed to encrypt plaintext");
-        let decrypted = encryptor.decrypt(&encrypted, &password).expect("Failed to decrypt ciphertext");
+        let encrypted = encryptor
+            .encrypt(plaintext, &password)
+            .expect("Failed to encrypt plaintext");
+        let decrypted = encryptor
+            .decrypt(&encrypted, &password)
+            .expect("Failed to decrypt ciphertext");
 
         assert_eq!(decrypted, plaintext);
     }
@@ -163,7 +167,9 @@ mod tests {
         let password = SecureString::new("correct".into());
         let plaintext = b"secret";
 
-        let encrypted = encryptor.encrypt(plaintext, &password).expect("Failed to encrypt plaintext");
+        let encrypted = encryptor
+            .encrypt(plaintext, &password)
+            .expect("Failed to encrypt plaintext");
         let wrong_password = SecureString::new("incorrect".into());
         let result = encryptor.decrypt(&encrypted, &wrong_password);
 

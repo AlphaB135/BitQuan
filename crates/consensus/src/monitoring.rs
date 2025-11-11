@@ -3,9 +3,9 @@
 //! This module provides comprehensive monitoring capabilities without
 //! exposing sensitive information or creating attack vectors.
 
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Maximum number of alerts to keep in memory
@@ -113,7 +113,7 @@ impl Alert {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .hash(&mut hasher);
-        
+
         format!("alert_{:x}", hasher.finish())
     }
 
@@ -128,7 +128,7 @@ impl Alert {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         now.saturating_sub(self.timestamp)
     }
 }
@@ -195,7 +195,6 @@ impl Monitor {
             stats: MonitorStats::default(),
         }
     }
-
 }
 
 impl Default for Monitor {
@@ -268,7 +267,8 @@ impl Monitor {
             .unwrap_or_default()
             .as_secs();
 
-        if alert.timestamp > now + 300 { // Allow 5 minute clock skew
+        if alert.timestamp > now + 300 {
+            // Allow 5 minute clock skew
             return Err(MonitorError::InvalidAlert {
                 reason: "Alert timestamp is in the future".to_string(),
             });
@@ -296,7 +296,8 @@ impl Monitor {
         let one_hour_ago = now.saturating_sub(3600);
 
         // Count alerts in the last hour
-        let recent_alerts = self.alert_timestamps
+        let recent_alerts = self
+            .alert_timestamps
             .iter()
             .filter(|&&timestamp| timestamp > one_hour_ago)
             .count();
@@ -446,30 +447,30 @@ pub enum MonitorError {
 
     #[error("invalid message: {reason}")]
     /// Invalid message format
-    InvalidMessage { 
+    InvalidMessage {
         /// Reason why the message is invalid
-        reason: String 
+        reason: String,
     },
 
     #[error("invalid alert: {reason}")]
     /// Invalid alert data
-    InvalidAlert { 
+    InvalidAlert {
         /// Reason why the alert is invalid
-        reason: String 
+        reason: String,
     },
 
     #[error("invalid configuration: {reason}")]
     /// Invalid configuration provided
-    InvalidConfig { 
+    InvalidConfig {
         /// Reason why the configuration is invalid
-        reason: String 
+        reason: String,
     },
 
     #[error("alert not found: {id}")]
     /// Alert with specified ID not found
-    AlertNotFound { 
+    AlertNotFound {
         /// ID of the missing alert
-        id: String 
+        id: String,
     },
 }
 
@@ -483,7 +484,8 @@ mod tests {
             MonitorEventType::BlockValidationFailed,
             "Test alert".to_string(),
             Some(1000),
-        ).expect("Failed to create test alert")
+        )
+        .expect("Failed to create test alert")
     }
 
     #[test]
@@ -515,7 +517,8 @@ mod tests {
             MonitorEventType::SystemError,
             malicious_message.to_string(),
             None,
-        ).expect("Failed to create alert with malicious message");
+        )
+        .expect("Failed to create alert with malicious message");
         assert!(!alert.message.contains('\x00'));
     }
 

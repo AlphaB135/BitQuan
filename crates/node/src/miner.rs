@@ -165,11 +165,10 @@ impl HybridMiner {
                     engines.push(Arc::new(RandomXEngine::new(config)));
                 }
                 PowAlgo::Ethash => {
-                    use bitquan_consensus::pow::{EthashEngine, EthashConfig};
+                    use bitquan_consensus::pow::{EthashConfig, EthashEngine};
                     let config = EthashConfig::default();
                     engines.push(Arc::new(EthashEngine::new(config)));
                 }
-
             }
         }
 
@@ -224,7 +223,11 @@ impl HybridMiner {
         // Fallback to first algorithm
         // SAFETY: weights is guaranteed non-empty (validated in new())
         #[allow(clippy::unwrap_used)]
-        *self.weights.keys().next().expect("weights should be non-empty (validated in new())")
+        *self
+            .weights
+            .keys()
+            .next()
+            .expect("weights should be non-empty (validated in new())")
     }
 
     /// Get engine for given algorithm.
@@ -300,7 +303,8 @@ mod tests {
     #[test]
     fn hybrid_miner_creation_sha256d() {
         let weights = vec![(PowAlgo::Sha256d, 1.0)];
-        let miner = HybridMiner::new(&weights, 1, NetworkId::Devnet).expect("Failed to create hybrid miner");
+        let miner = HybridMiner::new(&weights, 1, NetworkId::Devnet)
+            .expect("Failed to create hybrid miner");
         assert_eq!(miner.thread_count(), 1);
         assert_eq!(miner.weights().len(), 1);
     }
@@ -321,7 +325,8 @@ mod tests {
     #[test]
     fn weighted_selection() {
         let weights = vec![(PowAlgo::Sha256d, 1.0)];
-        let miner = HybridMiner::new(&weights, 1, NetworkId::Devnet).expect("Failed to create hybrid miner");
+        let miner = HybridMiner::new(&weights, 1, NetworkId::Devnet)
+            .expect("Failed to create hybrid miner");
 
         // Should always select SHA256d with only one option
         for i in 0..10 {
@@ -333,7 +338,8 @@ mod tests {
     #[test]
     fn hybrid_weighted_selection() {
         let weights = vec![(PowAlgo::Sha256d, 1.0), (PowAlgo::RandomX, 2.0)];
-        let miner = HybridMiner::new(&weights, 1, NetworkId::Devnet).expect("Failed to create hybrid miner");
+        let miner = HybridMiner::new(&weights, 1, NetworkId::Devnet)
+            .expect("Failed to create hybrid miner");
 
         // Collect selections to verify distribution
         let mut sha256d_count = 0;

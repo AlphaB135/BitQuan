@@ -1,7 +1,7 @@
 //! Chain synchronization with peers.
 
-use bitquan_types::{BlockHeader, Result};
 use crate::{discovery::PeerBook, peer::PeerManager, protocol::Message};
+use bitquan_types::{BlockHeader, Result};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -247,10 +247,11 @@ impl SyncManager {
 
     /// Discover best peers and update best height.
     pub fn discover_best_height(&self) -> Result<u64> {
-        let peer_book = self.peer_book.lock().map_err(|_| {
-            bitquan_types::Error::Fatal("peer book lock poisoned")
-        })?;
-        
+        let peer_book = self
+            .peer_book
+            .lock()
+            .map_err(|_| bitquan_types::Error::Fatal("peer book lock poisoned"))?;
+
         let best_peers = peer_book.best_peers(5);
         let mut best_height = self.chain_sync.local_height();
 
@@ -259,7 +260,7 @@ impl SyncManager {
             // 1. Connect to the peer if not already connected
             // 2. Send a version message to get their height
             // 3. Update our best height if they're higher
-            
+
             // For now, simulate getting height from peer
             if let Some(_peer) = peer_book.get_peer(&peer_addr) {
                 // Simulate peer height (in production would come from version message)
@@ -288,7 +289,8 @@ impl SyncManager {
         self.discover_best_height()?;
 
         if self.chain_sync.needs_sync() {
-            self.chain_sync.set_status(crate::sync::SyncStatus::DownloadingHeaders);
+            self.chain_sync
+                .set_status(crate::sync::SyncStatus::DownloadingHeaders);
             self.sync_headers()?;
         }
 
@@ -299,58 +301,60 @@ impl SyncManager {
     fn sync_headers(&self) -> Result<()> {
         let local_height = self.chain_sync.local_height();
         let best_height = self.chain_sync.best_height();
-        
+
         let mut current_height = local_height;
-        
+
         while current_height < best_height {
             let batch_size = std::cmp::min(2000, (best_height - current_height) as usize);
             let end_height = current_height + batch_size as u64 - 1;
-            
+
             // Get best peer for this batch
-            let peer_book = self.peer_book.lock().map_err(|_| {
-                bitquan_types::Error::Fatal("peer book lock poisoned")
-            })?;
-            
+            let peer_book = self
+                .peer_book
+                .lock()
+                .map_err(|_| bitquan_types::Error::Fatal("peer book lock poisoned"))?;
+
             let best_peers = peer_book.best_peers(1);
             if best_peers.is_empty() {
                 self.chain_sync.increment_sync_errors();
                 break;
             }
-            
+
             let peer_id = best_peers[0].clone();
             drop(peer_book); // Release lock before network call
-            
+
             match request_blocks_from_peer(current_height, end_height, &peer_id) {
                 Ok(headers) => {
                     if headers.is_empty() {
                         // No more headers available from this peer
                         break;
                     }
-                    
+
                     process_headers(headers, &self.chain_sync)?;
                     current_height = self.chain_sync.local_height();
                 }
                 Err(e) => {
                     eprintln!("Failed to request blocks from {}: {}", peer_id, e);
                     self.chain_sync.increment_sync_errors();
-                    
+
                     // Mark peer failure
                     if let Ok(mut peer_book) = self.peer_book.lock() {
                         peer_book.mark_peer_failure(&peer_id);
                     }
-                    
+
                     // Try next peer
                     break;
                 }
             }
         }
-        
+
         if self.chain_sync.local_height() >= self.chain_sync.best_height() {
             self.chain_sync.complete_sync();
         } else {
-            self.chain_sync.set_status(crate::sync::SyncStatus::DownloadingBlocks);
+            self.chain_sync
+                .set_status(crate::sync::SyncStatus::DownloadingBlocks);
         }
-        
+
         Ok(())
     }
 }
@@ -364,50 +368,53 @@ pub fn request_blocks_from_peer(
     peer_id: &str,
 ) -> Result<Vec<BlockHeader>> {
     use crate::protocol::PROTOCOL_VERSION;
-    
+
     // Validate input parameters
     if start_height > end_height {
         return Err(bitquan_types::Error::Invalid(
-            "start_height cannot be greater than end_height".to_string()
+            "start_height cannot be greater than end_height".to_string(),
         ));
     }
-    
+
     if end_height - start_height > 2000 {
         return Err(bitquan_types::Error::Invalid(
-            "cannot request more than 2000 blocks at once".to_string()
+            "cannot request more than 2000 blocks at once".to_string(),
         ));
     }
-    
+
     // Create block locator hashes (simplified - in real implementation would use chain state)
     // For now, we'll use a simple approach - in production this would use actual chain tips
     let locator_hashes = vec![[0u8; 32]]; // Genesis hash placeholder
-    
+
     // Create getheaders message
-        let _getheaders_msg = Message::GetHeaders {
+    let _getheaders_msg = Message::GetHeaders {
         version: PROTOCOL_VERSION,
         locator_hashes,
         stop_hash: [0u8; 32], // Stop at tip (placeholder)
     };
-    
+
     // In a real implementation, this would:
     // 1. Connect to peer if not already connected
     // 2. Send getheaders message
     // 3. Wait for headers response with timeout
     // 4. Parse and return headers
-    
+
     // For now, simulate network communication with a delay
-    println!("Requesting blocks {} to {} from peer: {}", start_height, end_height, peer_id);
-    
+    println!(
+        "Requesting blocks {} to {} from peer: {}",
+        start_height, end_height, peer_id
+    );
+
     // Simulate network latency
     std::thread::sleep(Duration::from_millis(100));
-    
+
     // Return empty vector for now - in production this would contain actual headers
     // In a full implementation, we would:
     // - Serialize the message and send it to the peer
     // - Wait for a Headers response
     // - Deserialize and validate the headers
     // - Return the headers
-    
+
     Ok(vec![])
 }
 
@@ -431,7 +438,7 @@ pub fn process_headers(headers: Vec<BlockHeader>, sync: &ChainSync) -> Result<()
         // Basic validation - in production would include full consensus validation
         if header.time == 0 {
             return Err(bitquan_types::Error::Invalid(
-                "header has invalid timestamp".to_string()
+                "header has invalid timestamp".to_string(),
             ));
         }
     }
@@ -440,7 +447,11 @@ pub fn process_headers(headers: Vec<BlockHeader>, sync: &ChainSync) -> Result<()
     let last_height = sync.local_height() + headers.len() as u64;
     sync.set_local_height(last_height);
 
-    println!("Processed {} headers, new height: {}", headers.len(), last_height);
+    println!(
+        "Processed {} headers, new height: {}",
+        headers.len(),
+        last_height
+    );
 
     Ok(())
 }
@@ -556,16 +567,16 @@ mod tests {
     #[test]
     fn test_sync_error_tracking() {
         let sync = ChainSync::new(100);
-        
+
         assert_eq!(sync.sync_errors(), 0);
-        
+
         sync.increment_sync_errors();
         assert_eq!(sync.sync_errors(), 1);
-        
+
         sync.increment_sync_errors();
         sync.increment_sync_errors();
         assert_eq!(sync.sync_errors(), 3);
-        
+
         sync.reset_sync_errors();
         assert_eq!(sync.sync_errors(), 0);
     }
@@ -573,11 +584,11 @@ mod tests {
     #[test]
     fn test_last_sync_attempt() {
         let sync = ChainSync::new(100);
-        
+
         let initial = sync.last_sync_attempt();
         sync.start_sync();
         let after = sync.last_sync_attempt();
-        
+
         // Should have updated timestamp
         assert!(after > initial);
     }

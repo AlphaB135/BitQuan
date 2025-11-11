@@ -326,7 +326,10 @@ mod tests {
 
         db.insert_block(&block).expect("Failed to insert block");
 
-        let retrieved = db.get_block("abc123").expect("Failed to get block").expect("Block not found");
+        let retrieved = db
+            .get_block("abc123")
+            .expect("Failed to get block")
+            .expect("Block not found");
         assert_eq!(retrieved.height, 100);
         assert_eq!(retrieved.miner_id, "miner1");
     }
@@ -335,10 +338,14 @@ mod tests {
     fn test_miner_reward_accumulation() {
         let db = PoolDatabase::memory().expect("Failed to create memory database");
 
-        db.update_miner_reward("miner1", 1000).expect("Failed to update miner reward");
-        db.update_miner_reward("miner1", 2000).expect("Failed to update miner reward");
+        db.update_miner_reward("miner1", 1000)
+            .expect("Failed to update miner reward");
+        db.update_miner_reward("miner1", 2000)
+            .expect("Failed to update miner reward");
 
-        let total = db.get_miner_reward("miner1").expect("Failed to get miner reward");
+        let total = db
+            .get_miner_reward("miner1")
+            .expect("Failed to get miner reward");
         assert_eq!(total, 3000);
     }
 
@@ -346,8 +353,10 @@ mod tests {
     fn test_total_rewards() {
         let db = PoolDatabase::memory().expect("Failed to create memory database");
 
-        db.update_miner_reward("miner1", 1000).expect("Failed to update miner reward");
-        db.update_miner_reward("miner2", 2000).expect("Failed to update miner reward");
+        db.update_miner_reward("miner1", 1000)
+            .expect("Failed to update miner reward");
+        db.update_miner_reward("miner2", 2000)
+            .expect("Failed to update miner reward");
 
         let total = db.total_rewards().expect("Failed to get total rewards");
         assert_eq!(total, 3000);

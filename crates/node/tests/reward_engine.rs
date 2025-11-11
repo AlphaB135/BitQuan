@@ -36,25 +36,28 @@ fn test_reward_halving_logic() {
     let db = PoolDatabase::memory().expect("Failed to create memory database");
     let engine = RewardEngine::new(db);
 
-    // Block 0: full reward (50 BQ)
+    // Fee is 1000 satoshis per transaction
+    const FEE: u64 = 1000;
+
+    // Block 0: full reward (50 BQ + fees)
     let block0 = dummy_block(0);
     let reward0 = engine.calculate_reward(&block0, 0);
-    assert_eq!(reward0, 50_0000_0000, "Initial reward should be 50 BQ");
+    assert_eq!(reward0, 50_0000_0000 + FEE, "Initial reward should be 50 BQ + fees");
 
-    // Block 210,000: first halving (25 BQ)
+    // Block 210,000: first halving (25 BQ + fees)
     let block1 = dummy_block(210_000);
     let reward1 = engine.calculate_reward(&block1, 210_000);
-    assert_eq!(reward1, 25_0000_0000, "First halving should be 25 BQ");
+    assert_eq!(reward1, 25_0000_0000 + FEE, "First halving should be 25 BQ + fees");
 
-    // Block 420,000: second halving (12.5 BQ)
+    // Block 420,000: second halving (12.5 BQ + fees)
     let block2 = dummy_block(420_000);
     let reward2 = engine.calculate_reward(&block2, 420_000);
-    assert_eq!(reward2, 12_5000_0000, "Second halving should be 12.5 BQ");
+    assert_eq!(reward2, 12_5000_0000 + FEE, "Second halving should be 12.5 BQ + fees");
 
-    // Block 630,000: third halving (6.25 BQ)
+    // Block 630,000: third halving (6.25 BQ + fees)
     let block3 = dummy_block(630_000);
     let reward3 = engine.calculate_reward(&block3, 630_000);
-    assert_eq!(reward3, 6_2500_0000, "Third halving should be 6.25 BQ");
+    assert_eq!(reward3, 6_2500_0000 + FEE, "Third halving should be 6.25 BQ + fees");
 }
 
 #[test]
@@ -69,7 +72,9 @@ fn test_block_persistence_and_height_increment() {
     for i in 0..10 {
         let block = dummy_block(i);
         let hash = [(i % 256) as u8; 32];
-        let height = chain_state.append_block(&block, hash).expect("Failed to append block");
+        let height = chain_state
+            .append_block(&block, hash)
+            .expect("Failed to append block");
         assert_eq!(height, i + 1);
     }
 
@@ -82,17 +87,29 @@ fn test_credit_and_settle_rewards() {
     let mut engine = RewardEngine::new(db);
 
     // Credit multiple rewards to same miner
-    engine.credit_miner("miner1", 1000).expect("Failed to credit miner1 with 1000");
-    engine.credit_miner("miner1", 2000).expect("Failed to credit miner1 with 2000");
-    engine.credit_miner("miner1", 3000).expect("Failed to credit miner1 with 3000");
+    engine
+        .credit_miner("miner1", 1000)
+        .expect("Failed to credit miner1 with 1000");
+    engine
+        .credit_miner("miner1", 2000)
+        .expect("Failed to credit miner1 with 2000");
+    engine
+        .credit_miner("miner1", 3000)
+        .expect("Failed to credit miner1 with 3000");
 
-    let total = engine.get_miner_reward("miner1").expect("Failed to get miner1 reward");
+    let total = engine
+        .get_miner_reward("miner1")
+        .expect("Failed to get miner1 reward");
     assert_eq!(total, 6000, "Rewards should accumulate");
 
     // Credit different miner
-    engine.credit_miner("miner2", 5000).expect("Failed to credit miner2 with 5000");
+    engine
+        .credit_miner("miner2", 5000)
+        .expect("Failed to credit miner2 with 5000");
 
-    let total2 = engine.get_miner_reward("miner2").expect("Failed to get miner2 reward");
+    let total2 = engine
+        .get_miner_reward("miner2")
+        .expect("Failed to get miner2 reward");
     assert_eq!(total2, 5000);
 
     // Check total distributed
@@ -108,7 +125,9 @@ fn test_pool_balance_metrics() {
     let hash = [1u8; 32];
 
     // Record a block
-    let reward = engine.record_block(&block, hash, 0, "miner1").expect("Failed to record block");
+    let reward = engine
+        .record_block(&block, hash, 0, "miner1")
+        .expect("Failed to record block");
     assert!(reward > 0, "Reward should be positive");
 
     // Get pool stats
@@ -124,18 +143,28 @@ fn test_miner_reward_accumulation() {
     let db = PoolDatabase::memory().expect("Failed to create memory database");
     let mut engine = RewardEngine::new(db);
 
+    // Fee is 1000 satoshis per transaction
+    const FEE: u64 = 1000;
+
     // Mine 3 blocks for the same miner
     for i in 0..3 {
         let block = dummy_block(i);
         let hash = [(i % 256) as u8; 32];
-        engine.record_block(&block, hash, i, "miner_alpha").expect("Failed to record block");
+        engine
+            .record_block(&block, hash, i, "miner_alpha")
+            .expect("Failed to record block");
     }
 
-    let reward = engine.get_miner_reward("miner_alpha").expect("Failed to get miner reward");
-    assert_eq!(reward, 50_0000_0000 * 3, "Miner should have 3x rewards");
+    let reward = engine
+        .get_miner_reward("miner_alpha")
+        .expect("Failed to get miner reward");
+    assert_eq!(reward, (50_0000_0000 + FEE) * 3, "Miner should have 3x rewards");
 
     // Check block records
-    let blocks = engine.db().get_miner_blocks("miner_alpha", 10).expect("Failed to get miner blocks");
+    let blocks = engine
+        .db()
+        .get_miner_blocks("miner_alpha", 10)
+        .expect("Failed to get miner blocks");
     assert_eq!(blocks.len(), 3, "Should have 3 blocks");
 
     // Verify blocks are in descending order by height
@@ -160,15 +189,20 @@ fn test_multiple_miners() {
         .record_block(&dummy_block(2), [3u8; 32], 2, "alice")
         .expect("Failed to record alice block 2");
 
-    let alice_reward = engine.get_miner_reward("alice").expect("Failed to get alice reward");
-    let bob_reward = engine.get_miner_reward("bob").expect("Failed to get bob reward");
+    let alice_reward = engine
+        .get_miner_reward("alice")
+        .expect("Failed to get alice reward");
+    let bob_reward = engine
+        .get_miner_reward("bob")
+        .expect("Failed to get bob reward");
 
+    const FEE: u64 = 1000;
     assert_eq!(
         alice_reward,
-        50_0000_0000 * 2,
+        (50_0000_0000 + FEE) * 2,
         "Alice should have 2x rewards"
     );
-    assert_eq!(bob_reward, 50_0000_0000, "Bob should have 1x reward");
+    assert_eq!(bob_reward, 50_0000_0000 + FEE, "Bob should have 1x reward");
 
     let stats = engine.get_pool_stats().expect("Failed to get pool stats");
     assert_eq!(stats.miner_count, 2, "Should have 2 miners");
@@ -216,8 +250,11 @@ fn test_database_persistence() {
         let db = PoolDatabase::open(&temp_path).expect("Failed to reopen database");
         let engine = RewardEngine::new(db);
 
-        let reward = engine.get_miner_reward("miner1").expect("Failed to get miner reward");
-        assert_eq!(reward, 50_0000_0000 * 2, "Rewards should persist");
+        const FEE: u64 = 1000;
+        let reward = engine
+            .get_miner_reward("miner1")
+            .expect("Failed to get miner reward");
+        assert_eq!(reward, (50_0000_0000 + FEE) * 2, "Rewards should persist");
 
         let stats = engine.get_pool_stats().expect("Failed to get pool stats");
         assert_eq!(stats.block_count, 2);
@@ -238,7 +275,9 @@ fn test_metrics_integration() {
     // Record block and update metrics
     let block = dummy_block(100);
     let hash = [1u8; 32];
-    let reward = engine.record_block(&block, hash, 100, "miner1").expect("Failed to record block");
+    let reward = engine
+        .record_block(&block, hash, 100, "miner1")
+        .expect("Failed to record block");
 
     metrics.record_block_persisted();
     metrics.set_total_rewards(engine.total_distributed());
@@ -265,6 +304,8 @@ fn test_edge_cases() {
     assert!(result.is_ok(), "Zero reward should be handled");
 
     // Test getting non-existent miner
-    let reward = engine.get_miner_reward("nonexistent").expect("Failed to get non-existent miner reward");
+    let reward = engine
+        .get_miner_reward("nonexistent")
+        .expect("Failed to get non-existent miner reward");
     assert_eq!(reward, 0, "Non-existent miner should have 0 reward");
 }

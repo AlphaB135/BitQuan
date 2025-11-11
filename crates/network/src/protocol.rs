@@ -441,8 +441,11 @@ mod tests {
         };
 
         let envelope = MessageEnvelope::new(msg.clone());
-        let serialized = envelope.serialize().expect("Failed to serialize message envelope");
-        let deserialized = MessageEnvelope::deserialize(&serialized).expect("Failed to deserialize message envelope");
+        let serialized = envelope
+            .serialize()
+            .expect("Failed to serialize message envelope");
+        let deserialized = MessageEnvelope::deserialize(&serialized)
+            .expect("Failed to deserialize message envelope");
 
         assert_eq!(deserialized.message, msg);
         assert_eq!(deserialized.magic, MAINNET_MAGIC);
@@ -452,7 +455,8 @@ mod tests {
     fn reject_oversized_message() {
         let large_data = vec![0u8; MAX_MESSAGE_SIZE + 1];
         let msg = Message::Reject {
-            message: String::from_utf8(large_data).expect("Failed to create string from large data"),
+            message: String::from_utf8(large_data)
+                .expect("Failed to create string from large data"),
             code: RejectCode::Invalid,
             reason: "test".to_string(),
         };
@@ -467,8 +471,10 @@ mod tests {
     fn peer_manager_basic() {
         let mut pm = PeerManager::new(3);
 
-        pm.add_peer("127.0.0.1:8333".to_string()).expect("Failed to add first peer");
-        pm.add_peer("127.0.0.1:8334".to_string()).expect("Failed to add second peer");
+        pm.add_peer("127.0.0.1:8333".to_string())
+            .expect("Failed to add first peer");
+        pm.add_peer("127.0.0.1:8334".to_string())
+            .expect("Failed to add second peer");
 
         assert_eq!(pm.peer_count(), 2);
 
@@ -483,8 +489,10 @@ mod tests {
     fn peer_manager_max_peers() {
         let mut pm = PeerManager::new(2);
 
-        pm.add_peer("127.0.0.1:8333".to_string()).expect("Failed to add first peer");
-        pm.add_peer("127.0.0.1:8334".to_string()).expect("Failed to add second peer");
+        pm.add_peer("127.0.0.1:8333".to_string())
+            .expect("Failed to add first peer");
+        pm.add_peer("127.0.0.1:8334".to_string())
+            .expect("Failed to add second peer");
 
         let result = pm.add_peer("127.0.0.1:8335".to_string());
         assert!(result.is_err());
@@ -494,7 +502,8 @@ mod tests {
     fn reject_duplicate_peer() {
         let mut pm = PeerManager::new(5);
 
-        pm.add_peer("127.0.0.1:8333".to_string()).expect("Failed to add peer");
+        pm.add_peer("127.0.0.1:8333".to_string())
+            .expect("Failed to add peer");
         let result = pm.add_peer("127.0.0.1:8333".to_string());
 
         assert!(result.is_err());

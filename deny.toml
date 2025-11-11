@@ -11,6 +11,7 @@ allow = [
     "Apache-2.0",
     "MIT",
     "BSD-3-Clause",
+    "BSD-2-Clause",   # Add BSD-2-Clause for arrayref
     "ISC",
     "CC0-1.0",        # Public domain equivalent (used by bitcoin crates)
     "Unicode-3.0",   # Unicode license (used by unicode-ident)
