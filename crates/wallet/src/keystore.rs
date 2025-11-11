@@ -9,8 +9,9 @@ use rand::RngCore;
 use secrecy::{ExposeSecret, SecretVec};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::Path;
+
 use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::Zeroize;
 
@@ -45,8 +46,112 @@ pub const CURRENT_VERSION: u8 = 1;
 pub const DEFAULT_MEM_KIB: u32 = 65536;
 pub const DEFAULT_TIME_COST: u32 = 3;
 pub const DEFAULT_PARALLELISM: u8 = 1;
+
+/// Hardware capability detection for adaptive KDF
+#[derive(Debug, Clone, Copy)]
+pub enum HardwareProfile {
+    HighEndDesktop,  // 16+ GB RAM, 8+ cores
+    MidRangeLaptop,  // 8-16 GB RAM, 4-8 cores  
+    LowEndDevice,    // 4-8 GB RAM, 2-4 cores
+    MobileDevice,    // <4 GB RAM, <=2 cores
+}
+
+impl HardwareProfile {
+    /// Detect hardware capabilities and return appropriate profile
+    pub fn detect() -> Self {
+        let cores = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1);
+        
+        let memory_gb = get_available_memory_gb();
+        
+        match (cores, memory_gb) {
+            (cores, mem) if cores >= 8 && mem >= 16 => HardwareProfile::HighEndDesktop,
+            (cores, mem) if cores >= 4 && mem >= 8 => HardwareProfile::MidRangeLaptop,
+            (cores, mem) if cores >= 2 && mem >= 4 => HardwareProfile::LowEndDevice,
+            _ => HardwareProfile::MobileDevice,
+        }
+    }
+    
+    /// Get optimal parallelism for this hardware profile
+    pub fn optimal_parallelism(self) -> u8 {
+        match self {
+            HardwareProfile::HighEndDesktop => 8,
+            HardwareProfile::MidRangeLaptop => 4,
+            HardwareProfile::LowEndDevice => 2,
+            HardwareProfile::MobileDevice => 2,
+        }
+    }
+    
+    /// Get optimal memory cost for this hardware profile
+    pub fn optimal_memory_cost(self) -> u32 {
+        match self {
+            HardwareProfile::HighEndDesktop => 65536, // 64 MiB
+            HardwareProfile::MidRangeLaptop => 32768, // 32 MiB
+            HardwareProfile::LowEndDevice => 16384,   // 16 MiB
+            HardwareProfile::MobileDevice => 8192,    // 8 MiB
+        }
+    }
+    
+    /// Get optimal time cost for this hardware profile
+    pub fn optimal_time_cost(self) -> u32 {
+        match self {
+            HardwareProfile::HighEndDesktop => 3,
+            HardwareProfile::MidRangeLaptop => 2,
+            HardwareProfile::LowEndDevice => 2,
+            HardwareProfile::MobileDevice => 1,
+        }
+    }
+}
+
+/// Get available system memory in GB (approximate)
+fn get_available_memory_gb() -> u32 {
+    #[cfg(unix)]
+    {
+        use std::fs;
+        match fs::read_to_string("/proc/meminfo") {
+            Ok(content) => {
+                for line in content.lines() {
+                    if line.starts_with("MemTotal:") {
+                        if let Some(kb_str) = line.split_whitespace().nth(1) {
+                            if let Ok(kb) = kb_str.parse::<u64>() {
+                                return (kb / (1024 * 1024)) as u32; // Convert KB to GB
+                            }
+                        }
+                    }
+                }
+                4 // Fallback for unknown systems
+            }
+            Err(_) => 4, // Fallback if can't read meminfo
+        }
+    }
+    
+    #[cfg(windows)]
+    {
+        // Windows memory detection would require additional dependencies
+        // For now, assume mid-range specs
+        8
+    }
+    
+    #[cfg(not(any(unix, windows)))]
+    {
+        // Unknown platform - conservative estimate
+        4
+    }
+}
+
+/// Get optimal parallelism based on available CPU cores (legacy function)
+pub fn optimal_parallelism() -> u8 {
+    HardwareProfile::detect().optimal_parallelism()
+}
 pub const SALT_LEN: usize = 16;
 pub const NONCE_LEN: usize = 12;
+
+// Thread-local buffer pool for reusing allocations
+thread_local! {
+    static SALT_BUFFER: std::cell::RefCell<Vec<u8>> = std::cell::RefCell::new(vec![0u8; SALT_LEN]);
+    static NONCE_BUFFER: std::cell::RefCell<Vec<u8>> = std::cell::RefCell::new(vec![0u8; NONCE_LEN]);
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum KdfProfile {
@@ -58,11 +163,12 @@ pub enum KdfProfile {
 
 impl KdfProfile {
     pub fn params(&self) -> (u32, u32, u8) {
+        let parallelism = optimal_parallelism();
         match self {
-            KdfProfile::Tight => (65536, 3, 1),
-            KdfProfile::Medium => (32768, 3, 1),
-            KdfProfile::Light => (16384, 3, 1),
-            KdfProfile::Mobile => (8192, 3, 1),
+            KdfProfile::Tight => (65536, 3, parallelism),
+            KdfProfile::Medium => (32768, 3, parallelism),
+            KdfProfile::Light => (16384, 3, parallelism),
+            KdfProfile::Mobile => (8192, 3, parallelism.min(2)), // Mobile devices cap at 2 threads
         }
     }
 }
@@ -98,19 +204,25 @@ pub fn encrypt_keystore(
 ) -> KeystoreFile {
     let pw = SecretVec::new(password.as_bytes().to_vec());
 
-    let mut salt = vec![0u8; SALT_LEN];
-    OsRng.fill_bytes(&mut salt);
+    let salt_vec = SALT_BUFFER.with(|buf| {
+        let mut salt_buf = buf.borrow_mut();
+        OsRng.fill_bytes(&mut salt_buf);
+        salt_buf.clone()
+    });
+    
+    let nonce_vec = NONCE_BUFFER.with(|buf| {
+        let mut nonce_buf = buf.borrow_mut();
+        OsRng.fill_bytes(&mut nonce_buf);
+        nonce_buf.clone()
+    });
 
-    let mut nonce_bytes = vec![0u8; NONCE_LEN];
-    OsRng.fill_bytes(&mut nonce_bytes);
-
-    let mut key_bytes = derive_key(&pw, &salt, mem_kib, time_cost, parallelism);
+    let mut key_bytes = derive_key(&pw, &salt_vec, mem_kib, time_cost, parallelism);
 
     #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
     #[allow(deprecated)]
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_vec);
 
     // SAFETY: AES-GCM encryption can only fail if key/nonce are wrong size, which are fixed at 32/12 bytes
     #[allow(clippy::expect_used)]
@@ -138,71 +250,15 @@ pub fn encrypt_keystore(
             mem_kib,
             time_cost,
             parallelism,
-            salt_b64: general_purpose::STANDARD.encode(&salt),
+            salt_b64: general_purpose::STANDARD.encode(&salt_vec),
         },
-        nonce_b64: general_purpose::STANDARD.encode(&nonce_bytes),
+        nonce_b64: general_purpose::STANDARD.encode(&nonce_vec),
         ciphertext_b64: general_purpose::STANDARD.encode(&ciphertext),
         meta,
     }
 }
 
-pub fn encrypt_keypair_with_params(
-    plaintext: &[u8],
-    password: &str,
-    meta: Option<serde_json::Value>,
-    mem_kib: u32,
-    time_cost: u32,
-    parallelism: u8,
-) -> KeystoreFile {
-    let pw = SecretVec::new(password.as_bytes().to_vec());
-
-    let mut salt = vec![0u8; SALT_LEN];
-    OsRng.fill_bytes(&mut salt);
-
-    let mut nonce_bytes = vec![0u8; NONCE_LEN];
-    OsRng.fill_bytes(&mut nonce_bytes);
-
-    let mut key_bytes = derive_key(&pw, &salt, mem_kib, time_cost, parallelism);
-
-    #[allow(deprecated)]
-    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
-    let cipher = Aes256Gcm::new(key);
-    #[allow(deprecated)]
-    let nonce = Nonce::from_slice(&nonce_bytes);
-
-    // SAFETY: AES-GCM encryption can only fail if key/nonce are wrong size, which are fixed at 32/12 bytes
-    #[allow(clippy::expect_used)]
-    let ciphertext = cipher
-        .encrypt(
-            nonce,
-            Payload {
-                msg: plaintext,
-                aad: b"",
-            },
-        )
-        .expect("encryption failure");
-
-    key_bytes.zeroize();
-
-    let created = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0); // Fallback to epoch if clock is wrong
-    KeystoreFile {
-        magic: MAGIC.to_string(),
-        version: CURRENT_VERSION,
-        created,
-        kdf: KdfParams {
-            mem_kib,
-            time_cost,
-            parallelism,
-            salt_b64: general_purpose::STANDARD.encode(&salt),
-        },
-        nonce_b64: general_purpose::STANDARD.encode(&nonce_bytes),
-        ciphertext_b64: general_purpose::STANDARD.encode(&ciphertext),
-        meta,
-    }
-}
+// Duplicate function removed - use encrypt_keystore instead
 
 pub fn decrypt_keystore(ks: &KeystoreFile, password: &str) -> Result<Vec<u8>, String> {
     if ks.magic != MAGIC {
@@ -311,10 +367,8 @@ pub fn write_keystore_file_atomic<P: AsRef<Path>>(
 }
 
 pub fn read_keystore_file<P: AsRef<Path>>(path: P) -> std::io::Result<KeystoreFile> {
-    let mut s = String::new();
-    let mut f = File::open(path)?;
-    f.read_to_string(&mut s)?;
-    let ks: KeystoreFile = serde_json::from_str(&s)
+    let f = File::open(path)?;
+    let ks: KeystoreFile = serde_json::from_reader(f)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     Ok(ks)
 }
@@ -415,15 +469,16 @@ mod tests {
 
     #[test]
     fn kdf_profile_params() {
+        let optimal = optimal_parallelism();
         let (mem, time, par) = KdfProfile::Tight.params();
         assert_eq!(mem, 65536);
         assert_eq!(time, 3);
-        assert_eq!(par, 1);
+        assert_eq!(par, optimal);
 
         let (mem, time, par) = KdfProfile::Mobile.params();
         assert_eq!(mem, 8192);
         assert_eq!(time, 3);
-        assert_eq!(par, 1);
+        assert_eq!(par, optimal.min(2)); // Mobile caps at 2 threads
     }
 
     #[test]
