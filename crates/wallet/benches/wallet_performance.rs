@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use wallet::keystore::{
-    encrypt_keystore, decrypt_keystore, optimal_parallelism, KdfProfile,
-    encrypt_keystore_adaptive, encrypt_keystore_with_profile, HardwareProfile,
+    encrypt_keystore, decrypt_keystore, decrypt_keystore_no_cache, optimal_parallelism, KdfProfile,
+    encrypt_keystore_adaptive, encrypt_keystore_with_profile, HardwareProfile, clear_key_cache,
     DEFAULT_MEM_KIB, DEFAULT_TIME_COST,
 };
 use serde_json::json;
@@ -130,24 +130,24 @@ fn bench_buffer_pooling(c: &mut Criterion) {
     let mut group = c.benchmark_group("buffer_pooling");
     group.measurement_time(Duration::from_secs(10));
     
-        // Test multiple encryptions to benefit from buffer pooling
-        group.bench_function("multiple_encryptions", |b| {
-            b.iter(|| {
-                let mut results = Vec::new();
-                for _ in 0..10 {
-                    let ks = encrypt_keystore(
-                        black_box(secret),
-                        black_box(password),
-                        meta.clone(),
-                        DEFAULT_MEM_KIB,
-                        DEFAULT_TIME_COST,
-                        optimal_parallelism(),
-                    );
-                    results.push(ks);
-                }
-                black_box(results)
-            })
-        });
+    // Test multiple encryptions to benefit from buffer pooling
+    group.bench_function("multiple_encryptions", |b| {
+        b.iter(|| {
+            let mut results = Vec::new();
+            for _ in 0..10 {
+                let ks = encrypt_keystore(
+                    black_box(secret),
+                    black_box(password),
+                    meta.clone(),
+                    DEFAULT_MEM_KIB,
+                    DEFAULT_TIME_COST,
+                    optimal_parallelism(),
+                );
+                results.push(ks);
+            }
+            black_box(results)
+        })
+    });
     
     group.finish();
 }
@@ -198,32 +198,6 @@ fn bench_adaptive_vs_fixed(c: &mut Criterion) {
         })
     });
     
-    // Benchmark decryption performance
-    let ks_adaptive = encrypt_keystore_adaptive(secret, password, meta.clone());
-    let ks_tight = encrypt_keystore_with_profile(secret, password, meta.clone(), KdfProfile::Tight);
-    let ks_mobile = encrypt_keystore_with_profile(secret, password, meta.clone(), KdfProfile::Mobile);
-    
-    group.bench_function("adaptive_decryption", |b| {
-        b.iter(|| {
-            let pt = decrypt_keystore(black_box(&ks_adaptive), black_box(password)).unwrap();
-            black_box(pt)
-        })
-    });
-    
-    group.bench_function("fixed_tight_decryption", |b| {
-        b.iter(|| {
-            let pt = decrypt_keystore(black_box(&ks_tight), black_box(password)).unwrap();
-            black_box(pt)
-        })
-    });
-    
-    group.bench_function("fixed_mobile_decryption", |b| {
-        b.iter(|| {
-            let pt = decrypt_keystore(black_box(&ks_mobile), black_box(password)).unwrap();
-            black_box(pt)
-        })
-    });
-    
     group.finish();
 }
 
@@ -264,6 +238,55 @@ fn bench_hardware_profiles(c: &mut Criterion) {
     }
 }
 
+fn bench_key_caching(c: &mut Criterion) {
+    let secret = b"key-caching-benchmark";
+    let password = "benchmark-password";
+    let meta = Some(json!({"benchmark": "caching"}));
+    
+    let mut group = c.benchmark_group("key_caching");
+    group.measurement_time(Duration::from_secs(10));
+    
+    // Create keystore for testing
+    let ks = encrypt_keystore_adaptive(secret, password, meta.clone());
+    
+    // Benchmark cold decryption (no cache)
+    group.bench_function("cold_decryption", |b| {
+        b.iter(|| {
+            clear_key_cache(); // Clear cache for each iteration
+            let pt = decrypt_keystore_no_cache(black_box(&ks), black_box(password)).unwrap();
+            black_box(pt)
+        })
+    });
+    
+    // Benchmark hot decryption (with cache)
+    group.bench_function("hot_decryption", |b| {
+        // Warm up cache
+        let _ = decrypt_keystore(&ks, password).unwrap();
+        
+        b.iter(|| {
+            let pt = decrypt_keystore(black_box(&ks), black_box(password)).unwrap();
+            black_box(pt)
+        })
+    });
+    
+    // Benchmark multiple decryptions in sequence (realistic usage)
+    group.bench_function("sequential_decryptions", |b| {
+        b.iter(|| {
+            clear_key_cache();
+            let mut results = Vec::new();
+            
+            // Simulate multiple transaction signing in a session
+            for _ in 0..10 {
+                let pt = decrypt_keystore(black_box(&ks), black_box(password)).unwrap();
+                results.push(pt);
+            }
+            black_box(results)
+        })
+    });
+    
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_encryption_decryption,
@@ -271,6 +294,7 @@ criterion_group!(
     bench_optimal_parallelism,
     bench_buffer_pooling,
     bench_adaptive_vs_fixed,
-    bench_hardware_profiles
+    bench_hardware_profiles,
+    bench_key_caching
 );
 criterion_main!(benches);

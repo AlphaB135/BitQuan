@@ -3519,6 +3519,7 @@ dependencies = [
  "bq-crypto",
  "criterion",
  "hex",
+ "lazy_static",
  "rand 0.8.5",
  "rpassword",
  "secrecy",
