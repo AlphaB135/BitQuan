@@ -5,50 +5,54 @@
 
 use crate::{asert_next_target, BurstGuardState, ConsensusParams, GuardContext};
 
-const POW_256: f64 = 256.0;
 
-/// Converts compact representation (`bits`) into a floating-point target value.
-pub fn compact_to_target(bits: u32) -> f64 {
+
+/// Converts compact representation (`bits`) into a 64-bit integer target value.
+/// Uses pure integer arithmetic to ensure deterministic behavior.
+pub fn compact_to_target(bits: u32) -> u64 {
     if bits == 0 {
-        return 0.0;
+        return 0;
     }
     let exponent = (bits >> 24) as i32;
-    let mantissa = (bits & 0x007f_ffff) as f64;
-    mantissa * POW_256.powi(exponent - 3)
+    let mantissa = (bits & 0x007f_ffff) as u64;
+    
+    // Handle negative exponents (very small targets)
+    if exponent <= 3 {
+        return mantissa >> (3 - exponent);
+    }
+    
+    // For positive exponents, be careful about overflow
+    let shift = exponent - 3;
+    if shift >= 64 {
+        return u64::MAX; // Target is effectively infinite
+    }
+    
+    // Use checked multiplication to prevent overflow
+    mantissa.checked_shl(shift as u32).unwrap_or(u64::MAX)
 }
 
-/// Converts a floating-point target value into the compact representation used in block headers.
+/// Converts a difficulty target to its compact representation (integer version).
 ///
-/// Safety: Guards against NaN, infinity, and overflow conditions.
-pub fn target_to_compact(target: f64) -> u32 {
-    if target <= 0.0 || !target.is_finite() {
+/// Safety: Uses integer arithmetic for deterministic behavior.
+pub fn target_to_compact_u64(target: u64) -> u32 {
+    if target == 0 {
         return 0;
     }
 
-    let mut exponent = ((target.log(POW_256)).ceil() as i32) + 3;
-    if exponent < 0 {
-        exponent = 0;
+    // Find the highest set bit to determine exponent
+    let leading_zeros = target.leading_zeros();
+    let bit_length = 64 - leading_zeros;
+    
+    if bit_length <= 24 {
+        // Target fits in mantissa directly
+        target as u32
+    } else {
+        // Need to shift right to fit in 24 bits
+        let shift = bit_length - 24;
+        let mantissa = (target >> shift) as u32;
+        let exponent = (bit_length - 1) as u32;
+        ((exponent << 24) | mantissa) & 0x7fffffff
     }
-    if exponent > 255 {
-        return 0; // Overflow protection
-    }
-
-    let pow = POW_256.powi(exponent - 3);
-    let mut mantissa = (target / pow).round();
-
-    if !mantissa.is_finite() || mantissa < 0.0 {
-        return 0;
-    }
-
-    if mantissa >= 0x0080_0000 as f64 {
-        mantissa /= 256.0;
-        exponent += 1;
-        if exponent > 255 {
-            return 0; // Overflow after adjustment
-        }
-    }
-
-    ((exponent as u32) << 24) | (mantissa as u32 & 0x007f_ffff)
 }
 
 /// Tracks the anchor information for ASERT difficulty adjustments.
@@ -56,7 +60,7 @@ pub fn target_to_compact(target: f64) -> u32 {
 pub struct DifficultyState {
     anchor_height: u64,
     anchor_timestamp: u64,
-    anchor_target: f64,
+    anchor_target: u64,
     guard_state: BurstGuardState,
     guard_activation_height: u64,
 }
@@ -72,7 +76,7 @@ impl DifficultyState {
         Self {
             anchor_height,
             anchor_timestamp,
-            anchor_target: compact_to_target(anchor_bits),
+            anchor_target: compact_to_target(anchor_bits) as u64,
             guard_state: BurstGuardState::default(),
             guard_activation_height,
         }
@@ -80,7 +84,7 @@ impl DifficultyState {
 
     /// Returns the compact representation of the anchor target.
     pub fn anchor_bits(&self) -> u32 {
-        target_to_compact(self.anchor_target)
+        target_to_compact_u64(self.anchor_target)
     }
 
     /// Computes the next target for the specified block height/timestamp and updates the anchor.
@@ -108,7 +112,7 @@ impl DifficultyState {
         self.anchor_timestamp = next_timestamp;
         self.anchor_target = next_target;
 
-        target_to_compact(next_target)
+        target_to_compact_u64(next_target)
     }
 
     #[cfg(test)]
@@ -131,9 +135,9 @@ mod tests {
                 target_block_time: 600,
                 difficulty_half_life: 14_400,
                 burst_guard_window: 11,
-                burst_guard_floor_ratio: 0.33,
-                burst_guard_release_ratio: 0.38,
-                burst_guard_multiplier: 1.5,
+                burst_guard_floor_ratio_fp: 1417339207, // 0.33 in 32.32 fixed-point
+                burst_guard_release_ratio_fp: 1632087572, // 0.38 in 32.32 fixed-point
+                burst_guard_multiplier_fp: 6442450944, // 1.5 in 32.32 fixed-point
                 burst_guard_cooldown_blocks: 5,
                 burst_guard_activation_height: 0,
             },
@@ -146,7 +150,7 @@ mod tests {
     fn conversion_round_trip_reasonable() {
         let bits = 0x1d00ffff;
         let target = compact_to_target(bits);
-        let reconverted = target_to_compact(target);
+        let reconverted = target_to_compact_u64(target);
         assert!(reconverted > 0);
     }
 
@@ -176,8 +180,9 @@ mod tests {
         // Fast window but below activation height
         let window = params.difficulty.burst_guard_window;
         let expected = (params.difficulty.target_block_time * window) as f64;
+        let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / crate::asert::FP_SCALE as f64;
         let fast_delta =
-            (expected * params.difficulty.burst_guard_floor_ratio * 0.5).max(1.0) as u64;
+            (expected * floor_ratio * 0.5).max(1.0) as u64;
 
         let next_height = anchor_height + window;
         let next_time = anchor_time + fast_delta;
@@ -201,8 +206,9 @@ mod tests {
 
         let window = params.difficulty.burst_guard_window;
         let expected = (params.difficulty.target_block_time * window) as f64;
+        let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / crate::asert::FP_SCALE as f64;
         let fast_delta =
-            (expected * params.difficulty.burst_guard_floor_ratio * 0.5).max(1.0) as u64;
+            (expected * floor_ratio * 0.5).max(1.0) as u64;
 
         let next_height = anchor_height + window;
         let next_time = anchor_time + fast_delta;

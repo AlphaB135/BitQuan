@@ -110,7 +110,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zeroize::Zeroize;
 
@@ -320,13 +320,21 @@ impl Drop for CachedKey {
 #[derive(Debug)]
 struct SecureKeyCache {
     entries: Arc<Mutex<HashMap<CacheKey, CachedKey>>>,
+    /// Atomic counter for cache memory usage to avoid lock contention
+    memory_usage_bytes: AtomicUsize,
 }
 
 impl SecureKeyCache {
     fn new() -> Self {
         Self {
             entries: Arc::new(Mutex::new(HashMap::new())),
+            memory_usage_bytes: AtomicUsize::new(0),
         }
+    }
+
+    /// Calculate memory usage of a cached entry
+    fn entry_memory_size(cached_key: &CachedKey) -> usize {
+        cached_key.key.expose_secret().len() + std::mem::size_of::<CachedKey>()
     }
 
     /// Get cached key if valid and not expired
@@ -335,8 +343,10 @@ impl SecureKeyCache {
 
         if let Some(cached) = entries.get_mut(cache_key) {
             if cached.is_expired() {
-                // Remove expired entry
+                // Remove expired entry and update atomic counter
+                let memory_size = Self::entry_memory_size(cached);
                 entries.remove(cache_key);
+                self.memory_usage_bytes.fetch_sub(memory_size, Ordering::Relaxed);
                 return None;
             }
             // Return a clone of the cached key
@@ -348,11 +358,33 @@ impl SecureKeyCache {
     /// Store derived key in cache with timestamp
     fn store(&self, cache_key: CacheKey, key: SecretVec<u8>) {
         if let Ok(mut entries) = self.entries.lock() {
-            // Clean up expired entries first
-            entries.retain(|_, cached| !cached.is_expired());
+            // Clean up expired entries first and track memory changes
+            let mut memory_delta = 0isize;
+            entries.retain(|_, cached| {
+                if cached.is_expired() {
+                    memory_delta -= Self::entry_memory_size(cached) as isize;
+                    false
+                } else {
+                    true
+                }
+            });
 
-            // Store new entry
-            entries.insert(cache_key, CachedKey::new(key));
+            // Check if we're replacing an existing entry
+            if let Some(old_cached) = entries.get(&cache_key) {
+                memory_delta -= Self::entry_memory_size(old_cached) as isize;
+            }
+
+            // Store new entry and update counter
+            let new_cached = CachedKey::new(key);
+            memory_delta += Self::entry_memory_size(&new_cached) as isize;
+            entries.insert(cache_key, new_cached);
+            
+            // Update atomic counter
+            if memory_delta > 0 {
+                self.memory_usage_bytes.fetch_add(memory_delta as usize, Ordering::Relaxed);
+            } else if memory_delta < 0 {
+                self.memory_usage_bytes.fetch_sub((-memory_delta) as usize, Ordering::Relaxed);
+            }
         }
     }
 
@@ -360,13 +392,29 @@ impl SecureKeyCache {
     fn clear(&self) {
         if let Ok(mut entries) = self.entries.lock() {
             entries.clear();
+            // Reset atomic counter to zero
+            self.memory_usage_bytes.store(0, Ordering::Relaxed);
         }
     }
 
     /// Clean up expired entries
     fn cleanup_expired(&self) {
         if let Ok(mut entries) = self.entries.lock() {
-            entries.retain(|_, cached| !cached.is_expired());
+            // Track memory to be removed
+            let mut memory_to_remove = 0usize;
+            entries.retain(|_, cached| {
+                if cached.is_expired() {
+                    memory_to_remove += Self::entry_memory_size(cached);
+                    false
+                } else {
+                    true
+                }
+            });
+            
+            // Update atomic counter
+            if memory_to_remove > 0 {
+                self.memory_usage_bytes.fetch_sub(memory_to_remove, Ordering::Relaxed);
+            }
         }
     }
 }
@@ -691,17 +739,8 @@ pub fn get_cache_stats() -> CacheStats {
 /// - Set memory limits and alerts
 /// - Optimize cache timeout settings
 pub fn get_cache_memory_usage() -> usize {
-    if let Ok(entries) = KEY_CACHE.entries.lock() {
-        entries
-            .values()
-            .map(|cached| {
-                // Each cached key is 32 bytes + overhead
-                cached.key.expose_secret().len() + std::mem::size_of::<CachedKey>()
-            })
-            .sum()
-    } else {
-        0
-    }
+    // Use atomic counter to avoid lock contention
+    KEY_CACHE.memory_usage_bytes.load(Ordering::Relaxed)
 }
 
 /// Cache statistics for monitoring

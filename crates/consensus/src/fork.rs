@@ -8,6 +8,8 @@ use bitquan_types::BlockHeader;
 use std::collections::HashMap;
 use thiserror::Error;
 
+use primitive_types::U256;
+
 /// Errors that can occur during fork choice and reorg.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum ForkError {
@@ -41,14 +43,14 @@ pub struct BlockNode {
     /// Block height.
     pub height: u64,
     /// Cumulative chain work (sum of difficulties).
-    pub chain_work: f64,
+    pub chain_work: U256,
     /// Parent block hash.
     pub parent: [u8; 32],
 }
 
 impl BlockNode {
     /// Creates a new block node.
-    pub fn new(header: BlockHeader, height: u64, chain_work: f64) -> Self {
+    pub fn new(header: BlockHeader, height: u64, chain_work: U256) -> Self {
         let hash = header_hash(&header);
         let parent = header.prev_block;
 
@@ -61,16 +63,31 @@ impl BlockNode {
         }
     }
 
-    /// Calculates work for this block based on difficulty target.
-    pub fn block_work(&self) -> f64 {
-        // Simplified work calculation for fork choice
-        // In a real implementation, this would compute 2^256 / target
-        // For now, we use a simple heuristic: all blocks with same difficulty have same work
-        // Chain work = sum of block works = height * constant (if difficulty constant)
-
-        // For testing: return constant work per block
-        // This makes chain work proportional to chain length
-        1.0
+    /// Calculates work for this block based on difficulty target using integer math.
+    pub fn block_work(&self) -> U256 {
+        // Real work calculation: work = 2^256 / (target + 1)
+        // This is the proper Bitcoin-style work calculation
+        use crate::pow::compact_to_target_bytes;
+        
+        // Convert bits to target bytes
+        let target_bytes = match compact_to_target_bytes(self.header.bits) {
+            Ok(target) => target,
+            Err(_) => return U256::zero(), // Invalid target = zero work
+        };
+        
+        // Convert target bytes to U256
+        let target = U256::from_big_endian(&target_bytes);
+        
+        // Avoid division by zero for very easy targets
+        if target == U256::max_value() {
+            return U256::one();
+        }
+        
+        // Work = 2^256 / (target + 1)
+        // Since 2^256 doesn't fit in U256, we use the fact that:
+        // work = (U256::MAX + 1) / (target + 1)
+        let target_plus_one = target.saturating_add(U256::one());
+        U256::max_value().checked_div(target_plus_one).unwrap_or(U256::one())
     }
 }
 
@@ -126,7 +143,7 @@ impl ForkChoice {
 
     /// Adds the genesis block.
     pub fn add_genesis(&mut self, header: BlockHeader) -> Result<(), ForkError> {
-        let node = BlockNode::new(header, 0, 0.0);
+        let node = BlockNode::new(header, 0, U256::zero());
         let hash = node.hash;
 
         self.nodes.insert(hash, node);
@@ -172,10 +189,15 @@ impl ForkChoice {
         let height = parent.height + 1;
         let parent_work = parent.chain_work;
 
-        // Create new node
-        let mut node = BlockNode::new(header, height, 0.0);
-        let block_work = node.block_work();
-        node.chain_work = parent_work + block_work;
+        // Calculate block work first
+        let block_work = {
+            let temp_header = header.clone();
+            let temp_node = BlockNode::new(temp_header, height, U256::zero());
+            temp_node.block_work()
+        };
+
+        // Create final node with proper chain_work
+        let node = BlockNode::new(header, height, parent_work.saturating_add(block_work));
 
         // Insert node
         self.nodes.insert(hash, node.clone());
@@ -206,10 +228,10 @@ impl ForkChoice {
             Some(tip_hash) => {
                 let tip = self.nodes.get(&tip_hash).ok_or(ForkError::InvalidWork)?;
 
-                // Compare chain work (more work = better)
+                // Compare chain work (more work = better) - NO EPSILON with U256!
                 if node.chain_work > tip.chain_work {
                     Ok(true)
-                } else if (node.chain_work - tip.chain_work).abs() < 1e-10 {
+                } else if node.chain_work == tip.chain_work {
                     // Equal work: tie-breaking rules
                     if node.header.time != tip.header.time {
                         // Rule 1: prefer earlier timestamp

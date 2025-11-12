@@ -1845,8 +1845,8 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         } else {
             // Use ASERT difficulty adjustment after sufficient history
             let next_target =
-                asert_next_target(anchor.target, height_delta, time_delta, &params, None);
-            let mut next_bits = target_to_compact(next_target);
+                asert_next_target(anchor.target as u64, height_delta, time_delta, &params, None);
+            let mut next_bits = target_to_compact(next_target as f64);
             if next_bits == 0 {
                 next_bits = block_bits;
             }

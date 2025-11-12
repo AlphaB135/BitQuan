@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::IpAddr;
+use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
@@ -76,6 +78,200 @@ pub enum GeographicRegion {
 }
 
 impl GeographicRegion {
+    /// Get region from IP address using maxminddb lookup
+    pub fn from_ip_address(ip_address: &str) -> Result<Self, EconomicError> {
+        // Parse IP address
+        let ip = IpAddr::from_str(ip_address)
+            .map_err(|_| EconomicError::InvalidParticipant {
+                id: ip_address.to_string(),
+                reason: "Invalid IP address format".to_string(),
+            })?;
+
+        // For now, implement a simple fallback lookup based on IP ranges
+        // In production, this would use maxminddb with a GeoIP database
+        let country_code = Self::lookup_country_from_ip(&ip)?;
+        Ok(Self::from_country_code(&country_code))
+    }
+
+    /// Simple IP-based country lookup (fallback implementation)
+    fn lookup_country_from_ip(ip: &IpAddr) -> Result<String, EconomicError> {
+        use ipnet::Ipv4Net;
+        
+        match ip {
+            IpAddr::V4(ipv4) => {
+                // Simplified IP range mapping for major regions
+                // US IP ranges (key ranges)
+                if Ipv4Net::from_str("64.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("65.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("66.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("67.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("68.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("69.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("70.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("71.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("72.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("73.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("74.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("75.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("76.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("96.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("97.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("98.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("99.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("100.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("104.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("107.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("108.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("128.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("129.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("130.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("131.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("132.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("134.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("135.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("136.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("137.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("138.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("139.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("140.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("142.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("143.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("144.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("147.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("148.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("149.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("152.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("155.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("156.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("157.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("158.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("159.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("160.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("161.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("162.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("164.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("165.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("166.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("167.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("168.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("169.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("170.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("171.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("172.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("173.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("174.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("184.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("192.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("198.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("199.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("204.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("205.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("206.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("207.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("208.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("209.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                   Ipv4Net::from_str("216.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) {
+                    Ok("US".to_string())
+                }
+                // European IP ranges (key ranges)
+                else if Ipv4Net::from_str("46.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("62.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("77.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("78.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("79.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("80.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("81.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("82.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("83.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("84.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("85.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("86.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("87.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("88.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("89.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("90.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("91.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("92.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("93.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("94.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("95.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("109.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("188.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("193.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("194.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("195.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("212.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("213.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("217.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) {
+                    Ok("DE".to_string()) // Default to Germany for European IPs
+                }
+                // Asian IP ranges (key ranges)
+                else if Ipv4Net::from_str("1.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("14.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("27.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("36.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("39.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("42.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("43.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("49.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("58.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("59.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("60.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("61.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("101.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("103.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("106.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("110.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("111.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("112.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("113.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("114.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("115.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("116.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("117.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("118.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("119.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("120.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("121.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("122.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("123.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("124.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("125.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("126.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("133.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("150.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("153.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("154.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("163.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("170.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("171.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("175.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("180.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("182.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("183.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("202.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("203.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("210.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("211.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("218.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("219.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("220.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("221.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("222.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) ||
+                        Ipv4Net::from_str("223.0.0.0/8").map(|net| net.contains(ipv4)).unwrap_or(false) {
+                    Ok("CN".to_string()) // Default to China for Asian IPs
+                }
+                else {
+                    Ok("XX".to_string()) // Unknown for other IPs
+                }
+            }
+            IpAddr::V6(_) => {
+                // For IPv6, default to unknown for now
+                Ok("XX".to_string())
+            }
+        }
+    }
+
     /// Get region from country code (simplified mapping)
     pub fn from_country_code(country_code: &str) -> Self {
         match country_code.to_uppercase().as_str() {
@@ -528,14 +724,20 @@ impl EconomicManager {
             SlashReason::Other(_) => 25,     // Default 25%
         };
 
-        let slash_amount = (stake_info.staked_amount * slash_percent as u64) / 100;
+        // Calculate slash amount based on total locked stake (staked + unbonding)
+        let total_locked_stake = stake_info.staked_amount + stake_info.unbonding_amount;
+        let slash_amount = (total_locked_stake * slash_percent as u64) / 100;
 
         if slash_amount == 0 {
             return Ok(0);
         }
 
-        // Apply slash
-        stake_info.staked_amount -= slash_amount;
+        // Apply slash proportionally from staked and unbonding amounts
+        let slash_from_staked = std::cmp::min(slash_amount, stake_info.staked_amount);
+        let slash_from_unbonding = slash_amount - slash_from_staked;
+        
+        stake_info.staked_amount -= slash_from_staked;
+        stake_info.unbonding_amount -= slash_from_unbonding;
         stake_info.total_slashed += slash_amount;
 
         // Update reputation
@@ -544,7 +746,8 @@ impl EconomicManager {
             stake_info.is_bonded = false;
         }
 
-        self.total_staked -= slash_amount;
+        // Only reduce total_staked by the amount slashed from staked_amount
+        self.total_staked -= slash_from_staked;
 
         // Record slash event
         let slash_event = SlashEvent {
@@ -661,6 +864,52 @@ impl EconomicManager {
                 id: participant_id.to_string(),
             }
         })?;
+
+        // Update geographic info
+        stake_info.geographic_info = Some(geographic_info.clone());
+
+        // Update geographic distribution tracking
+        self.update_geographic_distribution();
+
+        Ok(())
+    }
+
+    /// Sets geographic information for a participant using IP-based lookup
+    pub fn set_geographic_info_from_ip(
+        &mut self,
+        participant_id: &str,
+        ip_address: &str,
+    ) -> Result<(), EconomicError> {
+        let stake_info = self.stakes.get_mut(participant_id).ok_or_else(|| {
+            EconomicError::ParticipantNotFound {
+                id: participant_id.to_string(),
+            }
+        })?;
+
+        // Lookup region from IP address
+        let region = GeographicRegion::from_ip_address(ip_address)?;
+        let country_code = match region {
+            GeographicRegion::NorthAmerica => "US",
+            GeographicRegion::SouthAmerica => "BR", 
+            GeographicRegion::Europe => "DE",
+            GeographicRegion::Africa => "ZA",
+            GeographicRegion::Asia => "CN",
+            GeographicRegion::Oceania => "AU",
+            GeographicRegion::Unknown => "XX",
+        }.to_string();
+
+        // Create geographic info from IP lookup
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let geographic_info = GeographicInfo {
+            region,
+            country_code,
+            ip_address: Some(ip_address.to_string()),
+            last_verification_time: now,
+        };
 
         // Update geographic info
         stake_info.geographic_info = Some(geographic_info.clone());
@@ -901,10 +1150,10 @@ impl EconomicManager {
                 if now >= lock_time + self.config.min_stake_time_lock_seconds {
                     stake_info.staked_amount // Fully time-locked
                 } else {
-                    // Partially time-locked based on time elapsed
+                    // Partially time-locked based on time elapsed (deterministic integer math)
                     let elapsed = now.saturating_sub(lock_time);
-                    let progress = elapsed as f64 / self.config.min_stake_time_lock_seconds as f64;
-                    (stake_info.staked_amount as f64 * progress) as u64
+                    let progress = (elapsed as u128 * 100) / self.config.min_stake_time_lock_seconds as u128;
+                    ((stake_info.staked_amount as u128 * progress) / 100) as u64
                 }
             } else {
                 0 // No time-lock
@@ -926,10 +1175,10 @@ impl EconomicManager {
                 if now >= lock_time + self.config.min_stake_time_lock_seconds {
                     stake_info.staked_amount // Fully time-locked
                 } else {
-                    // Partially time-locked based on time elapsed
+                    // Partially time-locked based on time elapsed (deterministic integer math)
                     let elapsed = now.saturating_sub(lock_time);
-                    let progress = elapsed as f64 / self.config.min_stake_time_lock_seconds as f64;
-                    (stake_info.staked_amount as f64 * progress) as u64
+                    let progress = (elapsed as u128 * 100) / self.config.min_stake_time_lock_seconds as u128;
+                    ((stake_info.staked_amount as u128 * progress) / 100) as u64
                 }
             } else {
                 0
@@ -1227,6 +1476,44 @@ mod tests {
         assert_eq!(stake_info.staked_amount, 500);
         assert_eq!(stake_info.total_slashed, 500);
         assert_eq!(stake_info.reputation_score, 90);
+    }
+
+    #[test]
+    fn test_slashing_with_unbonding_amount() {
+        let mut manager = create_test_manager();
+        manager
+            .stake("participant1".to_string(), 1000)
+            .expect("Failed to stake");
+
+        // Start unbonding 400 tokens
+        manager
+            .unbond("participant1", 400)
+            .expect("Failed to unbond");
+
+        let stake_info = manager
+            .get_stake_info("participant1")
+            .expect("Failed to get stake info");
+        assert_eq!(stake_info.staked_amount, 600);
+        assert_eq!(stake_info.unbonding_amount, 400);
+
+        // Should slash based on total locked stake (600 + 400 = 1000)
+        let slash_amount = manager
+            .slash(
+                "participant1",
+                SlashReason::MaliciousProposal,
+                Some("prop123".to_string()),
+            )
+            .expect("Failed to slash");
+
+        assert_eq!(slash_amount, 500); // 50% of total locked stake (1000)
+
+        let stake_info = manager
+            .get_stake_info("participant1")
+            .expect("Failed to get stake info");
+        // Should deduct from staked first (500), then from unbonding (0)
+        assert_eq!(stake_info.staked_amount, 100); // 600 - 500
+        assert_eq!(stake_info.unbonding_amount, 400); // unchanged
+        assert_eq!(stake_info.total_slashed, 500);
     }
 
     #[test]
@@ -1772,5 +2059,52 @@ mod tests {
             .validate_geographic_distribution(&participant_ids)
             .expect("Failed to validate geographic distribution");
         assert!(is_valid);
+    }
+
+    #[test]
+    fn test_ip_based_geographic_validation() {
+        let mut manager = create_test_manager();
+        manager
+            .stake("participant1".to_string(), 1000)
+            .expect("Failed to stake participant1");
+
+        // Test IP-based geographic validation
+        let result = manager.set_geographic_info_from_ip("participant1", "64.58.1.1");
+        assert!(result.is_ok());
+
+        let stake_info = manager
+            .get_stake_info("participant1")
+            .expect("Failed to get stake info");
+        
+        let geo_info = stake_info.geographic_info.as_ref().expect("Geographic info should be set");
+        assert_eq!(geo_info.ip_address, Some("64.58.1.1".to_string()));
+        assert_eq!(geo_info.country_code, "US");
+        assert_eq!(geo_info.region, GeographicRegion::NorthAmerica);
+
+        // Test European IP
+        let result = manager.set_geographic_info_from_ip("participant1", "46.4.1.1");
+        assert!(result.is_ok());
+        
+        let stake_info = manager
+            .get_stake_info("participant1")
+            .expect("Failed to get stake info");
+        
+        let geo_info = stake_info.geographic_info.as_ref().expect("Geographic info should be set");
+        assert_eq!(geo_info.ip_address, Some("46.4.1.1".to_string()));
+        assert_eq!(geo_info.country_code, "DE");
+        assert_eq!(geo_info.region, GeographicRegion::Europe);
+
+        // Test Asian IP
+        let result = manager.set_geographic_info_from_ip("participant1", "1.2.3.4");
+        assert!(result.is_ok());
+        
+        let stake_info = manager
+            .get_stake_info("participant1")
+            .expect("Failed to get stake info");
+        
+        let geo_info = stake_info.geographic_info.as_ref().expect("Geographic info should be set");
+        assert_eq!(geo_info.ip_address, Some("1.2.3.4".to_string()));
+        assert_eq!(geo_info.country_code, "CN");
+        assert_eq!(geo_info.region, GeographicRegion::Asia);
     }
 }

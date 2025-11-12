@@ -20,7 +20,7 @@ pub mod utxo;
 mod tests;
 
 pub use asert::{asert_next_target, BurstGuardState, GuardContext};
-pub use difficulty::{compact_to_target, target_to_compact, DifficultyState};
+pub use difficulty::{compact_to_target, target_to_compact_u64, DifficultyState};
 pub use economic::{
     EconomicConfig, EconomicError, EconomicManager, EconomicStats, RewardEvent, SlashEvent,
     SlashReason, StakeInfo,
@@ -47,11 +47,11 @@ pub struct DifficultyParams {
     /// Burst guard window (blocks) for rapid difficulty increases.
     pub burst_guard_window: u64,
     /// Minimum ratio of observed/expected time before burst guard engages.
-    pub burst_guard_floor_ratio: f64,
+    pub burst_guard_floor_ratio_fp: u64, // Fixed-point representation (32.32 format)
     /// Ratio above which the burst guard releases (hysteresis).
-    pub burst_guard_release_ratio: f64,
+    pub burst_guard_release_ratio_fp: u64, // Fixed-point representation (32.32 format)
     /// Difficulty multiplier applied when burst guard triggers.
-    pub burst_guard_multiplier: f64,
+    pub burst_guard_multiplier_fp: u64, // Fixed-point representation (32.32 format)
     /// Cooldown period (blocks) before the guard may trigger again.
     pub burst_guard_cooldown_blocks: u64,
     /// Height at which the burst guard becomes active.
@@ -65,9 +65,9 @@ impl DifficultyParams {
             target_block_time: 600,
             difficulty_half_life: 14_400,
             burst_guard_window: 11,
-            burst_guard_floor_ratio: 0.33,
-            burst_guard_release_ratio: 0.38,
-            burst_guard_multiplier: 1.5,
+            burst_guard_floor_ratio_fp: 1417339207, // 0.33 in 32.32 fixed-point (0.33 * 2^32)
+            burst_guard_release_ratio_fp: 1632087572, // 0.38 in 32.32 fixed-point (0.38 * 2^32)
+            burst_guard_multiplier_fp: 6442450944, // 1.5 in 32.32 fixed-point (1.5 * 2^32)
             burst_guard_cooldown_blocks: 5,
             burst_guard_activation_height: 0,
         }
@@ -784,15 +784,7 @@ impl ConsensusEngine {
         Some(state.update(next_height, next_timestamp, &self.params))
     }
 
-    /// Computes the next target using ASERT relative to an anchor.
-    pub fn next_difficulty_target(
-        &self,
-        anchor_target: f64,
-        height_delta: i64,
-        time_delta: i64,
-    ) -> f64 {
-        asert_next_target(anchor_target, height_delta, time_delta, &self.params, None)
-    }
+
 
     /// Validates a block using the stored registry and RNG state.
     pub fn validate_block(

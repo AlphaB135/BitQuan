@@ -7,6 +7,8 @@
 use bitquan_types::{BlockHeader, Result};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// Minimum compact bits permitted (hardest difficulty - mainnet level).
 pub const DEVNET_MIN_BITS: u32 = 0x1c00ffff;
@@ -116,15 +118,62 @@ impl PowEngine for Sha256dEngine {
     }
 }
 
+/// RandomX VM cache to prevent DoS from repeated VM creation.
+#[cfg(feature = "randomx")]
+pub struct RandomXVMCache {
+    cache: HashMap<[u8; 32], Arc<Mutex<Option<randomx_rs::RandomXVM>>>>,
+}
+
+#[cfg(feature = "randomx")]
+impl RandomXVMCache {
+    /// Create new VM cache.
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
+
+    /// Get or create VM for given seed.
+    pub fn get_vm(&mut self, seed: &[u8; 32]) -> Result<Arc<Mutex<Option<randomx_rs::RandomXVM>>>> {
+        if let Some(vm) = self.cache.get(seed) {
+            return Ok(Arc::clone(vm));
+        }
+
+        // Create new cache and VM for this seed
+        let cache = RandomXCache::new(RandomXFlag::default(), seed)
+            .map_err(|e| bitquan_types::Error::Invalid(format!("Failed to create RandomX cache: {}", e)))?;
+        
+        let vm = RandomXVM::new(RandomXFlag::default(), Some(cache), None)
+            .map_err(|e| bitquan_types::Error::Invalid(format!("Failed to create RandomX VM: {}", e)))?;
+        
+        let vm_ref = Arc::new(Mutex::new(Some(vm)));
+        self.cache.insert(*seed, Arc::clone(&vm_ref));
+        Ok(vm_ref)
+    }
+}
+
+#[cfg(feature = "randomx")]
+impl Default for RandomXVMCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// RandomX PoW engine.
 pub struct RandomXEngine {
     _config: RandomXConfig,
+    #[cfg(feature = "randomx")]
+    vm_cache: Arc<Mutex<RandomXVMCache>>,
 }
 
 impl RandomXEngine {
-    /// Create a new RandomX engine with the given configuration.
+    /// Create a new RandomX engine with given configuration.
     pub fn new(config: RandomXConfig) -> Self {
-        Self { _config: config }
+        Self { 
+            _config: config,
+            #[cfg(feature = "randomx")]
+            vm_cache: Arc::new(Mutex::new(RandomXVMCache::new())),
+        }
     }
 }
 
@@ -148,15 +197,56 @@ impl PowEngine for RandomXEngine {
 
     fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
         let bytes = header.to_bytes();
-        Ok(randomx_pow_hash(&bytes, &self._config.seed))
+        #[cfg(feature = "randomx")]
+        {
+            Ok(randomx_pow_hash_cached(&bytes, &self._config.seed, &self.vm_cache)?)
+        }
+        #[cfg(not(feature = "randomx"))]
+        {
+            Ok(randomx_pow_hash(&bytes, &self._config.seed))
+        }
     }
 }
 
-/// Computes RandomX PoW hash (exposed for Stratum).
+/// Computes RandomX PoW hash using cached VM to prevent DoS.
+#[cfg(feature = "randomx")]
+pub fn randomx_pow_hash_cached(preimage: &[u8], seed: &[u8; 32], vm_cache: &Arc<Mutex<RandomXVMCache>>) -> Result<[u8; 32]> {
+    use randomx_rs::{RandomXCache, RandomXVM, RandomXFlag};
+    
+    // Get or create cached VM for this seed
+    let vm_ref = vm_cache.lock().unwrap()
+        .get_vm(seed)?;
+    
+    // Calculate hash using cached VM
+    let hash = {
+        let vm_guard = vm_ref.lock().unwrap();
+        if let Some(ref vm) = *vm_guard {
+            vm.calculate_hash(preimage)
+                .map_err(|e| bitquan_types::Error::Invalid(format!("Failed to calculate RandomX hash: {}", e)))?
+        } else {
+            return Err(bitquan_types::Error::Invalid("RandomX VM not initialized".to_string()));
+        }
+    };
+    
+    // Convert to [u8; 32] - RandomX produces 32-byte hash
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&hash);
+    Ok(out)
+}
+
+/// Computes RandomX PoW hash (exposed for Stratum) - legacy function for compatibility.
+#[cfg(feature = "randomx")]
 pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
-    // RandomX integration pending implementation
-    // For now, use a placeholder that combines SHA-256 with header data and seed
-    // This will be replaced with real RandomX once the library is integrated
+    // Create temporary cache for legacy compatibility
+    let vm_cache = Arc::new(Mutex::new(RandomXVMCache::new()));
+    randomx_pow_hash_cached(preimage, seed, &vm_cache)
+        .expect("Failed to compute RandomX hash")
+}
+
+/// Fallback RandomX implementation when feature is not enabled
+#[cfg(not(feature = "randomx"))]
+pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
+    // Fallback to SHA-256 placeholder when RandomX is not compiled in
     let mut hasher = Sha256::new();
     hasher.update(b"RandomX-placeholder-");
     hasher.update(seed);
@@ -194,15 +284,54 @@ pub enum RandomXMode {
     Full,
 }
 
+/// Ethash cache to prevent DoS from repeated cache creation.
+pub struct EthashCache {
+    cache: HashMap<u32, Arc<Mutex<Option<Vec<u8>>>>>,
+}
+
+impl EthashCache {
+    /// Create new cache.
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
+
+    /// Get or create cache for given epoch.
+    pub fn get_cache(&mut self, epoch: u32) -> Result<Arc<Mutex<Option<Vec<u8>>>>> {
+        if let Some(cache) = self.cache.get(&epoch) {
+            return Ok(Arc::clone(cache));
+        }
+
+        // Create new cache data for this epoch (simplified - using epoch as seed)
+        let cache_data = vec![0u8; 1024 * 1024]; // 1MB cache placeholder
+        let cache_ref = Arc::new(Mutex::new(Some(cache_data)));
+        self.cache.insert(epoch, Arc::clone(&cache_ref));
+        Ok(cache_ref)
+    }
+}
+
+impl Default for EthashCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Ethash PoW engine (GPU-friendly, Ethereum-style).
 pub struct EthashEngine {
     _config: EthashConfig,
+    #[cfg(feature = "ethash")]
+    cache: Arc<Mutex<EthashCache>>,
 }
 
 impl EthashEngine {
-    /// Create a new Ethash engine with the given configuration.
+    /// Create a new Ethash engine with given configuration.
     pub fn new(config: EthashConfig) -> Self {
-        Self { _config: config }
+        Self { 
+            _config: config,
+            #[cfg(feature = "ethash")]
+            cache: Arc::new(Mutex::new(EthashCache::new())),
+        }
     }
 }
 
@@ -226,15 +355,73 @@ impl PowEngine for EthashEngine {
 
     fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
         let bytes = header.to_bytes();
-        Ok(ethash_pow_hash(&bytes, &self._config.cache_size))
+        #[cfg(feature = "ethash")]
+        {
+            Ok(ethash_pow_hash_cached(&bytes, &self._config.cache_size, &self.cache)?)
+        }
+        #[cfg(not(feature = "ethash"))]
+        {
+            Ok(ethash_pow_hash(&bytes, &self._config.cache_size))
+        }
     }
 }
 
-/// Computes Ethash PoW hash (exposed for Stratum).
+/// Computes Ethash PoW hash using cached data to prevent DoS.
+#[cfg(feature = "ethash")]
+pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mutex<EthashCache>>) -> Result<[u8; 32]> {
+    use ethash::{hashimoto_light};
+    use ethereum_types::{H256, H64};
+    
+    // Convert preimage to H256 format
+    let header_hash = H256::from_slice(preimage);
+    
+    // Calculate epoch from cache size (simplified - normally derived from block number)
+    let epoch = (*cache_size / 32) as u32; // Rough approximation
+    
+    // Get or create cached data for this epoch
+    let cache_ref = cache.lock().unwrap()
+        .get_cache(epoch)?;
+    
+    // Use a simple nonce for now (in real implementation, this would be mining nonce)
+    let nonce = H64::default();
+    
+    // Get cache data
+    let cache_data = {
+        let cache_guard = cache_ref.lock().unwrap();
+        if let Some(ref data) = *cache_guard {
+            data.clone()
+        } else {
+            return Err(bitquan_types::Error::Invalid("Ethash cache not initialized".to_string()));
+        }
+    };
+    
+    // Compute hashimoto light (Ethash PoW) - simpler version for light clients
+    let (mix_hash, result_hash) = hashimoto_light(
+        header_hash,
+        nonce,
+        epoch as usize,
+        &cache_data,
+    );
+    
+    // Return result hash (32 bytes)
+    let mut out = [0u8; 32];
+    out.copy_from_slice(result_hash.as_fixed_bytes());
+    Ok(out)
+}
+
+/// Computes Ethash PoW hash (exposed for Stratum) - legacy function for compatibility.
+#[cfg(feature = "ethash")]
 pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
-    // Ethash implementation using Keccak-256 and DAG
-    // For now, use a placeholder that combines Keccak with header data
-    // This will be replaced with real Ethash once the library is integrated
+    // Create temporary cache for legacy compatibility
+    let cache = Arc::new(Mutex::new(EthashCache::new()));
+    ethash_pow_hash_cached(preimage, cache_size, &cache)
+        .expect("Failed to compute Ethash hash")
+}
+
+/// Fallback Ethash implementation when feature is not enabled
+#[cfg(not(feature = "ethash"))]
+pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
+    // Fallback to Keccak-256 placeholder when Ethash is not compiled in
     use sha3::{Digest, Keccak256};
     let mut hasher = Keccak256::new();
     hasher.update(b"Ethash-placeholder-");
