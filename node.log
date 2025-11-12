@@ -1,0 +1,29 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.40s
+     Running `target/debug/bitquan-node p2p-server --rpc-listen '127.0.0.1:8332' --rpc-username admin --rpc-password password --rpc-allow-insecure --datadir ./data/chainstate --jwt-config jwt.toml`
+BitQuan P2P Server
+Listen: 127.0.0.1:8333
+Max peers: 125
+Data dir: ./data/chainstate
+Current height: 12529
+Storage: RocksDB
+RPC authentication: JWT
+RPC starting with max_body_bytes=1048576 rl_burst=20 rl_refill_per_sec=10 conn_cooldown_ms=10 max_header_bytes=8192 header_timeout_ms=1000 trust_proxy=false trusted_cidr=[] require_tls=false tls_configured=false
+RPC TLS certificate: <not configured>
+RPC server listening on 127.0.0.1:8332
+Loading JWT config from: jwt.toml
+Server started at 127.0.0.1:8333
+Waiting for connections...
+
+Commands:
+  - Press Ctrl+C to stop
+  - Peers will sync blockchain automatically
+
+Tip: Use 'mine' command to mine blocks
+Current tip: 71464aba1c46debbce49f0e284770da73fc7162647ccc57010042228c9a3f480
+New blocks will be broadcast to peers
+RPC server listening on 127.0.0.1:8332
+RPC config: max_body_bytes=1048576 rl_burst=20 rl_refill_per_sec=10 conn_cooldown_ms=10 require_tls=false
+RPC health endpoint: GET /health (no auth)
+{"bytes":68,"event":"rpc_guard","ip":"127.0.0.1","latency_ms":0,"method":"POST","reason":"auth_failure","route":"/","status":401}
+{"bytes":45,"event":"rpc_guard","ip":"127.0.0.1","latency_ms":0,"method":"POST","reason":"auth_failure","route":"/login","status":401}
+{"bytes":45,"event":"rpc_guard","ip":"127.0.0.1","latency_ms":244,"method":"POST","reason":"auth_failure","route":"/auth/login","status":401}

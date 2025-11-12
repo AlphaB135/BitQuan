@@ -13,7 +13,7 @@ members = [
     "crates/tools/preflight",
     "crates/tools/stress",
 ]
-exclude = ["fuzz", "forks"]
+exclude = ["fuzz", "forks", "tools/bitquan-gui"]
 
 [workspace.package]
 edition = "2021"

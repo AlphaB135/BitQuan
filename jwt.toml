@@ -1,0 +1,7 @@
+# JWT Authentication Configuration
+secret = "mysecretjwtkey"
+
+[[users]]
+username = "admin"
+password_hash = "$argon2id$v=19$m=19456,t=2,p=1$Q1jyewUdmakjPNt4n2LZFg$vxXidOOsjayYC+M4R0XyB8FZZ9+tLfGNZtla0nGkh4A"
+role = "admin"
