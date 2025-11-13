@@ -7,7 +7,7 @@
 id = "devnet"
 
 # Genesis block hash (auto-generated from genesis.json)
-genesis_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+genesis_hash = "13e3dccb1ae24cf988a9c18d444d532ec65510116931b8059f72568fea7f4ff3"
 
 # Network ports
 p2p_port = 29444
@@ -32,6 +32,10 @@ burst_guard_threshold = 2.0  # More lenient for devnet
 
 # Maximum block size (in weight units)
 max_block_weight = 4000000
+
+# Hybrid PoW activation (Devnet: activate immediately)
+hybrid_pow_activation_height = 0
+allowed_algos = ["sha256d", "randomx", "ethash"]
 
 [mempool]
 # Maximum mempool size in bytes (50 MB for devnet)
@@ -59,20 +63,6 @@ initial_block_reward = 5000000000  # 50 BQ (same as testnet)
 
 # Halving interval (blocks)
 halving_interval = 210000  # Same as testnet
-
-# Hybrid mining configuration
-hybrid_mining_enabled = true
-algorithm_weights = "sha256d:1,ethash:2"  # CPU:GPU ratio
-
-# Algorithm-specific settings
-[mining.algorithms.sha256d]
-enabled = true
-threads = 0  # 0 = auto-detect CPU cores
-
-[mining.algorithms.ethash]
-enabled = true
-cache_size_mb = 1024  # 1GB cache
-dag_size_mb = 4096    # 4GB DAG
 
 [wallet]
 # Default keystore encryption

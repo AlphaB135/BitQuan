@@ -41,6 +41,10 @@ burst_guard_threshold = 1.5  # Trigger at 150% of normal rate
 # Maximum block size (in weight units)
 max_block_weight = 4000000
 
+# Hybrid PoW activation (CRITICAL: Must match Rust code)
+hybrid_pow_activation_height = 10000
+allowed_algos = ["sha256d", "randomx", "ethash"]
+
 [mempool]
 # Maximum mempool size in bytes (300 MB for mainnet)
 max_size_bytes = 314572800

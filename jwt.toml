@@ -1,5 +1,5 @@
 # JWT Authentication Configuration
-secret = "mysecretjwtkey"
+secret = "7de44c26ac7d1c57dc58f06bb1218548e43dd6700b4b1d8c8543e802a3ceff6c"
 
 [[users]]
 username = "admin"

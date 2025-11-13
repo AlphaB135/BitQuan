@@ -41,6 +41,10 @@ burst_guard_threshold = 1.5  # Trigger at 150% of normal rate
 # Maximum block size (in weight units)
 max_block_weight = 4000000
 
+# Hybrid PoW activation (Testnet: activate at block 5000 for testing)
+hybrid_pow_activation_height = 5000
+allowed_algos = ["sha256d", "randomx", "ethash"]
+
 [mempool]
 # Maximum mempool size in bytes (100 MB for testnet)
 max_size_bytes = 104857600
