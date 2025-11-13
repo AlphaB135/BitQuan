@@ -7,7 +7,7 @@ use std::fmt;
 use bitquan_types::error::{Error, Result};
 use clap::Parser;
 
-use bitquan_consensus::{asert_next_target, compact_to_target, ConsensusParams};
+use bitquan_consensus::{asert_next_target, compact_to_target, ConsensusParams, FP_SCALE};
 
 fn invalid<T>(msg: impl Into<String>) -> Result<T> {
     Err(Error::Invalid(msg.into()))
@@ -100,7 +100,7 @@ fn main() -> Result<()> {
 
     let params = ConsensusParams::phase3_defaults();
     let baseline_bits = 0x1d00ffff;
-    let baseline_target = compact_to_target(baseline_bits);
+    let baseline_target = compact_to_target(baseline_bits) as f64;
     let mut current_target = baseline_target;
 
     let mut blocks =
@@ -133,7 +133,7 @@ fn main() -> Result<()> {
 
             let difficulty_ratio = baseline_target / current_target;
             let mean_interval =
-                (params.difficulty.target_block_time as f64) * difficulty_ratio / segment.hash_rate;
+                (params.difficulty.target_block_time as f64) * difficulty_ratio / (segment.hash_rate as f64);
             let dt_seconds = mean_interval.max(1.0).round() as i64;
 
             let timestamp = prev.timestamp + dt_seconds;
@@ -172,12 +172,12 @@ fn main() -> Result<()> {
             let height_delta = height as i64 - anchor.height as i64;
             let time_delta = timestamp - anchor.timestamp;
             let next_target =
-                asert_next_target(anchor.target as u64, height_delta, time_delta, &params, None);
+                asert_next_target(anchor.target as u64, height_delta, time_delta, &params, None) as f64;
 
             let expected_time = params.difficulty.target_block_time as f64 * height_delta as f64;
             let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
                 && time_delta > 0
-                && (time_delta as f64) < expected_time * (params.difficulty.burst_guard_floor_ratio_fp as f64 / crate::asert::FP_SCALE as f64);
+                && (time_delta as f64) < expected_time * (params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64);
 
             if guard_triggered {
                 guard_events.push(GuardEvent {
@@ -215,7 +215,7 @@ fn main() -> Result<()> {
                 );
             }
 
-            current_target = next_target as f64;
+            current_target = next_target;
         }
     }
 

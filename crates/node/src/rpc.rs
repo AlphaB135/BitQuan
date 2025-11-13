@@ -218,10 +218,10 @@ fn storage_to_rpc(err: StorageError) -> RpcError {
 fn difficulty_from_bits(bits: u32) -> f64 {
     let max_target = bitquan_consensus::compact_to_target(GENESIS_BITS);
     let target = bitquan_consensus::compact_to_target(bits);
-    if target <= 0.0 {
+    if target == 0 {
         return 0.0;
     }
-    max_target / target
+    (max_target / target) as f64
 }
 
 struct TransactionSummary {

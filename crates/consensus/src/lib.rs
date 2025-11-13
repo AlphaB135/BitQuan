@@ -19,7 +19,7 @@ pub mod utxo;
 #[cfg(test)]
 mod tests;
 
-pub use asert::{asert_next_target, BurstGuardState, GuardContext};
+pub use asert::{asert_next_target, BurstGuardState, GuardContext, FP_SCALE};
 pub use difficulty::{compact_to_target, target_to_compact_u64, DifficultyState};
 pub use economic::{
     EconomicConfig, EconomicError, EconomicManager, EconomicStats, RewardEvent, SlashEvent,

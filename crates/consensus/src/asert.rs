@@ -10,8 +10,7 @@ use crate::{compact_to_target, pow::DEVNET_MAX_BITS, ConsensusParams};
 
 
 
-// Fixed-point arithmetic constants
-// We use 64-bit integers with 32-bit fractional part (32.32 fixed-point)
+/// Fixed-point scale factor for 32.32 format arithmetic.
 pub const FP_SCALE: u64 = 1u64 << 32; // 2^32 = 4294967296
 
 

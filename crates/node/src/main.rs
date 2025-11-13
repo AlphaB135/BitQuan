@@ -24,7 +24,7 @@ mod ws_dashboard;
 
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
-    target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
+    target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
 };
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
@@ -1504,7 +1504,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                     let log = BlockLog {
                         height: h,
                         timestamp: block.header.time as i64,
-                        target: compact_to_target(block.header.bits),
+                        target: compact_to_target(block.header.bits) as f64,
                     };
                     last_timestamp = Some(log.timestamp);
                     history.push_back(log);
@@ -1797,7 +1797,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         history.push_back(BlockLog {
             height: block_height,
             timestamp: block_time,
-            target: block_target,
+            target: block_target as f64,
         });
         if history.len() > window + 1 {
             history.pop_front();
@@ -1827,7 +1827,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         };
         let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
             && time_delta > 0
-            && ratio < params.difficulty.burst_guard_floor_ratio;
+            && ratio < (params.difficulty.burst_guard_floor_ratio_fp as f64 / bitquan_consensus::FP_SCALE as f64);
         if guard_triggered {
             guard_total = guard_total
                 .checked_add(1)
@@ -1846,7 +1846,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             // Use ASERT difficulty adjustment after sufficient history
             let next_target =
                 asert_next_target(anchor.target as u64, height_delta, time_delta, &params, None);
-            let mut next_bits = target_to_compact(next_target as f64);
+            let mut next_bits = target_to_compact_u64(next_target);
             if next_bits == 0 {
                 next_bits = block_bits;
             }
