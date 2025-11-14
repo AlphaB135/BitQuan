@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import DashboardPage from './pages/DashboardPage';
 import HalvingPage from './pages/HalvingPage';
 import RigsPage from './pages/RigsPage';
-import { WalletPage } from './pages/WalletPage';
+import { WalletPage } from './src/pages/WalletPage';
 import StatisticsPage from './pages/StatisticsPage';
 import AlertsPage from './pages/AlertsPage';
 import SettingsPage from './pages/SettingsPage';
