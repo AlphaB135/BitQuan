@@ -29,3 +29,9 @@ forks/
 # Wallet files
 *.json
 crates/wallet/*.json
+
+# Tauri build artifacts
+tools/bitquan-gui/src-tauri/target/
+tools/bitquan-gui/target/
+tools/bitquan-gui/dist/
+tools/bitquan-gui/src-tauri/Cargo.lock
