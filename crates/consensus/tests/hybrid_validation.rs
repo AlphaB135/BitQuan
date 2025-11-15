@@ -67,7 +67,7 @@ fn sha256d_header_validation() {
     let header = dummy_header(0);
 
     // Should be able to compute hash
-    let hash = engine.pow_hash(&header).unwrap();
+    let hash = engine.pow_hash(&header).expect("Failed to compute SHA256d hash");
     assert_eq!(hash.len(), 32);
 
     // With very easy target (0x207fffff), nonce=0 might pass
@@ -82,7 +82,7 @@ fn randomx_header_validation() {
     let header = dummy_header(1);
 
     // Should be able to compute hash
-    let hash = engine.pow_hash(&header).unwrap();
+    let hash = engine.pow_hash(&header).expect("Failed to compute RandomX hash");
     assert_eq!(hash.len(), 32);
 
     // Verification mechanism should work

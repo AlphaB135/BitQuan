@@ -10,6 +10,11 @@ use thiserror::Error;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "randomx")]
+use randomx_rs::{RandomXCache, RandomXVM, RandomXFlag};
+
+
+
 /// Minimum compact bits permitted (hardest difficulty - mainnet level).
 pub const DEVNET_MIN_BITS: u32 = 0x1c00ffff;
 /// Maximum compact bits permitted (easiest difficulty - for development).
@@ -407,7 +412,7 @@ pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mut
     };
     
     // Compute hashimoto light (Ethash PoW) - simpler version for light clients
-    let (mix_hash, result_hash) = hashimoto_light(
+    let (_mix_hash, result_hash) = hashimoto_light(
         header_hash,
         nonce,
         epoch as usize,
