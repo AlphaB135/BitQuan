@@ -291,6 +291,41 @@ export class WalletAPI {
     return await invoke('get_network_info');
   }
 
+  static async estimateFee(targetBlocks?: number): Promise<{ feeRate: number; confidence: number }> {
+    return await invoke('estimate_fee', { targetBlocks });
+  }
+
+  static async getTransactionStatus(txid: string): Promise<{
+    status: 'pending' | 'confirmed' | 'failed';
+    confirmations: number;
+    blockHeight?: number;
+    timestamp?: number;
+  }> {
+    return await invoke('get_transaction_status', { txid });
+  }
+
+  static async getUtxos(): Promise<Array<{
+    txid: string;
+    vout: number;
+    value: number;
+    scriptPubkey: string;
+    confirmations: number;
+  }>> {
+    return await invoke('get_utxos');
+  }
+
+  static async validateAddress(address: string): Promise<{ valid: boolean; error?: string }> {
+    return await invoke('validate_address', { address });
+  }
+
+  static async backupWallet(password: string): Promise<{ success: boolean; backupData?: string; error?: string }> {
+    return await invoke('backup_wallet', { password });
+  }
+
+  static async getMnemonicPhrase(password: string): Promise<{ success: boolean; mnemonic?: string; error?: string }> {
+    return await invoke('get_mnemonic_phrase', { password });
+  }
+
   static async createBackup(request: BackupRequest): Promise<BackupResponse> {
     return await invoke('create_backup', { request });
   }

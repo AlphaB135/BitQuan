@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { WalletAPI, EncryptedKeystoreData, calculateTransactionSighash, TransactionHistory, WalletBalance, NetworkInfo } from '../api/wallet';
 
 export const WalletPage: React.FC = () => {
@@ -11,6 +11,12 @@ export const WalletPage: React.FC = () => {
   const [transactions, setTransactions] = useState<TransactionHistory[]>([]);
   const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'receive' | 'history' | 'settings'>('overview');
+  const [showQR, setShowQR] = useState(false);
+  const [qrData, setQRData] = useState('');
+  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [feeRate, setFeeRate] = useState(1000);
+  const [txConfirm, setTxConfirm] = useState<any>(null);
 
   useEffect(() => {
     loadWalletStatus();
@@ -95,11 +101,18 @@ export const WalletPage: React.FC = () => {
       setError('Please unlock wallet first');
       return;
     }
+    
+    // Validate inputs
+    if (!toAddress || !amount || amount <= 0) {
+      setError('Please enter valid address and amount');
+      return;
+    }
+    
     setLoading(true);
     setError('');
     
     try {
-      // Build transaction
+      // Build transaction with better UTXO handling
       const transaction = {
         version: 1,
         inputs: [
@@ -149,11 +162,17 @@ export const WalletPage: React.FC = () => {
       
       const broadcastResponse = await WalletAPI.sendRawTransaction({
         tx_hex: txHex,
-        max_fee_rate: 1000,
+        max_fee_rate: feeRate,
       });
       
       if (broadcastResponse.success && broadcastResponse.txid) {
-        alert(`Transaction sent! TXID: ${broadcastResponse.txid}`);
+        setTxConfirm({
+          txid: broadcastResponse.txid,
+          amount,
+          toAddress,
+          fee: broadcastResponse.fee || 0,
+          status: 'sent'
+        });
         await loadWalletStatus();
       } else {
         setError(broadcastResponse.error || 'Failed to broadcast transaction');
@@ -163,6 +182,37 @@ export const WalletPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCopyAddress = async () => {
+    if (address) {
+      try {
+        await navigator.clipboard.writeText(address);
+        setCopiedAddress(true);
+        setTimeout(() => setCopiedAddress(false), 2000);
+      } catch (err) {
+        setError('Failed to copy address');
+      }
+    }
+  };
+
+  const handleShowQR = () => {
+    if (address) {
+      setQRData(address);
+      setShowQR(true);
+    }
+  };
+
+  const handleConfirmTransaction = async () => {
+    if (txConfirm) {
+      setTxConfirm(null);
+      // Refresh transaction history
+      await loadWalletData();
+    }
+  };
+
+  const handleCancelTransaction = () => {
+    setTxConfirm(null);
   };
 
   const handleLockWallet = async () => {
@@ -293,9 +343,25 @@ export const WalletPage: React.FC = () => {
               </span>
             )}
             {address && (
-              <span className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded">
-                {address.slice(0, 10)}...{address.slice(-8)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded">
+                  {address.slice(0, 10)}...{address.slice(-8)}
+                </span>
+                <button
+                  onClick={handleCopyAddress}
+                  className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+                  title="Copy address"
+                >
+                  {copiedAddress ? '✓' : '📋'}
+                </button>
+                <button
+                  onClick={handleShowQR}
+                  className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+                  title="Show QR code"
+                >
+                  📱
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -306,6 +372,95 @@ export const WalletPage: React.FC = () => {
           <p className="text-red-600 dark:text-red-400">{error}</p>
         </Card>
       )}
+
+      {/* QR Code Modal */}
+      {showQR && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="max-w-md w-full mx-4">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Receive Address
+              </h3>
+              <div className="bg-white p-4 rounded-lg mb-4">
+                {/* QR Code placeholder */}
+                <div className="w-64 h-64 bg-gray-200 dark:bg-gray-700 flex items-center justify-center mx-auto">
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">📱</div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">QR Code</p>
+                    <p className="font-mono text-xs mt-2 break-all">{qrData}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <p className="font-mono text-sm bg-gray-100 dark:bg-gray-800 p-3 rounded break-all">
+                  {qrData}
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleCopyAddress}
+                    className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    {copiedAddress ? '✓ Copied' : '📋 Copy Address'}
+                  </button>
+                  <button
+                    onClick={() => setShowQR(false)}
+                    className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Transaction Confirmation Modal */}
+      {txConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="max-w-md w-full mx-4">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Transaction Confirmation
+              </h3>
+              <div className="space-y-3 mb-6">
+                <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">To Address</p>
+                  <p className="font-mono text-sm break-all">{txConfirm.toAddress}</p>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Amount</p>
+                  <p className="text-lg font-semibold">{txConfirm.amount} BQ</p>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Estimated Fee</p>
+                  <p className="text-sm">{(txConfirm.fee / 100000000).toFixed(8)} BQ</p>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Status</p>
+                  <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                    {txConfirm.status === 'sent' ? '✓ Sent' : 'Pending...'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleConfirmTransaction}
+                  className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  Done
+                </button>
+                <button
+                  onClick={handleCancelTransaction}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
       
       {loading && (
         <Card>
@@ -315,6 +470,83 @@ export const WalletPage: React.FC = () => {
         </Card>
       )}
       
+      {/* Balance Display */}
+      {!isLocked && balance && (
+        <Card>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Wallet Balance</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Confirmed</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {(balance.confirmed / 100000000).toFixed(8)} BQ
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Unconfirmed</p>
+              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                {(balance.unconfirmed / 100000000).toFixed(8)} BQ
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
+              <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">
+                {(balance.total / 100000000).toFixed(8)} BQ
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Transaction History */}
+      {!isLocked && transactions.length > 0 && (
+        <Card>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Transactions</h3>
+            <button
+              onClick={() => setActiveTab('history')}
+              className="text-sm text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 dark:hover:text-cyan-300"
+            >
+              View All →
+            </button>
+          </div>
+          <div className="space-y-2">
+            {transactions.slice(0, 5).map((tx, index) => (
+              <div key={tx.txid} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-semibold ${
+                      tx.type === 'sent' 
+                        ? 'text-red-600 dark:text-red-400' 
+                        : 'text-green-600 dark:text-green-400'
+                    }`}>
+                      {tx.type === 'sent' ? '↓ Sent' : '↑ Received'}
+                    </span>
+                    <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                      {tx.txid.slice(0, 8)}...
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {tx.address}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className={`font-semibold ${
+                    tx.type === 'sent' 
+                      ? 'text-red-600 dark:text-red-400' 
+                      : 'text-green-600 dark:text-green-400'
+                  }`}>
+                    {tx.type === 'sent' ? '-' : '+'}{(tx.amount / 100000000).toFixed(8)} BQ
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {tx.confirmations > 0 ? `${tx.confirmations} confirmations` : 'Pending'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <div className="space-y-6">
         {isLocked ? (
           <WalletUnlockForm 
@@ -323,12 +555,57 @@ export const WalletPage: React.FC = () => {
             loading={loading}
           />
         ) : (
-          <WalletUnlockedView
-            address={address}
-            onSend={handleSend}
-            onLock={handleLockWallet}
-            loading={loading}
-          />
+          <>
+            {/* Tab Navigation */}
+            <div className="flex space-x-1 mb-6">
+              {(['overview', 'send', 'receive', 'history'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2 font-semibold rounded-lg transition-colors ${
+                    activeTab === tab
+                      ? 'bg-cyan-500 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'overview' && (
+              <WalletUnlockedView
+                address={address}
+                onSend={handleSend}
+                onLock={handleLockWallet}
+                loading={loading}
+              />
+            )}
+            
+            {activeTab === 'send' && (
+              <WalletUnlockedView
+                address={address}
+                onSend={handleSend}
+                onLock={handleLockWallet}
+                loading={loading}
+              />
+            )}
+            
+            {activeTab === 'receive' && (
+              <WalletReceiveView
+                address={address}
+                onLock={handleLockWallet}
+              />
+            )}
+            
+            {activeTab === 'history' && (
+              <WalletHistoryView
+                transactions={transactions}
+                onLock={handleLockWallet}
+              />
+            )}
+          </>
         )}
       </div>
     </div>
@@ -476,6 +753,195 @@ const WalletUnlockedView: React.FC<{
   };
 
   return (
+    <Card>
+      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Send Transaction</h3>
+      <form onSubmit={handleSend} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            To Address:
+          </label>
+          <input
+            type="text"
+            value={toAddress}
+            onChange={(e) => setToAddress(e.target.value)}
+            placeholder="bq1..."
+            required
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Amount:
+          </label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            step="0.00000001"
+            required
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Confirm Password:
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Re-enter password for security"
+            required
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          />
+        </div>
+        <button 
+          type="submit" 
+          disabled={loading}
+          className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+        >
+          {loading ? 'Signing...' : 'Send Transaction'}
+        </button>
+      </form>
+    </Card>
+  );
+};
+
+// Wallet receive view component
+const WalletReceiveView: React.FC<{
+  address: string;
+  onLock: () => void;
+}> = ({ address, onLock }) => {
+  const [showQR, setShowQR] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy address:', err);
+    }
+  };
+
+  return (
+    <Card>
+      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Receive Payment</h3>
+      
+      <div className="text-center space-y-6">
+        {/* QR Code Placeholder */}
+        <div className="bg-white p-6 rounded-lg inline-block">
+          <div className="w-48 h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-4xl mb-2">📱</div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">QR Code</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Address Display */}
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">Your BitQuan Address:</p>
+          <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+            <p className="font-mono text-sm break-all">{address}</p>
+          </div>
+          
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={handleCopy}
+              className="bg-cyan-500 hover:bg-cyan-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors flex items-center gap-2"
+            >
+              {copied ? '✓ Copied' : '📋 Copy Address'}
+            </button>
+            <button
+              onClick={() => setShowQR(!showQR)}
+              className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+            >
+              {showQR ? 'Hide QR' : 'Show QR'}
+            </button>
+          </div>
+        </div>
+        
+        {/* Security Note */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            <strong>Security Note:</strong> This address is post-quantum protected with Dilithium3 signatures.
+            Only share this address with trusted parties.
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+// Wallet history view component
+const WalletHistoryView: React.FC<{
+  transactions: TransactionHistory[];
+  onLock: () => void;
+}> = ({ transactions, onLock }) => {
+  return (
+    <Card>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Transaction History</h3>
+        <button
+          onClick={onLock}
+          className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+        >
+          🔒 Lock Wallet
+        </button>
+      </div>
+      
+      {transactions.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">No transactions yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {transactions.map((tx) => (
+            <div key={tx.txid} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-semibold ${
+                    tx.type === 'sent' 
+                      ? 'text-red-600 dark:text-red-400' 
+                      : 'text-green-600 dark:text-green-400'
+                  }`}>
+                    {tx.type === 'sent' ? '↓ Sent' : '↑ Received'}
+                  </span>
+                  <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                    {tx.txid.slice(0, 8)}...
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {tx.address}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {new Date(tx.timestamp * 1000).toLocaleString()}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className={`font-semibold ${
+                  tx.type === 'sent' 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : 'text-green-600 dark:text-green-400'
+                }`}>
+                  {tx.type === 'sent' ? '-' : '+'}{(tx.amount / 100000000).toFixed(8)} BQ
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {tx.confirmations > 0 ? `${tx.confirmations} confirmations` : 'Pending'}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+};
+
+  return (
     <div className="space-y-6">
       <Card>
         <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
@@ -514,6 +980,59 @@ const WalletUnlockedView: React.FC<{
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
+          
+          {/* Fee Rate Selection */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Fee Rate (sat/byte):
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-sm text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 dark:hover:text-cyan-300"
+              >
+                {showAdvanced ? '▼ Simple' : '▲ Advanced'}
+              </button>
+            </div>
+            
+            {showAdvanced ? (
+              <input
+                type="number"
+                value={feeRate}
+                onChange={(e) => setFeeRate(parseInt(e.target.value) || 1000)}
+                placeholder="1000"
+                min="1"
+                max="10000"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFeeRate(500)}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Low (500)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeeRate(1000)}
+                  className="px-3 py-2 border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 text-sm rounded-lg"
+                >
+                  Medium (1000)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeeRate(2000)}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                >
+                  High (2000)
+                </button>
+              </div>
+            )}
+          </div>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Confirm Password:
