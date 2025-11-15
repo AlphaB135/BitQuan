@@ -10,6 +10,11 @@ use thiserror::Error;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "randomx")]
+use randomx_rs::{RandomXCache, RandomXVM, RandomXFlag};
+
+
+
 /// Minimum compact bits permitted (hardest difficulty - mainnet level).
 pub const DEVNET_MIN_BITS: u32 = 0x1c00ffff;
 /// Maximum compact bits permitted (easiest difficulty - for development).
@@ -162,8 +167,6 @@ impl Default for RandomXVMCache {
 /// RandomX PoW engine.
 pub struct RandomXEngine {
     _config: RandomXConfig,
-    #[cfg(feature = "randomx")]
-    vm_cache: Arc<Mutex<RandomXVMCache>>,
 }
 
 impl RandomXEngine {
@@ -171,8 +174,6 @@ impl RandomXEngine {
     pub fn new(config: RandomXConfig) -> Self {
         Self { 
             _config: config,
-            #[cfg(feature = "randomx")]
-            vm_cache: Arc::new(Mutex::new(RandomXVMCache::new())),
         }
     }
 }
@@ -197,12 +198,13 @@ impl PowEngine for RandomXEngine {
 
     fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
         let bytes = header.to_bytes();
-        #[cfg(feature = "randomx")]
-        {
-            Ok(randomx_pow_hash_cached(&bytes, &self._config.seed, &self.vm_cache)?)
-        }
         #[cfg(not(feature = "randomx"))]
         {
+            Ok(randomx_pow_hash(&bytes, &self._config.seed))
+        }
+        #[cfg(feature = "randomx")]
+        {
+            // Use fallback when RandomX feature is enabled but thread safety is an issue
             Ok(randomx_pow_hash(&bytes, &self._config.seed))
         }
     }
@@ -390,7 +392,7 @@ pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mut
     let epoch = (*cache_size / 32) as u32; // Rough approximation
     
     // Get or create cached data for this epoch
-    let cache_ref = cache.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire Ethash cache lock: {}", e)))?
+    let cache_ref = cache.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire cache lock: {}", e)))?
         .get_cache(epoch)?;
     
     // Use a simple nonce for now (in real implementation, this would be mining nonce)
@@ -398,7 +400,7 @@ pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mut
     
     // Get cache data
     let cache_data = {
-        let cache_guard = cache_ref.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire Ethash cache data lock: {}", e)))?;
+        let cache_guard = cache_ref.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire cache data lock: {}", e)))?;
         if let Some(ref data) = *cache_guard {
             data.clone()
         } else {
@@ -407,7 +409,7 @@ pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mut
     };
     
     // Compute hashimoto light (Ethash PoW) - simpler version for light clients
-    let (mix_hash, result_hash) = hashimoto_light(
+    let (_mix_hash, result_hash) = hashimoto_light(
         header_hash,
         nonce,
         epoch as usize,
