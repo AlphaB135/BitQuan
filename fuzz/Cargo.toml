@@ -75,3 +75,24 @@ path = "fuzz_targets/fuzz_wire.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_asert"
+path = "fuzz_targets/fuzz_asert.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_pow"
+path = "fuzz_targets/fuzz_pow.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_consensus"
+path = "fuzz_targets/fuzz_consensus.rs"
+test = false
+doc = false
+bench = false
