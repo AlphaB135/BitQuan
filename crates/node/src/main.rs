@@ -1814,11 +1814,11 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
 
         let height_delta = block_height as i64 - anchor.height as i64;
         let time_delta = block_time - anchor.timestamp;
-        let expected_time = params.difficulty.target_block_time as f64 * height_delta.max(1) as f64;
+        let expected_time = params.difficulty.asert.target_block_time as f64 * height_delta.max(1) as f64;
         let _average = if height_delta > 0 {
             time_delta as f64 / height_delta as f64
         } else {
-            params.difficulty.target_block_time as f64
+            params.difficulty.asert.target_block_time as f64
         };
         let ratio = if expected_time > 0.0 {
             time_delta as f64 / expected_time
@@ -3642,6 +3642,14 @@ fn run_stratum_server(
         enable_vardiff: true,
         vardiff_target_time: 15.0,
         vardiff_adjust_rate: 0.05,
+        
+        // Security settings
+        require_auth: false,
+        max_connections_per_ip: 3,
+        max_share_rate: 10.0,
+        connection_timeout: 300,
+        max_connections: 100,
+        enable_rate_limiting: true,
     };
 
     println!("Starting BitQuan Stratum Mining Server");
