@@ -11,18 +11,18 @@ type BlockStatus = 'mined' | 'mining' | 'unmined';
 
 // A single block in the grid, now with a block number
 const Block: React.FC<{ status: BlockStatus; blockNumber: number }> = React.memo(({ status, blockNumber }) => {
-  const baseClasses = 'w-full h-full rounded-lg transition-colors duration-300 flex items-center justify-center p-1 select-none';
+  const baseClasses = 'w-full h-full rounded transition-colors duration-300 flex items-center justify-center p-0.5 md:p-1 select-none';
   let statusClasses = '';
   let textClasses = 'font-mono text-center';
 
   switch (status) {
     case 'mined':
       statusClasses = 'bg-gray-200 dark:bg-gray-800 border border-cyan-300 dark:border-cyan-800';
-      textClasses += ' text-cyan-800 dark:text-cyan-600 text-xs';
+      textClasses += ' text-cyan-800 dark:text-cyan-600 text-xs md:text-xs';
       break;
     case 'mining':
-      statusClasses = 'bg-cyan-500 animate-pulse border-2 border-cyan-300 shadow-lg shadow-cyan-500/50';
-      textClasses += ' text-white font-bold text-base';
+      statusClasses = 'bg-cyan-500 animate-pulse border border-cyan-300 shadow-lg shadow-cyan-500/50';
+      textClasses += ' text-white font-bold text-xs md:text-sm';
       break;
     case 'unmined':
       statusClasses = 'bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600/80';
@@ -32,7 +32,8 @@ const Block: React.FC<{ status: BlockStatus; blockNumber: number }> = React.memo
   
   return (
     <div className={`${baseClasses} ${statusClasses}`}>
-      <span className={textClasses}>{blockNumber}</span>
+      <span className={`${textClasses} hidden sm:inline`}>{blockNumber}</span>
+      <span className={`${textClasses} sm:hidden text-xs`}>{blockNumber % 100}</span>
     </div>
   );
 });
@@ -85,8 +86,8 @@ const HalvingPage: React.FC = () => {
       </Card>
       
       {/* Grid of blocks */}
-      <Card className="p-4">
-        <div className="grid gap-2" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))'}}>
+      <Card className="p-2 md:p-4">
+        <div className="grid gap-1 md:gap-2 grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-14 xl:grid-cols-16">
           {Array.from({ length: TOTAL_BLOCKS_IN_GRID }).map((_, index) => {
             let status: BlockStatus = 'unmined';
             if (index < currentBlockHeight) {

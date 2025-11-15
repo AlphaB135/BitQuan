@@ -10,7 +10,7 @@ const RigCard: React.FC<{ rig: Rig; onToggle: (id: number, isActive: boolean) =>
   const textColor = rig.is_active ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400';
 
   return (
-    <Card className={`transition-all duration-300 ${statusColor} ${!rig.isActive ? 'bg-gray-50 dark:bg-gray-800/50' : ''}`}>
+    <Card className={`transition-all duration-300 ${statusColor} ${!rig.is_active ? 'bg-gray-50 dark:bg-gray-800/50' : ''}`}>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-4">
@@ -80,7 +80,10 @@ const RigsPage: React.FC = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+                <div className="flex flex-col items-center space-y-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+                    <div className="text-gray-500 dark:text-gray-400">Loading rigs...</div>
+                </div>
             </div>
         );
     }

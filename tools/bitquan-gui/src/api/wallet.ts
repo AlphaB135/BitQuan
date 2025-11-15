@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface EncryptedKeystoreData {
   address: string;
@@ -47,6 +47,11 @@ export interface WalletStatusResponse {
     total_entries: number;
     memory_usage_bytes: number;
   };
+  key_info?: {
+    algorithm: string;
+    security_level: string;
+    created_at: number;
+  };
 }
 
 export interface RawTransactionRequest {
@@ -57,6 +62,57 @@ export interface RawTransactionRequest {
 export interface RawTransactionResponse {
   success: boolean;
   txid?: string;
+  error?: string;
+  fee?: number;
+  size?: number;
+}
+
+export interface TransactionHistory {
+  txid: string;
+  type: 'sent' | 'received';
+  amount: number;
+  address: string;
+  timestamp: number;
+  confirmations: number;
+  fee?: number;
+  status: 'pending' | 'confirmed' | 'failed';
+}
+
+export interface WalletBalance {
+  confirmed: number;
+  unconfirmed: number;
+  total: number;
+  address: string;
+}
+
+export interface NetworkInfo {
+  network: 'mainnet' | 'testnet' | 'devnet';
+  block_height: number;
+  difficulty: number;
+  connections: number;
+  version: string;
+}
+
+export interface BackupRequest {
+  password: string;
+  include_metadata?: boolean;
+}
+
+export interface BackupResponse {
+  success: boolean;
+  backup_data?: string;
+  filename?: string;
+  error?: string;
+}
+
+export interface RestoreRequest {
+  backup_data: string;
+  password: string;
+}
+
+export interface RestoreResponse {
+  success: boolean;
+  keystore_data?: EncryptedKeystoreData;
   error?: string;
 }
 
@@ -221,5 +277,99 @@ export class WalletAPI {
 
   static async sendRawTransaction(request: RawTransactionRequest): Promise<RawTransactionResponse> {
     return await invoke('send_raw_transaction', { request });
+  }
+
+  static async getTransactionHistory(limit?: number): Promise<TransactionHistory[]> {
+    return await invoke('get_transaction_history', { limit });
+  }
+
+  static async getWalletBalance(): Promise<WalletBalance> {
+    return await invoke('get_wallet_balance');
+  }
+
+  static async getNetworkInfo(): Promise<NetworkInfo> {
+    return await invoke('get_network_info');
+  }
+
+  static async estimateFee(targetBlocks?: number): Promise<{ feeRate: number; confidence: number }> {
+    return await invoke('estimate_fee', { targetBlocks });
+  }
+
+  static async getTransactionStatus(txid: string): Promise<{
+    status: 'pending' | 'confirmed' | 'failed';
+    confirmations: number;
+    blockHeight?: number;
+    timestamp?: number;
+  }> {
+    return await invoke('get_transaction_status', { txid });
+  }
+
+  static async getUtxos(): Promise<Array<{
+    txid: string;
+    vout: number;
+    value: number;
+    scriptPubkey: string;
+    confirmations: number;
+  }>> {
+    return await invoke('get_utxos');
+  }
+
+  static async validateAddress(address: string): Promise<{ valid: boolean; error?: string }> {
+    return await invoke('validate_address', { address });
+  }
+
+  static async backupWallet(password: string): Promise<{ success: boolean; backupData?: string; error?: string }> {
+    return await invoke('backup_wallet', { password });
+  }
+
+  static async getMnemonicPhrase(password: string): Promise<{ success: boolean; mnemonic?: string; error?: string }> {
+    return await invoke('get_mnemonic_phrase', { password });
+  }
+
+  static async createBackup(request: BackupRequest): Promise<BackupResponse> {
+    return await invoke('create_backup', { request });
+  }
+
+  static async restoreWallet(request: RestoreRequest): Promise<RestoreResponse> {
+    return await invoke('restore_wallet', { request });
+  }
+
+  static async validateAddress(address: string): Promise<{ valid: boolean; error?: string }> {
+    return await invoke('validate_address', { address });
+  }
+
+  static async estimateFee(targetBlocks?: number): Promise<{ feeRate: number; confidence: number }> {
+    return await invoke('estimate_fee', { targetBlocks });
+  }
+
+  static async getTransactionStatus(txid: string): Promise<{
+    status: 'pending' | 'confirmed' | 'failed';
+    confirmations: number;
+    blockHeight?: number;
+    timestamp?: number;
+  }> {
+    return await invoke('get_transaction_status', { txid });
+  }
+
+  static async exportKeystore(password: string): Promise<{ success: boolean; data?: string; error?: string }> {
+    return await invoke('export_keystore', { password });
+  }
+
+  static async importKeystore(keystoreData: string, password: string): Promise<{ success: boolean; error?: string }> {
+    return await invoke('import_keystore', { keystoreData, password });
+  }
+
+  static async changePassword(oldPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+    return await invoke('change_password', { oldPassword, newPassword });
+  }
+
+  static async getSecurityInfo(): Promise<{
+    algorithm: string;
+    securityLevel: string;
+    memoryLocked: boolean;
+    cacheEnabled: boolean;
+    lastActivity: number;
+  }> {
+    return await invoke('get_security_info');
   }
 }

@@ -3,9 +3,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import Wallet Page Styles */
-@import './WalletPage.css';
-
 /* Base styles */
 body {
   margin: 0;
