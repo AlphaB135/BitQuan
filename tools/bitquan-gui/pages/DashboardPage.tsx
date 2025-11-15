@@ -36,7 +36,10 @@ const DashboardPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+          <div className="text-gray-500 dark:text-gray-400">Loading dashboard data...</div>
+        </div>
       </div>
     );
   }
@@ -70,26 +73,26 @@ const DashboardPage: React.FC = () => {
       <Card>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Running Miners</h2>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-[500px]">
             <thead className="border-b border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 uppercase text-xs">
               <tr>
-                <th className="p-3 font-semibold">Name</th>
-                <th className="p-3 font-semibold">Pool</th>
-                <th className="p-3 font-semibold">Devices</th>
-                <th className="p-3 font-semibold">Profit (BQ/day)</th>
-                <th className="p-3 font-semibold">Algorithm</th>
-                <th className="p-3 font-semibold">Speed</th>
+                <th className="p-2 md:p-3 font-semibold">Name</th>
+                <th className="p-2 md:p-3 font-semibold">Pool</th>
+                <th className="p-2 md:p-3 font-semibold">Devices</th>
+                <th className="p-2 md:p-3 font-semibold">Profit</th>
+                <th className="p-2 md:p-3 font-semibold">Algorithm</th>
+                <th className="p-2 md:p-3 font-semibold">Speed</th>
               </tr>
             </thead>
             <tbody>
               {miners.map((miner) => (
                 <tr key={miner.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                  <td className="p-3 font-medium text-gray-900 dark:text-gray-100">{miner.name}</td>
-                  <td className="p-3 text-gray-700 dark:text-gray-300">{miner.pool}</td>
-                  <td className="p-3 text-gray-700 dark:text-gray-300">{miner.devices}</td>
-                  <td className="p-3 text-green-500 dark:text-green-400 font-semibold">+{miner.profit.toFixed(2)}</td>
-                  <td className="p-3 text-gray-700 dark:text-gray-300">{miner.algo}</td>
-                  <td className="p-3 font-mono text-gray-700 dark:text-gray-300">{miner.speed}</td>
+                  <td className="p-2 md:p-3 font-medium text-gray-900 dark:text-gray-100 text-sm">{miner.name}</td>
+                  <td className="p-2 md:p-3 text-gray-700 dark:text-gray-300 text-sm">{miner.pool}</td>
+                  <td className="p-2 md:p-3 text-gray-700 dark:text-gray-300 text-sm">{miner.devices}</td>
+                  <td className="p-2 md:p-3 text-green-500 dark:text-green-400 font-semibold text-sm">+{miner.profit.toFixed(2)}</td>
+                  <td className="p-2 md:p-3 text-gray-700 dark:text-gray-300 text-sm">{miner.algo}</td>
+                  <td className="p-2 md:p-3 font-mono text-gray-700 dark:text-gray-300 text-sm">{miner.speed}</td>
                 </tr>
               ))}
             </tbody>

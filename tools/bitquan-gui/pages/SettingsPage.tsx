@@ -20,12 +20,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentTheme, setTheme }) =
   const [networkStatus, setNetworkStatus] = useState<Record<string, string>>({});
 
   const SettingRow: React.FC<{ title: string, description: string, children: React.ReactNode }> = ({ title, description, children }) => (
-    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 border-b border-gray-200 dark:border-gray-700">
-      <div>
+    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 border-b border-gray-200 dark:border-gray-700 gap-4">
+      <div className="flex-1">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
       </div>
-      <div className="mt-2 sm:mt-0">
+      <div className="mt-2 sm:mt-0 sm:ml-4">
         {children}
       </div>
     </div>
@@ -117,30 +117,30 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentTheme, setTheme }) =
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Select Network
             </label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 onClick={() => switchNetwork('mainnet')}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                   selectedNetwork === 'mainnet'
                     ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300'
                     : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
                 }`}
               >
-                <div className="text-lg font-bold">🟢 Mainnet</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-base sm:text-lg font-bold">🟢 Mainnet</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {networkStatus.mainnet || 'Checking...'}
                 </div>
               </button>
               <button
                 onClick={() => switchNetwork('testnet')}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                   selectedNetwork === 'testnet'
                     ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
                     : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
                 }`}
               >
-                <div className="text-lg font-bold">🧪 Testnet</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-base sm:text-lg font-bold">🧪 Testnet</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {networkStatus.testnet || 'Checking...'}
                 </div>
               </button>

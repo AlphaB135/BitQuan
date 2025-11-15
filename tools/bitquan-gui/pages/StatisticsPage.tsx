@@ -17,17 +17,17 @@ const BarChart: React.FC<{ data: { day: string, earnings: number }[], title: str
     return (
         <Card>
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">{title}</h3>
-            <div className="flex justify-around items-end h-48 border-l border-b border-gray-200 dark:border-gray-700 p-2">
+            <div className="flex justify-around items-end h-48 border-l border-b border-gray-200 dark:border-gray-700 p-2 overflow-x-auto">
                 {data.map(item => (
-                    <div key={item.day} className="flex flex-col items-center w-1/8">
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-mono">${item.earnings.toFixed(0)}</div>
+                    <div key={item.day} className="flex flex-col items-center min-w-[40px] sm:min-w-[50px] md:min-w-[60px]">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-mono hidden sm:block">${item.earnings.toFixed(0)}</div>
                         <div 
-                            className="w-8 bg-cyan-500 rounded-t-md hover:bg-cyan-400 transition-colors" 
+                            className="w-6 sm:w-8 bg-cyan-500 rounded-t-md hover:bg-cyan-400 transition-colors cursor-pointer" 
                             style={{ height: `${(item.earnings / maxEarning) * 100}%` }}
                             title={`${item.day}: ${item.earnings.toFixed(2)} BQ`}
                         >
                         </div>
-                        <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">{item.day}</div>
+                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{item.day}</div>
                     </div>
                 ))}
             </div>
@@ -62,36 +62,36 @@ const StatisticsPage: React.FC = () => {
         <BarChart data={dailyEarningsData} title="Last 7 Days Earnings (BQ)" />
       </div>
 
-       <Card>
+        <Card>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Rig Performance</h2>
             <div className="overflow-x-auto">
-                <table className="w-full text-left">
+                <table className="w-full text-left min-w-[400px]">
                     <thead className="border-b border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400">
                     <tr>
-                        <th className="p-3">Rig Name</th>
-                        <th className="p-3">Avg. Hashrate (24h)</th>
-                        <th className="p-3">Efficiency</th>
-                        <th className="p-3">Earnings (24h)</th>
+                        <th className="p-2 md:p-3">Rig Name</th>
+                        <th className="p-2 md:p-3">Hashrate</th>
+                        <th className="p-2 md:p-3">Efficiency</th>
+                        <th className="p-2 md:p-3">Earnings</th>
                     </tr>
                     </thead>
                     <tbody>
                         <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                            <td className="p-3 font-medium">Node-01</td>
-                            <td className="p-3 font-mono">1.2 MH/s</td>
-                            <td className="p-3 text-green-500 dark:text-green-400">99.1%</td>
-                            <td className="p-3 font-semibold">125.5 BQ</td>
+                            <td className="p-2 md:p-3 font-medium text-sm">Node-01</td>
+                            <td className="p-2 md:p-3 font-mono text-sm">1.2 MH/s</td>
+                            <td className="p-2 md:p-3 text-green-500 dark:text-green-400 text-sm">99.1%</td>
+                            <td className="p-2 md:p-3 font-semibold text-sm">125.5 BQ</td>
                         </tr>
                          <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                            <td className="p-3 font-medium">Node-02</td>
-                            <td className="p-3 font-mono">1.19 MH/s</td>
-                            <td className="p-3 text-green-500 dark:text-green-400">98.9%</td>
-                            <td className="p-3 font-semibold">124.9 BQ</td>
+                            <td className="p-2 md:p-3 font-medium text-sm">Node-02</td>
+                            <td className="p-2 md:p-3 font-mono text-sm">1.19 MH/s</td>
+                            <td className="p-2 md:p-3 text-green-500 dark:text-green-400 text-sm">98.9%</td>
+                            <td className="p-2 md:p-3 font-semibold text-sm">124.9 BQ</td>
                         </tr>
                          <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                            <td className="p-3 font-medium">Node-CPU</td>
-                            <td className="p-3 font-mono">455 kH/s</td>
-                            <td className="p-3 text-yellow-500 dark:text-yellow-400">97.5%</td>
-                            <td className="p-3 font-semibold">45.2 BQ</td>
+                            <td className="p-2 md:p-3 font-medium text-sm">Node-CPU</td>
+                            <td className="p-2 md:p-3 font-mono text-sm">455 kH/s</td>
+                            <td className="p-2 md:p-3 text-yellow-500 dark:text-yellow-400 text-sm">97.5%</td>
+                            <td className="p-2 md:p-3 font-semibold text-sm">45.2 BQ</td>
                         </tr>
                     </tbody>
                 </table>

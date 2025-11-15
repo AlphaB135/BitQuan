@@ -48,14 +48,14 @@ const App: React.FC = () => {
   const NavItem = ({ page, label, icon }: { page: Page, label: string, icon: React.ReactElement }) => (
     <button
       onClick={() => setActivePage(page)}
-      className={`flex items-center space-x-2 px-4 py-3 rounded-lg transition-colors duration-200 w-full text-left ${
+      className={`flex flex-col md:flex-row items-center md:space-x-2 px-3 py-2 md:px-4 md:py-3 rounded-lg transition-colors duration-200 w-full text-left ${
         activePage === page
           ? 'bg-cyan-500/20 text-cyan-400'
           : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
       }`}
     >
       {icon}
-      <span className="font-medium">{label}</span>
+      <span className="font-medium text-xs md:text-sm mt-1 md:mt-0">{label}</span>
     </button>
   );
 
@@ -63,10 +63,10 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans">
       <div className="flex flex-col md:flex-row">
         <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 md:min-h-screen border-r border-gray-200 dark:border-gray-700">
-          <div className="text-gray-900 dark:text-white text-2xl font-bold mb-8 flex items-center justify-center md:justify-start">
+          <div className="text-gray-900 dark:text-white text-2xl font-bold mb-6 md:mb-8 flex items-center justify-center md:justify-start">
             <span className="text-cyan-500 dark:text-cyan-400">Bit</span>Quan
           </div>
-          <nav className="flex flex-row md:flex-col justify-around md:justify-start md:space-y-2">
+          <nav className="flex flex-row md:flex-col justify-around md:justify-start md:space-y-2 gap-2 md:gap-0">
             <NavItem page="dashboard" label="Dashboard" icon={<DashboardIcon />} />
             <NavItem page="halving" label="Block Progress" icon={<CubeIcon />} />
             <NavItem page="rigs" label="Your Rigs" icon={<ServerIcon />} />

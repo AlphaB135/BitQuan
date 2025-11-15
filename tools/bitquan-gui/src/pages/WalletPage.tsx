@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { WalletAPI, EncryptedKeystoreData, calculateTransactionSighash } from '../api/wallet';
+import { WalletAPI, EncryptedKeystoreData, calculateTransactionSighash, TransactionHistory, WalletBalance, NetworkInfo } from '../api/wallet';
 
 export const WalletPage: React.FC = () => {
   const [isLocked, setIsLocked] = useState(true);
@@ -7,10 +7,32 @@ export const WalletPage: React.FC = () => {
   const [keystoreData, setKeystoreData] = useState<EncryptedKeystoreData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [balance, setBalance] = useState<WalletBalance | null>(null);
+  const [transactions, setTransactions] = useState<TransactionHistory[]>([]);
+  const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'receive' | 'history' | 'settings'>('overview');
 
   useEffect(() => {
     loadWalletStatus();
-  }, []);
+    if (!isLocked) {
+      loadWalletData();
+    }
+  }, [isLocked]);
+
+  const loadWalletData = async () => {
+    try {
+      const [balanceData, txHistory, netInfo] = await Promise.all([
+        WalletAPI.getWalletBalance(),
+        WalletAPI.getTransactionHistory(10),
+        WalletAPI.getNetworkInfo()
+      ]);
+      setBalance(balanceData);
+      setTransactions(txHistory);
+      setNetworkInfo(netInfo);
+    } catch (err) {
+      console.error('Failed to load wallet data:', err);
+    }
+  };
 
   const loadWalletStatus = async () => {
     try {
@@ -247,27 +269,53 @@ export const WalletPage: React.FC = () => {
   };
 
   return (
-    <div className="wallet-page">
-      <div className="wallet-header">
-        <h2>BitQuan PQC Wallet</h2>
-        <div className="wallet-status">
-          <span className={`status ${isLocked ? 'locked' : 'unlocked'}`}>
-            {isLocked ? '🔒 Locked' : '🔓 Unlocked'}
-          </span>
-          {address && <span className="address">{address}</span>}
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <Card>
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">BitQuan PQC Wallet</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Post-Quantum Cryptography Protected
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+              isLocked 
+                ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400' 
+                : 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400'
+            }`}>
+              {isLocked ? '🔒 Locked' : '🔓 Unlocked'}
+            </span>
+            {networkInfo && (
+              <span className="px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                {networkInfo.network.toUpperCase()}
+              </span>
+            )}
+            {address && (
+              <span className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded">
+                {address.slice(0, 10)}...{address.slice(-8)}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
+      
       {error && (
-        <div className="error-message">
-          {error}
-        </div>
+        <Card className="border-l-4 border-red-500 bg-red-50 dark:bg-red-900/20">
+          <p className="text-red-600 dark:text-red-400">{error}</p>
+        </Card>
       )}
+      
       {loading && (
-        <div className="loading">
-          Processing...
-        </div>
+        <Card>
+          <div className="text-center py-4">
+            <div className="text-gray-500 dark:text-gray-400">Processing...</div>
+          </div>
+        </Card>
       )}
-      <div className="wallet-actions">
+      
+      <div className="space-y-6">
         {isLocked ? (
           <WalletUnlockForm 
             onUnlock={handleUnlockWallet}
@@ -319,70 +367,95 @@ const WalletUnlockForm: React.FC<{
   };
 
   return (
-    <div className="wallet-form">
-      <div className="mode-selector">
+    <Card>
+      <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 mb-6">
         <button 
-          className={mode === 'unlock' ? 'active' : ''}
+          className={`flex-1 px-4 py-3 font-semibold transition-colors ${
+            mode === 'unlock' 
+              ? 'bg-cyan-500 text-white' 
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+          }`}
           onClick={() => setMode('unlock')}
         >
           Unlock Existing
         </button>
         <button 
-          className={mode === 'create' ? 'active' : ''}
+          className={`flex-1 px-4 py-3 font-semibold transition-colors ${
+            mode === 'create' 
+              ? 'bg-cyan-500 text-white' 
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+          }`}
           onClick={() => setMode('create')}
         >
           Create New
         </button>
       </div>
-      <form onSubmit={handleSubmit}>
+      
+      <form onSubmit={handleSubmit} className="space-y-4">
         {mode === 'unlock' && (
-          <div className="form-group">
-            <label>Keystore JSON:</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Keystore JSON:
+            </label>
             <textarea
               value={keystoreJson}
               onChange={(e) => setKeystoreJson(e.target.value)}
               placeholder="Paste your encrypted keystore JSON here..."
               rows={6}
               required
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
             />
           </div>
         )}
         {mode === 'create' && (
-          <div className="form-group">
-            <label>Address Hint (optional):</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Address Hint (optional):
+            </label>
             <input
               type="text"
               value={addressHint}
               onChange={(e) => setAddressHint(e.target.value)}
               placeholder="bq1..."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
         )}
-        <div className="form-group">
-          <label>Password:</label>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Password:
+          </label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
           />
         </div>
         {mode === 'create' && (
-          <div className="form-group">
-            <label>Confirm Password:</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Confirm Password:
+            </label>
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
         )}
-        <button type="submit" disabled={loading}>
+        <button 
+          type="submit" 
+          disabled={loading}
+          className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+        >
           {loading ? 'Processing...' : (mode === 'create' ? 'Create Wallet' : 'Unlock Wallet')}
         </button>
       </form>
-    </div>
+    </Card>
   );
 };
 
@@ -403,25 +476,34 @@ const WalletUnlockedView: React.FC<{
   };
 
   return (
-    <div className="unlocked-wallet">
-      <div className="wallet-info">
-        <p><strong>Address:</strong> {address}</p>
-      </div>
-      <div className="send-form">
-        <h3>Send Transaction</h3>
-        <form onSubmit={handleSend}>
-          <div className="form-group">
-            <label>To Address:</label>
+    <div className="space-y-6">
+      <Card>
+        <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Wallet Address:</p>
+          <p className="font-mono text-sm break-all">{address}</p>
+        </div>
+      </Card>
+      
+      <Card>
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Send Transaction</h3>
+        <form onSubmit={handleSend} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              To Address:
+            </label>
             <input
               type="text"
               value={toAddress}
               onChange={(e) => setToAddress(e.target.value)}
               placeholder="bq1..."
               required
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
             />
           </div>
-          <div className="form-group">
-            <label>Amount:</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Amount:
+            </label>
             <input
               type="number"
               value={amount}
@@ -429,25 +511,37 @@ const WalletUnlockedView: React.FC<{
               placeholder="0.00"
               step="0.00000001"
               required
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
-          <div className="form-group">
-            <label>Confirm Password:</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Confirm Password:
+            </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Re-enter password for security"
               required
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
-          <button type="submit" disabled={loading}>
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+          >
             {loading ? 'Signing...' : 'Send Transaction'}
           </button>
         </form>
-      </div>
-      <div className="wallet-actions">
-        <button onClick={onLock} className="lock-button">
+      </Card>
+      
+      <div className="text-center">
+        <button 
+          onClick={onLock} 
+          className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+        >
           🔒 Lock Wallet
         </button>
       </div>
