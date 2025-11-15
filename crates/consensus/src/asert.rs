@@ -777,7 +777,8 @@ mod tests {
             asert_next_target(anchor, window, fast_time, &params, Some(guard_ctx));
         }
         
-        let trigger_height = guard_state.last_trigger_height().unwrap();
+        let trigger_height = guard_state.last_trigger_height()
+            .expect("Guard state should have trigger height after activation");
         let cooldown = params.difficulty.burst_guard_cooldown_blocks;
         
         // Should be in cooldown
