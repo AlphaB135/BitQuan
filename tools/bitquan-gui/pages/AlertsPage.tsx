@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Card from '../components/Card';
 import { Alert } from '../types';
 import { BellIcon } from '../components/icons';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/tauri';
 
 const AlertItem: React.FC<{ alert: Alert }> = ({ alert }) => {
     const typeClasses = {

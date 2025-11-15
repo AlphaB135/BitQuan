@@ -133,7 +133,7 @@ fn main() -> Result<()> {
 
             let difficulty_ratio = baseline_target / current_target;
             let mean_interval =
-                (params.difficulty.target_block_time as f64) * difficulty_ratio / (segment.hash_rate as f64);
+                (params.difficulty.asert.target_block_time as f64) * difficulty_ratio / (segment.hash_rate as f64);
             let dt_seconds = mean_interval.max(1.0).round() as i64;
 
             let timestamp = prev.timestamp + dt_seconds;
@@ -174,7 +174,7 @@ fn main() -> Result<()> {
             let next_target =
                 asert_next_target(anchor.target as u64, height_delta, time_delta, &params, None) as f64;
 
-            let expected_time = params.difficulty.target_block_time as f64 * height_delta as f64;
+            let expected_time = params.difficulty.asert.target_block_time as f64 * height_delta as f64;
             let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
                 && time_delta > 0
                 && (time_delta as f64) < expected_time * (params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64);
@@ -196,7 +196,7 @@ fn main() -> Result<()> {
                 let avg_interval = if height_delta > 0 {
                     time_delta as f64 / height_delta as f64
                 } else {
-                    params.difficulty.target_block_time as f64
+                    params.difficulty.asert.target_block_time as f64
                 };
                 let ratio = if expected_time > 0.0 {
                     time_delta as f64 / expected_time
@@ -227,7 +227,7 @@ fn main() -> Result<()> {
     println!("blocks simulated: {}", total_blocks);
     println!(
         "average interval: {:.2} s (target {} s)",
-        avg_interval, params.difficulty.target_block_time
+        avg_interval, params.difficulty.asert.target_block_time
     );
     let total_guard = guard_events.len() as f64;
     let guard_per_100 = if total_blocks == 0 {

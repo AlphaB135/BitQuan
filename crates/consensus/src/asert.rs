@@ -229,13 +229,13 @@ pub fn asert_next_target(
     let anchor_clamped = anchor_target.clamp(MIN_TARGET_U64, max_target_u64);
     
     // Calculate expected time for given height delta
-    let expected_time = (height_delta as i64) * (params.difficulty.target_block_time as i64);
+    let expected_time = (height_delta as i64) * (params.difficulty.asert.target_block_time as i64);
     
     // Calculate ASERT exponent in fixed-point
     let exponent_fp = calculate_asert_exponent_fp(
         time_delta,
         expected_time,
-        params.difficulty.difficulty_half_life,
+        params.difficulty.asert.half_life,
     );
     
 
@@ -304,7 +304,7 @@ fn apply_burst_guard_fp(
     }
     
     // Calculate expected time and floor threshold using u128 to prevent overflow
-    let expected_time_fp = (height_delta as u128) * (params.difficulty.target_block_time as u128) * (FP_SCALE as u128);
+    let expected_time_fp = (height_delta as u128) * (params.difficulty.asert.target_block_time as u128) * (FP_SCALE as u128);
     let floor_threshold_fp = (expected_time_fp * floor_ratio_fp as u128) / (FP_SCALE as u128);
     let actual_time_fp = (time_delta as u128) * (FP_SCALE as u128);
     

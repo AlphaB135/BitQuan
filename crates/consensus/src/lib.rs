@@ -7,6 +7,8 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 mod asert;
+#[cfg(test)]
+mod asert_tests;
 mod difficulty;
 mod economic;
 pub mod fork;
@@ -31,19 +33,34 @@ pub use monitoring::{
 };
 pub use pow::{
     check_header_pow, clamp_bits_within_bounds, compact_to_target_bytes, header_hash, PowError,
-    DEVNET_MAX_BITS, DEVNET_MIN_BITS,
+    DEVNET_MAX_BITS, DEVNET_MIN_BITS, randomx_pow_hash,
 };
 pub use script::{verify_script, OpCode, ScriptError, ScriptInterpreter, MAX_SCRIPT_SIZE};
 pub use sighash::{compute_sighash_with_context, transaction_sighash};
 pub use utxo::{OutPoint, UtxoEntry, UtxoError, UtxoSet};
 
+/// ASERT difficulty adjustment parameters for BQIP-0002.
+#[derive(Clone, Debug)]
+pub struct AsertParams {
+    /// Target block time in seconds (default: 600 = 10 minutes).
+    pub target_block_time: u64,
+    /// ASERT half-life in seconds for difficulty smoothing (default: 14400 = 4 hours).
+    pub half_life: u64,
+    /// Maximum allowed difficulty drift as ratio (default: 0.25 = 25%).
+    pub max_drift_fp: u64, // Fixed-point representation (32.32 format)
+    /// Median Time Past window size in blocks (default: 11, Bitcoin standard).
+    pub mtp_window: u64,
+    /// Minimum difficulty (hardest possible).
+    pub min_difficulty: u32,
+    /// Maximum difficulty (easiest possible).
+    pub max_difficulty: u32,
+}
+
 /// Difficulty retarget parameters (ASERT + burst guard activation).
 #[derive(Clone, Debug)]
 pub struct DifficultyParams {
-    /// Target block interval in seconds.
-    pub target_block_time: u64,
-    /// ASERT/LWMA half-life in seconds for difficulty retargeting.
-    pub difficulty_half_life: u64,
+    /// ASERT difficulty adjustment parameters.
+    pub asert: AsertParams,
     /// Burst guard window (blocks) for rapid difficulty increases.
     pub burst_guard_window: u64,
     /// Minimum ratio of observed/expected time before burst guard engages.
@@ -58,12 +75,25 @@ pub struct DifficultyParams {
     pub burst_guard_activation_height: u64,
 }
 
+impl AsertParams {
+    /// Returns the default ASERT configuration for BQIP-0002.
+    pub fn bqip_0002_defaults() -> Self {
+        Self {
+            target_block_time: 600,        // 10 minutes
+            half_life: 14_400,              // 4 hours
+            max_drift_fp: 1073741824,       // 0.25 in 32.32 fixed-point (0.25 * 2^32)
+            mtp_window: 11,                 // Bitcoin standard
+            min_difficulty: crate::pow::DEVNET_MIN_BITS,
+            max_difficulty: crate::pow::DEVNET_MAX_BITS,
+        }
+    }
+}
+
 impl DifficultyParams {
     /// Returns the default Phase 3 difficulty configuration.
     pub fn phase3_defaults() -> Self {
         Self {
-            target_block_time: 600,
-            difficulty_half_life: 14_400,
+            asert: AsertParams::bqip_0002_defaults(),
             burst_guard_window: 11,
             burst_guard_floor_ratio_fp: 1417339207, // 0.33 in 32.32 fixed-point (0.33 * 2^32)
             burst_guard_release_ratio_fp: 1632087572, // 0.38 in 32.32 fixed-point (0.38 * 2^32)

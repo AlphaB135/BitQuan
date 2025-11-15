@@ -1,4 +1,5 @@
 mod commands;
+mod types;
 use commands::WalletState;
 
 fn main() {
@@ -12,6 +13,11 @@ fn main() {
             commands::lock_wallet,
             commands::clear_cache,
             commands::send_raw_transaction,
+            commands::get_miners,
+            commands::get_balances,
+            commands::get_rigs,
+            commands::get_transactions,
+            commands::get_alerts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

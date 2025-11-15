@@ -1,3 +1,4 @@
+[workspace]
 [package]
 name = "bitquan-wallet"
 version = "0.1.0"
@@ -18,12 +19,12 @@ rand = "0.8"
 zeroize = "1.5"
 secrecy = "0.8"
 
-# Local crates - using correct names
-bitquan-consensus = { path = "../../../crates/consensus" }
-bitquan-types = { path = "../../../crates/types" }
-bq-crypto = { path = "../../../crates/crypto" }
-wallet = { path = "../../../crates/wallet" }
-pqc-dilithium-seeded = { path = "../../../crates/pqc-dilithium-seeded" }
+# Local crates - using absolute paths to avoid workspace conflicts
+bitquan-consensus = { path = "/Users/alphab/BitQuan/crates/consensus" }
+bitquan-types = { path = "/Users/alphab/BitQuan/crates/types" }
+bq-crypto = { path = "/Users/alphab/BitQuan/crates/crypto" }
+wallet = { path = "/Users/alphab/BitQuan/crates/wallet" }
+pqc-dilithium-seeded = { path = "/Users/alphab/BitQuan/crates/pqc-dilithium-seeded" }
 
 [features]
 default = ["custom-protocol"]

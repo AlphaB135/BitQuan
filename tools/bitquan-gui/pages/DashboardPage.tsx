@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../components/Card';
 import { Miner, Balance } from '../types';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/tauri';
 
 const DashboardPage: React.FC = () => {
   const [miners, setMiners] = useState<Miner[]>([]);

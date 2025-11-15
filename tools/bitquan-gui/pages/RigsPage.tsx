@@ -3,7 +3,7 @@ import Card from '../components/Card';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { Rig } from '../types';
 import { ThermometerIcon, BoltIcon, CpuChipIcon } from '../components/icons';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/tauri';
 
 const RigCard: React.FC<{ rig: Rig; onToggle: (id: number, isActive: boolean) => void }> = ({ rig, onToggle }) => {
   const statusColor = rig.is_active ? 'border-l-4 border-cyan-500' : 'border-l-4 border-gray-300 dark:border-gray-600';
