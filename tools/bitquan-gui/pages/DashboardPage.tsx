@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../components/Card';
 import { Miner, Balance } from '../types';
+import { ActivityIcon, TrendingUpIcon, ZapIcon } from '../components/icons';
 import { invoke } from '@tauri-apps/api/tauri';
 
 const DashboardPage: React.FC = () => {
   const [miners, setMiners] = useState<Miner[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -25,6 +27,13 @@ const DashboardPage: React.FC = () => {
     };
 
     fetchData();
+    
+    // Update time every second for real-time feel
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => clearInterval(timeInterval);
   }, []);
 
   const totalBalance = balances.reduce((acc, curr) => ({
@@ -32,6 +41,15 @@ const DashboardPage: React.FC = () => {
       btc: acc.btc + curr.btc,
       usd: acc.usd + curr.usd,
   }), { bq: 0, btc: 0, usd: 0 });
+  
+  // Calculate mining statistics
+  const activeMiners = miners.filter(m => m.profit > 0);
+  const totalHashrate = activeMiners.reduce((sum, m) => {
+    const hashValue = parseFloat(m.speed.split(' ')[0]);
+    return sum + hashValue;
+  }, 0);
+  const totalProfit = miners.reduce((sum, m) => sum + m.profit, 0);
+  const avgProfit = activeMiners.length > 0 ? totalProfit / activeMiners.length : 0;
 
   if (loading) {
     return (
@@ -42,8 +60,55 @@ const DashboardPage: React.FC = () => {
   }
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+      {/* Header with real-time status */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Mining Dashboard</h1>
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          Last updated: {currentTime.toLocaleTimeString()}
+        </div>
+      </div>
       
+      {/* Mining Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/20 dark:to-cyan-800/30 border-cyan-200 dark:border-cyan-700">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-cyan-700 dark:text-cyan-300">Active Miners</h3>
+            <ActivityIcon />
+          </div>
+          <p className="text-3xl font-bold text-cyan-800 dark:text-cyan-200">{activeMiners.length}</p>
+          <p className="text-sm text-cyan-600 dark:text-cyan-400">of {miners.length} total</p>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/30 border-green-200 dark:border-green-700">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-green-700 dark:text-green-300">Total Hashrate</h3>
+            <ZapIcon />
+          </div>
+          <p className="text-3xl font-bold text-green-800 dark:text-green-200">{totalHashrate.toFixed(1)}</p>
+          <p className="text-sm text-green-600 dark:text-green-400">MH/s combined</p>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/30 border-purple-200 dark:border-purple-700">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-purple-700 dark:text-purple-300">Daily Profit</h3>
+            <TrendingUpIcon />
+          </div>
+          <p className="text-3xl font-bold text-purple-800 dark:text-purple-200">+{totalProfit.toFixed(2)}</p>
+          <p className="text-sm text-purple-600 dark:text-purple-400">BQ per day</p>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/30 border-orange-200 dark:border-orange-700">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-orange-700 dark:text-orange-300">Avg Profit/Miner</h3>
+            <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+              <span className="text-white text-xs font-bold">Ø</span>
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-orange-800 dark:text-orange-200">{avgProfit.toFixed(2)}</p>
+          <p className="text-sm text-orange-600 dark:text-orange-400">BQ per miner</p>
+        </Card>
+      </div>
+
       {/* Balances Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {balances.map((balance) => (

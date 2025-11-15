@@ -60,3 +60,21 @@ export const CpuChipIcon = () => (
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7.014a8.003 8.003 0 0110.014 10.014C20.5 15 18 15.5 16 15c1 2 2.657 2.657 2.657 2.657zm-8.314-1.414A6 6 0 0112 12m0 0a6 6 0 013.657-10.657M12 12a6 6 0 01-3.657 10.657" />
     </svg>
 );
+
+export const ActivityIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    </svg>
+);
+
+export const TrendingUpIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0l-8-8-8 4m16 0l-8 4m0 0v10l-8 4m0-10L4 7m8 4v10M4 7l8 4" />
+    </svg>
+);
+
+export const ZapIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 2L3 14h9l-1 8h10l-8-8z" />
+    </svg>
+);
