@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { invoke } = require('@tauri-apps/api/core');
+const { invoke } = require('@tauri-apps/api');
 
 async function testRPC() {
   try {
