@@ -12,6 +12,7 @@ members = [
     "crates/rpc", "crates/wallet",
     "crates/tools/preflight",
     "crates/tools/stress",
+
 ]
 exclude = ["fuzz", "forks", "tools/bitquan-gui"]
 
