@@ -216,7 +216,7 @@ impl PowEngine for RandomXEngine {
 /// Computes RandomX PoW hash using cached VM to prevent DoS.
 #[cfg(feature = "randomx")]
 pub fn randomx_pow_hash_cached(preimage: &[u8], seed: &[u8; 32], vm_cache: &Arc<Mutex<RandomXVMCache>>) -> Result<[u8; 32]> {
-    use randomx_rs::{RandomXCache, RandomXVM, RandomXFlag};
+    use randomx_rs::{RandomXCache, RandomXVM};
     
     // Get or create cached VM for this seed
     let vm_ref = vm_cache.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire VM cache lock: {}", e)))?
@@ -245,7 +245,7 @@ pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
     // Create temporary cache for legacy compatibility
     let vm_cache = Arc::new(Mutex::new(RandomXVMCache::new()));
     randomx_pow_hash_cached(preimage, seed, &vm_cache)
-        .unwrap_or_else(|e| {
+        .unwrap_or_else(|_e| {
             // In legacy compatibility mode, we should never fail, but if we do,
             // return a fallback hash to maintain API compatibility
             let mut hasher = Sha256::new();
@@ -431,7 +431,7 @@ pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
     // Create temporary cache for legacy compatibility
     let cache = Arc::new(Mutex::new(EthashCache::new()));
     ethash_pow_hash_cached(preimage, cache_size, &cache)
-        .unwrap_or_else(|e| {
+        .unwrap_or_else(|_e| {
             // In legacy compatibility mode, we should never fail, but if we do,
             // return a fallback hash to maintain API compatibility
             use sha3::{Digest, Keccak256};
