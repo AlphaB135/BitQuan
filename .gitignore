@@ -3,6 +3,7 @@
 /.trunk/tmp/
 data/
 .DS_Store
+.agents
 
 # Test/temp files
 genesis.json
@@ -35,3 +36,18 @@ tools/bitquan-gui/src-tauri/target/
 tools/bitquan-gui/target/
 tools/bitquan-gui/dist/
 tools/bitquan-gui/src-tauri/Cargo.lock
+
+# Added by Multi-Agent Workflow Kit
+/.agents
+/agents
+/.envrc
+/MAW-*
+.claude/settings.local.json
+.claude/*
+!.claude/commands/
+.codex/*
+!.codex/prompts/
+!.codex/prompts/**
+.claude/commands/maw.*
+.claude/commands/maw-*
+.codex/prompts/maw*.md
