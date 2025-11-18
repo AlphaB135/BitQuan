@@ -1,15 +1,16 @@
 //! Wallet implementation with post-quantum security
 
 use crate::{
-    address::{Address, AddressType, Network},
-    crypto::dilithium::DilithiumKeyPair,
+    address::{Address, Network},
+    crypto::DilithiumKeyPair,
     psbt::PQPSBT,
     Result, SDKError,
 };
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use std::collections::HashMap;
 use thiserror::Error;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 /// Wallet errors
 #[derive(Debug, Error)]
@@ -467,6 +468,7 @@ impl Default for PerformanceConfig {
 
 /// Main wallet trait
 pub trait Wallet {
+    /// The error type for wallet operations
     type Error: std::error::Error;
     
     /// Generate new wallet

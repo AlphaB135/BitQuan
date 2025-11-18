@@ -51,7 +51,6 @@ pub use wallet::{
     DerivationPath, Mnemonic, Wallet, WalletConfig, WalletError, SignatureAlgorithm
 };
 
-#[cfg(feature = "hardware")]
 pub use hardware::{DeviceCapabilities, HardwareWallet, HardwareError};
 
 /// Result type for SDK operations
@@ -73,7 +72,6 @@ pub enum SDKError {
     Wallet(#[from] WalletError),
     
     /// Hardware wallet errors
-    #[cfg(feature = "hardware")]
     #[error("Hardware wallet error: {0}")]
     Hardware(#[from] HardwareError),
     

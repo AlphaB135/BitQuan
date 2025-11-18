@@ -2,7 +2,7 @@
 
 use crate::{Result, SDKError};
 use pqc_dilithium_seeded::{Keypair as DilithiumKeypair, crypto_sign_signature, crypto_sign_verify};
-use serde::{Deserialize, Serialize};
+
 use std::fmt;
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -90,8 +90,8 @@ impl DilithiumKeyPair {
     pub fn sign(&self, message: &[u8]) -> Result<[u8; 3293]> {
         let mut signature = [0u8; 3293];
         
-        crypto_sign_signature(&mut signature, message, &self.private_key)
-            .map_err(|e| SDKError::Crypto(CryptoError::SigningFailed(e.to_string())))?;
+        crypto_sign_signature(&mut signature, message, &self.private_key);
+        // The function doesn't return a result, so we assume success if no panic
         
         Ok(signature)
     }
@@ -99,9 +99,7 @@ impl DilithiumKeyPair {
     /// Verify signature
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<bool> {
         if signature.len() != 3293 {
-            return Err(SDKError::Crypto(CryptoError::InvalidSignatureFormat(
-                "Invalid signature length".to_string()
-            )));
+            return Err(SDKError::Crypto("Invalid signature length".to_string()));
         }
         
         let mut sig_array = [0u8; 3293];
@@ -109,7 +107,7 @@ impl DilithiumKeyPair {
         
         crypto_sign_verify(&sig_array, message, &self.public_key)
             .map(|_| true)
-            .map_err(|e| SDKError::Crypto(CryptoError::VerificationFailed(e.to_string())))
+            .map_err(|_| SDKError::Crypto("Verification failed".to_string()))
     }
     
     /// Get public key bytes
@@ -173,7 +171,7 @@ impl QuantumEntropy {
         
         // Fallback to OS RNG
         getrandom::getrandom(&mut entropy)
-            .map_err(|e| SDKError::Crypto(CryptoError::KeyGenerationFailed(e.to_string())))?;
+            .map_err(|e| SDKError::Crypto(e.to_string()))?;
         
         Ok(entropy)
     }
@@ -182,9 +180,7 @@ impl QuantumEntropy {
     fn generate_hardware_quantum(&self, output: &mut [u8]) -> Result<Vec<u8>> {
         // In a real implementation, this would interface with quantum RNG hardware
         // For now, return error to use fallback
-        Err(SDKError::Crypto(CryptoError::KeyGenerationFailed(
-            "Hardware quantum RNG not available".to_string()
-        )))
+        Err(SDKError::Crypto("Hardware quantum RNG not available".to_string()))
     }
     
     /// Generate entropy with multiple sources
@@ -193,7 +189,7 @@ impl QuantumEntropy {
         
         // Source 1: OS RNG
         getrandom::getrandom(&mut entropy)
-            .map_err(|e| SDKError::Crypto(CryptoError::KeyGenerationFailed(e.to_string())))?;
+            .map_err(|e| SDKError::Crypto(e.to_string()))?;
         
         // Source 2: High-resolution timer
         let timer_entropy = self.generate_timer_entropy(size)?;
@@ -235,7 +231,8 @@ impl QuantumEntropy {
         // Mix various system sources
         let sources = vec![
             std::process::id().to_le_bytes().to_vec(),
-            std::thread::current().id().as_u64().get().to_le_bytes().to_vec(),
+            // Use a stable approach for thread ID
+            format!("{:?}", std::thread::current().id()).as_bytes().to_vec(),
         ];
         
         for (i, source) in sources.iter().enumerate() {
@@ -293,12 +290,12 @@ pub struct SecureAllocator;
 impl SecureAllocator {
     /// Allocate secure memory
     pub fn allocate(size: usize) -> Result<Vec<u8>> {
-        let mut memory = vec![0u8; size];
+        let memory = vec![0u8; size];
         
         // Try to lock memory (Unix only)
         #[cfg(unix)]
         {
-            use libc::{mlock, munlock};
+            use libc::mlock;
             
             let ptr = memory.as_ptr() as *mut libc::c_void;
             let result = unsafe { mlock(ptr, size) };

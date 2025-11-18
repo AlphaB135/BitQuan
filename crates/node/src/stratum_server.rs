@@ -2,7 +2,7 @@
 //!
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
 
-use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, PowAlgo};
+use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, randomx_pow_hash, PowAlgo};
 use bitquan_types::{Block, Error, NetworkId, Result};
 use dashmap::DashMap;
 use lru::LruCache;

@@ -3,9 +3,11 @@
 //! Extends Bitcoin PSBT with Dilithium signature support.
 
 use crate::{address::Address, Result, SDKError};
+use bitquan_types::Transaction;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
+use serde_big_array::BigArray;
 
 /// PSBT errors
 #[derive(Debug, Error)]
@@ -41,6 +43,8 @@ pub enum PSBTError {
 
 /// PQ-PSBT magic bytes
 pub const PQ_PSBT_MAGIC: &[u8; 4] = b"PQPS";
+
+/// PQ-PSBT version
 pub const PQ_PSBT_VERSION: u8 = 0x00;
 
 /// Signature algorithm flags
@@ -94,12 +98,12 @@ impl Default for SignatureFlags {
 }
 
 /// Global PSBT keys
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GlobalKey {
     /// Transaction version (CompactSize)
     Version(u32),
     /// Fallback fingerprint (32 bytes)
-    FallbackFingerprint([u8; 32]),
+    FallbackFingerprint(#[serde(with = "BigArray")] [u8; 32]),
     /// Locktime (CompactSize)
     Locktime(u32),
     /// Proprietary data
@@ -107,10 +111,10 @@ pub enum GlobalKey {
 }
 
 /// Input PSBT keys
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 pub enum InputKey {
     /// Previous TXID (32 bytes)
-    PreviousTxid([u8; 32]),
+    PreviousTxid(#[serde(with = "BigArray")] [u8; 32]),
     /// Previous output index (CompactSize)
     PreviousOutputIndex(u32),
     /// Sequence (8 bytes)
@@ -118,9 +122,9 @@ pub enum InputKey {
     /// ScriptSig (variable)
     ScriptSig(Vec<u8>),
     /// Dilithium public key (1952 bytes)
-    DilithiumPublicKey([u8; 1952]),
+    DilithiumPublicKey(#[serde(with = "BigArray")] [u8; 1952]),
     /// Dilithium signature (3293 bytes)
-    DilithiumSignature([u8; 3293]),
+    DilithiumSignature(#[serde(with = "BigArray")] [u8; 3293]),
     /// ECDSA fallback signature (variable)
     ECDSASignature(Vec<u8>),
     /// Proprietary data
@@ -128,7 +132,7 @@ pub enum InputKey {
 }
 
 /// Output PSBT keys
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 pub enum OutputKey {
     /// Amount (8 bytes)
     Amount(u64),
@@ -375,44 +379,71 @@ impl PQPSBT {
         let mut offset = 6;
         
         // Read global data
-        let (global, new_offset) = self.deserialize_map(&data[offset..])?;
+        let temp_psbt = PQPSBT { 
+            version: 0, 
+            signature_flags: SignatureFlags(0),
+            global: BTreeMap::new(), 
+            inputs: vec![], 
+            outputs: vec![] 
+        };
+        let (global, new_offset) = temp_psbt.deserialize_map(&data[offset..])?;
         offset += new_offset;
         
         // Read input count
-        let (input_count, new_offset) = self.read_compact_size(&data[offset..])?;
+        let (input_count, new_offset) = temp_psbt.read_compact_size(&data[offset..])?;
         offset += new_offset;
         
         // Read inputs
         let mut inputs = vec![];
         for _ in 0..input_count {
-            let (fields, new_offset) = self.deserialize_map(&data[offset..])?;
-            inputs.push(PSBTInput { fields });
+            let (fields, new_offset) = temp_psbt.deserialize_map(&data[offset..])?;
+            // Convert raw map to typed map
+            let typed_fields = fields.into_iter()
+                .filter_map(|(k, v)| {
+                    // Try to deserialize as InputKey
+                    bincode::deserialize::<InputKey>(&k).ok().map(|key| (key, v))
+                })
+                .collect();
+            inputs.push(PSBTInput { fields: typed_fields });
             offset += new_offset;
         }
         
         // Read output count
-        let (output_count, new_offset) = self.read_compact_size(&data[offset..])?;
+        let (output_count, new_offset) = temp_psbt.read_compact_size(&data[offset..])?;
         offset += new_offset;
         
         // Read outputs
         let mut outputs = vec![];
         for _ in 0..output_count {
-            let (fields, new_offset) = self.deserialize_map(&data[offset..])?;
-            outputs.push(PSBTOutput { fields });
+            let (fields, new_offset) = temp_psbt.deserialize_map(&data[offset..])?;
+            // Convert raw map to typed map
+            let typed_fields = fields.into_iter()
+                .filter_map(|(k, v)| {
+                    // Try to deserialize as OutputKey
+                    bincode::deserialize::<OutputKey>(&k).ok().map(|key| (key, v))
+                })
+                .collect();
+            outputs.push(PSBTOutput { fields: typed_fields });
             offset += new_offset;
         }
         
         Ok(Self {
             version,
             signature_flags,
-            global,
+            // Convert raw map to typed map
+            global: global.into_iter()
+                .filter_map(|(k, v)| {
+                    // Try to deserialize as GlobalKey
+                    bincode::deserialize::<GlobalKey>(&k).ok().map(|key| (key, v))
+                })
+                .collect(),
             inputs,
             outputs,
         })
     }
     
     /// Finalize PSBT and extract transaction
-    pub fn finalize(self) -> Result<crate::wallet::Transaction> {
+    pub fn finalize(self) -> Result<Transaction> {
         // This would build the final transaction from PSBT data
         // Implementation depends on Transaction structure
         todo!("Implement PSBT finalization")
@@ -420,7 +451,7 @@ impl PQPSBT {
     
     // Helper methods for serialization
     
-    fn serialize_map<K: Ord + Serialize, V: Serialize>(
+    fn serialize_map<K: Ord + Serialize, V: AsRef<[u8]>>(
         &self,
         buffer: &mut Vec<u8>,
         map: &BTreeMap<K, V>,
@@ -435,8 +466,8 @@ impl PQPSBT {
             buffer.extend_from_slice(&key_bytes);
             
             // Serialize value
-            self.write_compact_size(buffer, value.len())?;
-            buffer.extend_from_slice(value);
+            self.write_compact_size(buffer, value.as_ref().len())?;
+            buffer.extend_from_slice(value.as_ref());
         }
         
         Ok(())
@@ -625,7 +656,7 @@ impl PQPSBTBuilder {
                 script.extend_from_slice(&address.data);
                 Ok(script)
             }
-            crate::address::AddressType::PQPP2PKH => {
+            crate::address::AddressType::PQP2PKH => {
                 // Similar to P2PKH but with different version
                 let mut script = vec![0x76, 0xa9, 0x14]; // OP_DUP OP_HASH160 OP_DATA_20
                 script.extend_from_slice(&address.data);

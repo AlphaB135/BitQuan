@@ -77,7 +77,7 @@ impl AddressType {
     pub fn data_length(self) -> usize {
         match self {
             AddressType::P2PKH | AddressType::P2SH | 
-            AddressType::P2WPKH | AddressType::PQPP2PKH => 20,
+            AddressType::P2WPKH | AddressType::PQP2PKH => 20,
             AddressType::P2WSH | AddressType::PQP2WSH => 32,
         }
     }
@@ -175,7 +175,7 @@ impl Address {
         hasher.update(hash);
         let pubkey_hash = hasher.finalize();
         
-        Self::new(network, AddressType::PQPP2PKH, pubkey_hash.to_vec())
+        Self::new(network, AddressType::PQP2PKH, pubkey_hash.to_vec())
     }
     
     /// Create a P2WPKH address from a public key hash
@@ -187,7 +187,7 @@ impl Address {
     pub fn from_str(address: &str) -> Result<Self> {
         let (hrp, version, data) = bech32m_decode(address)?;
         
-        let network = Network::from_hrp(hrp)
+        let network = Network::from_hrp(&hrp)
             .ok_or_else(|| SDKError::Address(AddressError::WrongNetwork))?;
         
         let address_type = AddressType::iter()
@@ -277,12 +277,12 @@ fn bech32m_encode(hrp: &str, version: u8, data: &[u8]) -> Result<String> {
     let mut converted_data = vec![version];
     converted_data.extend_from_slice(data);
     
-    bech32::encode::<bech32::Bech32m>(hrp, &converted_data)
+    bech32::encode::<bech32::Bech32m>(bech32::Hrp::parse(hrp).unwrap(), &converted_data)
         .map_err(|e| SDKError::Address(AddressError::Bech32mError(e.to_string())))
 }
 
 /// Decode Bech32m encoded string
-fn bech32m_decode(s: &str) -> Result<(&str, u8, Vec<u8>)> {
+fn bech32m_decode(s: &str) -> Result<(String, u8, Vec<u8>)> {
     let (hrp, data) = bech32::decode(s)
         .map_err(|e| SDKError::Address(AddressError::Bech32mError(e.to_string())))?;
     
@@ -293,7 +293,7 @@ fn bech32m_decode(s: &str) -> Result<(&str, u8, Vec<u8>)> {
     let version = data[0];
     let payload = data[1..].to_vec();
     
-    Ok((hrp, version, payload))
+    Ok((hrp.to_string(), version, payload))
 }
 
 impl AddressType {
@@ -304,7 +304,7 @@ impl AddressType {
             Self::P2SH,
             Self::P2WPKH,
             Self::P2WSH,
-            Self::PQPP2PKH,
+            Self::PQP2PKH,
             Self::PQP2WSH,
         ].iter().copied()
     }
@@ -331,7 +331,7 @@ mod tests {
         let address = Address::pq_p2pkh(Network::Mainnet, &pubkey).unwrap();
         
         assert_eq!(address.network, Network::Mainnet);
-        assert_eq!(address.address_type, AddressType::PQPP2PKH);
+        assert_eq!(address.address_type, AddressType::PQP2PKH);
         assert_eq!(address.data.len(), 20);
         assert!(address.is_post_quantum());
     }
