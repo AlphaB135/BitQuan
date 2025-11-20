@@ -89,10 +89,8 @@ pub enum SDKError {
     IO(#[from] std::io::Error),
 }
 
-#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::*;
-    
     #[test]
     fn test_sdk_version() {
         // Basic test to ensure SDK compiles

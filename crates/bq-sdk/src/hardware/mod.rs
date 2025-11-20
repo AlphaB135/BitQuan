@@ -430,8 +430,8 @@ impl HardwareWalletManager {
     }
     
     /// Get device by serial number
-    pub fn get_device(&self, serial_number: &str) -> Option<&dyn HardwareWallet> {
-        self.devices.values().find(|d| {
+    pub fn find_device(&self, _serial_number: &str) -> Option<&dyn HardwareWallet> {
+        self.devices.values().find(|_d| {
             // This would need proper implementation
             false // Placeholder
         }).map(|d| d.as_ref())

@@ -107,6 +107,7 @@ impl Default for ChainState {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use bitquan_types::{BlockHeader, NetworkId, SigAlgorithm, Transaction};
@@ -150,7 +151,7 @@ mod tests {
 
         let height = state
             .append_block(&block, hash)
-            .expect("Failed to append block");
+            .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
         assert_eq!(height, 1);
         assert_eq!(state.get_height(), 1);
         assert_eq!(state.get_tip(), hash);
@@ -165,7 +166,7 @@ mod tests {
             let hash = [i as u8; 32];
             state
                 .append_block(&block, hash)
-                .expect("Failed to append block");
+                .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
         }
 
         assert_eq!(state.get_height(), 10);

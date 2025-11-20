@@ -1,8 +1,39 @@
 # Getting Started with BitQuan
 
-**Last Updated: 2025-01-07**
+Welcome to BitQuan! This section will help you get started with the post-quantum blockchain.
 
-Welcome to BitQuan! This guide will help you get started with the world's first production-ready post-quantum cryptocurrency.
+## 🚀 Quick Start
+
+If you're new to BitQuan, start with the [Quick Start Guide](quick-start.md) to get up and running in 5 minutes.
+
+## 📖 Essential Guides
+
+- [Installation Guide](installation.md) - Detailed installation instructions
+- [First Transaction](first-transaction.md) - Create your first transaction
+- [Testnet Guide](testnet-guide.md) - Join testnet
+
+## 🔧 For Node Operators
+
+- [Node Operator Guide](../guides/node-operator.md) - Run a full node
+- [Mining Guide](../guides/mining.md) - Start mining BitQuan
+
+## 📚 Next Steps
+
+After completing the getting started guides, explore:
+
+- [Architecture Overview](../architecture/overview.md) - Understand system design
+- [API Documentation](../api/) - Learn about RPC and SDK APIs
+- [Security Best Practices](../security/best-practices.md) - Secure your setup
+
+## ❓ Need Help?
+
+- [Troubleshooting](../guides/troubleshooting.md) - Common issues and solutions
+- [Community](https://github.com/AlphaB135/BitQuan/discussions) - Join our community
+- [Issues](https://github.com/AlphaB135/BitQuan/issues) - Report bugs or request features
+
+---
+
+*Last updated: 2025-11-21*
 
 ## What is BitQuan?
 

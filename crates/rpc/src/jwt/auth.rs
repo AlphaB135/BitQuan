@@ -168,6 +168,7 @@ impl JwtAuth {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -176,7 +177,7 @@ mod tests {
         let jwt = JwtAuth::new("test-secret");
         let token = jwt
             .login("admin", "admin123")
-            .expect("Failed to login with admin credentials");
+            .unwrap_or_else(|e| panic!("Failed to login with admin credentials: {}", e));
         assert!(!token.is_empty());
     }
 }

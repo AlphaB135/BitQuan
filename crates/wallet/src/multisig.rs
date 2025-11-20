@@ -68,20 +68,33 @@ impl std::fmt::Debug for MultisigWallet {
     }
 }
 
+/// Errors related to multi-signature wallet operations
 #[derive(Debug, Error)]
 pub enum MultisigError {
+    /// Invalid configuration provided
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),
+    /// Insufficient signatures provided
     #[error("Insufficient signatures: need {required}, have {actual}")]
-    InsufficientSignatures { required: u8, actual: u8 },
+    InsufficientSignatures {
+        /// Number of signatures required
+        required: u8,
+        /// Number of signatures provided
+        actual: u8,
+    },
+    /// Duplicate signature found
     #[error("Duplicate signature from public key: {0}")]
     DuplicateSignature(String),
+    /// Signer not authorized
     #[error("Unknown signer: {0}")]
     UnknownSigner(String),
+    /// Signature verification failed
     #[error("Invalid signature")]
     InvalidSignature,
+    /// Transaction is already fully signed
     #[error("Transaction already complete")]
     AlreadyComplete,
+    /// System clock error
     #[error("system time error: {0}")]
     Clock(&'static str),
 }

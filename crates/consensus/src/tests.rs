@@ -399,9 +399,8 @@ fn test_signature_weight_scaling() {
     );
 }
 
-#![cfg(test)]
-#![allow(clippy::unwrap_used, clippy::expect_used)]
-
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod property_tests {
     use super::*;
     use bitquan_types::{SigAlgorithm, Transaction, TxIn, TxOut};

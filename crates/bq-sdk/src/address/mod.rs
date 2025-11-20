@@ -8,9 +8,10 @@ use std::fmt;
 use thiserror::Error;
 
 /// Supported networks
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum Network {
     /// Main network
+    #[default]
     Mainnet,
     /// Test network
     Testnet,
@@ -36,12 +37,6 @@ impl Network {
             "rbq" => Some(Network::Regtest),
             _ => None,
         }
-    }
-}
-
-impl Default for Network {
-    fn default() -> Self {
-        Network::Mainnet
     }
 }
 
@@ -184,15 +179,15 @@ impl Address {
     }
     
     /// Parse address from string
-    pub fn from_str(address: &str) -> Result<Self> {
+    pub fn parse(address: &str) -> Result<Self> {
         let (hrp, version, data) = bech32m_decode(address)?;
         
         let network = Network::from_hrp(&hrp)
-            .ok_or_else(|| SDKError::Address(AddressError::WrongNetwork))?;
+            .ok_or(SDKError::Address(AddressError::WrongNetwork))?;
         
         let address_type = AddressType::iter()
             .find(|t| t.version() == version)
-            .ok_or_else(|| SDKError::Address(AddressError::InvalidVersion(version)))?;
+            .ok_or(SDKError::Address(AddressError::InvalidVersion(version)))?;
         
         Ok(Self {
             network,
@@ -204,7 +199,7 @@ impl Address {
     
     /// Validate address for specific network
     pub fn validate_for_network(address: &str, expected_network: Network) -> ValidationResult {
-        match Self::from_str(address) {
+        match Self::parse(address) {
             Ok(addr) => {
                 if addr.network != expected_network {
                     ValidationResult::WrongNetwork
@@ -218,7 +213,7 @@ impl Address {
             Err(SDKError::Address(AddressError::InvalidChecksum)) => {
                 ValidationResult::InvalidChecksum
             }
-            Err(SDKError::Address(AddressError::InvalidVersion(v))) => {
+            Err(SDKError::Address(AddressError::InvalidVersion(_v))) => {
                 ValidationResult::InvalidVersion
             }
             Err(SDKError::Address(AddressError::InvalidLength(_))) => {
@@ -266,7 +261,7 @@ impl std::str::FromStr for Address {
     type Err = SDKError;
     
     fn from_str(s: &str) -> Result<Self> {
-        Self::from_str(s)
+        Self::parse(s)
     }
 }
 
@@ -358,7 +353,7 @@ mod tests {
     fn test_address_roundtrip() {
         let pubkey_hash = [0x34; 20];
         let original = Address::p2pkh(Network::Testnet, &pubkey_hash).unwrap();
-        let parsed = Address::from_str(&original.to_string()).unwrap();
+        let parsed = Address::parse(&original.to_string()).unwrap();
         
         assert_eq!(original, parsed);
     }

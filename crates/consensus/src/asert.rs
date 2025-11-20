@@ -82,6 +82,7 @@ pub struct GuardContext<'a> {
 
 /// Integer fixed-point multiplication: (a * b) / FP_SCALE
 #[inline]
+#[allow(dead_code)]
 fn fp_mul(a: u64, b: u64) -> u64 {
     let result = (a as u128) * (b as u128);
     let scaled_result = result / (FP_SCALE as u128);
@@ -96,6 +97,7 @@ fn fp_mul(a: u64, b: u64) -> u64 {
 
 /// Integer fixed-point division: (a * FP_SCALE) / b
 #[inline]
+#[allow(dead_code)]
 fn fp_div(a: u64, b: u64) -> u64 {
     if b == 0 {
         return u64::MAX;
@@ -143,9 +145,7 @@ fn fp_pow2(x: u64) -> u64 {
         let t = (frac_part as u128 * 8 * 65536) / (FP_SCALE as u128); // 0-7*65536 range for more precision
         let base = lookup_000 as u128;
         let diff = lookup_125 as u128 - base;
-        let result = base + ((diff * t) / (8 * 65536));
-        
-        result
+        base + ((diff * t) / (8 * 65536))
     } else if frac_part < FP_SCALE / 4 {
         // Interpolate between 0.125 and 0.25
         let t = ((frac_part - FP_SCALE / 8) as u128 * 8 * 65536) / (FP_SCALE as u128);
@@ -223,13 +223,13 @@ pub fn asert_next_target(
     guard: Option<GuardContext<'_>>,
 ) -> u64 {
     // Calculate max target at runtime
-    let max_target_u64 = compact_to_target(DEVNET_MAX_BITS) as u64;
+    let max_target_u64 = compact_to_target(DEVNET_MAX_BITS);
     
     // Clamp anchor target to valid range
     let anchor_clamped = anchor_target.clamp(MIN_TARGET_U64, max_target_u64);
     
     // Calculate expected time for given height delta
-    let expected_time = (height_delta as i64) * (params.difficulty.target_block_time as i64);
+    let expected_time = height_delta * (params.difficulty.target_block_time as i64);
     
     // Calculate ASERT exponent in fixed-point
     let exponent_fp = calculate_asert_exponent_fp(
@@ -244,17 +244,16 @@ pub fn asert_next_target(
     let anchor_fp = (anchor_clamped as u128) << 32;
     
     // Calculate next target: anchor * 2^exponent
-    let next_target_fp;
-    if exponent_fp >= 0 {
+    // Calculate next target: anchor * 2^exponent
+    let next_target_fp = if exponent_fp >= 0 {
         let exp_fp = fp_pow2(exponent_fp as u64);
         let anchor_scaled = (anchor_fp >> 32) as u64; // Convert back from fixed-point for multiplication
-        next_target_fp = (anchor_scaled as u128) * (exp_fp as u128);
-        
+        (anchor_scaled as u128) * (exp_fp as u128)
     } else {
         let exp_fp = fp_pow2((-exponent_fp) as u64);
         let anchor_scaled = (anchor_fp >> 32) as u64; // Convert back from fixed-point for division
-        next_target_fp = ((anchor_scaled as u128) * (FP_SCALE as u128)) / (exp_fp as u128);
-    }
+        ((anchor_scaled as u128) * (FP_SCALE as u128)) / (exp_fp as u128)
+    };
     
     // Convert back from fixed-point to integer
     let next_target = if exponent_fp >= 0 {
@@ -316,7 +315,7 @@ fn apply_burst_guard_fp(
         guard_ctx.state.trigger(guard_ctx.current_height, cooldown);
         
         // Return maximum target (easiest difficulty) when guard triggers
-        compact_to_target(DEVNET_MAX_BITS) as u64
+        compact_to_target(DEVNET_MAX_BITS)
     } else {
         guard_ctx.state.update(guard_ctx.current_height, params);
         next_target
@@ -324,6 +323,7 @@ fn apply_burst_guard_fp(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use crate::{
@@ -424,7 +424,7 @@ mod tests {
     #[test]
     fn asert_clamps_to_max_target() {
         let params = params();
-        let max_target = compact_to_target(DEVNET_MAX_BITS) as u64;
+        let max_target = compact_to_target(DEVNET_MAX_BITS);
         let anchor = max_target;
         
         // Even with very slow blocks, should not exceed max target
@@ -479,7 +479,7 @@ mod tests {
         let result = asert_next_target(anchor, window, fast_time, &params, Some(guard_ctx));
         
         // Should return max target when guard triggers
-        assert_eq!(result, compact_to_target(DEVNET_MAX_BITS) as u64);
+        assert_eq!(result, compact_to_target(DEVNET_MAX_BITS));
         assert!(guard_state.is_active());
     }
 
@@ -500,7 +500,7 @@ mod tests {
         
         // Should not trigger guard for small window
         assert!(!guard_state.is_active());
-        assert_ne!(result, compact_to_target(DEVNET_MAX_BITS) as u64);
+        assert_ne!(result, compact_to_target(DEVNET_MAX_BITS));
     }
 
     #[test]
@@ -535,14 +535,14 @@ mod tests {
                 activation_height: 0,
             };
             let result = asert_next_target(anchor, window, fast_time, &params, Some(guard_ctx));
-            assert_ne!(result, compact_to_target(DEVNET_MAX_BITS) as u64);
+            assert_ne!(result, compact_to_target(DEVNET_MAX_BITS));
         }
     }
 
     #[test]
     fn asert_no_overflow_on_extremes() {
         let params = params();
-        let max_target = compact_to_target(DEVNET_MAX_BITS) as u64;
+        let max_target = compact_to_target(DEVNET_MAX_BITS);
         
         // Test with maximum values
         let result = asert_next_target(u64::MAX, 1, 1, &params, None);
@@ -563,7 +563,7 @@ mod tests {
         let result = asert_next_target(anchor, height_delta, expected_time, &params, None);
         
         // Should be very close to anchor when timing is perfect
-        let diff = if result > anchor { result - anchor } else { anchor - result };
+        let diff = result.abs_diff(anchor);
         assert!(diff < anchor / 100); // Within 1%
     }
 
@@ -611,14 +611,14 @@ mod tests {
         let _ = slow_state.update(anchor_height + window, anchor_time + slow_delta as u64, &params);
 
         let fast_int = asert_next_target(
-            compact_to_target(anchor_bits) as u64,
+            compact_to_target(anchor_bits),
             window as i64,
             fast_delta as i64,
             &params,
             None,
         );
         let slow_int = asert_next_target(
-            compact_to_target(anchor_bits) as u64,
+            compact_to_target(anchor_bits),
             window as i64,
             slow_delta as i64,
             &params,
@@ -678,8 +678,8 @@ mod tests {
         );
 
         // Guard should prevent extreme difficulty adjustment
-        assert_eq!(with_guard, compact_to_target(DEVNET_MAX_BITS) as u64);
-        assert!(without_guard < compact_to_target(DEVNET_MAX_BITS) as u64);
+        assert_eq!(with_guard, compact_to_target(DEVNET_MAX_BITS));
+        assert!(without_guard < compact_to_target(DEVNET_MAX_BITS));
     }
 
     #[test]
@@ -694,7 +694,7 @@ mod tests {
         
         // To get exact boundary, we need to account for integer division truncation
         // The actual boundary should be ceil(floor_threshold_fp / FP_SCALE)
-        let boundary_time = ((floor_threshold_fp + (FP_SCALE as u128) - 1) / (FP_SCALE as u128)) as i64;
+        let boundary_time = floor_threshold_fp.div_ceil(FP_SCALE as u128) as i64;
         
         let mut guard_state = BurstGuardState::default();
         let guard_ctx = GuardContext {
@@ -709,7 +709,7 @@ mod tests {
         
         // Should not trigger guard exactly on boundary
         assert!(!guard_state.is_active());
-        assert_ne!(result, compact_to_target(DEVNET_MAX_BITS) as u64);
+        assert_ne!(result, compact_to_target(DEVNET_MAX_BITS));
     }
 
     #[test]
@@ -733,7 +733,7 @@ mod tests {
         
         // Should trigger guard for fast streak
         assert!(guard_state.is_active());
-        assert_eq!(result, compact_to_target(DEVNET_MAX_BITS) as u64);
+        assert_eq!(result, compact_to_target(DEVNET_MAX_BITS));
     }
 
     #[test]
@@ -752,7 +752,7 @@ mod tests {
         let result = asert_next_target(anchor, 1, 100, &params, Some(guard_ctx));
         
         assert!(!guard_state.is_active());
-        assert_ne!(result, compact_to_target(DEVNET_MAX_BITS) as u64);
+        assert_ne!(result, compact_to_target(DEVNET_MAX_BITS));
     }
 
     #[test]
@@ -882,7 +882,7 @@ mod tests {
     #[test]
     fn property_tests_asert_bounded_by_max_target() {
         let params = params();
-        let max_target = compact_to_target(DEVNET_MAX_BITS) as u64;
+        let max_target = compact_to_target(DEVNET_MAX_BITS);
         
         // ASERT should never exceed maximum target
         for anchor in [1u64, 1000, 1000000, u64::MAX] {

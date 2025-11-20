@@ -254,6 +254,7 @@ impl BlockSubmitter {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use bitquan_types::BlockHeader;
@@ -284,7 +285,7 @@ mod tests {
         let result = submitter
             .submit(&block, None)
             .await
-            .expect("Failed to submit block");
+            .unwrap_or_else(|e| panic!("Failed to submit block: {}", e));
 
         // Should reject blocks with no transactions
         match result {
@@ -315,7 +316,7 @@ mod tests {
         let result = submitter
             .submit(&block, Some("test_miner"))
             .await
-            .expect("Failed to submit block with miner");
+            .unwrap_or_else(|e| panic!("Failed to submit block with miner: {}", e));
 
         match result {
             SubmitResult::Accepted { hash, .. } => {

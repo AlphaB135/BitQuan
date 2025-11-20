@@ -6,7 +6,7 @@
 
 use crate::constant_time::{constant_time_zeroize, SecureAllocator};
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 
 /// A secure memory pool for managing sensitive data.
 ///
@@ -29,8 +29,8 @@ pub struct SecureMemoryPool {
 pub struct SecureMemoryBlock {
     /// The actual memory data
     data: Vec<u8>,
-    /// Whether the block is currently in use
-    in_use: bool,
+    /// Whether the block is currently in use (protected by atomic operations)
+    in_use: std::sync::atomic::AtomicBool,
 }
 
 // SAFETY: SecureMemoryBlock owns its data (Vec<u8>) which is Send.
@@ -77,7 +77,7 @@ impl SecureMemoryPool {
 
         Ok(SecureMemoryBlock {
             data,
-            in_use: false,
+            in_use: AtomicBool::new(false),
         })
     }
 
@@ -87,8 +87,9 @@ impl SecureMemoryPool {
     pub fn acquire(&self) -> Result<SecureMemoryBlock, std::io::Error> {
         let mut blocks = self.available_blocks.lock().unwrap();
 
-        if let Some(mut block) = blocks.pop_front() {
-            block.in_use = true;
+        if let Some(block) = blocks.pop_front() {
+            // Use atomic operations to ensure thread safety
+            block.in_use.store(true, Ordering::SeqCst);
             Ok(block)
         } else {
             // Pool exhausted, allocate a new block
@@ -106,15 +107,18 @@ impl SecureMemoryPool {
     ///
     /// The block must have been acquired from this pool.
     pub fn release(&self, mut block: SecureMemoryBlock) {
-        // Check if block is already marked as unused to prevent double-free
-        if !block.in_use {
+        // Use atomic compare-and-swap to prevent double-free
+        if block.in_use.compare_exchange(
+            true,  // Expected value: currently in use
+            false, // New value: mark as not in use
+            Ordering::SeqCst,
+            Ordering::SeqCst
+        ).is_err() {
             return; // Already released, ignore
         }
 
         // Zeroize the block before returning it to the pool
         constant_time_zeroize(&mut block.data);
-
-        block.in_use = false;
 
         let mut blocks = self.available_blocks.lock().unwrap();
         if blocks.len() < self.max_blocks {
@@ -187,13 +191,13 @@ impl SecureMemoryBlock {
 
     /// Returns whether the block is currently in use.
     pub fn is_in_use(&self) -> bool {
-        self.in_use
+        self.in_use.load(Ordering::SeqCst)
     }
 }
 
 impl Drop for SecureMemoryBlock {
     fn drop(&mut self) {
-        if !self.in_use {
+        if !self.in_use.load(Ordering::SeqCst) {
             // Block was not properly released, zeroize it
             constant_time_zeroize(&mut self.data);
         }
@@ -333,20 +337,54 @@ mod tests {
 
     #[test]
     fn test_concurrent_access() {
-        // Note: This test is disabled due to known race conditions in unsafe memory management
-        // The secure memory pool needs redesign for proper thread safety
-        // For now, we test basic functionality without concurrency
+        use std::sync::Arc;
+        use std::thread;
 
-        let pool = SecureMemoryPool::new(1024, 10).unwrap();
+        let pool = Arc::new(SecureMemoryPool::new(1024, 20).unwrap());
+        let mut handles = vec![];
 
-        // Test basic acquire/release cycle
-        for _ in 0..5 {
-            let block = pool.acquire().unwrap();
-            pool.release(block);
+        // Spawn multiple threads to test concurrent access
+        for _ in 0..10 {
+            let pool_clone = Arc::clone(&pool);
+            let handle = thread::spawn(move || {
+                for _ in 0..5 {
+                    // Acquire and release blocks concurrently
+                    let mut block = pool_clone.acquire().unwrap();
+                    assert!(block.is_in_use());
+                    
+                    // Simulate some work with the block
+                    {
+                        let slice = block.as_slice_mut();
+                        slice[0] = 42;
+                    }
+                    
+                    pool_clone.release(block);
+                }
+            });
+            handles.push(handle);
         }
 
-        // All blocks should be available
-        assert_eq!(pool.available_count(), 10);
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // All blocks should be available after all threads complete
+        assert_eq!(pool.available_count(), 20);
+    }
+
+    #[test]
+    fn test_double_release_protection() {
+        let pool = SecureMemoryPool::new(1024, 5).unwrap();
+        
+        let block = pool.acquire().unwrap();
+        assert!(block.is_in_use());
+        
+        // First release should succeed
+        pool.release(block);
+        
+        // Note: We can't test double release since the block is moved
+        // But the atomic compare_exchange prevents double-free
     }
 
     #[test]

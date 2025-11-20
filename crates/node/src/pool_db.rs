@@ -303,13 +303,14 @@ impl PoolDatabase {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_database_creation() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
-        assert_eq!(db.total_rewards().expect("Failed to get total rewards"), 0);
+        let db = PoolDatabase::memory().unwrap_or_else(|e| panic!("Failed to create memory database: {}", e));
+        assert_eq!(db.total_rewards().unwrap_or_else(|e| panic!("Failed to get total rewards: {}", e)), 0);
     }
 
     #[test]

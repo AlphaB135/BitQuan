@@ -45,26 +45,21 @@ pub enum WalletError {
 }
 
 /// Signature algorithms supported by the wallet
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum SignatureAlgorithm {
     /// ECDSA (secp256k1)
     ECDSA,
     /// Dilithium3 (post-quantum)
+    #[default]
     Dilithium3,
     /// Hybrid (both ECDSA and Dilithium)
     Hybrid,
 }
 
 impl SignatureAlgorithm {
-    /// Check if this is a post-quantum algorithm
-    pub fn is_post_quantum(self) -> bool {
-        matches!(self, Self::Dilithium3 | Self::Hybrid)
-    }
-}
-
-impl Default for SignatureAlgorithm {
-    fn default() -> Self {
-        Self::Dilithium3
+    /// Check if the algorithm is post-quantum secure
+    pub fn is_post_quantum(&self) -> bool {
+        matches!(self, SignatureAlgorithm::Dilithium3 | SignatureAlgorithm::Hybrid)
     }
 }
 
@@ -124,7 +119,7 @@ impl DerivationPath {
     }
     
     /// Convert to string representation
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         if self.path.is_empty() {
             return "m".to_string();
         }
@@ -141,7 +136,7 @@ impl DerivationPath {
     }
     
     /// Parse from string representation
-    pub fn from_str(path: &str) -> Result<Self> {
+    pub fn parse(path: &str) -> Result<Self> {
         if !path.starts_with('m') {
             return Err(SDKError::Wallet(WalletError::InvalidDerivationPath(
                 "Path must start with 'm'".to_string()
@@ -179,7 +174,7 @@ impl Default for DerivationPath {
 
 impl std::fmt::Display for DerivationPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.as_string())
     }
 }
 
@@ -199,7 +194,7 @@ pub struct Mnemonic {
 impl Mnemonic {
     /// Generate new mnemonic with quantum enhancement
     pub fn generate(entropy_bits: usize, quantum_enhanced: bool) -> Result<Self> {
-        if entropy_bits % 32 != 0 {
+        if !entropy_bits.is_multiple_of(32) {
             return Err(SDKError::Wallet(WalletError::InvalidMnemonic(
                 "Entropy bits must be multiple of 32".to_string()
             )));
@@ -225,7 +220,7 @@ impl Mnemonic {
         }
         
         // Convert to words (simplified BIP39 implementation)
-        let word_count = (entropy_bits + 10) / 11; // 11 bits per word
+        let word_count = (entropy_bits + 10).div_ceil(11); // 11 bits per word
         let mut words = Vec::with_capacity(word_count);
         
         for i in 0..word_count {
@@ -259,7 +254,6 @@ impl Mnemonic {
     /// Parse mnemonic from string
     pub fn from_str(mnemonic: &str, quantum_enhanced: bool) -> Result<Self> {
         let words: Vec<String> = mnemonic
-            .trim()
             .split_whitespace()
             .map(|w| w.to_lowercase())
             .collect();
@@ -281,7 +275,7 @@ impl Mnemonic {
     }
     
     /// Convert to string
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         self.words.join(" ")
     }
     
@@ -290,7 +284,7 @@ impl Mnemonic {
         use hmac::{Hmac, Mac};
         use sha2::Sha512;
         
-        let mnemonic_str = self.to_string();
+        let mnemonic_str = self.as_string();
         let salt = format!("mnemonic{}", passphrase);
         
         let mut mac = Hmac::<Sha512>::new_from_slice(salt.as_bytes())
@@ -308,7 +302,7 @@ impl Mnemonic {
 
 impl std::fmt::Display for Mnemonic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.as_string())
     }
 }
 
@@ -547,12 +541,12 @@ impl SimpleWallet {
             return Err(SDKError::Wallet(WalletError::WalletLocked));
         }
         
-        let seed = self.seed.ok_or_else(|| SDKError::Wallet(WalletError::WalletLocked))?;
+        let seed = self.seed.ok_or(SDKError::Wallet(WalletError::WalletLocked))?;
         
         // Simplified key derivation (in production, use proper BIP32)
         let mut hasher = sha2::Sha256::new();
         hasher.update(seed);
-        hasher.update(path.to_string().as_bytes());
+        hasher.update(path.as_string().as_bytes());
         let hash = hasher.finalize();
         
         // Generate Dilithium keypair from hash
@@ -656,9 +650,9 @@ mod tests {
     #[test]
     fn test_derivation_path() {
         let path = DerivationPath::bq_standard(0, 1, 2);
-        assert_eq!(path.to_string(), "m/123'/0'/0'/1/2");
+        assert_eq!(path.as_string(), "m/123'/0'/0'/1/2");
         
-        let parsed = DerivationPath::from_str(&path.to_string()).unwrap();
+        let parsed = DerivationPath::parse(&path.as_string()).unwrap();
         assert_eq!(path, parsed);
     }
     

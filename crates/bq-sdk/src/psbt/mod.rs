@@ -1,3 +1,4 @@
+#![allow(clippy::large_enum_variant, clippy::type_complexity)]
 //! Post-Quantum PSBT (PQ-PSBT) implementation for BitQuan
 //!
 //! Extends Bitcoin PSBT with Dilithium signature support.
@@ -198,7 +199,7 @@ impl PSBTInput {
     pub fn get_dilithium_public_key(&self) -> Option<[u8; 1952]> {
         self.fields.iter()
             .find_map(|(key, value)| {
-                if let InputKey::DilithiumPublicKey(pubkey) = key {
+                if let InputKey::DilithiumPublicKey(_pubkey) = key {
                     if value.len() == 1952 {
                         let mut array = [0u8; 1952];
                         array.copy_from_slice(value);
@@ -216,7 +217,7 @@ impl PSBTInput {
     pub fn get_dilithium_signature(&self) -> Option<[u8; 3293]> {
         self.fields.iter()
             .find_map(|(key, value)| {
-                if let InputKey::DilithiumSignature(sig) = key {
+                if let InputKey::DilithiumSignature(_sig) = key {
                     if value.len() == 3293 {
                         let mut array = [0u8; 3293];
                         array.copy_from_slice(value);
@@ -269,7 +270,7 @@ impl PSBTOutput {
     /// Get amount
     pub fn get_amount(&self) -> Option<u64> {
         self.fields.iter()
-            .find_map(|(key, value)| {
+            .find_map(|(key, _value)| {
                 if let OutputKey::Amount(amount) = key {
                     Some(*amount)
                 } else {
@@ -282,7 +283,7 @@ impl PSBTOutput {
     pub fn get_script_pubkey(&self) -> Option<Vec<u8>> {
         self.fields.iter()
             .find_map(|(key, value)| {
-                if let OutputKey::ScriptPubkey(script) = key {
+                if let OutputKey::ScriptPubkey(_script) = key {
                     Some(value.clone())
                 } else {
                     None
@@ -624,7 +625,7 @@ impl PQPSBTBuilder {
     
     /// Add output
     pub fn add_output(mut self, address: &str, amount: u64) -> Result<Self> {
-        let addr = Address::from_str(address)?;
+        let addr = Address::parse(address)?;
         
         let mut output = PSBTOutput::new();
         output.set_amount(amount);

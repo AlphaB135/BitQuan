@@ -128,7 +128,7 @@ impl MonitoringSystem {
         let mut health_checks = self.health_checks.write().await;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
         health_checks.insert(
@@ -159,7 +159,7 @@ impl MonitoringSystem {
         let uptime = self.start_time.elapsed().as_secs();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
         // Determine overall system status
@@ -389,6 +389,7 @@ impl MonitoringSystem {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use bitquan_consensus::pow::PowAlgo;

@@ -575,6 +575,7 @@ fn clamp_bits(bits: u32) -> std::result::Result<u32, PowError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 

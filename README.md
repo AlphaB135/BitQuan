@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/AlphaB135/BitQuan/main/docs/img/BitQuan.png" alt="BitQuan Logo" width="200"/>
 </div>
 
-[![Security Audit](https://img.shields.io/badge/Security-A%2B%20(95%2F100)-brightgreen)](docs/security/AUDIT_SUMMARY.md)
+[![Security Audit](https://img.shields.io/badge/Security-B%2B%20(83%2F100)-yellow)](docs/security/AUDIT_SUMMARY.md)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/security.yml?branch=main)](https://github.com/AlphaB135/BitQuan/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Rust](https://img.shields.io/badge/rust-1.82%2B-orange)](https://www.rust-lang.org)
@@ -15,10 +15,10 @@ A proof-of-work blockchain with post-quantum security using CRYSTALS-Dilithium3 
 ## Mainnet Status
 
 Network: Mainnet (Magic: `0xe8f3e1e3`)  
-Security: A+ Rating (95/100) - Zero vulnerabilities  
+Security: B+ Rating (83/100) - Critical issues fixed, minor issues remain  
 Mining: RandomX PoW with Stratum support  
 Nodes: 100+ global bootstrap nodes  
-Production Readiness: 100% - Production Ready
+Production Readiness: 75% - Testnet Ready, Mainnet pending fixes
 
 ## Core Principles
 
@@ -26,7 +26,7 @@ Production Readiness: 100% - Production Ready
 - **Quantum-Resistant**: CRYSTALS-Dilithium3 post-quantum signatures (NIST-approved)
 - **Simple & Secure**: No smart contracts, no DeFi, just value transfer
 - **Proof-of-Work**: SHA-256d mining with RandomX support
-- **Memory Safety**: Zero unsafe blocks, comprehensive error handling
+- **Memory Safety**: 15 unsafe blocks (all justified), improved error handling
 - **Open Source**: Apache 2.0, fully auditable, no backdoors
 
 ## Quick Start

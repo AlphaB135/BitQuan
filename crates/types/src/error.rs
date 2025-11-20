@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-/// Result alias using the shared [`Error`] type.
+/// Result alias using the shared [`enum@Error`] type.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Unified error enumeration for workspace crates.

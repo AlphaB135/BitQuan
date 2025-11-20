@@ -114,36 +114,55 @@ use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zeroize::Zeroize;
 
+/// Parameters for the Argon2id key derivation function
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KdfParams {
+    /// Memory size in KiB
     pub mem_kib: u32,
+    /// Number of iterations (time cost)
     pub time_cost: u32,
+    /// Degree of parallelism
     pub parallelism: u8,
+    /// Salt encoded as Base64
     pub salt_b64: String,
 }
 
+/// Encrypted keystore file format
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeystoreFile {
+    /// File format identifier (magic bytes)
     pub magic: String,
+    /// Format version number
     pub version: u8,
+    /// Creation timestamp (Unix epoch)
     pub created: u64,
+    /// Key derivation parameters
     pub kdf: KdfParams,
+    /// Encryption nonce (IV) encoded as Base64
     pub nonce_b64: String,
+    /// Encrypted data (ciphertext) encoded as Base64
     pub ciphertext_b64: String,
+    /// Optional metadata (JSON)
     pub meta: Option<serde_json::Value>,
 }
 
 impl KeystoreFile {
+    /// Convert keystore to formatted JSON string
     pub fn to_json(&self) -> serde_json::Result<String> {
         serde_json::to_string_pretty(self)
     }
 }
 
+/// Magic string for file identification "BQK1"
 pub const MAGIC: &str = "BQK1";
+/// Current keystore format version
 pub const CURRENT_VERSION: u8 = 1;
 
+/// Default memory cost (64 MiB)
 pub const DEFAULT_MEM_KIB: u32 = 65536;
+/// Default time cost (3 iterations)
 pub const DEFAULT_TIME_COST: u32 = 3;
+/// Default parallelism (1 thread)
 pub const DEFAULT_PARALLELISM: u8 = 1;
 
 /// Get adaptive default parameters based on detected hardware
@@ -154,10 +173,14 @@ pub fn adaptive_default_params() -> (u32, u32, u8) {
 /// Hardware capability detection for adaptive KDF
 #[derive(Debug, Clone, Copy)]
 pub enum HardwareProfile {
-    HighEndDesktop, // 16+ GB RAM, 8+ cores
-    MidRangeLaptop, // 8-16 GB RAM, 4-8 cores
-    LowEndDevice,   // 4-8 GB RAM, 2-4 cores
-    MobileDevice,   // <4 GB RAM, <=2 cores
+    /// High-end desktop (16+ GB RAM, 8+ cores)
+    HighEndDesktop,
+    /// Mid-range laptop (8-16 GB RAM, 4-8 cores)
+    MidRangeLaptop,
+    /// Low-end device (4-8 GB RAM, 2-4 cores)
+    LowEndDevice,
+    /// Mobile device (<4 GB RAM, <=2 cores)
+    MobileDevice,
 }
 
 impl HardwareProfile {
@@ -248,7 +271,9 @@ fn get_available_memory_gb() -> u32 {
 pub fn optimal_parallelism() -> u8 {
     HardwareProfile::detect().optimal_parallelism()
 }
+/// Length of the random salt in bytes
 pub const SALT_LEN: usize = 16;
+/// Length of the encryption nonce in bytes
 pub const NONCE_LEN: usize = 12;
 
 // Thread-local buffer pool for reusing allocations
@@ -431,13 +456,19 @@ lazy_static::lazy_static! {
     static ref KEY_CACHE: SecureKeyCache = SecureKeyCache::new();
 }
 
+/// Pre-defined KDF parameter profiles
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum KdfProfile {
+    /// High security, high resource usage (256 MiB, 4 iters)
     Tight,
+    /// Balanced security and performance (128 MiB, 3 iters)
     Medium,
+    /// Low resource usage for older hardware (64 MiB, 2 iters)
     Light,
+    /// Minimal resource usage for mobile (32 MiB, 2 iters)
     Mobile,
-    Adaptive, // New profile that auto-detects hardware
+    /// Automatically detected based on hardware
+    Adaptive,
 }
 
 impl KdfProfile {
@@ -746,8 +777,11 @@ pub fn get_cache_memory_usage() -> usize {
 /// Cache statistics for monitoring
 #[derive(Debug, Clone, Default)]
 pub struct CacheStats {
+    /// Total number of entries in the cache
     pub total_entries: usize,
+    /// Number of expired entries waiting for cleanup
     pub expired_entries: usize,
+    /// Number of active, valid entries
     pub active_entries: usize,
 }
 
@@ -802,6 +836,15 @@ pub fn encrypt_keystore_with_profile(
     encrypt_keystore(plaintext, password, meta, mem_kib, time_cost, parallelism)
 }
 
+/// Encrypt keystore with explicit parameters
+///
+/// # Arguments
+/// * `plaintext` - Data to encrypt
+/// * `password` - Encryption password
+/// * `meta` - Optional metadata
+/// * `mem_kib` - Memory cost in KiB
+/// * `time_cost` - Time cost (iterations)
+/// * `parallelism` - Degree of parallelism
 pub fn encrypt_keystore(
     plaintext: &[u8],
     password: &str,
@@ -988,6 +1031,18 @@ pub fn decrypt_keystore_cached(
     res
 }
 
+/// Rotate keystore password or parameters
+///
+/// Decrypts the keystore with the old password and re-encrypts it with the new password
+/// and parameters.
+///
+/// # Arguments
+/// * `ks` - Existing keystore file
+/// * `old_password` - Current password
+/// * `new_password` - New password
+/// * `mem_kib` - New memory cost
+/// * `time_cost` - New time cost
+/// * `parallelism` - New parallelism
 pub fn rotate_keystore(
     ks: &KeystoreFile,
     old_password: &str,
@@ -1008,7 +1063,15 @@ pub fn rotate_keystore(
     Ok(new_ks)
 }
 
-pub fn write_keystore_file_atomic<P: AsRef<Path>>(
+/// Write keystore to a file atomically
+///
+/// Writes the keystore to a temporary file first, then renames it to the target path
+/// to ensure atomic updates.
+///
+/// # Arguments
+/// * `path` - Target file path
+/// * `ks` - Keystore to write
+pub fn write_keystore_file<P: AsRef<Path>>(
     path: P,
     ks: &KeystoreFile,
 ) -> std::io::Result<()> {
@@ -1039,6 +1102,10 @@ pub fn write_keystore_file_atomic<P: AsRef<Path>>(
     Ok(())
 }
 
+/// Read keystore from a file
+///
+/// # Arguments
+/// * `path` - Path to the keystore file
 pub fn read_keystore_file<P: AsRef<Path>>(path: P) -> std::io::Result<KeystoreFile> {
     let f = File::open(path)?;
     let ks: KeystoreFile = serde_json::from_reader(f)
@@ -1095,7 +1162,7 @@ mod tests {
         );
         let dir = tempdir().expect("Failed to create temp directory");
         let p = dir.path().join("keystore.json");
-        write_keystore_file_atomic(&p, &ks).expect("write");
+        write_keystore_file(&p, &ks).expect("write");
         let ks2 = read_keystore_file(&p).expect("read");
         let pt = decrypt_keystore(&ks2, "pw").expect("decrypt");
         assert_eq!(pt, secret);

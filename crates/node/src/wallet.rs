@@ -351,6 +351,7 @@ pub mod address {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use sha2::{Digest, Sha256};

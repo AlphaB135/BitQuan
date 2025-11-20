@@ -1808,6 +1808,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             history[history.len() - 1 - window]
         } else {
             // SAFETY: history always contains at least the mined block (pushed above on line 1677)
+            #[allow(clippy::expect_used)]
             *history
                 .front()
                 .expect("history always contains at least the mined block")

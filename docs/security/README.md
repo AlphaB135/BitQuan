@@ -1,8 +1,15 @@
 # Security Documentation
 
-**Last Updated: 2025-01-10**
+BitQuan prioritizes security with post-quantum cryptography and comprehensive protection mechanisms.
 
-This section contains security policies, audit reports, vulnerability disclosure procedures, and security best practices for BitQuan's Bitcoin-style consensus system.
+## 🔒 Security Overview
+
+BitQuan implements multiple layers of security:
+
+- **Post-Quantum Cryptography**: CRYSTALS-Dilithium3 signatures (NIST Level 3)
+- **Memory Safety**: Rust guarantees + explicit protections
+- **Network Security**: TLS 1.3, rate limiting, replay protection
+- **Access Control**: JWT authentication with role-based permissions
 
 ## 🔒 Security Policy
 

@@ -123,6 +123,7 @@ pub fn compute_sighash_with_context(ctx: &TxContext, tx: &Transaction) -> Result
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use bitquan_types::genesis::GENESIS_HASH_BYTES;

@@ -146,7 +146,7 @@ pub struct QuantumEntropy {
     /// Use hardware quantum RNG if available
     hardware_quantum: bool,
     /// Fallback to cryptographically secure RNG
-    use_fallback: bool,
+    _use_fallback: bool,
 }
 
 impl QuantumEntropy {
@@ -154,7 +154,7 @@ impl QuantumEntropy {
     pub fn new(hardware_quantum: bool) -> Self {
         Self {
             hardware_quantum,
-            use_fallback: true,
+            _use_fallback: true,
         }
     }
     
@@ -177,7 +177,7 @@ impl QuantumEntropy {
     }
     
     /// Generate hardware quantum entropy (placeholder)
-    fn generate_hardware_quantum(&self, output: &mut [u8]) -> Result<Vec<u8>> {
+    fn generate_hardware_quantum(&self, _output: &mut [u8]) -> Result<Vec<u8>> {
         // In a real implementation, this would interface with quantum RNG hardware
         // For now, return error to use fallback
         Err(SDKError::Crypto("Hardware quantum RNG not available".to_string()))
@@ -215,10 +215,10 @@ impl QuantumEntropy {
         let start = Instant::now();
         
         // Collect timing variations
-        for i in 0..size {
+        for (i, byte) in entropy.iter_mut().enumerate() {
             let _ = SystemTime::now().duration_since(UNIX_EPOCH);
             let elapsed = start.elapsed().as_nanos() as u64;
-            entropy[i] = (elapsed >> (i % 8)) as u8;
+            *byte = (elapsed >> (i % 8)) as u8;
         }
         
         Ok(entropy)
@@ -229,10 +229,10 @@ impl QuantumEntropy {
         let mut entropy = vec![0u8; size];
         
         // Mix various system sources
-        let sources = vec![
+        let sources = [
             std::process::id().to_le_bytes().to_vec(),
             // Use a stable approach for thread ID
-            format!("{:?}", std::thread::current().id()).as_bytes().to_vec(),
+            format!("{:?}", std::thread::current().id()).as_bytes().to_vec()
         ];
         
         for (i, source) in sources.iter().enumerate() {
@@ -383,8 +383,8 @@ mod tests {
     
     #[test]
     fn test_keypair_zeroization() {
-        let mut keypair = DilithiumKeyPair::generate().unwrap();
-        let private_key_before = keypair.private_key_bytes().to_vec();
+        let keypair = DilithiumKeyPair::generate().unwrap();
+        let _private_key_before = keypair.private_key_bytes().to_vec();
         
         drop(keypair);
         

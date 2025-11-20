@@ -1305,12 +1305,14 @@ fn verify_share_pow_sync(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
     #[test]
     fn miner_session_creation() {
-        let session = MinerSession::new(PowAlgo::Sha256d, "test@localhost".to_string(), 1.0).unwrap();
+        let session = MinerSession::new(PowAlgo::Sha256d, "test@localhost".to_string(), 1.0)
+            .unwrap_or_else(|e| panic!("Failed to create miner session: {}", e));
         assert_eq!(session.algo, PowAlgo::Sha256d);
         assert_eq!(session.address, "test@localhost");
         assert_eq!(session.difficulty, 1.0);
@@ -1320,7 +1322,8 @@ mod tests {
 
     #[test]
     fn share_counters() {
-        let session = MinerSession::new(PowAlgo::Sha256d, "test".to_string(), 1.0).unwrap();
+        let session = MinerSession::new(PowAlgo::Sha256d, "test".to_string(), 1.0)
+            .unwrap_or_else(|e| panic!("Failed to create miner session: {}", e));
 
         session.accept_share();
         session.accept_share();

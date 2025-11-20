@@ -133,7 +133,7 @@ fn main() -> Result<()> {
 
             let difficulty_ratio = baseline_target / current_target;
             let mean_interval =
-                (params.difficulty.target_block_time as f64) * difficulty_ratio / (segment.hash_rate as f64);
+                (params.difficulty.target_block_time as f64) * difficulty_ratio / segment.hash_rate;
             let dt_seconds = mean_interval.max(1.0).round() as i64;
 
             let timestamp = prev.timestamp + dt_seconds;

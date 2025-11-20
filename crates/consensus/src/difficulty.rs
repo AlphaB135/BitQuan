@@ -13,54 +13,69 @@ pub fn compact_to_target(bits: u32) -> u64 {
     if bits == 0 {
         return 0;
     }
-    let exponent = (bits >> 24) as i32;
-    let mantissa = (bits & 0x007f_ffff) as u64;
+
     
-    // Handle negative exponents (very small targets)
-    if exponent <= 3 {
-        return mantissa >> (3 - exponent);
+
+    let exponent = bits >> 24;
+    let mantissa = bits & 0x007fffff;
+    let sign = bits & 0x00800000;
+
+    let target = if exponent <= 3 {
+        (mantissa as u64) >> (8 * (3 - exponent))
+    } else {
+        (mantissa as u64) << (8 * (exponent - 3))
+    };
+
+    // Apply sign if negative (though target is unsigned, this logic mimics Bitcoin's behavior)
+    // In Bitcoin, negative targets are invalid, but we handle the conversion here.
+    if sign != 0 {
+        // For unsigned target, we can't represent negative. Return 0 or handle as error?
+        // Bitcoin returns 0 for negative targets.
+        return 0;
     }
-    
-    // For positive exponents, be careful about overflow
-    let shift = exponent - 3;
-    if shift >= 64 {
-        return u64::MAX; // Target is effectively infinite
+
+    // Check for overflow
+    if exponent > 31 {
+        return 0; // Overflow
     }
-    
-    // Use checked multiplication to prevent overflow
-    mantissa.checked_shl(shift as u32).unwrap_or(u64::MAX)
+
+    target
 }
 
-/// Converts a difficulty target to its compact representation (integer version).
+/// Converts a 256-bit target (as u64 for simplified difficulty) to compact form.
 ///
-/// Safety: Uses integer arithmetic for deterministic behavior.
+/// Note: This is a simplified version for the prototype. Real Bitcoin uses U256.
 pub fn target_to_compact_u64(target: u64) -> u32 {
     if target == 0 {
         return 0;
     }
 
-    // Find the highest set bit to determine exponent
-    let leading_zeros = target.leading_zeros();
-    let bit_length = 64 - leading_zeros;
-    
-    if bit_length <= 24 {
-        // Target fits in mantissa directly
-        target as u32
+    let mut size = (64 - target.leading_zeros()).div_ceil(8);
+    let mut compact = if size <= 3 {
+        (target << (8 * (3 - size))) as u32
     } else {
-        // Need to shift right to fit in 24 bits
-        let shift = bit_length - 24;
-        let mantissa = (target >> shift) as u32;
-        let exponent = (bit_length - 1) as u32;
-        ((exponent << 24) | mantissa) & 0x7fffffff
+        (target >> (8 * (size - 3))) as u32
+    };
+
+    if compact & 0x00800000 != 0 {
+        compact >>= 8;
+        size += 1;
     }
+
+    compact | (size << 24)
 }
 
-/// Tracks the anchor information for ASERT difficulty adjustments.
+/// Difficulty adjustment state for ASERT algorithm.
 #[derive(Clone, Debug)]
 pub struct DifficultyState {
-    anchor_height: u64,
-    anchor_timestamp: u64,
-    anchor_target: u64,
+    /// Height of the anchor block.
+    pub anchor_height: u64,
+    /// Timestamp of the anchor block.
+    pub anchor_time: u64,
+    /// Target (bits) of the anchor block.
+    pub anchor_bits: u32,
+    /// Target (u64) of the anchor block.
+    pub anchor_target: u64,
     guard_state: BurstGuardState,
     guard_activation_height: u64,
 }
@@ -69,14 +84,15 @@ impl DifficultyState {
     /// Creates a new difficulty state from the given anchor block parameters.
     pub fn new(
         anchor_height: u64,
-        anchor_timestamp: u64,
+        anchor_time: u64,
         anchor_bits: u32,
         guard_activation_height: u64,
     ) -> Self {
         Self {
             anchor_height,
-            anchor_timestamp,
-            anchor_target: compact_to_target(anchor_bits) as u64,
+            anchor_time,
+            anchor_bits,
+            anchor_target: compact_to_target(anchor_bits),
             guard_state: BurstGuardState::default(),
             guard_activation_height,
         }
@@ -95,7 +111,7 @@ impl DifficultyState {
         params: &ConsensusParams,
     ) -> u32 {
         let height_delta = next_height as i64 - self.anchor_height as i64;
-        let time_delta = next_timestamp as i64 - self.anchor_timestamp as i64;
+        let time_delta = next_timestamp as i64 - self.anchor_time as i64;
         let next_target = asert_next_target(
             self.anchor_target,
             height_delta,
@@ -109,7 +125,7 @@ impl DifficultyState {
         );
 
         self.anchor_height = next_height;
-        self.anchor_timestamp = next_timestamp;
+        self.anchor_time = next_timestamp;
         self.anchor_target = next_target;
 
         target_to_compact_u64(next_target)
@@ -160,7 +176,7 @@ mod tests {
         let next = state.update(101, 1_000_600, &params());
         assert!(next > 0);
         assert_eq!(state.anchor_height, 101);
-        assert_eq!(state.anchor_timestamp, 1_000_600);
+        assert_eq!(state.anchor_time, 1_000_600);
     }
 
     #[test]

@@ -218,7 +218,7 @@ impl HybridMiner {
 
         // Fallback to first algorithm
         // SAFETY: weights is guaranteed non-empty (validated in new())
-        #[allow(clippy::unwrap_used)]
+        #[allow(clippy::unwrap_used, clippy::expect_used)]
         *self
             .weights
             .keys()
@@ -293,6 +293,7 @@ impl HybridMiner {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -300,7 +301,7 @@ mod tests {
     fn hybrid_miner_creation_sha256d() {
         let weights = vec![(PowAlgo::Sha256d, 1.0)];
         let miner = HybridMiner::new(&weights, 1, NetworkId::Devnet)
-            .expect("Failed to create hybrid miner");
+            .unwrap_or_else(|e| panic!("Failed to create hybrid miner: {}", e));
         assert_eq!(miner.thread_count(), 1);
         assert_eq!(miner.weights().len(), 1);
     }
@@ -322,7 +323,7 @@ mod tests {
     fn weighted_selection() {
         let weights = vec![(PowAlgo::Sha256d, 1.0)];
         let miner = HybridMiner::new(&weights, 1, NetworkId::Devnet)
-            .expect("Failed to create hybrid miner");
+            .unwrap_or_else(|e| panic!("Failed to create hybrid miner: {}", e));
 
         // Should always select SHA256d with only one option
         for i in 0..10 {

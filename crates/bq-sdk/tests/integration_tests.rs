@@ -3,8 +3,7 @@
 use bq_sdk::{
     Address, AddressType, DerivationPath, Mnemonic, Network, PQPSBT, SignatureAlgorithm,
 };
-use bq_sdk::wallet::{SimpleWallet, Wallet, WalletConfig, WalletError};
-use std::collections::HashMap;
+use bq_sdk::wallet::{SimpleWallet, Wallet, WalletConfig};
 
 #[test]
 fn test_address_generation() {
@@ -50,7 +49,7 @@ fn test_address_validation() {
 fn test_address_roundtrip() {
     let pubkey_hash = [0x56; 20];
     let original = Address::p2pkh(Network::Testnet, &pubkey_hash).unwrap();
-    let parsed = Address::from_str(&original.to_string()).unwrap();
+    let parsed = Address::parse(&original.to_string()).unwrap();
     
     assert_eq!(original, parsed);
 }
@@ -79,7 +78,7 @@ fn test_derivation_path() {
     let path = DerivationPath::bq_standard(0, 1, 2);
     assert_eq!(path.to_string(), "m/123'/0'/0'/1/2");
     
-    let parsed = DerivationPath::from_str(&path.to_string()).unwrap();
+    let parsed = DerivationPath::parse(&path.to_string()).unwrap();
     assert_eq!(path, parsed);
 }
 
@@ -292,11 +291,11 @@ fn test_comprehensive_wallet_flow() {
 #[test]
 fn test_error_handling() {
     // Test invalid address
-    let result = Address::from_str("invalid_address");
+    let result = Address::parse("invalid_address");
     assert!(result.is_err());
     
     // Test invalid derivation path
-    let result = DerivationPath::from_str("invalid/path");
+    let result = DerivationPath::parse("invalid/path");
     assert!(result.is_err());
     
     // Test invalid mnemonic

@@ -53,6 +53,7 @@ impl TokenGenerator {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -61,8 +62,8 @@ mod tests {
         let gen = TokenGenerator::new("test-secret");
         let token = gen
             .generate("alice", "admin")
-            .expect("Failed to generate token");
-        let claims = gen.verify(&token).expect("Failed to verify token");
+            .unwrap_or_else(|e| panic!("Failed to generate token: {}", e));
+        let claims = gen.verify(&token).unwrap_or_else(|e| panic!("Failed to verify token: {}", e));
         assert_eq!(claims.sub, "alice");
     }
 }
