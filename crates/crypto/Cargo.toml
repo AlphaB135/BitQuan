@@ -15,7 +15,7 @@ memory-security = ["memory-locking"]
 [dependencies]
 bitquan-types = { path = "../types", version = "0.1.0" }
 rand = "0.8"
-rand_chacha = "0.3"
+rand_chacha = "0.9"
 rand_core = "0.6"
 getrandom = "0.2"
 hkdf = "0.12"
