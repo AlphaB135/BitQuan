@@ -52,7 +52,7 @@ pub fn generate_mnemonic(word_count: usize) -> Result<Mnemonic> {
 /// * `mnemonic` - The mnemonic phrase
 /// * `passphrase` - Optional passphrase for additional security (BIP39 extension)
 pub fn mnemonic_to_seed(mnemonic: &Mnemonic, passphrase: Option<&str>) -> [u8; 64] {
-    mnemonic.to_seed(passphrase.unwrap_or(""))
+    mnemonic.to_seed(passphrase.unwrap_or_default())
 }
 
 /// Parses a mnemonic phrase from a string.

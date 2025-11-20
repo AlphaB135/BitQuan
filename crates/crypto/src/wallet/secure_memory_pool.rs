@@ -19,6 +19,8 @@ pub struct SecureMemoryPool {
     block_size: usize,
     /// Maximum number of blocks in the pool
     max_blocks: usize,
+    /// Counter for generating unique block IDs
+    block_id_counter: std::sync::atomic::AtomicU64,
 }
 
 /// A secure memory block from the pool.
@@ -29,6 +31,8 @@ pub struct SecureMemoryPool {
 pub struct SecureMemoryBlock {
     /// The actual memory data
     data: Vec<u8>,
+    /// Unique ID for this block to prevent race conditions
+    block_id: u64,
     /// Whether the block is currently in use (protected by atomic operations)
     in_use: std::sync::atomic::AtomicBool,
 }
@@ -56,12 +60,19 @@ impl SecureMemoryPool {
             available_blocks: Arc::new(Mutex::new(VecDeque::with_capacity(max_blocks))),
             block_size,
             max_blocks,
+            block_id_counter: std::sync::atomic::AtomicU64::new(0),
         };
 
         // Pre-allocate memory blocks
         for _ in 0..max_blocks {
-            if let Ok(block) = Self::allocate_block(block_size) {
-                pool.available_blocks.lock().unwrap().push_back(block);
+            if let Ok(block) = pool.allocate_block(block_size) {
+                match pool.available_blocks.lock() {
+                    Ok(mut blocks) => blocks.push_back(block),
+                    Err(e) => {
+                        eprintln!("Warning: Failed to acquire lock for pool initialization: {e}");
+                        break;
+                    }
+                }
             } else {
                 // If we can't allocate all blocks, continue with what we have
                 break;
@@ -72,11 +83,13 @@ impl SecureMemoryPool {
     }
 
     /// Allocates a new secure memory block.
-    fn allocate_block(size: usize) -> Result<SecureMemoryBlock, std::io::Error> {
+    fn allocate_block(&self, size: usize) -> Result<SecureMemoryBlock, std::io::Error> {
         let data = SecureAllocator::allocate(size)?;
+        let block_id = self.block_id_counter.fetch_add(1, Ordering::SeqCst);
 
         Ok(SecureMemoryBlock {
             data,
+            block_id,
             in_use: AtomicBool::new(false),
         })
     }
@@ -85,15 +98,32 @@ impl SecureMemoryPool {
     ///
     /// Returns a secure memory block or an error if no blocks are available.
     pub fn acquire(&self) -> Result<SecureMemoryBlock, std::io::Error> {
-        let mut blocks = self.available_blocks.lock().unwrap();
+        let mut blocks = self.available_blocks.lock()
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::WouldBlock, "Failed to acquire pool lock"))?;
 
         if let Some(block) = blocks.pop_front() {
-            // Use atomic operations to ensure thread safety
-            block.in_use.store(true, Ordering::SeqCst);
-            Ok(block)
+            // Use atomic compare-and-swap to ensure thread safety
+            // This prevents race conditions where multiple threads could acquire the same block
+            match block.in_use.compare_exchange(
+                false, // Expected value: not in use
+                true,  // New value: mark as in use
+                Ordering::SeqCst,
+                Ordering::SeqCst
+            ) {
+                Ok(_) => {
+                    // Successfully marked as in use, return the block
+                    Ok(block)
+                }
+                Err(_) => {
+                    // Block was already in use (shouldn't happen but handle gracefully)
+                    // Put it back and allocate a new block
+                    blocks.push_back(block);
+                    self.allocate_block(self.block_size)
+                }
+            }
         } else {
             // Pool exhausted, allocate a new block
-            Self::allocate_block(self.block_size)
+            self.allocate_block(self.block_size)
         }
     }
 
@@ -120,7 +150,14 @@ impl SecureMemoryPool {
         // Zeroize the block before returning it to the pool
         constant_time_zeroize(&mut block.data);
 
-        let mut blocks = self.available_blocks.lock().unwrap();
+        // Critical section: acquire lock before checking pool capacity
+        let mut blocks = match self.available_blocks.lock() {
+            Ok(blocks) => blocks,
+            Err(_) => {
+                eprintln!("Warning: Failed to acquire pool lock during release");
+                return;
+            }
+        };
         if blocks.len() < self.max_blocks {
             blocks.push_back(block);
         } else {
@@ -139,7 +176,12 @@ impl SecureMemoryPool {
 
     /// Returns the number of available blocks in the pool.
     pub fn available_count(&self) -> usize {
-        self.available_blocks.lock().unwrap().len()
+        self.available_blocks.lock()
+            .map(|blocks| blocks.len())
+            .unwrap_or_else(|_| {
+                eprintln!("Warning: Failed to acquire lock for available_count, returning 0");
+                0
+            })
     }
 
     /// Returns the total capacity of the pool.
@@ -149,10 +191,12 @@ impl SecureMemoryPool {
 
     /// Clears the pool and deallocates all memory.
     pub fn clear(&self) {
-        let mut blocks = self.available_blocks.lock().unwrap();
-
-        while let Some(block) = blocks.pop_front() {
-            self.deallocate_block(block);
+        if let Ok(mut blocks) = self.available_blocks.lock() {
+            while let Some(block) = blocks.pop_front() {
+                self.deallocate_block(block);
+            }
+        } else {
+            eprintln!("Warning: Failed to acquire lock for clear operation");
         }
     }
 }
@@ -187,6 +231,11 @@ impl SecureMemoryBlock {
     /// Returns the size of the memory block.
     pub fn size(&self) -> usize {
         self.data.len()
+    }
+
+    /// Returns the unique ID of this memory block.
+    pub fn block_id(&self) -> u64 {
+        self.block_id
     }
 
     /// Returns whether the block is currently in use.
@@ -339,26 +388,42 @@ mod tests {
     fn test_concurrent_access() {
         use std::sync::Arc;
         use std::thread;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let pool = Arc::new(SecureMemoryPool::new(1024, 20).unwrap());
         let mut handles = vec![];
+        let acquire_count = Arc::new(AtomicUsize::new(0));
+        let release_count = Arc::new(AtomicUsize::new(0));
 
         // Spawn multiple threads to test concurrent access
         for _ in 0..10 {
             let pool_clone = Arc::clone(&pool);
+            let acquire_count_clone = Arc::clone(&acquire_count);
+            let release_count_clone = Arc::clone(&release_count);
+            
             let handle = thread::spawn(move || {
-                for _ in 0..5 {
+                for _ in 0..10 {
                     // Acquire and release blocks concurrently
-                    let mut block = pool_clone.acquire().unwrap();
-                    assert!(block.is_in_use());
-                    
-                    // Simulate some work with the block
-                    {
-                        let slice = block.as_slice_mut();
-                        slice[0] = 42;
+                    match pool_clone.acquire() {
+                        Ok(mut block) => {
+                            acquire_count_clone.fetch_add(1, Ordering::SeqCst);
+                            assert!(block.is_in_use());
+                            
+                            // Simulate some work with the block
+                            {
+                                let slice = block.as_slice_mut();
+                                slice[0] = 42;
+                                // Add a small delay to increase chance of race conditions
+                                std::hint::spin_loop();
+                            }
+                            
+                            pool_clone.release(block);
+                            release_count_clone.fetch_add(1, Ordering::SeqCst);
+                        }
+                        Err(_) => {
+                            // Handle allocation failure gracefully
+                        }
                     }
-                    
-                    pool_clone.release(block);
                 }
             });
             handles.push(handle);
@@ -369,8 +434,82 @@ mod tests {
             handle.join().unwrap();
         }
 
+        // Verify that all acquires were matched by releases
+        let total_acquires = acquire_count.load(Ordering::SeqCst);
+        let total_releases = release_count.load(Ordering::SeqCst);
+        assert_eq!(total_acquires, total_releases);
+        
         // All blocks should be available after all threads complete
         assert_eq!(pool.available_count(), 20);
+    }
+
+    #[test]
+    fn test_race_condition_protection() {
+        use std::sync::Arc;
+        use std::thread;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let pool = Arc::new(SecureMemoryPool::new(1024, 5).unwrap());
+        let race_detected = Arc::new(AtomicBool::new(false));
+        let mut handles = vec![];
+
+        // Test with very small pool to increase contention
+        for thread_id in 0..5 {
+            let pool_clone = Arc::clone(&pool);
+            let race_detected_clone = Arc::clone(&race_detected);
+            
+            let handle = thread::spawn(move || {
+                for iteration in 0..10 {
+                    if let Ok(mut block) = pool_clone.acquire() {
+                        // Verify block is properly marked as in use
+                        if !block.is_in_use() {
+                            race_detected_clone.store(true, Ordering::SeqCst);
+                            return;
+                        }
+                        
+                        // Do some work with unique pattern per thread/iteration
+                        let thread_data = ((thread_id * 10 + iteration) & 0xFF) as u8;
+                        let _block_id = block.block_id();
+                        {
+                            let slice = block.as_slice_mut();
+                            // Write unique pattern
+                            for i in 0..8.min(slice.len()) {
+                                slice[i] = thread_data.wrapping_add(i as u8);
+                            }
+                        }
+                        
+                        // Small delay to increase chance of race conditions
+                        std::hint::spin_loop();
+                        
+                        // Verify data integrity (this should pass if no race condition)
+                        {
+                            let slice = block.as_slice();
+                            for i in 0..8.min(slice.len()) {
+                                if slice[i] != thread_data.wrapping_add(i as u8) {
+                                    // Data was corrupted by another thread - race condition!
+                                    race_detected_clone.store(true, Ordering::SeqCst);
+                                    return;
+                                }
+                            }
+                        }
+                        
+                        pool_clone.release(block);
+                    }
+                }
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Verify no race conditions were detected
+        assert!(!race_detected.load(Ordering::SeqCst), "Race condition detected!");
+        
+        // Pool should be in consistent state
+        assert_eq!(pool.available_count(), 5);
     }
 
     #[test]

@@ -84,10 +84,14 @@ impl BlockNode {
         }
         
         // Work = 2^256 / (target + 1)
-        // Since 2^256 doesn't fit in U256, we use the fact that:
+        // Since 2^256 doesn't fit in U256, we use fact that:
         // work = (U256::MAX + 1) / (target + 1)
         let target_plus_one = target.saturating_add(U256::one());
-        U256::max_value().checked_div(target_plus_one).unwrap_or(U256::one())
+        U256::max_value().checked_div(target_plus_one).unwrap_or_else(|| {
+            // Log warning but return minimum work as fallback
+            eprintln!("Warning: Division by zero in work calculation, using minimum work");
+            U256::one()
+        })
     }
 }
 

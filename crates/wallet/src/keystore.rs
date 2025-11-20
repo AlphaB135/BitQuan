@@ -519,17 +519,16 @@ fn derive_key(
     time_cost: u32,
     parallelism: u8,
 ) -> [u8; 32] {
-    // SAFETY: Params::new can only fail if parameters are out of range, which never happens with our constants
-    #[allow(clippy::expect_used)]
-    let params = Params::new(mem_kib, time_cost, parallelism.into(), None).expect("argon params");
+    // Create Argon2 parameters with proper error handling
+    let params = Params::new(mem_kib, time_cost, parallelism.into(), None)
+        .map_err(|e| Error::Invalid(format!("Invalid Argon2 parameters: {e}")))?;
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     let mut key = [0u8; 32];
-    // SAFETY: hash_password_into can only fail if output buffer is wrong size, which is fixed at 32 bytes
-    #[allow(clippy::expect_used)]
+    // Derive key with proper error handling
     argon2
         .hash_password_into(password.expose_secret(), salt, &mut key)
-        .expect("Argon2 derive failed");
+        .map_err(|e| Error::Invalid(format!("Argon2 key derivation failed: {e}")))?;
     key
 }
 
@@ -885,14 +884,18 @@ pub fn encrypt_keystore(
                 aad: b"",
             },
         )
-        .expect("encryption failure");
+        .map_err(|e| Error::Invalid(format!("AES encryption failed: {e}")))?;
 
     key_bytes.zeroize();
 
     let created = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
-        .unwrap_or(0); // Fallback to epoch if clock is wrong
+        .unwrap_or_else(|_| {
+            // Log warning but continue with epoch fallback
+            eprintln!("Warning: System clock is set before Unix epoch, using epoch as fallback");
+            0
+        });
     KeystoreFile {
         magic: MAGIC.to_string(),
         version: CURRENT_VERSION,

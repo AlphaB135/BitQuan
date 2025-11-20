@@ -131,7 +131,11 @@ impl Mempool {
         self.entries
             .values()
             .try_fold(0usize, |acc, v| acc.checked_add(v.len()))
-            .unwrap_or(usize::MAX)
+            .unwrap_or_else(|| {
+                // Log warning but return max value as fallback
+                eprintln!("Warning: Transaction count overflow detected, returning max value");
+                usize::MAX
+            })
     }
 
     /// Returns true if mempool is empty.
