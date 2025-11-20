@@ -273,7 +273,7 @@ impl ConstantTime {
     /// Constant-time selection
     pub fn select(condition: bool, a: u8, b: u8) -> u8 {
         let mask = if condition { 0xff } else { 0x00 };
-        a.wrapping_mul(mask).wrapping_add(b.wrapping_mul(!mask))
+        (a & mask) | (b & !mask)
     }
     
     /// Constant-time zeroization
@@ -298,6 +298,8 @@ impl SecureAllocator {
             use libc::mlock;
             
             let ptr = memory.as_ptr() as *mut libc::c_void;
+            // SAFETY: `ptr` points to a valid memory region of `size` bytes allocated by `memory`.
+            // `mlock` is safe to call with a valid pointer and size.
             let result = unsafe { mlock(ptr, size) };
             
             if result != 0 {
@@ -320,6 +322,8 @@ impl SecureAllocator {
             use libc::munlock;
             
             let ptr = memory.as_ptr() as *mut libc::c_void;
+            // SAFETY: `ptr` points to a valid memory region of `memory.len()` bytes.
+            // `munlock` is safe to call with a valid pointer and size.
             let result = unsafe { munlock(ptr, memory.len()) };
             
             if result != 0 {

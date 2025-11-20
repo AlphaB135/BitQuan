@@ -115,7 +115,11 @@ pub fn constant_time_conditional_increment(condition: bool, value: u32) -> u32 {
 /// - `len` bytes are readable from `src` and writable to `dst`
 pub unsafe fn constant_time_memcpy(dst: *mut u8, src: *const u8, len: usize) {
     for i in 0..len {
-        *dst.add(i) = *src.add(i);
+        // SAFETY: The caller guarantees that `src` and `dst` are valid for `len` bytes,
+        // do not overlap, and are properly aligned.
+        unsafe {
+            *dst.add(i) = *src.add(i);
+        }
     }
 }
 
@@ -148,6 +152,8 @@ impl SecureAllocator {
         #[cfg(all(unix, feature = "memory-locking"))]
         {
             let ptr = vec.as_ptr() as *mut libc::c_void;
+            // SAFETY: `ptr` points to a valid memory region of `size` bytes allocated by `vec`.
+            // `mlock` is safe to call with a valid pointer and size.
             let result = unsafe { mlock(ptr, size) };
 
             if result != 0 {
@@ -173,6 +179,8 @@ impl SecureAllocator {
         #[cfg(all(unix, feature = "memory-locking"))]
         {
             let ptr = vec.as_ptr() as *mut libc::c_void;
+            // SAFETY: `ptr` points to a valid memory region of `vec.len()` bytes.
+            // `munlock` is safe to call with a valid pointer and size.
             let result = unsafe { munlock(ptr, vec.len()) };
 
             if result != 0 {
@@ -339,6 +347,8 @@ mod tests {
         let src = [1, 2, 3, 4, 5];
         let mut dst = [0; 5];
 
+        // SAFETY: `dst` and `src` are valid stack arrays of length 5.
+        // They do not overlap.
         unsafe {
             constant_time_memcpy(dst.as_mut_ptr(), src.as_ptr(), 5);
         }

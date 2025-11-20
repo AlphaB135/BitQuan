@@ -33,7 +33,11 @@ pub struct SecureMemoryBlock {
     in_use: bool,
 }
 
+// SAFETY: SecureMemoryBlock owns its data (Vec<u8>) which is Send.
+// It has no thread-local state or shared mutable state that would violate Send.
 unsafe impl Send for SecureMemoryBlock {}
+// SAFETY: SecureMemoryBlock owns its data (Vec<u8>) which is Sync.
+// Access to the block is controlled by the Mutex in SecureMemoryPool.
 unsafe impl Sync for SecureMemoryBlock {}
 
 impl SecureMemoryPool {

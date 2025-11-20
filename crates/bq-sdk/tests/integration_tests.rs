@@ -1,9 +1,9 @@
 //! Integration tests for BitQuan SDK
 
 use bq_sdk::{
-    Address, AddressType, DerivationPath, Mnemonic, PQPSBT, SignatureAlgorithm,
-    SimpleWallet, Wallet, WalletConfig, Network,
+    Address, AddressType, DerivationPath, Mnemonic, Network, PQPSBT, SignatureAlgorithm,
 };
+use bq_sdk::wallet::{SimpleWallet, Wallet, WalletConfig, WalletError};
 use std::collections::HashMap;
 
 #[test]
@@ -23,7 +23,7 @@ fn test_post_quantum_address() {
     let address = Address::pq_p2pkh(Network::Mainnet, &pubkey).unwrap();
     
     assert_eq!(address.network, Network::Mainnet);
-    assert_eq!(address.address_type, AddressType::PQPP2PKH);
+    assert_eq!(address.address_type, AddressType::PQP2PKH);
     assert_eq!(address.data.len(), 20);
     assert!(address.is_post_quantum());
 }
@@ -97,7 +97,7 @@ fn test_wallet_generation() {
 fn test_wallet_from_mnemonic() {
     let mnemonic = Mnemonic::generate(256, true).unwrap();
     let config = WalletConfig::mobile();
-    let wallet = SimpleWallet::from_mnemonic(&mnemonic, &config).unwrap();
+    let wallet = SimpleWallet::from_mnemonic(mnemonic, config).unwrap();
     
     assert!(!wallet.is_locked());
     assert!(wallet.get_mnemonic().is_some());
@@ -127,12 +127,15 @@ fn test_wallet_locking() {
 
 #[test]
 fn test_psbt_builder() {
+    let pubkey_hash = [0x12; 20];
+    let address = Address::p2pkh(Network::Mainnet, &pubkey_hash).unwrap();
+
     let psbt = PQPSBT::builder()
         .version(1)
         .locktime(0)
         .add_input("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 0)
         .unwrap()
-        .add_output("bq1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", 1000000)
+        .add_output(&address.to_string(), 1000000)
         .unwrap()
         .build()
         .unwrap();
@@ -144,11 +147,14 @@ fn test_psbt_builder() {
 
 #[test]
 fn test_psbt_serialization() {
+    let pubkey_hash = [0x12; 20];
+    let address = Address::p2pkh(Network::Mainnet, &pubkey_hash).unwrap();
+
     let psbt = PQPSBT::builder()
         .version(1)
         .add_input("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 0)
         .unwrap()
-        .add_output("bq1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", 1000000)
+        .add_output(&address.to_string(), 1000000)
         .unwrap()
         .build()
         .unwrap();
@@ -166,11 +172,14 @@ fn test_wallet_psbt_signing() {
     let config = WalletConfig::desktop();
     let mut wallet = SimpleWallet::generate(&config).unwrap();
     
+    let pubkey_hash = [0x12; 20];
+    let address = Address::p2pkh(Network::Mainnet, &pubkey_hash).unwrap();
+
     let mut psbt = PQPSBT::builder()
         .version(1)
         .add_input("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 0)
         .unwrap()
-        .add_output("bq1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", 1000000)
+        .add_output(&address.to_string(), 1000000)
         .unwrap()
         .build()
         .unwrap();
@@ -210,10 +219,10 @@ fn test_wallet_configs() {
 #[test]
 fn test_address_types() {
     assert_eq!(AddressType::P2PKH.version(), 0x00);
-    assert_eq!(AddressType::PQPP2PKH.version(), 0x10);
+    assert_eq!(AddressType::PQP2PKH.version(), 0x10);
     
     assert!(!AddressType::P2PKH.is_post_quantum());
-    assert!(AddressType::PQPP2PKH.is_post_quantum());
+    assert!(AddressType::PQP2PKH.is_post_quantum());
     
     assert_eq!(AddressType::P2PKH.data_length(), 20);
     assert_eq!(AddressType::P2WSH.data_length(), 32);
@@ -247,7 +256,7 @@ fn test_comprehensive_wallet_flow() {
     
     // Create wallet
     let config = WalletConfig::desktop();
-    let mut wallet = SimpleWallet::from_mnemonic(&mnemonic, &config).unwrap();
+    let mut wallet = SimpleWallet::from_mnemonic(mnemonic, config).unwrap();
     
     // Generate addresses
     let path1 = DerivationPath::bq_standard(0, 0, 0);

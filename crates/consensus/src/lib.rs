@@ -1,5 +1,7 @@
 //! Consensus rule scaffolding for BitQuan.
 #![warn(missing_docs)]
+#![warn(clippy::unwrap_used)]
+#![warn(clippy::expect_used)]
 
 use bitquan_types::{count_signatures, Block, NetworkId};
 use bq_crypto::{CryptoError, CryptoRegistry};

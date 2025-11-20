@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use super::*;
 use bitquan_types::genesis::{self, GENESIS_HASH_BYTES};
 use bitquan_types::{NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
@@ -398,7 +399,9 @@ fn test_signature_weight_scaling() {
     );
 }
 
-#[cfg(test)]
+#![cfg(test)]
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 mod property_tests {
     use super::*;
     use bitquan_types::{SigAlgorithm, Transaction, TxIn, TxOut};

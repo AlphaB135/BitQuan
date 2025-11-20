@@ -196,7 +196,7 @@ pub struct MinerSession {
 
 impl MinerSession {
     /// Create a new miner session.
-    pub fn new(algo: PowAlgo, address: String, difficulty: f64) -> Self {
+    pub fn new(algo: PowAlgo, address: String, difficulty: f64) -> Result<Self> {
         // Duplicate cache: keep last 4096 nonces
         // SAFETY: 4096 is a non-zero constant
         #[allow(clippy::unwrap_used)]
@@ -205,12 +205,11 @@ impl MinerSession {
 
         // Assign cryptographically secure extranonce1
         let mut extranonce1_bytes = [0u8; 4];
-        #[allow(clippy::expect_used)]
         getrandom::getrandom(&mut extranonce1_bytes)
-            .expect("Failed to generate secure extranonce1");
+            .map_err(|e| Error::Internal(format!("Failed to generate secure extranonce1: {}", e)))?;
         let extranonce1 = u32::from_le_bytes(extranonce1_bytes);
 
-        Self {
+        Ok(Self {
             id: Uuid::new_v4(),
             algo,
             address,
@@ -223,7 +222,7 @@ impl MinerSession {
             duplicate_cache,
             extranonce1,
             current_job_id: Arc::new(tokio::sync::RwLock::new(0)),
-        }
+        })
     }
 
     /// Increment accepted shares.
@@ -825,7 +824,7 @@ async fn handle_client(
         PowAlgo::Sha256d,
         addr.to_string(),
         config.default_difficulty,
-    );
+    )?;
     peers.insert(peer_key.clone(), session);
 
     loop {
@@ -1311,7 +1310,7 @@ mod tests {
 
     #[test]
     fn miner_session_creation() {
-        let session = MinerSession::new(PowAlgo::Sha256d, "test@localhost".to_string(), 1.0);
+        let session = MinerSession::new(PowAlgo::Sha256d, "test@localhost".to_string(), 1.0).unwrap();
         assert_eq!(session.algo, PowAlgo::Sha256d);
         assert_eq!(session.address, "test@localhost");
         assert_eq!(session.difficulty, 1.0);
@@ -1321,7 +1320,7 @@ mod tests {
 
     #[test]
     fn share_counters() {
-        let session = MinerSession::new(PowAlgo::Sha256d, "test".to_string(), 1.0);
+        let session = MinerSession::new(PowAlgo::Sha256d, "test".to_string(), 1.0).unwrap();
 
         session.accept_share();
         session.accept_share();

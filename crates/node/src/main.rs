@@ -1,6 +1,7 @@
 //! BitQuan reference node entrypoint.
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
+#![warn(clippy::unwrap_used)]
+#![warn(clippy::expect_used)]
+#![warn(missing_docs)]
 
 mod address;
 mod alert_system;
@@ -1615,7 +1616,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         // Initial display
         print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: 0 | H/s: 0.00\x1b[0m", 
                height + 1, bits, subsidy);
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        let _ = std::io::Write::flush(&mut std::io::stdout());
 
         // Hybrid mining path
         #[allow(unused_variables)]
@@ -1626,7 +1627,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             // Update display for hybrid mining
             print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Algo: {} | Hashes: 0 | H/s: 0.00\x1b[0m", 
                    height + 1, bits, subsidy, algo.name());
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            let _ = std::io::Write::flush(&mut std::io::stdout());
 
             match hybrid_miner.mine_block_attempt(header.clone(), max_nonce, algo)? {
                 Some(h) => (Some(h), Some(algo)),
@@ -1673,7 +1674,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                     let hashrate = (n as f64) / elapsed.as_secs_f64();
                     print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: {} | H/s: {:.2}\x1b[0m", 
                            height + 1, bits, subsidy, n, hashrate);
-                    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                    let _ = std::io::Write::flush(&mut std::io::stdout());
                     last_update = std::time::Instant::now();
                 }
 
@@ -1871,7 +1872,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 "\r\x1b[33mNo valid nonce in {} tries, adjusting difficulty...\x1b[0m\n",
                 max_nonce
             );
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            let _ = std::io::Write::flush(&mut std::io::stdout());
             bits = (bits & 0x00ff_ffff) | ((((bits >> 24) + 1) & 0xff) << 24);
             bits = clamp_bits_within_bounds(bits);
         }

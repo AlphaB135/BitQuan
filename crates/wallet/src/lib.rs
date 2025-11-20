@@ -1,4 +1,5 @@
 //! # BitQuan Wallet Library
+#![warn(missing_docs)]
 //!
 //! A secure, high-performance wallet implementation for BitQuan cryptocurrency.
 //!

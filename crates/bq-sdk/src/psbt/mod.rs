@@ -680,12 +680,15 @@ mod tests {
     
     #[test]
     fn test_psbt_builder() {
+        let pubkey_hash = [0x12; 20];
+        let address = crate::address::Address::p2pkh(crate::address::Network::Mainnet, &pubkey_hash).unwrap();
+        
         let psbt = PQPSBT::builder()
             .version(1)
             .locktime(0)
             .add_input("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 0)
             .unwrap()
-            .add_output("bq1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", 1000000)
+            .add_output(&address.to_string(), 1000000)
             .unwrap()
             .build()
             .unwrap();
@@ -697,11 +700,14 @@ mod tests {
     
     #[test]
     fn test_psbt_serialization() {
+        let pubkey_hash = [0x12; 20];
+        let address = crate::address::Address::p2pkh(crate::address::Network::Mainnet, &pubkey_hash).unwrap();
+
         let psbt = PQPSBT::builder()
             .version(1)
             .add_input("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 0)
             .unwrap()
-            .add_output("bq1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", 1000000)
+            .add_output(&address.to_string(), 1000000)
             .unwrap()
             .build()
             .unwrap();

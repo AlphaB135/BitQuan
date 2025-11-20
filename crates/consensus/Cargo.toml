@@ -13,7 +13,7 @@ randomx = ["dep:randomx-rs"]  # Feature flag for RandomX PoW engine (testnet-onl
 ethash = ["dep:ethash", "dep:ethereum-types"]  # Feature flag for Ethash PoW engine
 
 [dependencies]
-bq-crypto = { path = "../crypto", version = "0.0.1" }
+bq-crypto = { path = "../crypto", version = "0.1.0" }
 bitquan-types = { path = "../types", version = "0.1.0" }
 thiserror.workspace = true
 sha2.workspace = true

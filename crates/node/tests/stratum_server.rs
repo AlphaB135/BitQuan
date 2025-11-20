@@ -8,7 +8,7 @@ use bitquan_types::NetworkId;
 
 #[test]
 fn miner_session_lifecycle() {
-    let session = MinerSession::new(PowAlgo::Sha256d, "miner1@pool".to_string(), 1.0);
+    let session = MinerSession::new(PowAlgo::Sha256d, "miner1@pool".to_string(), 1.0).unwrap();
 
     assert_eq!(session.algo, PowAlgo::Sha256d);
     assert_eq!(session.address, "miner1@pool");
@@ -170,11 +170,11 @@ fn randomx_share_metrics() {
 
 #[test]
 fn multiple_miners_tracking() {
-    let session1 = MinerSession::new(PowAlgo::Sha256d, "miner1".to_string(), 1.0);
-    let session2 = MinerSession::new(PowAlgo::Sha256d, "miner2".to_string(), 2.0);
+    let session1 = MinerSession::new(PowAlgo::Sha256d, "miner1".to_string(), 1.0).unwrap();
+    let session2 = MinerSession::new(PowAlgo::Sha256d, "miner2".to_string(), 2.0).unwrap();
 
     #[cfg(feature = "randomx")]
-    let session3 = MinerSession::new(PowAlgo::RandomX, "miner3".to_string(), 1.0);
+    let session3 = MinerSession::new(PowAlgo::RandomX, "miner3".to_string(), 1.0).unwrap();
 
     // Simulate activity
     session1.accept_share();

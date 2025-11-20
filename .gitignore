@@ -5,6 +5,7 @@ data/
 .DS_Store
 .agents
 
+CLAUDE.md
 # Test/temp files
 genesis.json
 *.keystore

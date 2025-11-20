@@ -91,6 +91,8 @@ impl SecurePrivateKey {
 
         // Copy data using constant-time operation
         if secure_bytes.len() == len {
+            // SAFETY: `secure_bytes` and `bytes` are valid pointers of length `len`.
+            // They are distinct allocations and do not overlap.
             unsafe {
                 crate::constant_time::constant_time_memcpy(
                     secure_bytes.as_ptr() as *mut u8,
@@ -130,8 +132,8 @@ impl SecurePrivateKey {
         let ptr = bytes.as_ptr() as *mut libc::c_void;
         let len = bytes.len();
 
-        // SAFETY: mlock is used to prevent swapping of sensitive key material
-        // The pointer is valid and within the bounds of the Vec<u8>
+        // SAFETY: mlock is used to prevent swapping of sensitive key material.
+        // The pointer is valid and within the bounds of the Vec<u8> which is kept alive by `self`.
         let result = unsafe { mlock(ptr, len) };
 
         if result == 0 {
@@ -153,8 +155,8 @@ impl SecurePrivateKey {
         let bytes = &self.key_bytes.expose_secret().0;
         let ptr = bytes.as_ptr() as *mut libc::c_void;
 
-        // SAFETY: munlock is used to release memory previously locked with mlock
-        // The pointer is valid and within the bounds of the Vec<u8>
+        // SAFETY: munlock is used to release memory previously locked with mlock.
+        // The pointer is valid and within the bounds of the Vec<u8> which is kept alive by `self`.
         let result = unsafe { munlock(ptr, self.memory_size) };
 
         if result == 0 {
@@ -210,6 +212,8 @@ impl SecurePrivateKey {
 
         // Copy new data using constant-time operation
         if secure_bytes.len() == len {
+            // SAFETY: `secure_bytes` and `new_bytes` are valid pointers of length `len`.
+            // They are distinct allocations and do not overlap.
             unsafe {
                 crate::constant_time::constant_time_memcpy(
                     secure_bytes.as_ptr() as *mut u8,

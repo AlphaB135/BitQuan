@@ -41,4 +41,7 @@ pub enum Error {
     /// Fatal unrecoverable error (replaces panic! in production).
     #[error("fatal: {0}")]
     Fatal(&'static str),
+    /// Internal error with dynamic message.
+    #[error("internal: {0}")]
+    Internal(String),
 }

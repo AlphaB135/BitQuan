@@ -13,7 +13,7 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use bq_sdk::{Wallet, WalletConfig, Network};
+//! use bq_sdk::{Wallet, WalletConfig, Network, PQPSBT, DerivationPath};
 //!
 //! // Create new wallet
 //! let config = WalletConfig::new(Network::Mainnet);
@@ -25,8 +25,9 @@
 //!
 //! // Build transaction
 //! let psbt = PQPSBT::builder()
-//!     .add_input("txid...", 0)?
-//!     .add_output("bq1...", 1000000)?
+//!     .version(1)
+//!     .add_input("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 0)?
+//!     .add_output(&address.to_string(), 1000000)?
 //!     .build()?;
 //!
 //! // Sign transaction

@@ -23,7 +23,7 @@ thiserror.workspace = true
 hex.workspace = true
 lazy_static = "1.4"
 bitquan-types = { path = "../types", version = "0.1.0" }
-bq-crypto = { path = "../crypto", version = "0.0.1" }
+bq-crypto = { path = "../crypto", version = "0.1.0" }
 pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1" }
 
 [dev-dependencies]
