@@ -47,7 +47,7 @@ version = "0.10"
 features = ["std"]
 
 [dependencies.rand_core]
-version = "0.6.4"
+version = "0.9.3"
 default-features = false
 
 [dependencies.zeroize]
