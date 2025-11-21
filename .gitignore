@@ -228,3 +228,14 @@ jspm_packages/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Clippy and analysis outputs
+clippy_output*.txt
+*_usage_report.txt
+baseline_*.txt
+
+# Temporary audit packages
+audit_package/
+
+# Fuzz test results
+fuzz/results/
