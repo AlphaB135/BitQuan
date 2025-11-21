@@ -35,6 +35,7 @@ pub struct AddressInfo {
 }
 
 /// Encodes a public key hash as a Bech32m address using witness version 1.
+#[allow(clippy::expect_used)]
 pub fn encode_bech32m(pubkey_hash: &[u8; 32]) -> String {
     // SAFETY: HRP constants are validated at compile-time via const assertion
     let hrp = Hrp::parse(HRP_MAINNET).expect("built-in HRP is valid");
@@ -141,6 +142,7 @@ pub fn script_from_pubkey_hash(pubkey_hash: &[u8; 32]) -> Vec<u8> {
 }
 
 /// Encode with custom prefix (for multisig addresses)
+#[allow(clippy::expect_used)]
 pub fn encode_bech32m_with_prefix(pubkey_hash: &[u8], prefix: &str) -> String {
     // SAFETY: Network HRPs are validated at compile-time
     let hrp = Hrp::parse(prefix).expect("network HRP is valid");

@@ -258,6 +258,7 @@ pub mod address {
     }
 
     /// Encodes a public key hash with a custom HRP.
+    #[allow(clippy::expect_used)]
     pub fn encode_with_hrp(pubkey_hash: &[u8; 32], hrp_str: &str) -> String {
         // Witness version 1 (for Bech32m)
         let witness_version = 1u8;
