@@ -1,0 +1,113 @@
+warning: variable does not need to be mutable
+  --> crates/crypto/benches/crypto_bench.rs:53:17
+   |
+53 |             let mut sig_local = sig;
+   |                 ----^^^^^^^^^
+   |                 |
+   |                 help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bq-crypto` (bench "crypto_bench") generated 1 warning (run `cargo fix --bench "crypto_bench"` to apply 1 suggestion)
+    Finished `bench` profile [optimized] target(s) in 0.20s
+     Running unittests src/lib.rs (target/release/deps/bq_crypto-08053599cbabc07e)
+
+running 48 tests
+test constant_time::tests::test_constant_time_all_zero ... ignored
+test constant_time::tests::test_constant_time_conditional_increment ... ignored
+test constant_time::tests::test_constant_time_eq ... ignored
+test constant_time::tests::test_constant_time_eq_array ... ignored
+test constant_time::tests::test_constant_time_hash_eq ... ignored
+test constant_time::tests::test_constant_time_is_zero ... ignored
+test constant_time::tests::test_constant_time_memcpy ... ignored
+test constant_time::tests::test_constant_time_min_max ... ignored
+test constant_time::tests::test_constant_time_password_verify ... ignored
+test constant_time::tests::test_constant_time_select ... ignored
+test constant_time::tests::test_constant_time_select_slice ... ignored
+test constant_time::tests::test_constant_time_zeroize ... ignored
+test constant_time::tests::test_secure_allocator ... ignored
+test constant_time::tests::test_timing_attack_resistance ... ignored
+test rng::rng_impl::tests::not_all_zero ... ignored
+test rng::rng_impl::tests::substream_differs ... ignored
+test rng::rng_impl::tests::unique_16b ... ignored
+test tests::test_empty_registry ... ignored
+test tests::test_not_implemented_algorithm ... ignored
+test tests::test_provider_lookup ... ignored
+test tests::test_registry_creation ... ignored
+test tests::test_verify_transaction_with_digest ... ignored
+test wallet::encryption::tests::decrypt_with_wrong_password_fails ... ignored
+test wallet::encryption::tests::encrypt_decrypt_roundtrip ... ignored
+test wallet::kdf::tests::derive_key_is_deterministic ... ignored
+test wallet::kdf::tests::different_salts_produce_different_keys ... ignored
+test wallet::keystore::tests::keystore_roundtrip ... ignored
+test wallet::keystore::tests::wrong_password_fails ... ignored
+test wallet::secure_memory_pool::tests::test_concurrent_access ... ignored
+test wallet::secure_memory_pool::tests::test_double_release_protection ... ignored
+test wallet::secure_memory_pool::tests::test_global_memory_manager ... ignored
+test wallet::secure_memory_pool::tests::test_memory_block_acquisition ... ignored
+test wallet::secure_memory_pool::tests::test_memory_block_operations ... ignored
+test wallet::secure_memory_pool::tests::test_memory_zeroization_on_release ... ignored
+test wallet::secure_memory_pool::tests::test_pool_clear ... ignored
+test wallet::secure_memory_pool::tests::test_pool_exhaustion ... ignored
+test wallet::secure_memory_pool::tests::test_race_condition_protection ... ignored
+test wallet::secure_memory_pool::tests::test_secure_memory_pool_creation ... ignored
+test wallet::secure_types::tests::secure_private_key_exposes_bytes ... ignored
+test wallet::secure_types::tests::secure_private_key_memory_locking ... ignored
+test wallet::secure_types::tests::secure_private_key_zeroizes_on_drop ... ignored
+test wallet::secure_types::tests::secure_string_access ... ignored
+test wallet::secure_types::tests::test_constant_time_bytes_comparison ... ignored
+test wallet::secure_types::tests::test_constant_time_key_comparison ... ignored
+test wallet::secure_types::tests::test_secure_key_hash ... ignored
+test wallet::secure_types::tests::test_secure_key_update ... ignored
+test wallet::secure_types::tests::test_timing_attack_resistance ... ignored
+test wallet::secure_types::tests::test_verify_hash ... ignored
+
+test result: ok. 0 passed; 0 failed; 48 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running benches/crypto_bench.rs (target/release/deps/crypto_bench-feba86d52ebeed57)
+Gnuplot not found, using plotters backend
+Benchmarking generate_dilithium_keypair
+Benchmarking generate_dilithium_keypair: Warming up for 3.0000 s
+Benchmarking generate_dilithium_keypair: Collecting 100 samples in estimated 5.0641 s (81k iterations)
+Benchmarking generate_dilithium_keypair: Analyzing
+generate_dilithium_keypair
+                        time:   [62.540 µs 62.610 µs 62.688 µs]
+                        change: [-0.0201% +3.4031% +8.4005%] (p = 0.08 > 0.05)
+                        No change in performance detected.
+Found 7 outliers among 100 measurements (7.00%)
+  2 (2.00%) high mild
+  5 (5.00%) high severe
+
+Benchmarking sign_message
+Benchmarking sign_message: Warming up for 3.0000 s
+Benchmarking sign_message: Collecting 100 samples in estimated 5.7001 s (30k iterations)
+Benchmarking sign_message: Analyzing
+sign_message            time:   [184.13 µs 184.29 µs 184.47 µs]
+                        change: [+127.34% +129.07% +130.18%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 9 outliers among 100 measurements (9.00%)
+  5 (5.00%) high mild
+  4 (4.00%) high severe
+
+Benchmarking verify_signature
+Benchmarking verify_signature: Warming up for 3.0000 s
+Benchmarking verify_signature: Collecting 100 samples in estimated 5.0021 s (7.1M iterations)
+Benchmarking verify_signature: Analyzing
+verify_signature        time:   [783.79 ns 797.32 ns 812.40 ns]
+                        change: [-4.0278% -1.6671% +0.8756%] (p = 0.19 > 0.05)
+                        No change in performance detected.
+Found 8 outliers among 100 measurements (8.00%)
+  7 (7.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking crypto_registry_verify
+Benchmarking crypto_registry_verify: Warming up for 3.0000 s
+Benchmarking crypto_registry_verify: Collecting 100 samples in estimated 5.0001 s (275M iterations)
+Benchmarking crypto_registry_verify: Analyzing
+crypto_registry_verify  time:   [17.943 ns 17.971 ns 17.998 ns]
+                        change: [-0.4904% -0.2454% +0.0307%] (p = 0.08 > 0.05)
+                        No change in performance detected.
+Found 9 outliers among 100 measurements (9.00%)
+  3 (3.00%) low mild
+  3 (3.00%) high mild
+  3 (3.00%) high severe

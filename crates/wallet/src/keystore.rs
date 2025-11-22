@@ -110,7 +110,10 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zeroize::Zeroize;
 
@@ -371,7 +374,8 @@ impl SecureKeyCache {
                 // Remove expired entry and update atomic counter
                 let memory_size = Self::entry_memory_size(cached);
                 entries.remove(cache_key);
-                self.memory_usage_bytes.fetch_sub(memory_size, Ordering::Relaxed);
+                self.memory_usage_bytes
+                    .fetch_sub(memory_size, Ordering::Relaxed);
                 return None;
             }
             // Return a clone of the cached key
@@ -403,12 +407,14 @@ impl SecureKeyCache {
             let new_cached = CachedKey::new(key);
             memory_delta += Self::entry_memory_size(&new_cached) as isize;
             entries.insert(cache_key, new_cached);
-            
+
             // Update atomic counter
             if memory_delta > 0 {
-                self.memory_usage_bytes.fetch_add(memory_delta as usize, Ordering::Relaxed);
+                self.memory_usage_bytes
+                    .fetch_add(memory_delta as usize, Ordering::Relaxed);
             } else if memory_delta < 0 {
-                self.memory_usage_bytes.fetch_sub((-memory_delta) as usize, Ordering::Relaxed);
+                self.memory_usage_bytes
+                    .fetch_sub((-memory_delta) as usize, Ordering::Relaxed);
             }
         }
     }
@@ -435,10 +441,11 @@ impl SecureKeyCache {
                     true
                 }
             });
-            
+
             // Update atomic counter
             if memory_to_remove > 0 {
-                self.memory_usage_bytes.fetch_sub(memory_to_remove, Ordering::Relaxed);
+                self.memory_usage_bytes
+                    .fetch_sub(memory_to_remove, Ordering::Relaxed);
             }
         }
     }
@@ -518,18 +525,18 @@ fn derive_key(
     mem_kib: u32,
     time_cost: u32,
     parallelism: u8,
-) -> [u8; 32] {
+) -> Result<[u8; 32], String> {
     // Create Argon2 parameters with proper error handling
     let params = Params::new(mem_kib, time_cost, parallelism.into(), None)
-        .map_err(|e| Error::Invalid(format!("Invalid Argon2 parameters: {e}")))?;
+        .map_err(|e| format!("Invalid Argon2 parameters: {e}"))?;
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     let mut key = [0u8; 32];
     // Derive key with proper error handling
     argon2
         .hash_password_into(password.expose_secret(), salt, &mut key)
-        .map_err(|e| Error::Invalid(format!("Argon2 key derivation failed: {e}")))?;
-    key
+        .map_err(|e| format!("Argon2 key derivation failed: {e}"))?;
+    Ok(key)
 }
 
 /// Derive key with caching support for hot access optimization
@@ -539,7 +546,7 @@ fn derive_key_cached(
     mem_kib: u32,
     time_cost: u32,
     parallelism: u8,
-) -> [u8; 32] {
+) -> Result<[u8; 32], String> {
     let cache_key = CacheKey::new(password, salt);
 
     // Try to get from cache first
@@ -547,17 +554,17 @@ fn derive_key_cached(
         if cached_key.expose_secret().len() == 32 {
             let mut key = [0u8; 32];
             key.copy_from_slice(cached_key.expose_secret());
-            return key;
+            return Ok(key);
         }
     }
 
     // Cache miss - derive key normally
-    let key = derive_key(password, salt, mem_kib, time_cost, parallelism);
+    let key = derive_key(password, salt, mem_kib, time_cost, parallelism)?;
 
     // Store in cache for future use
     KEY_CACHE.store(cache_key, SecretVec::new(key.to_vec()));
 
-    key
+    Ok(key)
 }
 
 /// Clear all cached keys (for security operations)
@@ -627,7 +634,7 @@ pub fn encrypt_keystore_with_config(
     password: &str,
     meta: Option<serde_json::Value>,
     config: &WalletConfig,
-) -> KeystoreFile {
+) -> Result<KeystoreFile, String> {
     let (mem_kib, time_cost, parallelism) = config.kdf_profile.params();
     encrypt_keystore(plaintext, password, meta, mem_kib, time_cost, parallelism)
 }
@@ -819,7 +826,7 @@ pub fn encrypt_keystore_adaptive(
     plaintext: &[u8],
     password: &str,
     meta: Option<serde_json::Value>,
-) -> KeystoreFile {
+) -> Result<KeystoreFile, String> {
     let (mem_kib, time_cost, parallelism) = adaptive_default_params();
     encrypt_keystore(plaintext, password, meta, mem_kib, time_cost, parallelism)
 }
@@ -830,7 +837,7 @@ pub fn encrypt_keystore_with_profile(
     password: &str,
     meta: Option<serde_json::Value>,
     profile: KdfProfile,
-) -> KeystoreFile {
+) -> Result<KeystoreFile, String> {
     let (mem_kib, time_cost, parallelism) = profile.params();
     encrypt_keystore(plaintext, password, meta, mem_kib, time_cost, parallelism)
 }
@@ -851,7 +858,7 @@ pub fn encrypt_keystore(
     mem_kib: u32,
     time_cost: u32,
     parallelism: u8,
-) -> KeystoreFile {
+) -> Result<KeystoreFile, String> {
     let pw = SecretVec::new(password.as_bytes().to_vec());
 
     let salt_vec = SALT_BUFFER.with(|buf| {
@@ -866,7 +873,7 @@ pub fn encrypt_keystore(
         nonce_buf.clone()
     });
 
-    let mut key_bytes = derive_key(&pw, &salt_vec, mem_kib, time_cost, parallelism);
+    let mut key_bytes = derive_key(&pw, &salt_vec, mem_kib, time_cost, parallelism)?;
 
     #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
@@ -884,7 +891,7 @@ pub fn encrypt_keystore(
                 aad: b"",
             },
         )
-        .map_err(|e| Error::Invalid(format!("AES encryption failed: {e}")))?;
+        .map_err(|e| format!("AES encryption failed: {e}"))?;
 
     key_bytes.zeroize();
 
@@ -896,7 +903,7 @@ pub fn encrypt_keystore(
             eprintln!("Warning: System clock is set before Unix epoch, using epoch as fallback");
             0
         });
-    KeystoreFile {
+    Ok(KeystoreFile {
         magic: MAGIC.to_string(),
         version: CURRENT_VERSION,
         created,
@@ -909,7 +916,7 @@ pub fn encrypt_keystore(
         nonce_b64: general_purpose::STANDARD.encode(&nonce_vec),
         ciphertext_b64: general_purpose::STANDARD.encode(&ciphertext),
         meta,
-    }
+    })
 }
 
 // Duplicate function removed - use encrypt_keystore instead
@@ -997,7 +1004,7 @@ pub fn decrypt_keystore_cached(
             ks.kdf.mem_kib,
             ks.kdf.time_cost,
             ks.kdf.parallelism,
-        )
+        )?
     } else {
         derive_key(
             &pw,
@@ -1005,7 +1012,7 @@ pub fn decrypt_keystore_cached(
             ks.kdf.mem_kib,
             ks.kdf.time_cost,
             ks.kdf.parallelism,
-        )
+        )?
     };
 
     #[allow(deprecated)]
@@ -1062,7 +1069,7 @@ pub fn rotate_keystore(
         mem_kib,
         time_cost,
         parallelism,
-    );
+    )?;
     Ok(new_ks)
 }
 
@@ -1074,10 +1081,7 @@ pub fn rotate_keystore(
 /// # Arguments
 /// * `path` - Target file path
 /// * `ks` - Keystore to write
-pub fn write_keystore_file<P: AsRef<Path>>(
-    path: P,
-    ks: &KeystoreFile,
-) -> std::io::Result<()> {
+pub fn write_keystore_file<P: AsRef<Path>>(path: P, ks: &KeystoreFile) -> std::io::Result<()> {
     let path = path.as_ref();
     let tmp_path = path.with_extension("tmp");
     let mut f = OpenOptions::new()
@@ -1132,7 +1136,8 @@ mod tests {
             DEFAULT_MEM_KIB,
             DEFAULT_TIME_COST,
             DEFAULT_PARALLELISM,
-        );
+        )
+        .unwrap();
         let pt = decrypt_keystore(&ks, "correct horse battery staple").expect("should decrypt");
         assert_eq!(pt, secret);
     }
@@ -1147,7 +1152,8 @@ mod tests {
             DEFAULT_MEM_KIB,
             DEFAULT_TIME_COST,
             DEFAULT_PARALLELISM,
-        );
+        )
+        .unwrap();
         let res = decrypt_keystore(&ks, "pw2");
         assert!(res.is_err());
     }
@@ -1162,7 +1168,8 @@ mod tests {
             DEFAULT_MEM_KIB,
             DEFAULT_TIME_COST,
             DEFAULT_PARALLELISM,
-        );
+        )
+        .unwrap();
         let dir = tempdir().expect("Failed to create temp directory");
         let p = dir.path().join("keystore.json");
         write_keystore_file(&p, &ks).expect("write");
@@ -1174,7 +1181,7 @@ mod tests {
     #[test]
     fn tamper_cipher_rejected() {
         let secret = b"abc";
-        let ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1);
+        let ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1).unwrap();
         let mut ks_bad = ks.clone();
         let mut c = general_purpose::STANDARD
             .decode(&ks_bad.ciphertext_b64)
@@ -1187,7 +1194,7 @@ mod tests {
     #[test]
     fn invalid_magic_rejected() {
         let secret = b"test";
-        let mut ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1);
+        let mut ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1).unwrap();
         ks.magic = "FAKE".to_string();
         assert!(decrypt_keystore(&ks, "pw").is_err());
     }
@@ -1195,7 +1202,7 @@ mod tests {
     #[test]
     fn future_version_rejected() {
         let secret = b"test";
-        let mut ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1);
+        let mut ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1).unwrap();
         ks.version = 99;
         let result = decrypt_keystore(&ks, "pw");
         assert!(result.is_err());
@@ -1205,7 +1212,7 @@ mod tests {
     #[test]
     fn large_secret_roundtrip() {
         let secret = vec![0x42u8; 32 * 1024];
-        let ks = encrypt_keystore(&secret, "longpw", None, 8 * 1024, 1, 1);
+        let ks = encrypt_keystore(&secret, "longpw", None, 8 * 1024, 1, 1).unwrap();
         let pt = decrypt_keystore(&ks, "longpw").expect("decrypt");
         assert_eq!(pt, secret);
     }
@@ -1255,7 +1262,7 @@ mod tests {
         let meta = Some(json!({"adaptive": true}));
 
         // Test adaptive encryption
-        let ks = encrypt_keystore_adaptive(secret, password, meta.clone());
+        let ks = encrypt_keystore_adaptive(secret, password, meta.clone()).unwrap();
         let pt = decrypt_keystore(&ks, password).expect("adaptive decrypt should work");
         assert_eq!(pt, secret);
 
@@ -1275,7 +1282,7 @@ mod tests {
         // Clear cache first
         clear_key_cache();
 
-        let ks = encrypt_keystore_adaptive(secret, password, meta.clone());
+        let ks = encrypt_keystore_adaptive(secret, password, meta.clone()).unwrap();
 
         // First decryption (cache miss)
         let pt1 = decrypt_keystore(&ks, password).expect("first decrypt should work");
@@ -1300,7 +1307,7 @@ mod tests {
         // Clear cache
         clear_key_cache();
 
-        let ks = encrypt_keystore_adaptive(secret, password, meta.clone());
+        let ks = encrypt_keystore_adaptive(secret, password, meta.clone()).unwrap();
 
         // Decrypt to populate cache
         let _pt = decrypt_keystore(&ks, password).expect("decrypt should work");
@@ -1327,7 +1334,7 @@ mod tests {
         // Clear cache
         clear_key_cache();
 
-        let ks = encrypt_keystore_adaptive(secret, password, meta.clone());
+        let ks = encrypt_keystore_adaptive(secret, password, meta.clone()).unwrap();
 
         // Decrypt with cache
         let pt1 = decrypt_keystore(&ks, password).expect("cached decrypt should work");
@@ -1352,8 +1359,8 @@ mod tests {
         // Clear cache
         clear_key_cache();
 
-        let ks1 = encrypt_keystore_adaptive(secret1, password1, meta.clone());
-        let ks2 = encrypt_keystore_adaptive(secret2, password2, meta.clone());
+        let ks1 = encrypt_keystore_adaptive(secret1, password1, meta.clone()).unwrap();
+        let ks2 = encrypt_keystore_adaptive(secret2, password2, meta.clone()).unwrap();
 
         // Decrypt first keystore
         let pt1 = decrypt_keystore(&ks1, password1).expect("decrypt 1 should work");
@@ -1428,7 +1435,7 @@ mod tests {
         ];
 
         for (name, config) in configs {
-            let ks = encrypt_keystore_with_config(secret, password, meta.clone(), &config);
+            let ks = encrypt_keystore_with_config(secret, password, meta.clone(), &config).unwrap();
             let pt = decrypt_keystore_with_config(&ks, password, &config).unwrap();
             assert_eq!(pt, secret, "Failed for config: {}", name);
         }
@@ -1442,7 +1449,7 @@ mod tests {
         let password = "memory-password";
         let meta = Some(json!({"memory": true}));
 
-        let ks = encrypt_keystore_adaptive(secret, password, meta);
+        let ks = encrypt_keystore_adaptive(secret, password, meta).unwrap();
         let _pt = decrypt_keystore(&ks, password).unwrap();
 
         let memory_usage = get_cache_memory_usage();
@@ -1459,7 +1466,7 @@ mod tests {
     #[test]
     fn rotate_password() {
         let secret = b"my-key";
-        let ks = encrypt_keystore(secret, "old-pw", None, 8 * 1024, 1, 1);
+        let ks = encrypt_keystore(secret, "old-pw", None, 8 * 1024, 1, 1).unwrap();
         let rotated = rotate_keystore(&ks, "old-pw", "new-pw", 8 * 1024, 1, 1).expect("rotate");
 
         assert!(decrypt_keystore(&rotated, "old-pw").is_err());
@@ -1480,7 +1487,7 @@ fn corrupted_file_handling() {
     assert!(read_keystore_file(&path).is_err());
 
     // Truncated valid keystore
-    let ks = encrypt_keystore(b"test", "pw", None, 8 * 1024, 1, 1);
+    let ks = encrypt_keystore(b"test", "pw", None, 8 * 1024, 1, 1).unwrap();
     let json = ks.to_json().expect("Failed to serialize keystore");
     std::fs::write(&path, &json[..json.len() / 2]).expect("Failed to write truncated keystore");
     assert!(read_keystore_file(&path).is_err());
@@ -1492,7 +1499,7 @@ fn corrupted_file_handling() {
 
 #[test]
 fn decrypt_corrupted_fields() {
-    let ks = encrypt_keystore(b"test", "pw", None, 8 * 1024, 1, 1);
+    let ks = encrypt_keystore(b"test", "pw", None, 8 * 1024, 1, 1).unwrap();
 
     // Corrupt salt
     let mut bad = ks.clone();

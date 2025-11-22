@@ -6,7 +6,10 @@
 
 use crate::constant_time::{constant_time_zeroize, SecureAllocator};
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 
 /// A secure memory pool for managing sensitive data.
 ///
@@ -98,8 +101,12 @@ impl SecureMemoryPool {
     ///
     /// Returns a secure memory block or an error if no blocks are available.
     pub fn acquire(&self) -> Result<SecureMemoryBlock, std::io::Error> {
-        let mut blocks = self.available_blocks.lock()
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::WouldBlock, "Failed to acquire pool lock"))?;
+        let mut blocks = self.available_blocks.lock().map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                "Failed to acquire pool lock",
+            )
+        })?;
 
         if let Some(block) = blocks.pop_front() {
             // Use atomic compare-and-swap to ensure thread safety
@@ -108,7 +115,7 @@ impl SecureMemoryPool {
                 false, // Expected value: not in use
                 true,  // New value: mark as in use
                 Ordering::SeqCst,
-                Ordering::SeqCst
+                Ordering::SeqCst,
             ) {
                 Ok(_) => {
                     // Successfully marked as in use, return the block
@@ -138,12 +145,16 @@ impl SecureMemoryPool {
     /// The block must have been acquired from this pool.
     pub fn release(&self, mut block: SecureMemoryBlock) {
         // Use atomic compare-and-swap to prevent double-free
-        if block.in_use.compare_exchange(
-            true,  // Expected value: currently in use
-            false, // New value: mark as not in use
-            Ordering::SeqCst,
-            Ordering::SeqCst
-        ).is_err() {
+        if block
+            .in_use
+            .compare_exchange(
+                true,  // Expected value: currently in use
+                false, // New value: mark as not in use
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .is_err()
+        {
             return; // Already released, ignore
         }
 
@@ -176,7 +187,8 @@ impl SecureMemoryPool {
 
     /// Returns the number of available blocks in the pool.
     pub fn available_count(&self) -> usize {
-        self.available_blocks.lock()
+        self.available_blocks
+            .lock()
             .map(|blocks| blocks.len())
             .unwrap_or_else(|_| {
                 eprintln!("Warning: Failed to acquire lock for available_count, returning 0");
@@ -386,9 +398,9 @@ mod tests {
 
     #[test]
     fn test_concurrent_access() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
         use std::thread;
-        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let pool = Arc::new(SecureMemoryPool::new(1024, 20).unwrap());
         let mut handles = vec![];
@@ -400,7 +412,7 @@ mod tests {
             let pool_clone = Arc::clone(&pool);
             let acquire_count_clone = Arc::clone(&acquire_count);
             let release_count_clone = Arc::clone(&release_count);
-            
+
             let handle = thread::spawn(move || {
                 for _ in 0..10 {
                     // Acquire and release blocks concurrently
@@ -408,7 +420,7 @@ mod tests {
                         Ok(mut block) => {
                             acquire_count_clone.fetch_add(1, Ordering::SeqCst);
                             assert!(block.is_in_use());
-                            
+
                             // Simulate some work with the block
                             {
                                 let slice = block.as_slice_mut();
@@ -416,7 +428,7 @@ mod tests {
                                 // Add a small delay to increase chance of race conditions
                                 std::hint::spin_loop();
                             }
-                            
+
                             pool_clone.release(block);
                             release_count_clone.fetch_add(1, Ordering::SeqCst);
                         }
@@ -438,16 +450,16 @@ mod tests {
         let total_acquires = acquire_count.load(Ordering::SeqCst);
         let total_releases = release_count.load(Ordering::SeqCst);
         assert_eq!(total_acquires, total_releases);
-        
+
         // All blocks should be available after all threads complete
         assert_eq!(pool.available_count(), 20);
     }
 
     #[test]
     fn test_race_condition_protection() {
+        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::Arc;
         use std::thread;
-        use std::sync::atomic::{AtomicBool, Ordering};
 
         let pool = Arc::new(SecureMemoryPool::new(1024, 5).unwrap());
         let race_detected = Arc::new(AtomicBool::new(false));
@@ -457,7 +469,7 @@ mod tests {
         for thread_id in 0..5 {
             let pool_clone = Arc::clone(&pool);
             let race_detected_clone = Arc::clone(&race_detected);
-            
+
             let handle = thread::spawn(move || {
                 for iteration in 0..10 {
                     if let Ok(mut block) = pool_clone.acquire() {
@@ -466,7 +478,7 @@ mod tests {
                             race_detected_clone.store(true, Ordering::SeqCst);
                             return;
                         }
-                        
+
                         // Do some work with unique pattern per thread/iteration
                         let thread_data = ((thread_id * 10 + iteration) & 0xFF) as u8;
                         let _block_id = block.block_id();
@@ -477,10 +489,10 @@ mod tests {
                                 slice[i] = thread_data.wrapping_add(i as u8);
                             }
                         }
-                        
+
                         // Small delay to increase chance of race conditions
                         std::hint::spin_loop();
-                        
+
                         // Verify data integrity (this should pass if no race condition)
                         {
                             let slice = block.as_slice();
@@ -492,7 +504,7 @@ mod tests {
                                 }
                             }
                         }
-                        
+
                         pool_clone.release(block);
                     }
                 }
@@ -506,8 +518,11 @@ mod tests {
         }
 
         // Verify no race conditions were detected
-        assert!(!race_detected.load(Ordering::SeqCst), "Race condition detected!");
-        
+        assert!(
+            !race_detected.load(Ordering::SeqCst),
+            "Race condition detected!"
+        );
+
         // Pool should be in consistent state
         assert_eq!(pool.available_count(), 5);
     }
@@ -515,13 +530,13 @@ mod tests {
     #[test]
     fn test_double_release_protection() {
         let pool = SecureMemoryPool::new(1024, 5).unwrap();
-        
+
         let block = pool.acquire().unwrap();
         assert!(block.is_in_use());
-        
+
         // First release should succeed
         pool.release(block);
-        
+
         // Note: We can't test double release since the block is moved
         // But the atomic compare_exchange prevents double-free
     }

@@ -344,6 +344,7 @@ dependencies = [
  "hex",
  "ipnet",
  "maxminddb",
+ "parking_lot",
  "primitive-types",
  "proptest",
  "randomx-rs",

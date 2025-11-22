@@ -5,15 +5,14 @@
 //! Supports pluggable PoW algorithms (SHA-256d, RandomX) with per-algorithm difficulty.
 
 use bitquan_types::{BlockHeader, Result};
+use parking_lot::Mutex;
 use sha2::{Digest, Sha256};
-use thiserror::Error;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use thiserror::Error;
 
 #[cfg(feature = "randomx")]
-use randomx_rs::{RandomXCache, RandomXVM, RandomXFlag};
-
-
+use randomx_rs::{RandomXCache, RandomXFlag, RandomXVM};
 
 /// Minimum compact bits permitted (hardest difficulty - mainnet level).
 pub const DEVNET_MIN_BITS: u32 = 0x1c00ffff;
@@ -124,6 +123,10 @@ impl PowEngine for Sha256dEngine {
 }
 
 /// RandomX VM cache to prevent DoS from repeated VM creation.
+///
+/// Note: We use parking_lot::Mutex here because randomx_rs::RandomXVM is not Send/Sync.
+/// parking_lot::Mutex doesn't require the inner type to be Send/Sync, unlike std::sync::Mutex.
+/// This is a temporary workaround until upstream randomx_rs implements Send/Sync.
 #[cfg(feature = "randomx")]
 pub struct RandomXVMCache {
     cache: HashMap<[u8; 32], Arc<Mutex<Option<randomx_rs::RandomXVM>>>>,
@@ -145,12 +148,14 @@ impl RandomXVMCache {
         }
 
         // Create new cache and VM for this seed
-        let cache = RandomXCache::new(RandomXFlag::default(), seed)
-            .map_err(|e| bitquan_types::Error::Invalid(format!("Failed to create RandomX cache: {}", e)))?;
-        
-        let vm = RandomXVM::new(RandomXFlag::default(), Some(cache), None)
-            .map_err(|e| bitquan_types::Error::Invalid(format!("Failed to create RandomX VM: {}", e)))?;
-        
+        let cache = RandomXCache::new(RandomXFlag::default(), seed).map_err(|e| {
+            bitquan_types::Error::Invalid(format!("Failed to create RandomX cache: {}", e))
+        })?;
+
+        let vm = RandomXVM::new(RandomXFlag::default(), Some(cache), None).map_err(|e| {
+            bitquan_types::Error::Invalid(format!("Failed to create RandomX VM: {}", e))
+        })?;
+
         let vm_ref = Arc::new(Mutex::new(Some(vm)));
         self.cache.insert(*seed, Arc::clone(&vm_ref));
         Ok(vm_ref)
@@ -172,9 +177,7 @@ pub struct RandomXEngine {
 impl RandomXEngine {
     /// Create a new RandomX engine with given configuration.
     pub fn new(config: RandomXConfig) -> Self {
-        Self { 
-            _config: config,
-        }
+        Self { _config: config }
     }
 }
 
@@ -212,24 +215,28 @@ impl PowEngine for RandomXEngine {
 
 /// Computes RandomX PoW hash using cached VM to prevent DoS.
 #[cfg(feature = "randomx")]
-pub fn randomx_pow_hash_cached(preimage: &[u8], seed: &[u8; 32], vm_cache: &Arc<Mutex<RandomXVMCache>>) -> Result<[u8; 32]> {
-    use randomx_rs::{RandomXCache, RandomXVM, RandomXFlag};
-    
+pub fn randomx_pow_hash_cached(
+    preimage: &[u8],
+    seed: &[u8; 32],
+    vm_cache: &Arc<Mutex<RandomXVMCache>>,
+) -> Result<[u8; 32]> {
     // Get or create cached VM for this seed
-    let vm_ref = vm_cache.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire VM cache lock: {}", e)))?
-        .get_vm(seed)?;
-    
+    let vm_ref = vm_cache.lock().get_vm(seed)?;
+
     // Calculate hash using cached VM
     let hash = {
-        let vm_guard = vm_ref.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire VM lock: {}", e)))?;
+        let vm_guard = vm_ref.lock();
         if let Some(ref vm) = *vm_guard {
-            vm.calculate_hash(preimage)
-                .map_err(|e| bitquan_types::Error::Invalid(format!("Failed to calculate RandomX hash: {}", e)))?
+            vm.calculate_hash(preimage).map_err(|e| {
+                bitquan_types::Error::Invalid(format!("Failed to calculate RandomX hash: {}", e))
+            })?
         } else {
-            return Err(bitquan_types::Error::Invalid("RandomX VM not initialized".to_string()));
+            return Err(bitquan_types::Error::Invalid(
+                "RandomX VM not initialized".to_string(),
+            ));
         }
     };
-    
+
     // Convert to [u8; 32] - RandomX produces 32-byte hash
     let mut out = [0u8; 32];
     out.copy_from_slice(&hash);
@@ -241,19 +248,18 @@ pub fn randomx_pow_hash_cached(preimage: &[u8], seed: &[u8; 32], vm_cache: &Arc<
 pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
     // Create temporary cache for legacy compatibility
     let vm_cache = Arc::new(Mutex::new(RandomXVMCache::new()));
-    randomx_pow_hash_cached(preimage, seed, &vm_cache)
-        .unwrap_or_else(|e| {
-            // In legacy compatibility mode, we should never fail, but if we do,
-            // return a fallback hash to maintain API compatibility
-            let mut hasher = Sha256::new();
-            hasher.update(b"RandomX-fallback-");
-            hasher.update(seed);
-            hasher.update(preimage);
-            let result = hasher.finalize();
-            let mut out = [0u8; 32];
-            out.copy_from_slice(&result);
-            out
-        })
+    randomx_pow_hash_cached(preimage, seed, &vm_cache).unwrap_or_else(|_e| {
+        // In legacy compatibility mode, we should never fail, but if we do,
+        // return a fallback hash to maintain API compatibility
+        let mut hasher = Sha256::new();
+        hasher.update(b"RandomX-fallback-");
+        hasher.update(seed);
+        hasher.update(preimage);
+        let result = hasher.finalize();
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&result);
+        out
+    })
 }
 
 /// Fallback RandomX implementation when feature is not enabled
@@ -340,7 +346,7 @@ pub struct EthashEngine {
 impl EthashEngine {
     /// Create a new Ethash engine with given configuration.
     pub fn new(config: EthashConfig) -> Self {
-        Self { 
+        Self {
             _config: config,
             #[cfg(feature = "ethash")]
             cache: Arc::new(Mutex::new(EthashCache::new())),
@@ -370,7 +376,11 @@ impl PowEngine for EthashEngine {
         let bytes = header.to_bytes();
         #[cfg(feature = "ethash")]
         {
-            Ok(ethash_pow_hash_cached(&bytes, &self._config.cache_size, &self.cache)?)
+            Ok(ethash_pow_hash_cached(
+                &bytes,
+                &self._config.cache_size,
+                &self.cache,
+            )?)
         }
         #[cfg(not(feature = "ethash"))]
         {
@@ -381,41 +391,46 @@ impl PowEngine for EthashEngine {
 
 /// Computes Ethash PoW hash using cached data to prevent DoS.
 #[cfg(feature = "ethash")]
-pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mutex<EthashCache>>) -> Result<[u8; 32]> {
-    use ethash::{hashimoto_light};
+pub fn ethash_pow_hash_cached(
+    preimage: &[u8],
+    cache_size: &u32,
+    cache: &Arc<Mutex<EthashCache>>,
+) -> Result<[u8; 32]> {
+    use ethash::hashimoto_light;
     use ethereum_types::{H256, H64};
-    
+
     // Convert preimage to H256 format
     let header_hash = H256::from_slice(preimage);
-    
+
     // Calculate epoch from cache size (simplified - normally derived from block number)
     let epoch = (*cache_size / 32) as u32; // Rough approximation
-    
+
     // Get or create cached data for this epoch
-    let cache_ref = cache.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire cache lock: {}", e)))?
+    let cache_ref = cache
+        .lock()
+        .map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire cache lock: {}", e)))?
         .get_cache(epoch)?;
-    
+
     // Use a simple nonce for now (in real implementation, this would be mining nonce)
     let nonce = H64::default();
-    
+
     // Get cache data
     let cache_data = {
-        let cache_guard = cache_ref.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire cache data lock: {}", e)))?;
+        let cache_guard = cache_ref.lock().map_err(|e| {
+            bitquan_types::Error::Invalid(format!("Failed to acquire cache data lock: {}", e))
+        })?;
         if let Some(ref data) = *cache_guard {
             data.clone()
         } else {
-            return Err(bitquan_types::Error::Invalid("Ethash cache not initialized".to_string()));
+            return Err(bitquan_types::Error::Invalid(
+                "Ethash cache not initialized".to_string(),
+            ));
         }
     };
-    
+
     // Compute hashimoto light (Ethash PoW) - simpler version for light clients
-    let (_mix_hash, result_hash) = hashimoto_light(
-        header_hash,
-        nonce,
-        epoch as usize,
-        &cache_data,
-    );
-    
+    let (_mix_hash, result_hash) = hashimoto_light(header_hash, nonce, epoch as usize, &cache_data);
+
     // Return result hash (32 bytes)
     let mut out = [0u8; 32];
     out.copy_from_slice(result_hash.as_fixed_bytes());
@@ -427,20 +442,19 @@ pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mut
 pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
     // Create temporary cache for legacy compatibility
     let cache = Arc::new(Mutex::new(EthashCache::new()));
-    ethash_pow_hash_cached(preimage, cache_size, &cache)
-        .unwrap_or_else(|e| {
-            // In legacy compatibility mode, we should never fail, but if we do,
-            // return a fallback hash to maintain API compatibility
-            use sha3::{Digest, Keccak256};
-            let mut hasher = Keccak256::new();
-            hasher.update(b"Ethash-fallback-");
-            hasher.update(cache_size.to_le_bytes());
-            hasher.update(preimage);
-            let result = hasher.finalize();
-            let mut out = [0u8; 32];
-            out.copy_from_slice(&result);
-            out
-        })
+    ethash_pow_hash_cached(preimage, cache_size, &cache).unwrap_or_else(|e| {
+        // In legacy compatibility mode, we should never fail, but if we do,
+        // return a fallback hash to maintain API compatibility
+        use sha3::{Digest, Keccak256};
+        let mut hasher = Keccak256::new();
+        hasher.update(b"Ethash-fallback-");
+        hasher.update(cache_size.to_le_bytes());
+        hasher.update(preimage);
+        let result = hasher.finalize();
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&result);
+        out
+    })
 }
 
 /// Fallback Ethash implementation when feature is not enabled

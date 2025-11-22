@@ -1614,7 +1614,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         let update_interval = std::time::Duration::from_millis(100); // Update every 100ms
 
         // Initial display
-        print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: 0 | H/s: 0.00\x1b[0m", 
+        print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: 0 | H/s: 0.00\x1b[0m",
                height + 1, bits, subsidy);
         let _ = std::io::Write::flush(&mut std::io::stdout());
 
@@ -1625,7 +1625,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             let algo = hybrid_miner.select_algorithm(height);
 
             // Update display for hybrid mining
-            print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Algo: {} | Hashes: 0 | H/s: 0.00\x1b[0m", 
+            print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Algo: {} | Hashes: 0 | H/s: 0.00\x1b[0m",
                    height + 1, bits, subsidy, algo.name());
             let _ = std::io::Write::flush(&mut std::io::stdout());
 
@@ -1672,7 +1672,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 if last_update.elapsed() >= update_interval {
                     let elapsed = start_time.elapsed();
                     let hashrate = (n as f64) / elapsed.as_secs_f64();
-                    print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: {} | H/s: {:.2}\x1b[0m", 
+                    print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: {} | H/s: {:.2}\x1b[0m",
                            height + 1, bits, subsidy, n, hashrate);
                     let _ = std::io::Write::flush(&mut std::io::stdout());
                     last_update = std::time::Instant::now();
@@ -1829,7 +1829,9 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         };
         let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
             && time_delta > 0
-            && ratio < (params.difficulty.burst_guard_floor_ratio_fp as f64 / bitquan_consensus::FP_SCALE as f64);
+            && ratio
+                < (params.difficulty.burst_guard_floor_ratio_fp as f64
+                    / bitquan_consensus::FP_SCALE as f64);
         if guard_triggered {
             guard_total = guard_total
                 .checked_add(1)
@@ -1846,8 +1848,13 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             bits = config_bits;
         } else {
             // Use ASERT difficulty adjustment after sufficient history
-            let next_target =
-                asert_next_target(anchor.target as u64, height_delta, time_delta, &params, None);
+            let next_target = asert_next_target(
+                anchor.target as u64,
+                height_delta,
+                time_delta,
+                &params,
+                None,
+            );
             let mut next_bits = target_to_compact_u64(next_target);
             if next_bits == 0 {
                 next_bits = block_bits;

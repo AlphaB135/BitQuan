@@ -18,27 +18,27 @@ pub enum WalletError {
     /// Invalid mnemonic
     #[error("Invalid mnemonic: {0}")]
     InvalidMnemonic(String),
-    
+
     /// Invalid derivation path
     #[error("Invalid derivation path: {0}")]
     InvalidDerivationPath(String),
-    
+
     /// Key generation failed
     #[error("Key generation failed: {0}")]
     KeyGenerationFailed(String),
-    
+
     /// Signing failed
     #[error("Signing failed: {0}")]
     SigningFailed(String),
-    
+
     /// Address generation failed
     #[error("Address generation failed: {0}")]
     AddressGenerationFailed(String),
-    
+
     /// Wallet locked
     #[error("Wallet is locked")]
     WalletLocked,
-    
+
     /// Invalid password
     #[error("Invalid password")]
     InvalidPassword,
@@ -59,7 +59,10 @@ pub enum SignatureAlgorithm {
 impl SignatureAlgorithm {
     /// Check if the algorithm is post-quantum secure
     pub fn is_post_quantum(&self) -> bool {
-        matches!(self, SignatureAlgorithm::Dilithium3 | SignatureAlgorithm::Hybrid)
+        matches!(
+            self,
+            SignatureAlgorithm::Dilithium3 | SignatureAlgorithm::Hybrid
+        )
     }
 }
 
@@ -80,50 +83,50 @@ impl DerivationPath {
             hardened: vec![],
         }
     }
-    
+
     /// Add component to path
     pub fn push(mut self, index: u32, hardened: bool) -> Self {
         self.path.push(index);
         self.hardened.push(hardened);
         self
     }
-    
+
     /// Get BIP32 standard path for account
     pub fn bip44_standard(account: u32, change: u32, address_index: u32) -> Self {
         Self::new()
-            .push(44, true)  // purpose
-            .push(0, true)   // coin_type (Bitcoin)
+            .push(44, true) // purpose
+            .push(0, true) // coin_type (Bitcoin)
             .push(account, true) // account
             .push(change, false) // change
             .push(address_index, false) // address_index
     }
-    
+
     /// Get BIP84 standard path (native SegWit)
     pub fn bip84_standard(account: u32, change: u32, address_index: u32) -> Self {
         Self::new()
-            .push(84, true)  // purpose
-            .push(0, true)   // coin_type (Bitcoin)
+            .push(84, true) // purpose
+            .push(0, true) // coin_type (Bitcoin)
             .push(account, true) // account
             .push(change, false) // change
             .push(address_index, false) // address_index
     }
-    
+
     /// Get BitQuan post-quantum path
     pub fn bq_standard(account: u32, change: u32, address_index: u32) -> Self {
         Self::new()
             .push(123, true) // BitQuan purpose
-            .push(0, true)   // coin_type
+            .push(0, true) // coin_type
             .push(account, true) // account
             .push(change, false) // change
             .push(address_index, false) // address_index
     }
-    
+
     /// Convert to string representation
     pub fn as_string(&self) -> String {
         if self.path.is_empty() {
             return "m".to_string();
         }
-        
+
         let mut result = "m".to_string();
         for (index, hardened) in self.path.iter().zip(self.hardened.iter()) {
             result.push('/');
@@ -134,34 +137,37 @@ impl DerivationPath {
         }
         result
     }
-    
+
     /// Parse from string representation
     pub fn parse(path: &str) -> Result<Self> {
         if !path.starts_with('m') {
             return Err(SDKError::Wallet(WalletError::InvalidDerivationPath(
-                "Path must start with 'm'".to_string()
+                "Path must start with 'm'".to_string(),
             )));
         }
-        
+
         let parts: Vec<&str> = path.split('/').collect();
         let mut derivation = Self::new();
-        
+
         for part in parts.iter().skip(1) {
             if part.is_empty() {
                 continue;
             }
-            
+
             let hardened = part.ends_with('\'');
-            let index_str = if hardened { &part[..part.len()-1] } else { part };
-            
-            let index = index_str.parse::<u32>()
-                .map_err(|_| WalletError::InvalidDerivationPath(
-                    format!("Invalid index: {}", index_str)
-                ))?;
-            
+            let index_str = if hardened {
+                &part[..part.len() - 1]
+            } else {
+                part
+            };
+
+            let index = index_str.parse::<u32>().map_err(|_| {
+                WalletError::InvalidDerivationPath(format!("Invalid index: {}", index_str))
+            })?;
+
             derivation = derivation.push(index, hardened);
         }
-        
+
         Ok(derivation)
     }
 }
@@ -196,53 +202,53 @@ impl Mnemonic {
     pub fn generate(entropy_bits: usize, quantum_enhanced: bool) -> Result<Self> {
         if !entropy_bits.is_multiple_of(32) {
             return Err(SDKError::Wallet(WalletError::InvalidMnemonic(
-                "Entropy bits must be multiple of 32".to_string()
+                "Entropy bits must be multiple of 32".to_string(),
             )));
         }
-        
+
         let entropy_bytes = entropy_bits / 8;
         let mut entropy = vec![0u8; entropy_bytes];
-        
+
         // Generate entropy
         getrandom::getrandom(&mut entropy)
             .map_err(|e| WalletError::KeyGenerationFailed(e.to_string()))?;
-        
+
         // Add quantum enhancement if requested
         if quantum_enhanced {
             let mut quantum_entropy = vec![0u8; 16]; // 128 bits
             getrandom::getrandom(&mut quantum_entropy)
                 .map_err(|e| WalletError::KeyGenerationFailed(e.to_string()))?;
-            
+
             // Mix quantum entropy
             for i in 0..entropy.len().min(quantum_entropy.len()) {
                 entropy[i] ^= quantum_entropy[i];
             }
         }
-        
+
         // Convert to words (simplified BIP39 implementation)
         let word_count = (entropy_bits + 10).div_ceil(11); // 11 bits per word
         let mut words = Vec::with_capacity(word_count);
-        
+
         for i in 0..word_count {
             let bit_start = i * 11;
             let bit_end = (bit_start + 11).min(entropy_bits);
-            
+
             if bit_end <= entropy_bits {
                 let mut word_index = 0u16;
                 for bit in bit_start..bit_end {
                     let byte_index = bit / 8;
                     let bit_offset = bit % 8;
-                    
+
                     if (entropy[byte_index] >> bit_offset) & 1 == 1 {
                         word_index |= 1 << (bit - bit_start);
                     }
                 }
-                
+
                 // Use standard BIP39 wordlist (simplified)
                 words.push(format!("word{}", word_index));
             }
         }
-        
+
         Ok(Self {
             words,
             language: "en".to_string(),
@@ -250,22 +256,22 @@ impl Mnemonic {
             quantum_enhanced,
         })
     }
-    
+
     /// Parse mnemonic from string
     pub fn from_str(mnemonic: &str, quantum_enhanced: bool) -> Result<Self> {
         let words: Vec<String> = mnemonic
             .split_whitespace()
             .map(|w| w.to_lowercase())
             .collect();
-        
+
         if words.is_empty() {
             return Err(SDKError::Wallet(WalletError::InvalidMnemonic(
-                "Empty mnemonic".to_string()
+                "Empty mnemonic".to_string(),
             )));
         }
-        
+
         let entropy_bits = (words.len() * 11) - (words.len() * 11) % 32;
-        
+
         Ok(Self {
             words,
             language: "en".to_string(),
@@ -273,29 +279,29 @@ impl Mnemonic {
             quantum_enhanced,
         })
     }
-    
+
     /// Convert to string
     pub fn as_string(&self) -> String {
         self.words.join(" ")
     }
-    
+
     /// Generate seed from mnemonic
     pub fn to_seed(&self, passphrase: &str) -> Result<[u8; 64]> {
         use hmac::{Hmac, Mac};
         use sha2::Sha512;
-        
+
         let mnemonic_str = self.as_string();
         let salt = format!("mnemonic{}", passphrase);
-        
+
         let mut mac = Hmac::<Sha512>::new_from_slice(salt.as_bytes())
             .map_err(|e| WalletError::KeyGenerationFailed(e.to_string()))?;
-        
+
         mac.update(mnemonic_str.as_bytes());
         let result = mac.finalize().into_bytes();
-        
+
         let mut seed = [0u8; 64];
         seed.copy_from_slice(&result[..64]);
-        
+
         Ok(seed)
     }
 }
@@ -367,7 +373,7 @@ impl WalletConfig {
             performance: PerformanceConfig::default(),
         }
     }
-    
+
     /// Server configuration (high security)
     pub fn server() -> Self {
         Self {
@@ -387,7 +393,7 @@ impl WalletConfig {
             },
         }
     }
-    
+
     /// Mobile configuration (balanced)
     pub fn mobile() -> Self {
         Self {
@@ -407,7 +413,7 @@ impl WalletConfig {
             },
         }
     }
-    
+
     /// Desktop configuration (performance)
     pub fn desktop() -> Self {
         Self {
@@ -464,35 +470,35 @@ impl Default for PerformanceConfig {
 pub trait Wallet {
     /// The error type for wallet operations
     type Error: std::error::Error;
-    
+
     /// Generate new wallet
     fn generate(config: &WalletConfig) -> Result<Self>
     where
         Self: Sized;
-    
+
     /// Restore from mnemonic
     fn from_mnemonic(mnemonic: &Mnemonic, config: &WalletConfig) -> Result<Self>
     where
         Self: Sized;
-    
+
     /// Get address at derivation path
     fn get_address(&self, path: &DerivationPath) -> Result<Address>;
-    
+
     /// Get public key for address
     fn get_public_key(&self, path: &DerivationPath) -> Result<Vec<u8>>;
-    
+
     /// Sign PQ-PSBT
     fn sign_psbt(&mut self, psbt: &mut PQPSBT) -> Result<()>;
-    
+
     /// Get mnemonic (if available)
     fn get_mnemonic(&self) -> Option<&Mnemonic>;
-    
+
     /// Lock wallet (clear sensitive data)
     fn lock(&mut self);
-    
+
     /// Check if wallet is locked
     fn is_locked(&self) -> bool;
-    
+
     /// Get wallet configuration
     fn config(&self) -> &WalletConfig;
 }
@@ -512,7 +518,7 @@ impl SimpleWallet {
     pub fn new(config: WalletConfig) -> Result<Self> {
         let mnemonic = Mnemonic::generate(256, config.security.quantum_entropy)?;
         let seed = mnemonic.to_seed("")?;
-        
+
         Ok(Self {
             config,
             mnemonic: Some(mnemonic),
@@ -521,11 +527,11 @@ impl SimpleWallet {
             locked: false,
         })
     }
-    
+
     /// Restore from mnemonic
     pub fn from_mnemonic(mnemonic: Mnemonic, config: WalletConfig) -> Result<Self> {
         let seed = mnemonic.to_seed("")?;
-        
+
         Ok(Self {
             config,
             mnemonic: Some(mnemonic),
@@ -534,85 +540,87 @@ impl SimpleWallet {
             locked: false,
         })
     }
-    
+
     /// Derive key at path
     fn derive_key(&self, path: &DerivationPath) -> Result<DilithiumKeyPair> {
         if self.locked {
             return Err(SDKError::Wallet(WalletError::WalletLocked));
         }
-        
-        let seed = self.seed.ok_or(SDKError::Wallet(WalletError::WalletLocked))?;
-        
+
+        let seed = self
+            .seed
+            .ok_or(SDKError::Wallet(WalletError::WalletLocked))?;
+
         // Simplified key derivation (in production, use proper BIP32)
         let mut hasher = sha2::Sha256::new();
         hasher.update(seed);
         hasher.update(path.as_string().as_bytes());
         let hash = hasher.finalize();
-        
+
         // Generate Dilithium keypair from hash
         let keypair = DilithiumKeyPair::from_seed(&hash)?;
-        
+
         Ok(keypair)
     }
 }
 
 impl Wallet for SimpleWallet {
     type Error = WalletError;
-    
+
     fn generate(config: &WalletConfig) -> Result<Self> {
         Self::new(config.clone())
     }
-    
+
     fn from_mnemonic(mnemonic: &Mnemonic, config: &WalletConfig) -> Result<Self> {
         Self::from_mnemonic(mnemonic.clone(), config.clone())
     }
-    
+
     fn get_address(&self, path: &DerivationPath) -> Result<Address> {
         // Check cache first
         if let Some(address) = self.addresses.get(path) {
             return Ok(address.clone());
         }
-        
+
         // Derive key and generate address
         let keypair = self.derive_key(path)?;
         let address = Address::pq_p2pkh(self.config.network, &keypair.public_key)?;
-        
+
         Ok(address)
     }
-    
+
     fn get_public_key(&self, path: &DerivationPath) -> Result<Vec<u8>> {
         let keypair = self.derive_key(path)?;
         Ok(keypair.public_key.to_vec())
     }
-    
+
     fn sign_psbt(&mut self, psbt: &mut PQPSBT) -> Result<()> {
         if self.locked {
             return Err(SDKError::Wallet(WalletError::WalletLocked));
         }
-        
+
         // Sign each input that needs signing
         for (i, input) in psbt.inputs.iter_mut().enumerate() {
             if input.get_dilithium_signature().is_none() {
                 // Derive key for this input (simplified)
                 let path = DerivationPath::bq_standard(0, 0, i as u32);
                 let keypair = self.derive_key(&path)?;
-                
+
                 // Sign the input (simplified - need proper sighash)
                 let sighash = [0u8; 32]; // Would compute actual sighash
                 let signature = keypair.sign(&sighash)?;
-                
+
                 input.set_dilithium_signature(signature);
                 input.set_dilithium_public_key(keypair.public_key);
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn get_mnemonic(&self) -> Option<&Mnemonic> {
         self.mnemonic.as_ref()
     }
-    
+
     fn lock(&mut self) {
         self.locked = true;
         if let Some(mut seed) = self.seed.take() {
@@ -620,11 +628,11 @@ impl Wallet for SimpleWallet {
         }
         self.addresses.clear();
     }
-    
+
     fn is_locked(&self) -> bool {
         self.locked
     }
-    
+
     fn config(&self) -> &WalletConfig {
         &self.config
     }
@@ -639,42 +647,42 @@ impl Drop for SimpleWallet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_mnemonic_generation() {
         let mnemonic = Mnemonic::generate(256, true).unwrap();
         assert_eq!(mnemonic.words.len(), 24); // 256 bits = 24 words
         assert!(mnemonic.quantum_enhanced);
     }
-    
+
     #[test]
     fn test_derivation_path() {
         let path = DerivationPath::bq_standard(0, 1, 2);
         assert_eq!(path.as_string(), "m/123'/0'/0'/1/2");
-        
+
         let parsed = DerivationPath::parse(&path.as_string()).unwrap();
         assert_eq!(path, parsed);
     }
-    
+
     #[test]
     fn test_wallet_generation() {
         let config = WalletConfig::desktop();
         let wallet = SimpleWallet::generate(&config).unwrap();
-        
+
         assert!(!wallet.is_locked());
         assert!(wallet.get_mnemonic().is_some());
-        
+
         let path = DerivationPath::default();
         let address = wallet.get_address(&path).unwrap();
         assert_eq!(address.network, Network::Mainnet);
         assert!(address.is_post_quantum());
     }
-    
+
     #[test]
     fn test_wallet_locking() {
         let config = WalletConfig::desktop();
         let mut wallet = SimpleWallet::generate(&config).unwrap();
-        
+
         assert!(!wallet.is_locked());
         wallet.lock();
         assert!(wallet.is_locked());

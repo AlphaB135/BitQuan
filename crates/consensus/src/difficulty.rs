@@ -5,16 +5,12 @@
 
 use crate::{asert_next_target, BurstGuardState, ConsensusParams, GuardContext};
 
-
-
 /// Converts compact representation (`bits`) into a 64-bit integer target value.
 /// Uses pure integer arithmetic to ensure deterministic behavior.
 pub fn compact_to_target(bits: u32) -> u64 {
     if bits == 0 {
         return 0;
     }
-
-    
 
     let exponent = bits >> 24;
     let mantissa = bits & 0x007fffff;
@@ -153,7 +149,7 @@ mod tests {
                 burst_guard_window: 11,
                 burst_guard_floor_ratio_fp: 1417339207, // 0.33 in 32.32 fixed-point
                 burst_guard_release_ratio_fp: 1632087572, // 0.38 in 32.32 fixed-point
-                burst_guard_multiplier_fp: 6442450944, // 1.5 in 32.32 fixed-point
+                burst_guard_multiplier_fp: 6442450944,  // 1.5 in 32.32 fixed-point
                 burst_guard_cooldown_blocks: 5,
                 burst_guard_activation_height: 0,
             },
@@ -196,9 +192,9 @@ mod tests {
         // Fast window but below activation height
         let window = params.difficulty.burst_guard_window;
         let expected = (params.difficulty.target_block_time * window) as f64;
-        let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / crate::asert::FP_SCALE as f64;
-        let fast_delta =
-            (expected * floor_ratio * 0.5).max(1.0) as u64;
+        let floor_ratio =
+            params.difficulty.burst_guard_floor_ratio_fp as f64 / crate::asert::FP_SCALE as f64;
+        let fast_delta = (expected * floor_ratio * 0.5).max(1.0) as u64;
 
         let next_height = anchor_height + window;
         let next_time = anchor_time + fast_delta;
@@ -222,9 +218,9 @@ mod tests {
 
         let window = params.difficulty.burst_guard_window;
         let expected = (params.difficulty.target_block_time * window) as f64;
-        let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / crate::asert::FP_SCALE as f64;
-        let fast_delta =
-            (expected * floor_ratio * 0.5).max(1.0) as u64;
+        let floor_ratio =
+            params.difficulty.burst_guard_floor_ratio_fp as f64 / crate::asert::FP_SCALE as f64;
+        let fast_delta = (expected * floor_ratio * 0.5).max(1.0) as u64;
 
         let next_height = anchor_height + window;
         let next_time = anchor_time + fast_delta;

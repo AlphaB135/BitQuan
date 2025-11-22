@@ -171,13 +171,20 @@ fn main() -> Result<()> {
 
             let height_delta = height as i64 - anchor.height as i64;
             let time_delta = timestamp - anchor.timestamp;
-            let next_target =
-                asert_next_target(anchor.target as u64, height_delta, time_delta, &params, None) as f64;
+            let next_target = asert_next_target(
+                anchor.target as u64,
+                height_delta,
+                time_delta,
+                &params,
+                None,
+            ) as f64;
 
             let expected_time = params.difficulty.target_block_time as f64 * height_delta as f64;
             let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
                 && time_delta > 0
-                && (time_delta as f64) < expected_time * (params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64);
+                && (time_delta as f64)
+                    < expected_time
+                        * (params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64);
 
             if guard_triggered {
                 guard_events.push(GuardEvent {

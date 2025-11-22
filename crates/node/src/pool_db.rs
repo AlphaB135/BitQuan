@@ -164,9 +164,9 @@ impl PoolDatabase {
     pub fn get_latest_block(&self) -> SqlResult<Option<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
-            "SELECT hash, height, miner_id, reward, timestamp 
-             FROM blocks 
-             ORDER BY height DESC 
+            "SELECT hash, height, miner_id, reward, timestamp
+             FROM blocks
+             ORDER BY height DESC
              LIMIT 1",
         )?;
 
@@ -214,10 +214,10 @@ impl PoolDatabase {
     pub fn get_miner_blocks(&self, miner_id: &str, limit: usize) -> SqlResult<Vec<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
-            "SELECT hash, height, miner_id, reward, timestamp 
-             FROM blocks 
-             WHERE miner_id = ?1 
-             ORDER BY height DESC 
+            "SELECT hash, height, miner_id, reward, timestamp
+             FROM blocks
+             WHERE miner_id = ?1
+             ORDER BY height DESC
              LIMIT ?2",
         )?;
 
@@ -255,9 +255,9 @@ impl PoolDatabase {
     pub fn list_payouts(&self, limit: usize) -> SqlResult<Vec<PayoutRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
-            "SELECT id, miner_id, amount, txid, created_at 
-             FROM payouts 
-             ORDER BY created_at DESC 
+            "SELECT id, miner_id, amount, txid, created_at
+             FROM payouts
+             ORDER BY created_at DESC
              LIMIT ?1",
         )?;
 
@@ -309,8 +309,13 @@ mod tests {
 
     #[test]
     fn test_database_creation() {
-        let db = PoolDatabase::memory().unwrap_or_else(|e| panic!("Failed to create memory database: {}", e));
-        assert_eq!(db.total_rewards().unwrap_or_else(|e| panic!("Failed to get total rewards: {}", e)), 0);
+        let db = PoolDatabase::memory()
+            .unwrap_or_else(|e| panic!("Failed to create memory database: {}", e));
+        assert_eq!(
+            db.total_rewards()
+                .unwrap_or_else(|e| panic!("Failed to get total rewards: {}", e)),
+            0
+        );
     }
 
     #[test]

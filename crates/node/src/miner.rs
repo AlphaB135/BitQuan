@@ -1,6 +1,6 @@
 //! Hybrid Mining Controller with weighted algorithm switching and metrics.
 
-use bitquan_consensus::pow::{PowAlgo, PowEngine, Sha256dEngine, RandomXEngine};
+use bitquan_consensus::pow::{PowAlgo, PowEngine, RandomXEngine, Sha256dEngine};
 use bitquan_types::{BlockHeader, NetworkId, Result};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

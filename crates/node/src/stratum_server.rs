@@ -2,7 +2,9 @@
 //!
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
 
-use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, randomx_pow_hash, PowAlgo};
+use bitquan_consensus::pow::{
+    meets_target, randomx_pow_hash, sha256d_pow_hash, target_from_bits, PowAlgo,
+};
 use bitquan_types::{Block, Error, NetworkId, Result};
 use dashmap::DashMap;
 use lru::LruCache;
@@ -205,8 +207,9 @@ impl MinerSession {
 
         // Assign cryptographically secure extranonce1
         let mut extranonce1_bytes = [0u8; 4];
-        getrandom::getrandom(&mut extranonce1_bytes)
-            .map_err(|e| Error::Internal(format!("Failed to generate secure extranonce1: {}", e)))?;
+        getrandom::getrandom(&mut extranonce1_bytes).map_err(|e| {
+            Error::Internal(format!("Failed to generate secure extranonce1: {}", e))
+        })?;
         let extranonce1 = u32::from_le_bytes(extranonce1_bytes);
 
         Ok(Self {

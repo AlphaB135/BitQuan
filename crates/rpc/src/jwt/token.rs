@@ -63,7 +63,9 @@ mod tests {
         let token = gen
             .generate("alice", "admin")
             .unwrap_or_else(|e| panic!("Failed to generate token: {}", e));
-        let claims = gen.verify(&token).unwrap_or_else(|e| panic!("Failed to verify token: {}", e));
+        let claims = gen
+            .verify(&token)
+            .unwrap_or_else(|e| panic!("Failed to verify token: {}", e));
         assert_eq!(claims.sub, "alice");
     }
 }

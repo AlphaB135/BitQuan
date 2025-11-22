@@ -11,27 +11,27 @@ pub enum HardwareError {
     /// Device not found
     #[error("Device not found: {0}")]
     DeviceNotFound(String),
-    
+
     /// Communication error
     #[error("Communication error: {0}")]
     CommunicationError(String),
-    
+
     /// Invalid response
     #[error("Invalid response: {0}")]
     InvalidResponse(String),
-    
+
     /// Operation cancelled
     #[error("Operation cancelled by user")]
     OperationCancelled,
-    
+
     /// Unsupported operation
     #[error("Unsupported operation: {0}")]
     UnsupportedOperation(String),
-    
+
     /// Device locked
     #[error("Device is locked")]
     DeviceLocked,
-    
+
     /// Firmware version too old
     #[error("Firmware version too old: {0}")]
     FirmwareTooOld(String),
@@ -108,34 +108,34 @@ pub enum ResponseStatus {
 pub trait HardwareWallet {
     /// Get device capabilities
     fn get_capabilities(&self) -> Result<DeviceCapabilities>;
-    
+
     /// Get public key at derivation path
     fn get_public_key(&self, derivation_path: &str) -> Result<Vec<u8>>;
-    
+
     /// Get address at derivation path
     fn get_address(&self, derivation_path: &str, display: bool) -> Result<Address>;
-    
+
     /// Sign transaction
     fn sign_transaction(&self, psbt: &mut PQPSBT) -> Result<()>;
-    
+
     /// Sign message
     fn sign_message(&self, message: &[u8], derivation_path: &str) -> Result<Vec<u8>>;
-    
+
     /// Backup wallet
     fn backup_wallet(&self) -> Result<Vec<u8>>;
-    
+
     /// Restore wallet
     fn restore_wallet(&self, backup_data: &[u8]) -> Result<()>;
-    
+
     /// Wipe device
     fn wipe_device(&self) -> Result<()>;
-    
+
     /// Check if device is locked
     fn is_locked(&self) -> Result<bool>;
-    
+
     /// Unlock device
     fn unlock(&self, pin: &str) -> Result<()>;
-    
+
     /// Get device info
     fn get_device_info(&self) -> Result<DeviceInfo>;
 }
@@ -176,27 +176,28 @@ impl USBHardwareWallet {
     pub fn new(vendor_id: u16, product_id: u16) -> Result<Self> {
         let api = hidapi::HidApi::new()
             .map_err(|e| SDKError::Hardware(HardwareError::DeviceNotFound(e.to_string())))?;
-        
-        let device = api.open(vendor_id, product_id)
+
+        let device = api
+            .open(vendor_id, product_id)
             .map_err(|e| SDKError::Hardware(HardwareError::DeviceNotFound(e.to_string())))?;
-        
+
         // Get device info
         let device_info = Self::get_device_info(&device)?;
-        
+
         Ok(Self {
             device,
             device_info,
             timeout: std::time::Duration::from_secs(10),
         })
     }
-    
+
     /// List available devices
     pub fn list_devices() -> Result<Vec<DeviceInfo>> {
         let api = hidapi::HidApi::new()
             .map_err(|e| SDKError::Hardware(HardwareError::CommunicationError(e.to_string())))?;
-        
+
         let mut devices = vec![];
-        
+
         for device_info in api.device_list() {
             if let Some(device) = api.open_device_info(device_info) {
                 if let Ok(info) = Self::get_device_info(&device) {
@@ -204,59 +205,70 @@ impl USBHardwareWallet {
                 }
             }
         }
-        
+
         Ok(devices)
     }
-    
+
     /// Send command to device
     fn send_command(&self, command: Command, data: &[u8]) -> Result<Vec<u8>> {
         let mut packet = vec![command as u8];
         packet.extend_from_slice(data);
-        
+
         // Send packet
-        self.device.write(&packet)
+        self.device
+            .write(&packet)
             .map_err(|e| SDKError::Hardware(HardwareError::CommunicationError(e.to_string())))?;
-        
+
         // Read response
         let mut response = vec![0u8; 4096];
-        let bytes_read = self.device.read_timeout(&mut response, self.timeout.as_millis() as i32)
+        let bytes_read = self
+            .device
+            .read_timeout(&mut response, self.timeout.as_millis() as i32)
             .map_err(|e| SDKError::Hardware(HardwareError::CommunicationError(e.to_string())))?;
-        
+
         response.truncate(bytes_read);
-        
+
         // Check status
         if response.is_empty() {
-            return Err(SDKError::Hardware(HardwareError::InvalidResponse("Empty response".to_string())));
+            return Err(SDKError::Hardware(HardwareError::InvalidResponse(
+                "Empty response".to_string(),
+            )));
         }
-        
+
         let status = ResponseStatus::from(response[0]);
         match status {
             ResponseStatus::Success => Ok(response[1..].to_vec()),
-            ResponseStatus::UserCancelled => Err(SDKError::Hardware(HardwareError::OperationCancelled)),
+            ResponseStatus::UserCancelled => {
+                Err(SDKError::Hardware(HardwareError::OperationCancelled))
+            }
             ResponseStatus::DeviceLocked => Err(SDKError::Hardware(HardwareError::DeviceLocked)),
-            ResponseStatus::NotSupported => Err(SDKError::Hardware(HardwareError::UnsupportedOperation(
-                "Command not supported".to_string()
-            ))),
-            _ => Err(SDKError::Hardware(HardwareError::OperationFailed(
-                format!("Command failed with status: {:?}", status)
-            ))),
+            ResponseStatus::NotSupported => Err(SDKError::Hardware(
+                HardwareError::UnsupportedOperation("Command not supported".to_string()),
+            )),
+            _ => Err(SDKError::Hardware(HardwareError::OperationFailed(format!(
+                "Command failed with status: {:?}",
+                status
+            )))),
         }
     }
-    
+
     /// Get device info from device
     fn get_device_info(device: &hidapi::HidDevice) -> Result<DeviceInfo> {
         // Send GetInfo command
-        let response = device.get_feature_report(&[Command::GetInfo as u8])
+        let response = device
+            .get_feature_report(&[Command::GetInfo as u8])
             .map_err(|e| SDKError::Hardware(HardwareError::CommunicationError(e.to_string())))?;
-        
+
         if response.len() < 10 {
-            return Err(SDKError::Hardware(HardwareError::InvalidResponse("Too short response".to_string())));
+            return Err(SDKError::Hardware(HardwareError::InvalidResponse(
+                "Too short response".to_string(),
+            )));
         }
-        
+
         // Parse response (simplified)
         let vendor_id = u16::from_le_bytes([response[1], response[2]]);
         let product_id = u16::from_le_bytes([response[3], response[4]]);
-        
+
         let capabilities = DeviceCapabilities {
             supports_dilithium: response[5] & 0x01 != 0,
             supports_ecdsa: response[5] & 0x02 != 0,
@@ -267,7 +279,7 @@ impl USBHardwareWallet {
             device_model: "BitQuan Hardware".to_string(),
             serial_number: "Unknown".to_string(),
         };
-        
+
         Ok(DeviceInfo {
             vendor_id,
             product_id,
@@ -285,36 +297,36 @@ impl HardwareWallet for USBHardwareWallet {
     fn get_capabilities(&self) -> Result<DeviceCapabilities> {
         Ok(self.device_info.capabilities.clone())
     }
-    
+
     fn get_public_key(&self, derivation_path: &str) -> Result<Vec<u8>> {
         let path_bytes = derivation_path.as_bytes();
         let response = self.send_command(Command::GetPublicKey, &path_bytes)?;
-        
+
         if response.len() < 1952 {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
-                "Invalid public key length".to_string()
+                "Invalid public key length".to_string(),
             )));
         }
-        
+
         Ok(response[..1952].to_vec())
     }
-    
+
     fn get_address(&self, derivation_path: &str, display: bool) -> Result<Address> {
         let mut data = vec![if display { 1 } else { 0 }];
         data.extend_from_slice(derivation_path.as_bytes());
-        
+
         let response = self.send_command(Command::GetAddress, &data)?;
-        
+
         let address_str = String::from_utf8(response)
             .map_err(|e| SDKError::Hardware(HardwareError::InvalidResponse(e.to_string())))?;
-        
+
         Address::from_str(&address_str)
     }
-    
+
     fn sign_transaction(&self, psbt: &mut PQPSBT) -> Result<()> {
         let psbt_bytes = psbt.serialize()?;
         let response = self.send_command(Command::SignTransaction, &psbt_bytes)?;
-        
+
         // Parse response and update PSBT with signatures
         // This is a simplified implementation
         for (i, input) in psbt.inputs.iter_mut().enumerate() {
@@ -328,61 +340,63 @@ impl HardwareWallet for USBHardwareWallet {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn sign_message(&self, message: &[u8], derivation_path: &str) -> Result<Vec<u8>> {
         let mut data = vec![];
         data.extend_from_slice(&(message.len() as u32).to_le_bytes());
         data.extend_from_slice(message);
         data.extend_from_slice(derivation_path.as_bytes());
-        
+
         let response = self.send_command(Command::SignMessage, &data)?;
-        
+
         if response.len() < 3293 {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
-                "Invalid signature length".to_string()
+                "Invalid signature length".to_string(),
             )));
         }
-        
+
         Ok(response[..3293].to_vec())
     }
-    
+
     fn backup_wallet(&self) -> Result<Vec<u8>> {
         let response = self.send_command(Command::BackupWallet, &[])?;
         Ok(response)
     }
-    
+
     fn restore_wallet(&self, backup_data: &[u8]) -> Result<()> {
         let _response = self.send_command(Command::RestoreWallet, backup_data)?;
         Ok(())
     }
-    
+
     fn wipe_device(&self) -> Result<()> {
         let _response = self.send_command(Command::WipeDevice, &[])?;
         Ok(())
     }
-    
+
     fn is_locked(&self) -> Result<bool> {
         let response = self.send_command(Command::GetInfo, &[])?;
-        
+
         if response.is_empty() {
-            return Err(SDKError::Hardware(HardwareError::InvalidResponse("Empty response".to_string())));
+            return Err(SDKError::Hardware(HardwareError::InvalidResponse(
+                "Empty response".to_string(),
+            )));
         }
-        
+
         Ok(response[0] == 0x01) // Assume second byte indicates lock status
     }
-    
+
     fn unlock(&self, pin: &str) -> Result<()> {
         let mut data = vec![];
         data.extend_from_slice(&(pin.len() as u32).to_le_bytes());
         data.extend_from_slice(pin.as_bytes());
-        
+
         let _response = self.send_command(Command::GetInfo, &data)?;
         Ok(())
     }
-    
+
     fn get_device_info(&self) -> Result<DeviceInfo> {
         Ok(self.device_info.clone())
     }
@@ -401,47 +415,52 @@ impl HardwareWalletManager {
             devices: HashMap::new(),
         }
     }
-    
+
     /// Scan for devices
     pub fn scan_devices(&mut self) -> Result<Vec<DeviceInfo>> {
         #[cfg(feature = "hardware")]
         {
             let devices = USBHardwareWallet::list_devices()?;
-            
+
             // Connect to new devices
             for device_info in &devices {
                 let key = format!("{}:{}", device_info.vendor_id, device_info.product_id);
                 if !self.devices.contains_key(&key) {
-                    if let Ok(wallet) = USBHardwareWallet::new(device_info.vendor_id, device_info.product_id) {
+                    if let Ok(wallet) =
+                        USBHardwareWallet::new(device_info.vendor_id, device_info.product_id)
+                    {
                         self.devices.insert(key, Box::new(wallet));
                     }
                 }
             }
-            
+
             Ok(devices)
         }
-        
+
         #[cfg(not(feature = "hardware"))]
         {
             Err(SDKError::Hardware(HardwareError::UnsupportedOperation(
-                "Hardware wallet support not enabled".to_string()
+                "Hardware wallet support not enabled".to_string(),
             )))
         }
     }
-    
+
     /// Get device by serial number
     pub fn find_device(&self, _serial_number: &str) -> Option<&dyn HardwareWallet> {
-        self.devices.values().find(|_d| {
-            // This would need proper implementation
-            false // Placeholder
-        }).map(|d| d.as_ref())
+        self.devices
+            .values()
+            .find(|_d| {
+                // This would need proper implementation
+                false // Placeholder
+            })
+            .map(|d| d.as_ref())
     }
-    
+
     /// Get all devices
     pub fn get_devices(&self) -> Vec<&dyn HardwareWallet> {
         self.devices.values().map(|d| d.as_ref()).collect()
     }
-    
+
     /// Disconnect device
     pub fn disconnect_device(&mut self, serial_number: &str) -> Result<()> {
         let key = serial_number.to_string();
@@ -449,7 +468,7 @@ impl HardwareWalletManager {
             Ok(())
         } else {
             Err(SDKError::Hardware(HardwareError::DeviceNotFound(
-                "Device not found".to_string()
+                "Device not found".to_string(),
             )))
         }
     }
@@ -464,7 +483,7 @@ impl Default for HardwareWalletManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_device_capabilities() {
         let capabilities = DeviceCapabilities {
@@ -477,17 +496,17 @@ mod tests {
             device_model: "BitQuan Pro".to_string(),
             serial_number: "12345678".to_string(),
         };
-        
+
         assert!(capabilities.supports_dilithium);
         assert!(capabilities.has_display);
     }
-    
+
     #[test]
     fn test_hardware_wallet_manager() {
         let manager = HardwareWalletManager::new();
         assert_eq!(manager.get_devices().len(), 0);
     }
-    
+
     #[test]
     fn test_response_status() {
         assert_eq!(ResponseStatus::Success as u8, 0x00);

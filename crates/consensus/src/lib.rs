@@ -69,7 +69,7 @@ impl DifficultyParams {
             burst_guard_window: 11,
             burst_guard_floor_ratio_fp: 1417339207, // 0.33 in 32.32 fixed-point (0.33 * 2^32)
             burst_guard_release_ratio_fp: 1632087572, // 0.38 in 32.32 fixed-point (0.38 * 2^32)
-            burst_guard_multiplier_fp: 6442450944, // 1.5 in 32.32 fixed-point (1.5 * 2^32)
+            burst_guard_multiplier_fp: 6442450944,  // 1.5 in 32.32 fixed-point (1.5 * 2^32)
             burst_guard_cooldown_blocks: 5,
             burst_guard_activation_height: 0,
         }
@@ -785,8 +785,6 @@ impl ConsensusEngine {
         let state = self.difficulty.as_mut()?;
         Some(state.update(next_height, next_timestamp, &self.params))
     }
-
-
 
     /// Validates a block using the stored registry and RNG state.
     pub fn validate_block(

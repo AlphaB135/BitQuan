@@ -47,12 +47,10 @@ pub mod wallet;
 
 // Re-export commonly used types
 pub use address::{Address, AddressError, AddressType, Network};
-pub use psbt::{PQPSBT, PSBTError, PSBTInput, PSBTOutput};
-pub use wallet::{
-    DerivationPath, Mnemonic, Wallet, WalletConfig, WalletError, SignatureAlgorithm
-};
+pub use psbt::{PSBTError, PSBTInput, PSBTOutput, PQPSBT};
+pub use wallet::{DerivationPath, Mnemonic, SignatureAlgorithm, Wallet, WalletConfig, WalletError};
 
-pub use hardware::{DeviceCapabilities, HardwareWallet, HardwareError};
+pub use hardware::{DeviceCapabilities, HardwareError, HardwareWallet};
 
 /// Result type for SDK operations
 pub type Result<T> = std::result::Result<T, SDKError>;
@@ -63,27 +61,27 @@ pub enum SDKError {
     /// Address-related errors
     #[error("Address error: {0}")]
     Address(#[from] AddressError),
-    
+
     /// PSBT-related errors
     #[error("PSBT error: {0}")]
     PSBT(#[from] PSBTError),
-    
+
     /// Wallet-related errors
     #[error("Wallet error: {0}")]
     Wallet(#[from] WalletError),
-    
+
     /// Hardware wallet errors
     #[error("Hardware wallet error: {0}")]
     Hardware(#[from] HardwareError),
-    
+
     /// Cryptographic errors
     #[error("Cryptographic error: {0}")]
     Crypto(String),
-    
+
     /// Serialization errors
     #[error("Serialization error: {0}")]
     Serialization(String),
-    
+
     /// I/O errors
     #[error("I/O error: {0}")]
     IO(#[from] std::io::Error),
