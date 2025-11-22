@@ -10,7 +10,12 @@ fn test_ban_enforcement() {
     
     // Ban peer
     service.security_mut()
-        .ban_peer(peer.clone(), BanReason::ManualBan("test".to_string()))
+        .ban_peer(
+            peer.clone(), 
+            BanReason::ManualBan("test".to_string()),
+            None,
+            None
+        )
         .unwrap();
     
     // Should reject
@@ -34,20 +39,28 @@ fn test_normal_connection() {
 }
 
 #[test]
-fn test_ip_ban() {
+fn test_multiple_bans() {
     let config = NetworkConfig::default();
     let mut service = NetworkService::new(config);
     
-    let peer = "banned_peer".to_string();
-    let ip = "10.0.0.1".parse().unwrap();
+    let peer1 = "bad_peer1".to_string();
+    let peer2 = "bad_peer2".to_string();
+    let ip1 = "10.0.0.1".parse().unwrap();
+    let ip2 = "10.0.0.2".parse().unwrap();
     
-    // Ban IP
+    // Ban first peer
     service.security_mut()
-        .ban_ip(ip, BanReason::ManualBan("test".to_string()))
+        .ban_peer(
+            peer1.clone(), 
+            BanReason::ManualBan("test".to_string()),
+            None,
+            None
+        )
         .unwrap();
     
-    // Should reject connection from banned IP
-    assert!(service.connect(peer, ip).is_err());
+    // Should reject banned peer but allow normal peer
+    assert!(service.connect(peer1, ip1).is_err());
+    assert!(service.connect(peer2, ip2).is_ok());
 }
 
 #[test]
