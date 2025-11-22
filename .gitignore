@@ -239,3 +239,67 @@ audit_package/
 
 # Fuzz test results
 fuzz/results/
+
+# macOS metadata files (EXFAT filesystem)
+._*
+._.DS_Store
+**/._.DS_Store
+**/._*
+
+# Agent and AI assistant files
+.agents/
+.gemini/
+.claude/
+.codex/
+.cursor/
+.aider*
+.continue/
+
+# Editor temporary files
+*.swp
+*.swo
+*.swn
+*~
+.*.sw?
+
+# Build and compilation artifacts
+*.rlib
+*.rmeta
+Cargo.lock.bak
+target.bak/
+
+# Test and benchmark outputs
+benchmark_*.txt
+*_output.txt
+*_errors.txt
+test_results/
+
+# Temporary analysis files
+clippy_output*.txt
+audit_*.txt
+analysis_*.json
+*_report.txt
+
+# Pre-commit cache
+.pre-commit-cache/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Rust analyzer
+rust-project.json
+
+# Documentation build artifacts
+docs/_build/
+docs/.doctrees/
+
+# Temporary markdown files
+*.md.bak
+*.md.tmp
+
+# Git patch files
+*.patch
+*.diff.bak
