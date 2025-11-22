@@ -35,7 +35,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,20 +60,20 @@ jobs:
             python3 -c "
           import json
           import sys
-          
+
           with open('auditor_report.json') as f:
               data = json.load(f)
-          
+
           required = ['status', 'findings', 'sha', 'tag', 'auditor', 'date']
           for field in required:
               if field not in data:
                   print(f'Missing required field: {field}')
                   sys.exit(1)
-          
+
           if data['status'] not in ['pass', 'fail']:
               print('Invalid status value')
               sys.exit(1)
-          
+
           print('Audit report schema valid')
           "
           else
@@ -84,7 +84,7 @@ jobs:
         run: |
           STATUS="${{ github.event.inputs.status || 'pending' }}"
           TAG="${{ github.event.inputs.tag || 'unknown' }}"
-          
+
           if [ "$STATUS" = "pass" ]; then
             COLOR="brightgreen"
             LABEL="audit: passed"
@@ -95,7 +95,7 @@ jobs:
             COLOR="yellow"
             LABEL="audit: pending"
           fi
-          
+
           # Generate SVG badge using shields.io format
           cat > badges/audit.svg <<EOF
           <svg xmlns="http://www.w3.org/2000/svg" width="110" height="20">
@@ -119,7 +119,7 @@ jobs:
             </g>
           </svg>
           EOF
-          
+
           echo "Generated audit badge with status: $STATUS"
 
       - name: Commit badge to repository
@@ -127,9 +127,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           git add badges/audit.svg
-          
+
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else

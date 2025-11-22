@@ -48,7 +48,7 @@ jobs:
         id: scan
         run: |
           echo "Running comprehensive security scan..."
-          
+
           # Cargo audit
           if cargo audit --quiet > /dev/null 2>&1; then
             echo "passed=true" >> $GITHUB_OUTPUT
@@ -57,10 +57,10 @@ jobs:
             echo "Security audit failed"
             exit 1
           fi
-          
+
           # Deny check
           cargo deny check
-          
+
           # Trivy filesystem scan
           sudo apt-get update && sudo apt-get install wget apt-transport-https gnupg lsb-release
           wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
@@ -172,7 +172,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-test, validate-infrastructure]
     if: github.event.inputs.environment == 'staging' || github.event_name == 'push'
-    environment: 
+    environment:
       name: staging
       url: https://staging.bitquan.network
     steps:
@@ -195,7 +195,7 @@ jobs:
         run: |
           # Wait for pods to be ready
           kubectl wait --for=condition=ready pod -l app=bitquan-node -n bitquan-staging --timeout=300s
-          
+
           # Run health checks
           for i in {1..10}; do
             if curl -f http://staging.bitquan.network/health || \
@@ -236,12 +236,12 @@ jobs:
         run: |
           # Extended health checks for testnet
           kubectl wait --for=condition=ready pod -l app=bitquan-node -n bitquan-testnet --timeout=600s
-          
+
           # Test API endpoints
           curl -f http://testnet.bitquan.network/health
           curl -f http://testnet.bitquan.network/metrics
           curl -f http://testnet.bitquan.network/api/v1/status
-          
+
           # Test blockchain sync
           sleep 60  # Allow time for initial sync
           curl -f http://testnet.bitquan.network/api/v1/sync/status
@@ -291,7 +291,7 @@ jobs:
         run: |
           echo "Monitoring mainnet rollout..."
           kubectl rollout status deployment/bitquan-node -n bitquan-mainnet --timeout=900s
-          
+
           # Extended monitoring for mainnet
           for i in {1..30}; do
             echo "Health check $i/30..."
@@ -319,11 +319,11 @@ jobs:
           echo "- Timestamp: $(date)"
           echo "- Region: ${{ github.event.inputs.region }}"
           ""
-          
+
           # Verify blockchain operations
           curl -f http://mainnet.bitquan.network/api/v1/status
           curl -f http://mainnet.bitquan.network/api/v1/sync/status
-          
+
           # Send notification
           curl -X POST "${{ secrets.SLACK_WEBHOOK }}" \
             -H 'Content-type: application/json' \

@@ -40,17 +40,17 @@ jobs:
           # Download from GitHub releases
           TAG=${{ inputs.tag }}
           BINARY="bitquan-node-linux-x86_64"
-          
+
           echo "Downloading $BINARY for $TAG..."
           curl -sSL -o $BINARY \
             "https://github.com/${{ github.repository }}/releases/download/$TAG/$BINARY"
-          
+
           curl -sSL -o $BINARY.sha256 \
             "https://github.com/${{ github.repository }}/releases/download/$TAG/$BINARY.sha256"
-          
+
           # Verify checksum
           sha256sum -c $BINARY.sha256
-          
+
           chmod +x $BINARY
 
       - name: Prepare deployment package
@@ -58,7 +58,7 @@ jobs:
           mkdir -p deploy-package
           cp bitquan-node-linux-x86_64 deploy-package/bitquan-node
           cp config/*.toml deploy-package/ || echo "No config files"
-          
+
           # Create deployment manifest
           cat > deploy-package/deployment.json <<EOF
           {
@@ -68,7 +68,7 @@ jobs:
             "commit_sha": "${{ github.sha }}"
           }
           EOF
-          
+
           cat deploy-package/deployment.json
 
       - name: Deploy to seed nodes
@@ -79,48 +79,48 @@ jobs:
         run: |
           # Parse seed hosts (comma-separated)
           IFS=',' read -ra HOSTS <<< "$SEED_HOSTS"
-          
+
           # Setup SSH key
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          
+
           # Deploy to each host
           for host in "${HOSTS[@]}"; do
             echo "Deploying to $host..."
-            
+
             # Copy binary and config
             scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
               deploy-package/* deploy@$host:/tmp/bitquan-deploy/
-            
+
             # Execute deployment script
             ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
               deploy@$host << 'ENDSSH'
                 set -e
                 cd /tmp/bitquan-deploy
-                
+
                 # Verify checksum again
                 sha256sum -c bitquan-node.sha256 || exit 1
-                
+
                 # Stop existing service
                 sudo systemctl stop bitquan-node || true
-                
+
                 # Install new binary
                 sudo cp bitquan-node /usr/local/bin/
                 sudo chmod +x /usr/local/bin/bitquan-node
-                
+
                 # Update config
                 sudo cp *.toml /etc/bitquan/ || true
-                
+
                 # Restart service
                 sudo systemctl start bitquan-node
                 sudo systemctl status bitquan-node
-                
+
                 # Verify it's running
                 sleep 5
                 curl -s http://localhost:8332 || echo "Node may still be starting..."
           ENDSSH
-            
+
             echo "✅ Deployed to $host"
           done
 
