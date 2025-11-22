@@ -15,11 +15,11 @@
 use std::time::Duration;
 
 use super::{
-    rate_limiter::{RateLimitConfig, MessageTypeLimits},
-    connection_manager::{ConnectionConfig},
-    reputation::{ReputationConfig},
-    ban_manager::{BanConfig},
-    dos_protection::{DoSConfig},
+    ban_manager::BanConfig,
+    connection_manager::ConnectionConfig,
+    dos_protection::DoSConfig,
+    rate_limiter::{MessageTypeLimits, RateLimitConfig},
+    reputation::ReputationConfig,
 };
 
 /// Comprehensive security configuration
@@ -165,10 +165,10 @@ impl Default for AlertConfig {
 impl Default for AlertThresholds {
     fn default() -> Self {
         Self {
-            ban_rate_threshold: 10, // 10 bans per minute
+            ban_rate_threshold: 10,          // 10 bans per minute
             connection_flood_threshold: 100, // 100 connections per second
-            reputation_threshold: -30, // Average score below -30
-            dos_attack_threshold: 5, // 5 DoS attacks per minute
+            reputation_threshold: -30,       // Average score below -30
+            dos_attack_threshold: 5,         // 5 DoS attacks per minute
         }
     }
 }
@@ -286,15 +286,15 @@ impl SecurityConfig {
     }
 }
 
-    /// Export configuration to TOML format
-    // pub fn export_toml(&self) -> Result<String, toml::SerializationError> {
-    //     toml::to_string_pretty(&self)
-    // }
+/// Export configuration to TOML format
+// pub fn export_toml(&self) -> Result<String, toml::SerializationError> {
+//     toml::to_string_pretty(&self)
+// }
 
 /// Import configuration from TOML format
-    // pub fn import_toml(toml_str: &str) -> Result<Self, toml::de::Error> {
-    //     toml::from_str(toml_str)
-    // }
+// pub fn import_toml(toml_str: &str) -> Result<Self, toml::de::Error> {
+//     toml::from_str(toml_str)
+// }
 
 #[cfg(test)]
 mod tests {

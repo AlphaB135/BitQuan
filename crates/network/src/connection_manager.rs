@@ -12,10 +12,10 @@
 //! - Idle connection cleanup
 //! - Connection tracking and monitoring
 
+use rand;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
-use rand;
 
 use crate::PeerId;
 
@@ -202,8 +202,12 @@ impl ConnectionManager {
             state: ConnectionState::Connected,
         };
 
-        self.active_connections.insert(peer_id.clone(), connection.clone());
-        self.ip_connections.entry(ip).or_insert_with(Vec::new).push(peer_id);
+        self.active_connections
+            .insert(peer_id.clone(), connection.clone());
+        self.ip_connections
+            .entry(ip)
+            .or_insert_with(Vec::new)
+            .push(peer_id);
 
         self.update_stats(&connection);
         Ok(())
@@ -249,8 +253,12 @@ impl ConnectionManager {
             state: ConnectionState::Connecting,
         };
 
-        self.active_connections.insert(peer_id.clone(), connection.clone());
-        self.ip_connections.entry(ip).or_insert_with(Vec::new).push(peer_id);
+        self.active_connections
+            .insert(peer_id.clone(), connection.clone());
+        self.ip_connections
+            .entry(ip)
+            .or_insert_with(Vec::new)
+            .push(peer_id);
 
         self.update_stats(&connection);
         Ok(())
@@ -308,8 +316,9 @@ impl ConnectionManager {
             if let Some(connection) = self.active_connections.get(peer_id) {
                 let connection_duration = now.duration_since(connection.connected_at);
 
-                if connection.state == ConnectionState::Connecting &&
-                   connection_duration > self.config.connection_timeout {
+                if connection.state == ConnectionState::Connecting
+                    && connection_duration > self.config.connection_timeout
+                {
                     self.stats.timed_out_connections += 1;
                 }
             }
@@ -348,9 +357,7 @@ impl ConnectionManager {
         let attempts = self.connection_attempts.entry(*ip).or_insert_with(Vec::new);
 
         // Remove old attempts (older than 1 minute)
-        attempts.retain(|&timestamp| {
-            now.duration_since(timestamp) < Duration::from_secs(60)
-        });
+        attempts.retain(|&timestamp| now.duration_since(timestamp) < Duration::from_secs(60));
 
         // Check if too many attempts
         if attempts.len() >= self.config.max_connection_attempts_per_minute as usize {
@@ -413,10 +420,10 @@ impl ConnectionManager {
 
     /// Check if can accept more connections
     pub fn can_accept_connection(&mut self, ip: &IpAddr) -> bool {
-        self.active_connections.len() < self.config.max_total_connections &&
-        self.count_inbound_connections() < self.config.max_inbound_connections &&
-        self.count_connections_from_ip(ip) < self.config.max_connections_per_ip &&
-        !self.is_rate_limited(ip)
+        self.active_connections.len() < self.config.max_total_connections
+            && self.count_inbound_connections() < self.config.max_inbound_connections
+            && self.count_connections_from_ip(ip) < self.config.max_connections_per_ip
+            && !self.is_rate_limited(ip)
     }
 }
 
@@ -426,7 +433,8 @@ mod tests {
 
     #[test]
     fn test_connection_manager_basic_operations() {
-        let config = ConnectionConfig::default();
+        let mut config = ConnectionConfig::default();
+        config.max_connections_per_ip = 1; // Set to 1 for testing
         let mut manager = ConnectionManager::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
         let ip = "127.0.0.1".parse().unwrap();
@@ -488,7 +496,9 @@ mod tests {
         let peer = format!("test_peer_{}", rand::random::<u64>());
         let ip = "127.0.0.1".parse().unwrap();
 
-        assert!(manager.accept_inbound_connection(peer.clone(), ip, None).is_ok());
+        assert!(manager
+            .accept_inbound_connection(peer.clone(), ip, None)
+            .is_ok());
 
         // Wait for timeout
         std::thread::sleep(Duration::from_millis(150));

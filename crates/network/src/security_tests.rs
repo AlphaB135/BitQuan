@@ -8,6 +8,7 @@
 mod tests {
     use super::*;
     use std::time::Duration;
+    use rand;
     use std::thread;
 
     // Test rate limiting functionality
@@ -18,7 +19,7 @@ mod tests {
         fn test_rate_limiter_normal_traffic() {
             let config = RateLimitConfig::default();
             let mut limiter = RateLimiter::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Should allow normal traffic
             for _ in 0..50 {
@@ -30,7 +31,7 @@ mod tests {
         fn test_rate_limiter_message_type_limits() {
             let config = RateLimitConfig::default();
             let mut limiter = RateLimiter::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Should allow up to transaction limit
             for _ in 0..50 {
@@ -52,12 +53,12 @@ mod tests {
 
             // Should trigger global limit
             for _ in 0..101 {
-                let _ = limiter.check_message(&PeerId::random(), MessageType::Ping);
+                let _ = limiter.check_message(&format!("test_peer_{}", rand::random::<u64>()), MessageType::Ping);
             }
 
             // Next message should be rejected
             assert!(matches!(
-                limiter.check_message(&PeerId::random(), MessageType::Ping),
+                limiter.check_message(&format!("test_peer_{}", rand::random::<u64>()), MessageType::Ping),
                 Err(RateLimitError::GlobalLimitReached)
             ));
         }
@@ -67,7 +68,7 @@ mod tests {
             let mut config = RateLimitConfig::default();
             config.violation_threshold = 2;
             let mut limiter = RateLimiter::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // First violation
             assert!(matches!(
@@ -86,7 +87,7 @@ mod tests {
         fn test_rate_limiter_cleanup() {
             let config = RateLimitConfig::default();
             let mut limiter = RateLimiter::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Add peer
             assert!(limiter.check_message(&peer, MessageType::Ping).is_ok());
@@ -105,7 +106,7 @@ mod tests {
         fn test_connection_manager_basic_operations() {
             let config = ConnectionConfig::default();
             let mut manager = ConnectionManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
             let ip = "127.0.0.1".parse().unwrap();
 
             // Should accept inbound connection
@@ -113,7 +114,7 @@ mod tests {
             assert_eq!(manager.get_connection_counts(), (1, 0, 1));
 
             // Should reject duplicate from same IP
-            let peer2 = PeerId::random();
+            let peer2 = format!("test_peer_{}", rand::random::<u64>());
             assert!(matches!(
                 manager.accept_inbound_connection(peer2, ip, None),
                 Err(ConnectionError::IpLimitReached)
@@ -126,8 +127,8 @@ mod tests {
             config.max_total_connections = 2;
             let mut manager = ConnectionManager::new(config);
 
-            let peer1 = PeerId::random();
-            let peer2 = PeerId::random();
+            let peer1 = format!("test_peer_{}", rand::random::<u64>());
+            let peer2 = format!("test_peer_{}", rand::random::<u64>());
             let ip1 = "127.0.0.1".parse().unwrap();
             let ip2 = "127.0.0.2".parse().unwrap();
 
@@ -136,7 +137,7 @@ mod tests {
             assert!(manager.accept_inbound_connection(peer2, ip2, None).is_ok());
 
             // Should reject third connection
-            let peer3 = PeerId::random();
+            let peer3 = format!("test_peer_{}", rand::random::<u64>());
             let ip3 = "127.0.0.3".parse().unwrap();
             assert!(matches!(
                 manager.accept_inbound_connection(peer3, ip3, None),
@@ -148,7 +149,7 @@ mod tests {
         fn test_outbound_connections() {
             let config = ConnectionConfig::default();
             let mut manager = ConnectionManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
             let ip = "127.0.0.1".parse().unwrap();
 
             // Should accept outbound connection
@@ -162,7 +163,7 @@ mod tests {
             config.idle_timeout = Duration::from_millis(100);
             let mut manager = ConnectionManager::new(config);
 
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
             let ip = "127.0.0.1".parse().unwrap();
 
             assert!(manager.accept_inbound_connection(peer, ip, None).is_ok());
@@ -181,8 +182,8 @@ mod tests {
             let config = ConnectionConfig::default();
             let mut manager = ConnectionManager::new(config);
 
-            let peer1 = PeerId::random();
-            let peer2 = PeerId::random();
+            let peer1 = format!("test_peer_{}", rand::random::<u64>());
+            let peer2 = format!("test_peer_{}", rand::random::<u64>());
             let ip1 = "127.0.0.1".parse().unwrap();
             let ip2 = "127.0.0.2".parse().unwrap();
 
@@ -205,7 +206,7 @@ mod tests {
         fn test_reputation_initial_score() {
             let config = ReputationConfig::default();
             let mut manager = ReputationManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             let score = manager.get_score(&peer);
             assert_eq!(score, Some(50));
@@ -215,7 +216,7 @@ mod tests {
         fn test_reputation_violation_penalties() {
             let config = ReputationConfig::default();
             let mut manager = ReputationManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Report rate limit violation
             let action = manager.report_violation(&peer, Violation::RateLimitExceeded);
@@ -229,7 +230,7 @@ mod tests {
         fn test_reputation_banning() {
             let config = ReputationConfig::default();
             let mut manager = ReputationManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Report multiple violations to trigger ban
             for _ in 0..5 {
@@ -246,7 +247,7 @@ mod tests {
         fn test_reputation_good_behavior() {
             let config = ReputationConfig::default();
             let mut manager = ReputationManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Report violation
             manager.report_violation(&peer, Violation::RateLimitExceeded);
@@ -263,7 +264,7 @@ mod tests {
         fn test_reputation_decay() {
             let config = ReputationConfig::default();
             let mut manager = ReputationManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Report violation
             manager.report_violation(&peer, Violation::ProtocolViolation);
@@ -281,9 +282,9 @@ mod tests {
             let config = ReputationConfig::default();
             let mut manager = ReputationManager::new(config);
 
-            let peer1 = PeerId::random();
-            let peer2 = PeerId::random();
-            let peer3 = PeerId::random();
+            let peer1 = format!("test_peer_{}", rand::random::<u64>());
+            let peer2 = format!("test_peer_{}", rand::random::<u64>());
+            let peer3 = format!("test_peer_{}", rand::random::<u64>());
 
             // Add peers with different scores
             manager.report_good_behavior(&peer1);
@@ -306,7 +307,7 @@ mod tests {
         fn test_ban_manager_basic_operations() {
             let config = BanConfig::default();
             let mut manager = BanManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
             let reason = BanReason::RateLimitViolation;
 
             // Should ban peer
@@ -324,7 +325,7 @@ mod tests {
             let mut config = BanConfig::default();
             config.default_temp_ban_duration = Duration::from_millis(100);
             let mut manager = BanManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Trigger temporary ban
             assert!(manager.ban_peer_temporarily(peer, BanReason::ProtocolViolation).is_ok());
@@ -343,7 +344,7 @@ mod tests {
         fn test_permanent_ban() {
             let config = BanConfig::default();
             let mut manager = BanManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Permanent ban
             assert!(manager.ban_peer_permanently(peer, BanReason::AttackBehavior, None, None).is_ok());
@@ -377,8 +378,8 @@ mod tests {
             let config = BanConfig::default();
             let mut manager = BanManager::new(config);
 
-            let peer1 = PeerId::random();
-            let peer2 = PeerId::random();
+            let peer1 = format!("test_peer_{}", rand::random::<u64>());
+            let peer2 = format!("test_peer_{}", rand::random::<u64>());
             let ip1 = "127.0.0.1".parse().unwrap();
             let ip2 = "127.0.0.2".parse().unwrap();
 
@@ -397,7 +398,7 @@ mod tests {
         fn test_ban_export() {
             let config = BanConfig::default();
             let mut manager = BanManager::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
             let ip = "192.168.1.100".parse().unwrap();
 
             // Create bans
@@ -439,7 +440,7 @@ mod tests {
             config.connection_flood_threshold = 5;
             let mut protection = DoSProtection::new(config);
             let ip = "192.168.1.100".parse().unwrap();
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Should allow normal connections
             for _ in 0..4 {
@@ -456,7 +457,7 @@ mod tests {
             let config = DoSConfig::default();
             config.max_bandwidth_per_peer = 1000;
             let mut protection = DoSProtection::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Should allow normal bandwidth
             assert!(protection.track_bandwidth(peer, 500, 500).is_ok());
@@ -471,7 +472,7 @@ mod tests {
             let config = DoSConfig::default();
             config.suspicious_pattern_threshold = 0.7;
             let mut protection = DoSProtection::new(config);
-            let peer = PeerId::random();
+            let peer = format!("test_peer_{}", rand::random::<u64>());
 
             // Normal activity
             assert!(protection.analyze_pattern(peer, 10, 0).is_ok());
@@ -489,9 +490,9 @@ mod tests {
 
             // Trigger different attack types
             assert!(protection.handle_syn_packet(ip, None).is_ok());
-            assert!(protection.track_connection(&PeerId::random(), ip).is_ok());
-            assert!(protection.track_bandwidth(&PeerId::random(), 100, 100).is_ok());
-            assert!(protection.analyze_pattern(&PeerId::random(), 50, 25).is_ok());
+            assert!(protection.track_connection(&format!("test_peer_{}", rand::random::<u64>()), ip).is_ok());
+            assert!(protection.track_bandwidth(&format!("test_peer_{}", rand::random::<u64>()), 100, 100).is_ok());
+            assert!(protection.analyze_pattern(&format!("test_peer_{}", rand::random::<u64>()), 50, 25).is_ok());
 
             let stats = protection.get_stats();
             assert_eq!(stats.total_attacks_detected, 4);
@@ -573,7 +574,7 @@ mod tests {
             let mut ban_manager = BanManager::new(security_config.bans.clone());
             let mut dos_protection = DoSProtection::new(security_config.dos_protection.clone());
 
-            let malicious_peer = PeerId::random();
+            let malicious_peer = format!("test_peer_{}", rand::random::<u64>());
             let malicious_ip = "192.168.1.100".parse().unwrap();
 
             // Simulate attack
@@ -605,7 +606,7 @@ mod tests {
             // Simulate high load
             let mut handles = Vec::new();
             for i in 0..100 {
-                let peer = PeerId::random();
+let peer = format!("test_peer_{}", rand::random::<u64>());
                 let ip = format!("127.0.0.{}", i % 255 + 1).parse().unwrap();
 
                 let handle = tokio::spawn(async move {

@@ -12,11 +12,11 @@
 //! - OS-level protection integration
 //! - Automatic response to attacks
 
+use rand;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
-use rand;
 
 use crate::PeerId;
 
@@ -78,7 +78,7 @@ impl Default for DoSConfig {
             connection_flood_window: Duration::from_secs(10),
             enable_bandwidth_protection: true,
             max_bandwidth_per_peer: 1048576, // 1 MB/s
-            bandwidth_burst_size: 2097152, // 2 MB
+            bandwidth_burst_size: 2097152,   // 2 MB
             bandwidth_window_duration: Duration::from_secs(1),
             enable_pattern_detection: true,
             suspicious_pattern_threshold: 0.8,
@@ -274,7 +274,9 @@ impl DoSProtection {
         }
 
         // Check half-open connections limit
-        let half_open = self.syn_protection.half_open_connections
+        let half_open = self
+            .syn_protection
+            .half_open_connections
             .entry(source_ip)
             .or_insert_with(Vec::new);
 
@@ -300,7 +302,10 @@ impl DoSProtection {
         }
 
         // Generate SYN cookie
-        let cookie = self.syn_protection.cookie_counter.fetch_add(1, Ordering::Relaxed);
+        let cookie = self
+            .syn_protection
+            .cookie_counter
+            .fetch_add(1, Ordering::Relaxed);
         let syn_cookie = SynCookie {
             value: cookie as u32,
             issued_at: Instant::now(),
@@ -317,18 +322,24 @@ impl DoSProtection {
         source_ip: IpAddr,
         cookie_value: u32,
     ) -> Result<bool, DoSError> {
-        let half_open = self.syn_protection.half_open_connections
+        let half_open = self
+            .syn_protection
+            .half_open_connections
             .get(&source_ip)
             .map(|cookies| {
                 cookies.iter().find(|c| {
-                    c.value == cookie_value &&
-                    c.issued_at.elapsed() < self.syn_protection.config.syn_cookie_timeout
+                    c.value == cookie_value
+                        && c.issued_at.elapsed() < self.syn_protection.config.syn_cookie_timeout
                 })
             });
 
         if let Some(cookie) = half_open {
             // Remove used cookie
-            if let Some(cookies) = self.syn_protection.half_open_connections.get_mut(&source_ip) {
+            if let Some(cookies) = self
+                .syn_protection
+                .half_open_connections
+                .get_mut(&source_ip)
+            {
                 cookies.retain(|c| c.value != cookie_value);
                 if cookies.is_empty() {
                     self.syn_protection.half_open_connections.remove(&source_ip);
@@ -369,10 +380,14 @@ impl DoSProtection {
 
         // Clean old attempts
         let cutoff = now - self.connection_detector.config.connection_flood_window;
-        self.connection_detector.connection_attempts.retain(|&timestamp| timestamp > cutoff);
+        self.connection_detector
+            .connection_attempts
+            .retain(|&timestamp| timestamp > cutoff);
 
         // Check for flood
-        if self.connection_detector.connection_attempts.len() as u32 >= self.connection_detector.config.connection_flood_threshold {
+        if self.connection_detector.connection_attempts.len() as u32
+            >= self.connection_detector.config.connection_flood_threshold
+        {
             let attack = AttackInfo {
                 attack_type: DoSError::ConnectionFlood,
                 source_ip: Some(source_ip),
@@ -408,7 +423,9 @@ impl DoSProtection {
         }
 
         let now = Instant::now();
-        let usage = self.bandwidth_tracker.peer_usage
+        let usage = self
+            .bandwidth_tracker
+            .peer_usage
             .entry(peer_id.clone())
             .or_insert_with(|| BandwidthUsage {
                 bytes_sent: 0,
@@ -418,7 +435,9 @@ impl DoSProtection {
             });
 
         // Reset window if needed
-        if now.duration_since(usage.window_start) > self.bandwidth_tracker.config.bandwidth_window_duration {
+        if now.duration_since(usage.window_start)
+            > self.bandwidth_tracker.config.bandwidth_window_duration
+        {
             usage.bytes_sent = 0;
             usage.bytes_received = 0;
             usage.window_start = now;
@@ -472,7 +491,9 @@ impl DoSProtection {
         }
 
         let now = Instant::now();
-        let pattern = self.pattern_detector.peer_patterns
+        let pattern = self
+            .pattern_detector
+            .peer_patterns
             .entry(peer_id.clone())
             .or_insert_with(|| ActivityPattern {
                 message_frequency: Vec::new(),
@@ -488,8 +509,10 @@ impl DoSProtection {
         pattern.last_activity = now;
 
         // Calculate suspicion score
-        let avg_frequency = pattern.message_frequency.iter().sum::<u32>() as f64 / pattern.message_frequency.len() as f64;
-        let failure_rate = pattern.failed_operations as f64 / (pattern.connection_attempts + 1) as f64;
+        let avg_frequency = pattern.message_frequency.iter().sum::<u32>() as f64
+            / pattern.message_frequency.len() as f64;
+        let failure_rate =
+            pattern.failed_operations as f64 / (pattern.connection_attempts + 1) as f64;
 
         // High frequency + high failure rate = suspicious
         pattern.suspicion_score = (avg_frequency / 100.0).min(1.0) + (failure_rate * 0.5).min(0.5);
@@ -503,7 +526,10 @@ impl DoSProtection {
                 severity: AttackSeverity::Medium,
                 mitigations: vec![
                     "Suspicious activity pattern".to_string(),
-                    format!("Peer {} suspicion score: {:.2}", peer_id, pattern.suspicion_score),
+                    format!(
+                        "Peer {} suspicion score: {:.2}",
+                        peer_id, pattern.suspicion_score
+                    ),
                 ],
             };
 
@@ -531,7 +557,8 @@ impl DoSProtection {
     /// Clear old attacks
     pub fn cleanup(&mut self) {
         let cutoff = Instant::now() - Duration::from_secs(3600); // Keep 1 hour
-        self.detected_attacks.retain(|attack| attack.detected_at > cutoff);
+        self.detected_attacks
+            .retain(|attack| attack.detected_at > cutoff);
     }
 
     /// Check if IP is currently under attack
@@ -541,9 +568,7 @@ impl DoSProtection {
 
         self.detected_attacks
             .iter()
-            .any(|attack| {
-                attack.source_ip == Some(*ip) && attack.detected_at > recent_cutoff
-            })
+            .any(|attack| attack.source_ip == Some(*ip) && attack.detected_at > recent_cutoff)
     }
 
     /// Get attack severity distribution
@@ -559,7 +584,10 @@ impl DoSProtection {
 
     /// Apply OS-level TCP protections
     #[cfg(target_os = "linux")]
-    pub fn apply_tcp_protections(&self, socket: &std::net::TcpListener) -> Result<(), std::io::Error> {
+    pub fn apply_tcp_protections(
+        &self,
+        socket: &std::net::TcpListener,
+    ) -> Result<(), std::io::Error> {
         use std::os::unix::io::AsRawFd;
 
         let fd = socket.as_raw_fd();

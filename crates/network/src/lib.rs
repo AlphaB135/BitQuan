@@ -1,13 +1,13 @@
 //! Peer-to-peer networking with comprehensive security for BitQuan.
 #![warn(missing_docs)]
 
-pub mod rate_limiter;
-pub mod connection_manager;
-pub mod reputation;
 pub mod ban_manager;
+pub mod connection_manager;
 pub mod dos_protection;
-pub mod security_manager;
+pub mod rate_limiter;
+pub mod reputation;
 pub mod security_config;
+pub mod security_manager;
 
 pub mod discovery;
 pub mod dns_bootstrap;
@@ -18,24 +18,23 @@ pub mod protocol;
 pub mod relay;
 pub mod sync;
 
+pub use ban_manager::{BanConfig, BanError, BanInfo, BanManager, BanReason, BanStats};
 pub use connection_manager::{
-    ConnectionConfig, ConnectionError, ConnectionManager, ConnectionStats, Direction, ConnectionState,
-};
-pub use rate_limiter::{
-    RateLimitConfig, RateLimitError, RateLimiter, MessageType, MessageTypeLimits,
-};
-pub use reputation::{
-    ReputationConfig, ReputationManager, ReputationAction, ReputationStats, Violation, PeerReputation,
-};
-pub use ban_manager::{
-    BanConfig, BanManager, BanError, BanInfo, BanReason, BanStats,
+    ConnectionConfig, ConnectionError, ConnectionManager, ConnectionState, ConnectionStats,
+    Direction,
 };
 pub use dos_protection::{
-    DoSConfig, DoSProtection, DoSError, DoSStats, AttackInfo, AttackSeverity,
+    AttackInfo, AttackSeverity, DoSConfig, DoSError, DoSProtection, DoSStats,
+};
+pub use rate_limiter::{
+    MessageType, MessageTypeLimits, RateLimitConfig, RateLimitError, RateLimiter,
+};
+pub use reputation::{
+    PeerReputation, ReputationAction, ReputationConfig, ReputationManager, ReputationStats,
+    Violation,
 };
 pub use security_manager::{
-    SecurityManager, SecurityError, SecurityEvent, SecurityStatistics,
-    PeerSecurityStatus,
+    PeerSecurityStatus, SecurityError, SecurityEvent, SecurityManager, SecurityStatistics,
 };
 
 pub use discovery::{
@@ -131,7 +130,7 @@ impl NetworkService {
     /// Creates a new service instance with the provided configuration.
     pub fn new(config: NetworkConfig) -> Self {
         let security = SecurityManager::new(config.security.clone());
-        
+
         Self {
             config,
             peers: Vec::new(),
@@ -160,16 +159,16 @@ impl NetworkService {
         if self.security.is_peer_banned(&peer) {
             return Err(NetworkError::Security("Peer banned".to_string()));
         }
-        
+
         if self.security.is_ip_banned(&ip) {
             return Err(NetworkError::Security("IP banned".to_string()));
         }
-        
+
         // Original logic
         if !self.peers.contains(&peer) && self.peers.len() < self.config.max_peers {
             self.peers.push(peer);
         }
-        
+
         Ok(())
     }
 

@@ -12,10 +12,10 @@
 //! - Ban persistence
 //! - Ban statistics
 
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use rand;
+use std::collections::HashMap;
 use std::net::IpAddr;
+use std::time::{Duration, Instant};
 
 use crate::PeerId;
 
@@ -93,7 +93,7 @@ impl Default for BanConfig {
     fn default() -> Self {
         Self {
             default_temp_ban_duration: Duration::from_secs(3600), // 1 hour
-            max_temp_ban_duration: Duration::from_secs(86400), // 24 hours
+            max_temp_ban_duration: Duration::from_secs(86400),    // 24 hours
             enable_expiration: true,
             max_active_bans: 10000,
             ban_history_retention: Duration::from_secs(604800), // 7 days
@@ -370,18 +370,16 @@ impl BanManager {
 
     /// Get ban duration remaining
     pub fn get_ban_duration_remaining(&self, peer_id: &PeerId) -> Option<Duration> {
-        self.banned_peers
-            .get(peer_id)
-            .and_then(|ban| {
-                ban.expires_at.map(|expires| {
-                    let now = Instant::now();
-                    if expires > now {
-                        expires.duration_since(now)
-                    } else {
-                        Duration::ZERO
-                    }
-                })
+        self.banned_peers.get(peer_id).and_then(|ban| {
+            ban.expires_at.map(|expires| {
+                let now = Instant::now();
+                if expires > now {
+                    expires.duration_since(now)
+                } else {
+                    Duration::ZERO
+                }
             })
+        })
     }
 
     /// Get bans by reason
@@ -405,7 +403,8 @@ impl BanManager {
                 peer_id,
                 ban_info.reason,
                 ban_info.banned_at,
-                ban_info.expires_at
+                ban_info
+                    .expires_at
                     .map(|e| format!("{:?}", e))
                     .unwrap_or_else(|| "Permanent".to_string()),
                 ban_info.banned_by
@@ -418,7 +417,8 @@ impl BanManager {
                 ip,
                 ban_info.reason,
                 ban_info.banned_at,
-                ban_info.expires_at
+                ban_info
+                    .expires_at
                     .map(|e| format!("{:?}", e))
                     .unwrap_or_else(|| "Permanent".to_string()),
                 ban_info.banned_by
@@ -441,7 +441,9 @@ mod tests {
         let reason = BanReason::RateLimitViolation;
 
         // Should ban peer
-        assert!(manager.ban_peer_temporarily(peer.clone(), reason.clone()).is_ok());
+        assert!(manager
+            .ban_peer_temporarily(peer.clone(), reason.clone())
+            .is_ok());
         assert!(manager.is_peer_banned(&peer));
 
         // Should get ban info
@@ -458,7 +460,9 @@ mod tests {
         let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Ban with short duration
-        assert!(manager.ban_peer_temporarily(peer.clone(), BanReason::ProtocolViolation).is_ok());
+        assert!(manager
+            .ban_peer_temporarily(peer.clone(), BanReason::ProtocolViolation)
+            .is_ok());
         assert!(manager.is_peer_banned(&peer));
 
         // Wait for expiration
@@ -477,7 +481,9 @@ mod tests {
         let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Permanent ban
-        assert!(manager.ban_peer_permanently(peer.clone(), BanReason::AttackBehavior, None, None).is_ok());
+        assert!(manager
+            .ban_peer_permanently(peer.clone(), BanReason::AttackBehavior, None, None)
+            .is_ok());
         assert!(manager.is_peer_banned(&peer));
 
         // Should not expire
@@ -494,7 +500,9 @@ mod tests {
         let ip = "192.168.1.100".parse().unwrap();
 
         // Ban IP
-        assert!(manager.ban_ip(ip, BanReason::SpamBehavior, None, None, None).is_ok());
+        assert!(manager
+            .ban_ip(ip, BanReason::SpamBehavior, None, None, None)
+            .is_ok());
         assert!(manager.is_ip_banned(&ip));
 
         // Should get ban info
@@ -510,7 +518,9 @@ mod tests {
         let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Ban peer
-        assert!(manager.ban_peer_temporarily(peer.clone(), BanReason::ProtocolViolation).is_ok());
+        assert!(manager
+            .ban_peer_temporarily(peer.clone(), BanReason::ProtocolViolation)
+            .is_ok());
         assert!(manager.is_peer_banned(&peer));
 
         // Unban peer
@@ -529,8 +539,12 @@ mod tests {
         let peer2 = format!("test_peer_{}", rand::random::<u64>());
 
         // Create different types of bans
-        assert!(manager.ban_peer_temporarily(peer1, BanReason::RateLimitViolation).is_ok());
-        assert!(manager.ban_peer_permanently(peer2, BanReason::AttackBehavior, None, None).is_ok());
+        assert!(manager
+            .ban_peer_temporarily(peer1, BanReason::RateLimitViolation)
+            .is_ok());
+        assert!(manager
+            .ban_peer_permanently(peer2, BanReason::AttackBehavior, None, None)
+            .is_ok());
 
         let stats = manager.get_stats();
         assert_eq!(stats.total_bans, 2);
