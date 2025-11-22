@@ -5,8 +5,8 @@ groups:
       - alert: HighRPCErrorRate
         expr: |
           (
-            rate(bitquan_rpc_errors_total[5m]) 
-            / 
+            rate(bitquan_rpc_errors_total[5m])
+            /
             rate(bitquan_rpc_requests_total[5m])
           ) > 0.01
         for: 5m
