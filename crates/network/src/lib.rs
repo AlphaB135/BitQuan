@@ -1,13 +1,13 @@
 //! Peer-to-peer networking with comprehensive security for BitQuan.
 #![warn(missing_docs)]
 
-// pub mod connection_manager;
-// pub mod rate_limiter;
-// pub mod reputation;
-// pub mod ban_manager;
-// pub mod dos_protection;
-// pub mod security_manager;
-// pub mod security_config;
+pub mod rate_limiter;
+pub mod connection_manager;
+pub mod reputation;
+pub mod ban_manager;
+pub mod dos_protection;
+pub mod security_manager;
+pub mod security_config;
 
 pub mod discovery;
 pub mod dns_bootstrap;
@@ -18,25 +18,25 @@ pub mod protocol;
 pub mod relay;
 pub mod sync;
 
-// pub use connection_manager::{
-//     ConnectionConfig, ConnectionError, ConnectionManager, ConnectionStats, Direction, ConnectionState,
-// };
-// pub use rate_limiter::{
-//     RateLimitConfig, RateLimitError, RateLimiter, MessageType, MessageTypeLimits,
-// };
-// pub use reputation::{
-//     ReputationConfig, ReputationManager, ReputationAction, ReputationStats, Violation, PeerReputation,
-// };
-// pub use ban_manager::{
-//     BanConfig, BanManager, BanError, BanInfo, BanReason, BanStats,
-// };
-// pub use dos_protection::{
-//     DoSConfig, DoSProtection, DoSError, DoSStats, AttackInfo, AttackSeverity,
-// };
-// pub use security_manager::{
-//     SecurityManager, SecurityConfig, SecurityError, SecurityEvent, SecurityStatistics,
-//     PeerSecurityStatus,
-// };
+pub use connection_manager::{
+    ConnectionConfig, ConnectionError, ConnectionManager, ConnectionStats, Direction, ConnectionState,
+};
+pub use rate_limiter::{
+    RateLimitConfig, RateLimitError, RateLimiter, MessageType, MessageTypeLimits,
+};
+pub use reputation::{
+    ReputationConfig, ReputationManager, ReputationAction, ReputationStats, Violation, PeerReputation,
+};
+pub use ban_manager::{
+    BanConfig, BanManager, BanError, BanInfo, BanReason, BanStats,
+};
+pub use dos_protection::{
+    DoSConfig, DoSProtection, DoSError, DoSStats, AttackInfo, AttackSeverity,
+};
+pub use security_manager::{
+    SecurityManager, SecurityError, SecurityEvent, SecurityStatistics,
+    PeerSecurityStatus,
+};
 
 pub use discovery::{
     bootstrap_peers, discover_from_seeds, PeerBook, PersistentPeer, MAINNET_SEEDS,
@@ -75,25 +75,12 @@ pub struct NetworkConfig {
     pub max_message_size: usize,
     /// Rate limit: max messages per second per peer
     pub rate_limit_per_peer: usize,
-    
-    // /// Security configuration
-    // pub security: SecurityConfig,
+    /// Security configuration
+    pub security: SecurityConfig,
 }
 
-// /// Security configuration for network layer
-// #[derive(Clone, Debug)]
-// pub struct SecurityConfig {
-//     /// Rate limiting configuration
-//     pub rate_limiting: RateLimitConfig,
-//     /// Connection management configuration
-//     pub connections: ConnectionConfig,
-//     /// Reputation management configuration
-//     pub reputation: ReputationConfig,
-//     /// Ban management configuration
-//     pub bans: BanConfig,
-//     /// DoS protection configuration
-//     pub dos_protection: DoSConfig,
-// }
+/// Re-export SecurityConfig from security_config module
+pub use security_config::SecurityConfig;
 
 impl Default for NetworkConfig {
     fn default() -> Self {
@@ -103,6 +90,7 @@ impl Default for NetworkConfig {
             enable_encryption: true,
             max_message_size: 10_000_000,
             rate_limit_per_peer: 100,
+            security: SecurityConfig::default(),
         }
     }
 }
@@ -136,14 +124,18 @@ pub enum NetworkError {
 pub struct NetworkService {
     config: NetworkConfig,
     peers: Vec<PeerId>,
+    security: SecurityManager,
 }
 
 impl NetworkService {
     /// Creates a new service instance with the provided configuration.
     pub fn new(config: NetworkConfig) -> Self {
+        let security = SecurityManager::new(config.security.clone());
+        
         Self {
             config,
             peers: Vec::new(),
+            security,
         }
     }
 
@@ -152,11 +144,38 @@ impl NetworkService {
         self.config.max_peers
     }
 
-    /// Connects to a new peer (placeholder behaviour).
-    pub fn connect(&mut self, peer: PeerId) {
+    /// Get security manager reference
+    pub fn security(&self) -> &SecurityManager {
+        &self.security
+    }
+
+    /// Get mutable security manager reference
+    pub fn security_mut(&mut self) -> &mut SecurityManager {
+        &mut self.security
+    }
+
+    /// Connects to a new peer with security checks.
+    pub fn connect(&mut self, peer: PeerId, ip: std::net::IpAddr) -> Result<()> {
+        // Check bans
+        if self.security.is_peer_banned(&peer) {
+            return Err(NetworkError::Security("Peer banned".to_string()));
+        }
+        
+        if self.security.is_ip_banned(&ip) {
+            return Err(NetworkError::Security("IP banned".to_string()));
+        }
+        
+        // Original logic
         if !self.peers.contains(&peer) && self.peers.len() < self.config.max_peers {
             self.peers.push(peer);
         }
+        
+        Ok(())
+    }
+
+    /// Get list of connected peers
+    pub fn peers(&self) -> &[PeerId] {
+        &self.peers
     }
 
     /// Disconnects an existing peer.
@@ -172,5 +191,3 @@ impl NetworkService {
         Ok(())
     }
 }
-
-
