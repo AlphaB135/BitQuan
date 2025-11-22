@@ -200,8 +200,8 @@ test test_miner_reward_accumulation ... ok
 - bitquan-consensus targeted tests [DONE] (53 unit tests)
 - Documentation build/manual lint pending (tracked in Phase 9)
 
-**Commits Today:** 2  
-**Files Modified:** 6  
+**Commits Today:** 2
+**Files Modified:** 6
 **Token Usage:** 48k/1,000k (4.8%)
 
 ---
@@ -233,8 +233,8 @@ test test_miner_reward_accumulation ... ok
 - coverage: [DONE] Ready
 - fuzz build: [DONE] Ready
 
-**Commits Today:** 1  
-**Files Modified:** 11  
+**Commits Today:** 1
+**Files Modified:** 11
 **Token Usage:** 49k/1,000k (4.9%)
 
 ---
@@ -295,8 +295,8 @@ test test_miner_reward_accumulation ... ok
 - [DONE] CI shows fmt/clippy/test/deny/audit/coverage/fuzz
 - [DONE] P2P has net-magic, ban-score, limits
 
-**Commits Today:** 2  
-**Files Modified:** 6  
+**Commits Today:** 2
+**Files Modified:** 6
 **Token Usage:** 53k/1,000k (5.3%)
 
 ---
@@ -335,8 +335,8 @@ test test_miner_reward_accumulation ... ok
 - Security: [DONE] Hardened
 - Repository hygiene: [DONE] Clean
 
-**Commits Today:** 2  
-**Files Created:** 2  
+**Commits Today:** 2
+**Files Created:** 2
 **Token Usage:** 30k/1,000k (3%)
 
 ---
@@ -375,8 +375,8 @@ test test_miner_reward_accumulation ... ok
 - Other: 3 tests
 - **Total: 121 tests passing**
 
-**Commits Today:** 3  
-**Lines Added:** ~200  
+**Commits Today:** 3
+**Lines Added:** ~200
 **Token Usage:** 36k/1,000k (3.6%)
 
 ---
@@ -403,8 +403,8 @@ test test_miner_reward_accumulation ... ok
 - Minimum fee rate enforcement (1 qbit/WU)
 - Size limit: 300 MB default
 
-**Commits Today:** 5  
-**Lines Added:** ~600  
+**Commits Today:** 5
+**Lines Added:** ~600
 **Token Usage:** 38k/1,000k (3.8%)
 
 ---
@@ -438,8 +438,8 @@ test test_miner_reward_accumulation ... ok
 - Governance model (3-7 maintainers, 2+ approval)
 - Network ID replay protection (mainnet/testnet/devnet/regtest)
 
-**Commits Today:** 20+  
-**Lines Added:** ~3,000  
+**Commits Today:** 20+
+**Lines Added:** ~3,000
 **Token Usage:** 125k/1,000k (12.5%)
 
 ---
@@ -645,8 +645,8 @@ Apache License 2.0 - See LICENSE file
 
 ---
 
-**Last Updated: 2025-10-26T14:46:00Z**  
-**Version: 0.0.1-alpha (pre-release)**  
+**Last Updated: 2025-10-26T14:46:00Z**
+**Version: 0.0.1-alpha (pre-release)**
 **Status: Active Development**
 
 - Next: canonical wire parsing (tx/block), persistent chainstore, RPC/Stratum job server, mempool/template จาก fee-per-weight.

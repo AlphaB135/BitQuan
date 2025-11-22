@@ -139,10 +139,8 @@ types ← storage ← consensus ← rpc ← node
 
 When adding new `pub` items, consult [docs/API_STABILITY.md](docs/API_STABILITY.md):
 - Use `pub(crate)` for internal helpers within a crate
-- Use `#[doc(hidden)]` for workspace-internal APIs  
+- Use `#[doc(hidden)]` for workspace-internal APIs
 - Only mark items `pub` if they're part of the stable external API
 - Document stability guarantees
 
 For more details, see the Code Structure audit report in `docs/audit/`.
-
-

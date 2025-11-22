@@ -1,7 +1,7 @@
 # Issue: Fix Race Condition in Secure Memory Pool
 
-**Priority**: P0 CRITICAL  
-**Status**: RESOLVED  
+**Priority**: P0 CRITICAL
+**Status**: RESOLVED
 **Files**: `crates/crypto/src/wallet/secure_memory_pool.rs`
 
 ## Overview
@@ -33,7 +33,7 @@ pub struct SecureMemoryBlock {
 ```rust
 pub fn acquire(&self) -> Result<SecureMemoryBlock, std::io::Error> {
     let mut blocks = self.available_blocks.lock()?;
-    
+
     if let Some(block) = blocks.pop_front() {
         match block.in_use.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst) {
             Ok(_) => Ok(block),

@@ -73,7 +73,7 @@ export class Address {
   static fromString(address: string): Address {
     try {
       const { hrp, version, data } = bech32.decode(address, bech32.Encoding.Bech32m);
-      
+
       const network = Network.fromHRP(hrp);
       if (!network) {
         throw new AddressError(`Invalid network: ${hrp}`);
@@ -96,11 +96,11 @@ export class Address {
   static validate(address: string, expectedNetwork: Network = Network.Mainnet): ValidationResult {
     try {
       const addr = Address.fromString(address);
-      
+
       if (addr.network !== expectedNetwork) {
         return ValidationResult.WrongNetwork;
       }
-      
+
       return ValidationResult.Valid;
     } catch (error) {
       if (error.message.includes('checksum')) {

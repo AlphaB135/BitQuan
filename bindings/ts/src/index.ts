@@ -1,6 +1,6 @@
 /**
  * BitQuan SDK - Main exports
- * 
+ *
  * Comprehensive TypeScript SDK for BitQuan blockchain with post-quantum security
  */
 
@@ -40,7 +40,7 @@ export const VERSION = '0.1.0';
  */
 export class BitQuanSDK {
   static version = VERSION;
-  
+
   /**
    * Create a new wallet instance
    */
@@ -51,28 +51,28 @@ export class BitQuanSDK {
       ...config
     });
   }
-  
+
   /**
    * Generate mnemonic phrase
    */
   static generateMnemonic(entropyBits: number = 256, quantumEnhanced: boolean = true): Mnemonic {
     return Mnemonic.generate(entropyBits, quantumEnhanced);
   }
-  
+
   /**
    * Create RPC client
    */
   static createClient(url: string, options?: any): BitQuanClient {
     return new BitQuanClient(url, options);
   }
-  
+
   /**
    * Validate address
    */
   static validateAddress(address: string, network?: Network): ValidationResult {
     return Address.validate(address, network || Network.Mainnet);
   }
-  
+
   /**
    * Create PSBT builder
    */

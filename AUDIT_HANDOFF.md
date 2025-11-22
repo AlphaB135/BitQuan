@@ -1,8 +1,8 @@
 # BitQuan External Audit Handoff
 
-**Document Version:** 1.0  
-**Date:** 2025-11-22  
-**Project:** BitQuan - Post-Quantum Cryptocurrency  
+**Document Version:** 1.0
+**Date:** 2025-11-22
+**Project:** BitQuan - Post-Quantum Cryptocurrency
 **Repository:** https://github.com/alphab135/BitQuan
 
 ---
@@ -44,7 +44,7 @@ This document provides a comprehensive handoff package for external auditors eva
   - `src/lib.rs` - CryptoRegistry and signature verification
   - `src/wallet/` - Wallet key management and secure memory
   - `src/wallet/secure_memory_pool.rs` - **CRITICAL** - Secure memory allocation
-- **Security Considerations:** 
+- **Security Considerations:**
   - Constant-time operations
   - Memory zeroization
   - Thread safety (race condition fixed in Phase 1)
@@ -355,8 +355,8 @@ cargo build --release --workspace
 
 ## Contact Information
 
-**Project Maintainer:** AlphaB135  
-**Repository:** https://github.com/alphab135/BitQuan  
+**Project Maintainer:** AlphaB135
+**Repository:** https://github.com/alphab135/BitQuan
 **Documentation:** `docs/` directory in repository
 
 ---

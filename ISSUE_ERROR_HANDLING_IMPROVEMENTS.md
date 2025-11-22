@@ -1,7 +1,7 @@
 # Issue: Reduce Error Handling Anti-patterns (expect/unwrap)
 
-**Priority**: P0 CRITICAL  
-**Status**: COMPLETED  
+**Priority**: P0 CRITICAL
+**Status**: COMPLETED
 **Files**: Multiple core modules
 
 ## Overview

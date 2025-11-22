@@ -5,7 +5,7 @@ Official TypeScript/JavaScript SDK for interacting with BitQuan blockchain.
 ## Features
 
 - 🔐 Post-quantum cryptography (Dilithium signatures)
-- 🌐 JSON-RPC 2.0 client  
+- 🌐 JSON-RPC 2.0 client
 - 📦 Address encoding/decoding (Bech32m)
 - 🏗️ Transaction builder with PSBT support
 - ✅ Full TypeScript support

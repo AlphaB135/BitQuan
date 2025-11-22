@@ -1,7 +1,7 @@
 # Issue: Documentation Conflicts Resolution
 
-**Priority**: P0 CRITICAL  
-**Status**: COMPLETED  
+**Priority**: P0 CRITICAL
+**Status**: COMPLETED
 **Files**: `README.md`, documentation files
 
 ## Overview

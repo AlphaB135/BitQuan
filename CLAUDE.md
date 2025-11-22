@@ -398,7 +398,7 @@ RETRO_PATH="retrospectives/$(date +%Y/%m)/$(date +%Y-%m-%d_%H-%M)_retrospective.
 gh issue comment XXX --body "Session retrospective created: ${RETRO_PATH}"
 ```
 
-**Time Zone Note**: 
+**Time Zone Note**:
 - **PRIMARY TIME ZONE: GMT+7 (Bangkok time)** - Always show GMT+7 time first
 - UTC time included for reference only (shown in parentheses)
 - File names may use UTC for technical consistency

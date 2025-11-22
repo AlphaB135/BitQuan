@@ -14,10 +14,10 @@ A proof-of-work blockchain with post-quantum security using CRYSTALS-Dilithium3 
 
 ## Mainnet Status
 
-Network: Mainnet (Magic: `0xe8f3e1e3`)  
-Security: B+ Rating (83/100) - Critical issues fixed, minor issues remain  
-Mining: RandomX PoW with Stratum support  
-Nodes: 100+ global bootstrap nodes  
+Network: Mainnet (Magic: `0xe8f3e1e3`)
+Security: B+ Rating (83/100) - Critical issues fixed, minor issues remain
+Mining: RandomX PoW with Stratum support
+Nodes: 100+ global bootstrap nodes
 Production Readiness: 75% - Testnet Ready, Mainnet pending fixes
 
 ## Core Principles
@@ -79,8 +79,8 @@ BitQuan is a cryptocurrency designed for 50+ year security resilience against qu
 
 **PRODUCTION READY - MAINNET LIVE**
 
-Last Security Audit: November 21, 2025  
-Security Score: 83/100 (Grade: B+) - Critical issues fixed, minor issues remain  
+Last Security Audit: November 21, 2025
+Security Score: 83/100 (Grade: B+) - Critical issues fixed, minor issues remain
 Production Readiness: 75% - Testnet Ready, Mainnet pending fixes
 
 ### Security Compliance
@@ -208,9 +208,9 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 
 ## Development Status
 
-Current version: v0.0.2-alpha (testnet ready)  
-Production Readiness: 85%  
-Tests: 522 passing  
+Current version: v0.0.2-alpha (testnet ready)
+Production Readiness: 85%
+Tests: 522 passing
 Critical Issues: Resolved (Race condition fixed, 728 expect() → 192 unwrap() calls)
 
 See [PRODUCTION_READINESS_AUDIT.md](PRODUCTION_READINESS_AUDIT.md) for detailed progress.

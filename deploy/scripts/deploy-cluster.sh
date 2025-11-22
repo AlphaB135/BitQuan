@@ -50,14 +50,14 @@ FAILED=0
 while IFS= read -r node; do
     [[ -z "$node" ]] && continue
     [[ "$node" =~ ^# ]] && continue
-    
+
     echo "→ Deploying to $node..."
-    
+
     # Add user if not specified
     if [[ ! "$node" =~ @ ]]; then
         node="${DEPLOY_USER}@${node}"
     fi
-    
+
     # Deploy steps
     if ssh -o StrictHostKeyChecking=no "$node" "mkdir -p $REMOTE_DIR/bin $REMOTE_DIR/backups" && \
        ssh "$node" "test -f $REMOTE_DIR/bin/bitquan-node && cp $REMOTE_DIR/bin/bitquan-node $REMOTE_DIR/backups/bitquan-node.backup.$(date +%s) || true" && \

@@ -9,7 +9,7 @@ fn bench_sign_transaction(c: &mut Criterion) {
         network_id: NetworkId::Mainnet,
         genesis_hash: [0u8; 32],
     };
-    
+
     c.bench_function("sign_transaction", |b| {
         b.iter(|| {
             sign(black_box(&keypair), black_box(&tx), black_box(&ctx))
@@ -25,7 +25,7 @@ fn bench_verify_signature(c: &mut Criterion) {
         genesis_hash: [0u8; 32],
     };
     let signature = sign(&keypair, &tx, &ctx).expect("Failed to sign transaction");
-    
+
     c.bench_function("verify_signature", |b| {
         b.iter(|| {
             verify(black_box(&keypair.public()), black_box(&signature), black_box(&tx), black_box(&ctx))

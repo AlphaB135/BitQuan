@@ -371,10 +371,12 @@ name = "bitquan-network"
 version = "0.1.0"
 dependencies = [
  "bitquan-types",
+ "log",
  "rand 0.8.5",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+ "toml",
 ]
 
 [[package]]

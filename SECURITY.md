@@ -390,4 +390,3 @@ See [docs/PRELAUNCH_CHECKLIST.md](docs/PRELAUNCH_CHECKLIST.md) for complete vali
 - Nightly `cargo audit` runs against the RustSec database.
 - Production crates enable `-D clippy::unwrap_used` and CI fails on warnings.
 - Consensus/crypto paths are covered by `nextest` and line-coverage gate (≥80%).
-

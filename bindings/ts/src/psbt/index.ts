@@ -385,7 +385,7 @@ export class PQPSBT {
 
   private static deserializeInput(data: Buffer, offset: number): [PSBTInput, number] {
     const [map, newOffset] = PQPSBT.prototype.deserializeMap(data, offset);
-    
+
     const input: PSBTInput = {
       previousTxid: map.get(InputKey.PreviousTxid) || Buffer.alloc(32),
       previousOutputIndex: map.get(InputKey.PreviousOutputIndex)?.[0] || 0,
@@ -401,7 +401,7 @@ export class PQPSBT {
 
   private static deserializeOutput(data: Buffer, offset: number): [PSBTOutput, number] {
     const [map, newOffset] = PQPSBT.prototype.deserializeMap(data, offset);
-    
+
     const output: PSBTOutput = {
       amount: 0,
       scriptPubkey: map.get(OutputKey.ScriptPubkey) || Buffer.alloc(0)
@@ -449,7 +449,7 @@ export class PQPSBT {
 
   private readCompactSize(data: Buffer, offset: number): [number, number] {
     const first = data[offset];
-    
+
     if (first < 0xfd) {
       return [first, offset + 1];
     } else if (first === 0xfd) {
@@ -521,7 +521,7 @@ export class PQPSBTBuilder {
    */
   addInput(txid: string, vout: number): PQPSBTBuilder {
     const txidBuffer = Buffer.from(txid, 'hex').reverse();
-    
+
     const input: PSBTInput = {
       previousTxid: txidBuffer,
       previousOutputIndex: vout,
@@ -567,20 +567,20 @@ export class PQPSBTBuilder {
           address.data,
           Buffer.from([0x88, 0xac]) // OP_EQUALVERIFY OP_CHECKSIG
         ]);
-      
+
       case 0x02: // P2WPKH
         return Buffer.concat([
           Buffer.from([0x00, 0x14]), // OP_0 OP_DATA_20
           address.data
         ]);
-      
+
       case 0x10: // PQ-P2PKH
         return Buffer.concat([
           Buffer.from([0x76, 0xa9, 0x14]), // OP_DUP OP_HASH160 OP_DATA_20
           address.data,
           Buffer.from([0x88, 0xac]) // OP_EQUALVERIFY OP_CHECKSIG
         ]);
-      
+
       default:
         throw new PSBTError(`Unsupported address type: ${address.addressType}`);
     }
