@@ -11,12 +11,12 @@ TOTAL_ISSUES=0
 
 for crate in $CRITICAL_CRATES; do
     echo "📦 Checking: $crate"
-    
+
     # Find unwrap/expect in non-test files
     UNWRAPS=$(find crates/$crate/src -name "*.rs" -type f ! -path "*/tests/*" ! -name "*test*.rs" \
         -exec grep -n "\.unwrap()\|\.expect(" {} + 2>/dev/null \
         | grep -v "#\[test\]\|mod tests\|#\[cfg(test)\]" || true)
-    
+
     if [ -n "$UNWRAPS" ]; then
         COUNT=$(echo "$UNWRAPS" | wc -l | tr -d ' ')
         echo "   ⚠️  Found $COUNT potential panic points"

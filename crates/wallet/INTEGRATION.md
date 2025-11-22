@@ -72,14 +72,14 @@ use rpassword::prompt_password;
 fn unlock_wallet_interactive(keystore_path: &str) -> Result<SecretVec<u8>, String> {
     let keystore = read_keystore_file(keystore_path)
         .map_err(|e| format!("Failed to read keystore: {}", e))?;
-    
+
     // Prompt without echoing to terminal
     let password = prompt_password("Enter password: ")
         .map_err(|e| format!("Password input failed: {}", e))?;
-    
+
     // Decrypt
     let plaintext = decrypt_keystore(&keystore, &password)?;
-    
+
     // Wrap in SecretVec
     Ok(SecretVec::new(plaintext))
 }
@@ -91,22 +91,22 @@ use wallet::keystore::{rotate_keystore, KdfProfile};
 
 fn change_password(keystore_path: &str) -> Result<(), String> {
     let keystore = read_keystore_file(keystore_path)?;
-    
+
     let old_password = prompt_password("Current password: ")?;
     let new_password = prompt_password("New password: ")?;
     let confirm = prompt_password("Confirm new password: ")?;
-    
+
     if new_password != confirm {
         return Err("Passwords don't match".to_string());
     }
-    
+
     // Optionally upgrade KDF params
     let (mem, time, par) = KdfProfile::Tight.params();
     let new_keystore = rotate_keystore(&keystore, &old_password, &new_password, mem, time, par)?;
-    
+
     // Atomic replace
     write_keystore_file_atomic(keystore_path, &new_keystore)?;
-    
+
     println!("Password changed successfully");
     Ok(())
 }
@@ -135,17 +135,17 @@ impl RateLimiter {
             lockout_base_secs: 2,
         }
     }
-    
+
     fn check_and_increment(&self, keystore_path: &str) -> Result<(), String> {
         let mut map = self.attempts.lock().unwrap();
         let entry = map.entry(keystore_path.to_string()).or_insert((0, Instant::now()));
-        
+
         if entry.0 >= self.max_attempts {
             let lockout_duration = Duration::from_secs(
                 self.lockout_base_secs.pow(entry.0.saturating_sub(self.max_attempts))
                     .min(60)  // Cap at 60 seconds
             );
-            
+
             if entry.1.elapsed() < lockout_duration {
                 return Err(format!("Too many failed attempts. Try again in {} seconds",
                     lockout_duration.as_secs()));
@@ -154,12 +154,12 @@ impl RateLimiter {
                 entry.0 = 0;
             }
         }
-        
+
         entry.0 += 1;
         entry.1 = Instant::now();
         Ok(())
     }
-    
+
     fn reset(&self, keystore_path: &str) {
         self.attempts.lock().unwrap().remove(keystore_path);
     }
@@ -171,9 +171,9 @@ static RATE_LIMITER: Mutex<Option<RateLimiter>> = Mutex::new(None);
 fn unlock_with_rate_limit(keystore_path: &str, password: &str) -> Result<Vec<u8>, String> {
     let limiter = RATE_LIMITER.lock().unwrap()
         .get_or_insert_with(|| RateLimiter::new(5));
-    
+
     limiter.check_and_increment(keystore_path)?;
-    
+
     let keystore = read_keystore_file(keystore_path)?;
     match decrypt_keystore(&keystore, password) {
         Ok(plaintext) => {
@@ -216,12 +216,12 @@ use std::fs;
 fn backup_keystore(src: &str, dest: &str) -> std::io::Result<()> {
     // Simple copy (keystore is already encrypted)
     fs::copy(src, dest)?;
-    
+
     // Optionally verify
     let original = read_keystore_file(src)?;
     let backup = read_keystore_file(dest)?;
     assert_eq!(original.ciphertext_b64, backup.ciphertext_b64);
-    
+
     println!("Backup created: {}", dest);
     println!("Store this file AND your password in separate secure locations!");
     Ok(())
@@ -233,15 +233,15 @@ fn backup_keystore(src: &str, dest: &str) -> std::io::Result<()> {
 fn verify_backup(path: &str, password: &str) -> Result<(), String> {
     let keystore = read_keystore_file(path)
         .map_err(|e| format!("Cannot read file: {}", e))?;
-    
+
     // Check magic + version
     if keystore.magic != "BQK1" {
         return Err("Invalid keystore format".to_string());
     }
-    
+
     // Decrypt (but don't expose plaintext)
     decrypt_keystore(&keystore, password)?;
-    
+
     println!("✓ Backup is valid and password is correct");
     Ok(())
 }
@@ -254,32 +254,32 @@ fn verify_backup(path: &str, password: &str) -> Result<(), String> {
 mod integration_tests {
     use super::*;
     use tempfile::tempdir;
-    
+
     #[test]
     fn full_lifecycle() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.keystore");
-        
+
         // Create
         let secret = b"test-private-key-32-bytes!!!";
         let password = "test-password-123";
         let ks = encrypt_keystore(secret, password, None, 8*1024, 1, 1);
         write_keystore_file_atomic(&path, &ks).unwrap();
-        
+
         // Unlock
         let loaded = read_keystore_file(&path).unwrap();
         let decrypted = decrypt_keystore(&loaded, password).unwrap();
         assert_eq!(decrypted, secret);
-        
+
         // Change password
         let new_ks = rotate_keystore(&loaded, password, "new-pass", 8*1024, 1, 1).unwrap();
         write_keystore_file_atomic(&path, &new_ks).unwrap();
-        
+
         // Verify new password works
         let final_ks = read_keystore_file(&path).unwrap();
         let final_pt = decrypt_keystore(&final_ks, "new-pass").unwrap();
         assert_eq!(final_pt, secret);
-        
+
         // Old password fails
         assert!(decrypt_keystore(&final_ks, password).is_err());
     }

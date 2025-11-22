@@ -46,7 +46,7 @@ aes = []
 # message that is being signed.
 random_signing = []
 
-# For compiling to wasm targets 
+# For compiling to wasm targets
 wasm = ["wasm-bindgen", "getrandom/js"]
 
 [lib]

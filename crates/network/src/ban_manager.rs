@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use rand;
 use std::net::IpAddr;
 
 use crate::PeerId;
@@ -102,7 +103,7 @@ impl Default for BanConfig {
 }
 
 /// Ban statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct BanStats {
     pub total_bans: u64,
     pub active_bans: usize,
@@ -258,7 +259,7 @@ impl BanManager {
 
     /// Unban a peer
     pub fn unban_peer(&mut self, peer_id: &PeerId) -> Result<(), BanError> {
-        if let Some(ban_info) = self.banned_peers.remove(&peer_id) {
+        if let Some(ban_info) = self.banned_peers.remove(peer_id) {
             self.stats.expired_bans += 1;
             log::info!("Unbanned peer {:?}: {:?}", peer_id, ban_info.reason);
             Ok(())
@@ -312,7 +313,7 @@ impl BanManager {
         });
 
         self.stats.expired_bans += cleared;
-        cleared
+        cleared as usize
     }
 
     /// Get all banned peers
@@ -396,16 +397,16 @@ impl BanManager {
         let mut output = String::new();
 
         output.push_str("# BitQuan Network Bans Export\n");
-        output.push_str(&format!("Generated: {}\n\n", Instant::now()));
+        output.push_str(&format!("Generated: {:?}\n\n", Instant::now()));
 
         for (peer_id, ban_info) in &self.banned_peers {
             output.push_str(&format!(
-                "Peer: {:?}\n  Reason: {:?}\n  Banned: {}\n  Expires: {}\n  By: {:?}\n\n",
+                "Peer: {:?}\n  Reason: {:?}\n  Banned: {:?}\n  Expires: {}\n  By: {:?}\n\n",
                 peer_id,
                 ban_info.reason,
                 ban_info.banned_at,
                 ban_info.expires_at
-                    .map(|e| e.to_string())
+                    .map(|e| format!("{:?}", e))
                     .unwrap_or_else(|| "Permanent".to_string()),
                 ban_info.banned_by
             ));
@@ -413,12 +414,12 @@ impl BanManager {
 
         for (ip, ban_info) in &self.banned_ips {
             output.push_str(&format!(
-                "IP: {}\n  Reason: {:?}\n  Banned: {}\n  Expires: {}\n  By: {:?}\n\n",
+                "IP: {}\n  Reason: {:?}\n  Banned: {:?}\n  Expires: {}\n  By: {:?}\n\n",
                 ip,
                 ban_info.reason,
                 ban_info.banned_at,
                 ban_info.expires_at
-                    .map(|e| e.to_string())
+                    .map(|e| format!("{:?}", e))
                     .unwrap_or_else(|| "Permanent".to_string()),
                 ban_info.banned_by
             ));
@@ -436,11 +437,11 @@ mod tests {
     fn test_ban_manager_basic_operations() {
         let config = BanConfig::default();
         let mut manager = BanManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
         let reason = BanReason::RateLimitViolation;
 
         // Should ban peer
-        assert!(manager.ban_peer_temporarily(peer, reason.clone()).is_ok());
+        assert!(manager.ban_peer_temporarily(peer.clone(), reason.clone()).is_ok());
         assert!(manager.is_peer_banned(&peer));
 
         // Should get ban info
@@ -454,10 +455,10 @@ mod tests {
         let mut config = BanConfig::default();
         config.default_temp_ban_duration = Duration::from_millis(100);
         let mut manager = BanManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Ban with short duration
-        assert!(manager.ban_peer_temporarily(peer, BanReason::ProtocolViolation).is_ok());
+        assert!(manager.ban_peer_temporarily(peer.clone(), BanReason::ProtocolViolation).is_ok());
         assert!(manager.is_peer_banned(&peer));
 
         // Wait for expiration
@@ -473,10 +474,10 @@ mod tests {
     fn test_permanent_ban() {
         let config = BanConfig::default();
         let mut manager = BanManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Permanent ban
-        assert!(manager.ban_peer_permanently(peer, BanReason::AttackBehavior, None, None).is_ok());
+        assert!(manager.ban_peer_permanently(peer.clone(), BanReason::AttackBehavior, None, None).is_ok());
         assert!(manager.is_peer_banned(&peer));
 
         // Should not expire
@@ -493,7 +494,7 @@ mod tests {
         let ip = "192.168.1.100".parse().unwrap();
 
         // Ban IP
-        assert!(manager.ban_ip(ip, BanReason::SpamBehavior, None, None).is_ok());
+        assert!(manager.ban_ip(ip, BanReason::SpamBehavior, None, None, None).is_ok());
         assert!(manager.is_ip_banned(&ip));
 
         // Should get ban info
@@ -506,10 +507,10 @@ mod tests {
     fn test_unban_operations() {
         let config = BanConfig::default();
         let mut manager = BanManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Ban peer
-        assert!(manager.ban_peer_temporarily(peer, BanReason::ProtocolViolation).is_ok());
+        assert!(manager.ban_peer_temporarily(peer.clone(), BanReason::ProtocolViolation).is_ok());
         assert!(manager.is_peer_banned(&peer));
 
         // Unban peer
@@ -524,8 +525,8 @@ mod tests {
     fn test_ban_statistics() {
         let config = BanConfig::default();
         let mut manager = BanManager::new(config);
-        let peer1 = PeerId::random();
-        let peer2 = PeerId::random();
+        let peer1 = format!("test_peer_{}", rand::random::<u64>());
+        let peer2 = format!("test_peer_{}", rand::random::<u64>());
 
         // Create different types of bans
         assert!(manager.ban_peer_temporarily(peer1, BanReason::RateLimitViolation).is_ok());

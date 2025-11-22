@@ -2,7 +2,7 @@
 
   <h1>Web Assembly Demo</h1>
 
-  <strong>A basic example of using the pqc_dilithium npm module</strong> 
+  <strong>A basic example of using the pqc_dilithium npm module</strong>
 
 
 
@@ -11,7 +11,7 @@
 
 ### Installation
 
-From this folder: 
+From this folder:
 
 ```shell
 npm install
@@ -53,9 +53,3 @@ assert.equal(privKey.length, kyber.Params.secretKeyBytes);
 assert.equal(sign.length,  kyber.Params.signBytes);
 
 ```
-
-
-
-
-
-

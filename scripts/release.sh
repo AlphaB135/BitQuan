@@ -34,21 +34,21 @@ log_error() {
 # Check prerequisites
 check_prerequisites() {
     log_info "Checking prerequisites..."
-    
+
     # Check for required tools
     local missing_tools=()
-    
+
     for tool in cargo rustc git gpg sha256sum tar; do
         if ! command -v "$tool" &> /dev/null; then
             missing_tools+=("$tool")
         fi
     done
-    
+
     if [ ${#missing_tools[@]} -ne 0 ]; then
         log_error "Missing required tools: ${missing_tools[*]}"
         exit 1
     fi
-    
+
     # Check for GPG key
     if [ -z "$GPG_KEY" ]; then
         log_warn "GPG_KEY not set, will use default signing key"
@@ -62,7 +62,7 @@ check_prerequisites() {
             exit 1
         fi
     fi
-    
+
     log_info "Prerequisites OK"
 }
 
@@ -73,21 +73,21 @@ get_version() {
     else
         VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0-dev")
     fi
-    
+
     log_info "Building version: $VERSION"
 }
 
 # Collect build info
 collect_build_info() {
     log_info "Collecting build information..."
-    
+
     RUSTC_VERSION=$(rustc --version)
     CARGO_VERSION=$(cargo --version)
     GIT_COMMIT=$(git rev-parse HEAD)
     GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
     BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     TARGET_TRIPLE=$(rustc -vV | sed -n 's|host: ||p')
-    
+
     cat > "$DIST_DIR/build-info.txt" <<EOF
 BitQuan Build Information
 =========================
@@ -121,34 +121,34 @@ EOF
 # Clean previous builds
 clean_build() {
     log_info "Cleaning previous builds..."
-    
+
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR"
-    
+
     cargo clean --release
 }
 
 # Build binaries
 build_binaries() {
     log_info "Building binaries with --locked (deterministic dependencies)..."
-    
+
     # Ensure Cargo.lock is present
     if [ ! -f "$REPO_ROOT/Cargo.lock" ]; then
         log_error "Cargo.lock not found. Run 'cargo build' first to generate it."
         exit 1
     fi
-    
+
     # Build in release mode with locked dependencies
     cd "$REPO_ROOT"
     cargo build --locked --release
-    
+
     # Verify binaries exist
     local binaries=(
         "bitquan-node"
         "bitquan-cli"
         "bitquan-wallet"
     )
-    
+
     for binary in "${binaries[@]}"; do
         if [ ! -f "$BUILD_DIR/$binary" ]; then
             log_warn "Binary not found: $binary (might be optional)"
@@ -161,7 +161,7 @@ build_binaries() {
 # Strip binaries (optional, reduces size but may affect reproducibility)
 strip_binaries() {
     log_info "Stripping debug symbols..."
-    
+
     for binary in "$BUILD_DIR"/*; do
         if [ -x "$binary" ] && [ -f "$binary" ]; then
             strip "$binary" 2>/dev/null || log_warn "Failed to strip $(basename "$binary")"
@@ -172,7 +172,7 @@ strip_binaries() {
 # Copy binaries to dist
 copy_binaries() {
     log_info "Copying binaries to dist directory..."
-    
+
     for binary in "$BUILD_DIR"/*; do
         if [ -x "$binary" ] && [ -f "$binary" ]; then
             cp "$binary" "$DIST_DIR/"
@@ -184,15 +184,15 @@ copy_binaries() {
 # Generate checksums
 generate_checksums() {
     log_info "Generating SHA256 checksums..."
-    
+
     cd "$DIST_DIR"
-    
+
     # Create checksums for all binaries
     sha256sum bitquan-* > SHA256SUMS 2>/dev/null || {
         log_error "Failed to generate checksums"
         exit 1
     }
-    
+
     log_info "Checksums saved to SHA256SUMS"
     cat SHA256SUMS
 }
@@ -200,26 +200,26 @@ generate_checksums() {
 # Sign checksums with GPG
 sign_checksums() {
     log_info "Signing checksums with GPG..."
-    
+
     cd "$DIST_DIR"
-    
+
     # Remove old signature if exists
     rm -f SHA256SUMS.asc
-    
+
     # Sign checksums
     if [ -z "$GPG_KEY" ]; then
         gpg --clearsign --armor --output SHA256SUMS.asc SHA256SUMS
     else
         gpg --default-key "$GPG_KEY" --clearsign --armor --output SHA256SUMS.asc SHA256SUMS
     fi
-    
+
     if [ ! -f SHA256SUMS.asc ]; then
         log_error "Failed to sign checksums"
         exit 1
     fi
-    
+
     log_info "Signed checksums saved to SHA256SUMS.asc"
-    
+
     # Verify signature
     gpg --verify SHA256SUMS.asc &> /dev/null && log_info "Signature verified OK" || {
         log_error "Signature verification failed"
@@ -230,12 +230,12 @@ sign_checksums() {
 # Create release archive
 create_archive() {
     log_info "Creating release archive..."
-    
+
     cd "$REPO_ROOT"
-    
+
     ARCHIVE_NAME="${PROJECT_NAME}-${VERSION}-${TARGET_TRIPLE}"
     ARCHIVE_PATH="$DIST_DIR/${ARCHIVE_NAME}.tar.gz"
-    
+
     # Create archive with binaries, checksums, and build info
     tar -czf "$ARCHIVE_PATH" \
         -C "$DIST_DIR" \
@@ -248,20 +248,20 @@ create_archive() {
         log_error "Failed to create archive"
         exit 1
     }
-    
+
     log_info "Archive created: $ARCHIVE_PATH"
-    
+
     # Checksum the archive itself
     cd "$DIST_DIR"
     sha256sum "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
-    
+
     log_info "Archive checksum: ${ARCHIVE_NAME}.tar.gz.sha256"
 }
 
 # Display GPG key info
 display_key_info() {
     log_info "GPG Key Information:"
-    
+
     if [ -z "$GPG_KEY" ]; then
         gpg --list-secret-keys | grep -A 1 "sec" | head -2
     else
@@ -272,11 +272,11 @@ display_key_info() {
 # Generate release notes template
 generate_release_notes() {
     log_info "Generating release notes template..."
-    
+
     cat > "$DIST_DIR/RELEASE_NOTES.md" <<EOF
 # BitQuan $VERSION Release Notes
 
-**Release Date**: $BUILD_DATE  
+**Release Date**: $BUILD_DATE
 **Git Commit**: $GIT_COMMIT
 
 ## Highlights
@@ -371,7 +371,7 @@ print_summary() {
 # Main execution
 main() {
     log_info "Starting BitQuan reproducible build..."
-    
+
     get_version "$@"
     check_prerequisites
     clean_build
@@ -385,7 +385,7 @@ main() {
     generate_release_notes
     display_key_info
     print_summary
-    
+
     log_info "Release build completed successfully!"
 }
 

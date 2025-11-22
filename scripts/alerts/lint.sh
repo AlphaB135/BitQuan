@@ -16,7 +16,7 @@ else
     echo "Install Prometheus to enable: https://prometheus.io/download/"
     echo ""
     echo "Performing basic YAML syntax check..."
-    
+
     # Basic file existence and readability check
     if [ -f "$RULES_FILE" ] && [ -r "$RULES_FILE" ]; then
         echo "✅ Rules file exists and is readable"

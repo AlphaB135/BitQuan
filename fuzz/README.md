@@ -15,7 +15,7 @@ cargo install cargo-fuzz
 ## Available Targets
 
 - **fuzz_transaction** - Fuzzes transaction parsing, validation, and weight calculation
-- **fuzz_block** - Fuzzes block header parsing, merkle root calculation, and block validation  
+- **fuzz_block** - Fuzzes block header parsing, merkle root calculation, and block validation
 - **fuzz_script** - Fuzzes script interpreter execution with arbitrary bytecode
 - **fuzz_mempool** - Fuzzes mempool operations (insert, eviction, fee sorting)
 

@@ -3,7 +3,7 @@ name: WebAssembly Test
 on:
   push:
     pull_request:
-      branches: [ master ] 
+      branches: [ master ]
 
 jobs:
   build:
@@ -35,4 +35,3 @@ jobs:
       run: |
         chmod +x ./wasm.js
         ./wasm.js
-        

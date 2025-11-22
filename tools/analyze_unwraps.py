@@ -25,7 +25,7 @@ def is_test_line(file_path, line_no):
     try:
         with open(file_path) as f:
             lines = f.readlines()
-        
+
         # Check if in #[cfg(test)] or mod tests block
         in_test_mod = False
         for i in range(max(0, line_no - 100), line_no):
@@ -37,7 +37,7 @@ def is_test_line(file_path, line_no):
                     return True
                 if '#[test]' in l:
                     return True
-        
+
         # Also check the line itself
         if line_no <= len(lines):
             line_text = lines[line_no-1]
@@ -54,16 +54,16 @@ test_unwraps = {}
 for file_path, occurrences in by_file.items():
     if '.tmp:' in file_path:
         continue  # Skip temp files
-    
+
     prod = []
     test = []
-    
+
     for line_no, content in occurrences:
         if is_test_line(file_path, line_no):
             test.append((line_no, content))
         else:
             prod.append((line_no, content))
-    
+
     if prod:
         prod_unwraps[file_path] = prod
     if test:
@@ -80,7 +80,7 @@ if not prod_unwraps:
 else:
     print(f"Found {sum(len(v) for v in prod_unwraps.values())} production unwraps in {len(prod_unwraps)} files:")
     print()
-    
+
     for file_path in sorted(prod_unwraps.keys()):
         occurrences = prod_unwraps[file_path]
         print(f"\n📁 {file_path} ({len(occurrences)} occurrences)")

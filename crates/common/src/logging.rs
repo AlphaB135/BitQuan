@@ -39,7 +39,7 @@ pub fn fingerprint(data: &[u8]) -> String {
 /// Redacts common patterns of sensitive data
 pub fn redact_secrets(text: &str) -> String {
     use regex::Regex;
-    
+
     let patterns = vec![
         // JWT tokens (eyJ...)
         (r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", "[REDACTED_JWT]"),
@@ -48,7 +48,7 @@ pub fn redact_secrets(text: &str) -> String {
         // Base64 encoded (40+ chars)
         (r"[A-Za-z0-9+/]{40,}={0,2}", "[REDACTED_BASE64]"),
     ];
-    
+
     let mut result = text.to_string();
     for (pattern, replacement) in patterns {
         if let Ok(re) = Regex::new(pattern) {

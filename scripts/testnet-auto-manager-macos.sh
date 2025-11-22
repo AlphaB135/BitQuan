@@ -31,29 +31,29 @@ show_banner() {
     echo "║      จัดการโหนด Testnet อัตโนมัติทั้งหมดในคำสั่งเดียว        ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
-    
+
     # Show installation status
     echo -e "${YELLOW}สถานะการติดตั้ง:${NC}"
     if [[ -f "$INSTALL_DIR/bin/bitquan-node" ]] && [[ -f "$INSTALL_DIR/start.sh" ]]; then
         echo -e "  การติดตั้ง: ${GREEN}ติดตั้งแล้ว${NC}"
         echo -e "  ไดเรกทอรี: $INSTALL_DIR"
-        
+
         # Show node status
         if [[ -f "$PID_FILE" ]] && kill -0 $(cat "$PID_FILE") 2>/dev/null; then
             echo -e "  สถานะโหนด: ${GREEN}กำลังทำงาน${NC}"
             echo -e "  PID: $(cat "$PID_FILE")"
-            
+
         # Show network info
         echo -e "  P2P Port: $(lsof -i :19444 2>/dev/null | grep LISTEN | wc -l | tr -d ' ') connection(s)"
         echo -e "  RPC Port: $(lsof -i :19443 2>/dev/null | grep LISTEN | wc -l | tr -d ' ') connection(s)"
-        
+
         # Show RPC status
         if curl -s --connect-timeout 2 http://localhost:19443/health >/dev/null 2>&1; then
             echo -e "  RPC Server: ${GREEN}ทำงาน${NC}"
         else
             echo -e "  RPC Server: ${RED}ไม่ทำงาน${NC}"
         fi
-        
+
         # Show mining status
         if [[ -f "$MINING_PID_FILE" ]] && kill -0 $(cat "$MINING_PID_FILE") 2>/dev/null; then
             echo -e "  การขุด: ${GREEN}กำลังขุด${NC} (PID: $(cat "$MINING_PID_FILE"))"
@@ -63,20 +63,20 @@ show_banner() {
         else
             echo -e "  สถานะโหนด: ${RED}หยุดทำงาน${NC}"
         fi
-        
+
         # Show wallet info
         if [[ -f "$CONFIG_DIR/pool-wallet.keystore" ]]; then
             echo -e "  Wallet: ${GREEN}มี wallet${NC}"
         else
             echo -e "  Wallet: ${RED}ไม่มี wallet${NC}"
         fi
-        
+
         # Show data size
         if [[ -d "$DATA_DIR" ]]; then
             DATA_SIZE=$(du -sh "$DATA_DIR" 2>/dev/null | cut -f1 || echo "0B")
             echo -e "  ขนาดข้อมูล: $DATA_SIZE"
         fi
-        
+
     else
         echo -e "  การติดตั้ง: ${RED}ยังไม่ได้ติดตั้ง${NC}"
         echo -e "  ไดเรกทอรี: $INSTALL_DIR (ยังไม่มี)"
@@ -95,57 +95,57 @@ check_macos() {
 # Function to install dependencies for macOS
 install_dependencies() {
     echo -e "${YELLOW}📦 กำลังติดตั้ง dependencies...${NC}"
-    
+
     # Check if Homebrew is installed
     if ! command -v brew &> /dev/null; then
         echo -e "${YELLOW}🍺 กำลังติดตั้ง Homebrew...${NC}"
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        
+
         # Add Homebrew to PATH for Apple Silicon Macs
         if [[ $(uname -m) == "arm64" ]]; then
             echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zshrc
             eval "$(/opt/homebrew/bin/brew shellenv)"
         fi
     fi
-    
+
     # Install dependencies
     echo -e "${YELLOW}📦 กำลังติดตั้ง packages...${NC}"
     brew install openssl jq rust git
-    
+
     echo -e "${GREEN}✅ ติดตั้ง dependencies เรียบร้อย${NC}"
 }
 
 # Function to create directories
 setup_directories() {
     echo -e "${YELLOW}📁 กำลังสร้าง directories...${NC}"
-    
+
     # Create directories
     mkdir -p "$INSTALL_DIR"/{bin,data,logs,backups,config}
     mkdir -p "$DATA_DIR"
     mkdir -p "$CONFIG_DIR"
     mkdir -p "$INSTALL_DIR/logs"
-    
+
     echo "✅ สร้าง directories เรียบร้อย"
 }
 
 # Function to get BitQuan binary
 get_binary() {
     echo -e "${YELLOW}⬇️ กำลังดาวน์โหลด/ build BitQuan binary...${NC}"
-    
+
     # Try to download from releases first
     BIN_URL="https://github.com/AlphaB135/BitQuan/releases/download/v1.0.0/bitquan-darwin-x86_64"
     if curl -fsSL "$BIN_URL" -o "$INSTALL_DIR/bin/bitquan-node" 2>/dev/null; then
         echo "✅ ดาวน์โหลดจาก GitHub releases"
     else
         echo "⚠️ ไม่พบ release กำลัง build จาก source..."
-        
+
         # Install Rust if not installed
         if ! command -v cargo &> /dev/null; then
             echo "📦 กำลังติดตั้ง Rust..."
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             source "$HOME/.cargo/env"
         fi
-        
+
         # Clone and build
         cd /tmp
         if [[ -d BitQuan ]]; then
@@ -160,7 +160,7 @@ get_binary() {
         rm -rf BitQuan
         echo "✅ Build จาก source เรียบร้อย"
     fi
-    
+
     chmod +x "$INSTALL_DIR/bin/bitquan-node"
     echo "✅ ติดตั้ง binary เรียบร้อย"
 }
@@ -177,7 +177,7 @@ generate_jwt_secret() {
 # Function to create wallet
 create_wallet() {
     echo -e "${YELLOW}💰 กำลังสร้าง testnet wallet...${NC}"
-    
+
     # Ask for wallet password
     while true; do
         read -s -p "🔑 ใส่รหัสผ่านสำหรับ wallet (อย่างน้อย 8 ตัวอักษร): " WALLET_PASSWORD
@@ -194,13 +194,13 @@ create_wallet() {
             echo -e "${RED}❌ รหัสผ่านไม่ตรงกัน กรุณาลองใหม่${NC}"
         fi
     done
-    
+
     # Create wallet
     "$INSTALL_DIR/bin/bitquan-node" wallet-gen \
       --network testnet \
       --output "$CONFIG_DIR/pool-wallet.keystore" \
       --password "$WALLET_PASSWORD" || true
-    
+
     # Get mining address
     MINING_ADDRESS=$("$INSTALL_DIR/bin/bitquan-node" wallet-address \
       --keystore "$CONFIG_DIR/pool-wallet.keystore" \
@@ -211,7 +211,7 @@ create_wallet() {
 # Function to create configuration
 create_config() {
     echo -e "${YELLOW}⚙️ กำลังสร้าง configuration...${NC}"
-    
+
     cat > "$CONFIG_DIR/testnet.toml" << EOF
 # BitQuan Testnet Configuration for macOS
 
@@ -285,7 +285,7 @@ EOF
 # Function to create helper scripts
 create_helper_scripts() {
     echo -e "${YELLOW}📝 กำลังสร้าง helper scripts...${NC}"
-    
+
     # Start script
     cat > "$INSTALL_DIR/start.sh" << EOF
 #!/bin/bash
@@ -345,7 +345,7 @@ PID=\$(cat "$PID_FILE")
 if kill -0 "\$PID" 2>/dev/null; then
     echo "🛑 กำลังปิด BitQuan testnet node (PID: \$PID)..."
     kill "\$PID"
-    
+
     # Wait for graceful shutdown
     for i in {1..10}; do
         if ! kill -0 "\$PID" 2>/dev/null; then
@@ -353,13 +353,13 @@ if kill -0 "\$PID" 2>/dev/null; then
         fi
         sleep 1
     done
-    
+
     # Force kill if still running
     if kill -0 "\$PID" 2>/dev/null; then
         echo "⚠️ บังคับปิดโหนด..."
         kill -9 "\$PID"
     fi
-    
+
     rm -f "$PID_FILE"
     echo "✅ ปิดโหนดเรียบร้อย"
 else
@@ -483,10 +483,10 @@ handle_choice() {
             ;;
         6)
             echo -e "${YELLOW}=== ข้อมูล Blockchain ===${NC}"
-            
+
             # Try different RPC endpoints
             echo "กำลังตรวจสอบ RPC endpoints..."
-            
+
             if curl -s --connect-timeout 3 http://localhost:19443/health 2>/dev/null; then
                 echo -e "${GREEN}✅ RPC HTTP ทำงาน${NC}"
             elif curl -s --connect-timeout 3 https://localhost:19443/health --insecure 2>/dev/null; then
@@ -495,7 +495,7 @@ handle_choice() {
                 echo -e "${RED}❌ RPC ไม่ตอบสนอง${NC}"
                 echo "อาจต้องตั้งค่า RPC server แยกต่างหาก"
             fi
-            
+
             echo ""
             echo -e "${YELLOW}=== ข้อมูลการเชื่อมต่อ ===${NC}"
             if lsof -i :19443 2>/dev/null | grep LISTEN >/dev/null; then
@@ -504,7 +504,7 @@ handle_choice() {
             else
                 echo -e "${RED}❌ Port 19443 ไม่เปิด${NC}"
             fi
-            
+
             echo ""
             echo -e "${YELLOW}=== Process ที่ทำงาน ===${NC}"
             if [[ -f "$PID_FILE" ]]; then
@@ -516,7 +516,7 @@ handle_choice() {
                     echo -e "${RED}❌ Node Process ไม่ทำงาน${NC}"
                 fi
             fi
-            
+
             read -p "กด Enter เพื่อดำเนินการต่อ..."
             ;;
         7)
@@ -569,13 +569,13 @@ start_node() {
 # Function to stop node
 stop_node() {
     echo -e "${YELLOW}🛑 กำลังปิด BitQuan testnet node...${NC}"
-    
+
     # Stop mining first
     if [[ -f "$MINING_PID_FILE" ]] && kill -0 $(cat "$MINING_PID_FILE") 2>/dev/null; then
         echo -e "${YELLOW}⛏️ กำลังหยุดการขุดก่อน...${NC}"
         stop_mining
     fi
-    
+
     "$INSTALL_DIR/stop.sh"
 }
 
@@ -588,33 +588,33 @@ show_status() {
 # Function to start mining
 start_mining() {
     echo -e "${YELLOW}⛏️ กำลังเริ่มการขุด...${NC}"
-    
+
     # Check if node is running
     if [[ ! -f "$PID_FILE" ]] || ! kill -0 $(cat "$PID_FILE") 2>/dev/null; then
         echo -e "${RED}❌ โหนดไม่ทำงาน กรุณาเปิดโหนดก่อน${NC}"
         return 1
     fi
-    
+
     # Check if already mining
     if [[ -f "$MINING_PID_FILE" ]] && kill -0 $(cat "$MINING_PID_FILE") 2>/dev/null; then
         echo -e "${YELLOW}⚠️ กำลังขุดอยู่แล้ว${NC}"
         return 0
     fi
-    
+
     # Get mining address
     read -s -p "🔑 ใส่รหัสผ่าน wallet: " WALLET_PASS
     echo
     MINING_ADDRESS=$("$INSTALL_DIR/bin/bitquan-node" wallet-address \
       --keystore "$CONFIG_DIR/pool-wallet.keystore" \
       --password "$WALLET_PASS" 2>/dev/null | grep "📍 Address:" | cut -d' ' -f3)
-    
+
     if [[ -z "$MINING_ADDRESS" ]]; then
         echo -e "${RED}❌ ไม่สามารถดูที่อยู่ wallet ได้${NC}"
         return 1
     fi
-    
+
     echo -e "${YELLOW}กำลังขุดไปที่: $MINING_ADDRESS${NC}"
-    
+
     # Start mining in background
     cd "$INSTALL_DIR"
     nohup "$INSTALL_DIR/bin/bitquan-node" mine \
@@ -623,10 +623,10 @@ start_mining() {
       --payout-script-hex "$("$INSTALL_DIR/bin/bitquan-node" script-from-address --address "$MINING_ADDRESS" 2>/dev/null)" \
       --threads 1 \
       > "$INSTALL_DIR/logs/mining.log" 2>&1 &
-    
+
     echo $! > "$MINING_PID_FILE"
     sleep 2
-    
+
     if kill -0 $(cat "$MINING_PID_FILE") 2>/dev/null; then
         echo -e "${GREEN}✅ เริ่มการขุดแล้ว (PID: $(cat "$MINING_PID_FILE"))${NC}"
     else
@@ -638,16 +638,16 @@ start_mining() {
 # Function to stop mining
 stop_mining() {
     echo -e "${YELLOW}🛑 กำลังหยุดการขุด...${NC}"
-    
+
     if [[ ! -f "$MINING_PID_FILE" ]]; then
         echo -e "${YELLOW}⚠️ ไม่มีการขุดอยู่${NC}"
         return 0
     fi
-    
+
     MINING_PID=$(cat "$MINING_PID_FILE")
     if kill -0 "$MINING_PID" 2>/dev/null; then
         kill "$MINING_PID"
-        
+
         # Wait for graceful shutdown
         for i in {1..10}; do
             if ! kill -0 "$MINING_PID" 2>/dev/null; then
@@ -655,43 +655,43 @@ stop_mining() {
             fi
             sleep 1
         done
-        
+
         # Force kill if still running
         if kill -0 "$MINING_PID" 2>/dev/null; then
             echo -e "${YELLOW}⚠️ บังคับหยุดการขุด...${NC}"
             kill -9 "$MINING_PID"
         fi
-        
+
         echo -e "${GREEN}✅ หยุดการขุดเรียบร้อย${NC}"
     else
         echo -e "${YELLOW}⚠️ กระบวนการขุดไม่ทำงาน${NC}"
     fi
-    
+
     rm -f "$MINING_PID_FILE"
 }
 
 # Function to start RPC server
 start_rpc() {
     echo -e "${YELLOW}🌐 กำลังเปิด RPC server...${NC}"
-    
+
     # Check if node is running
     if [[ ! -f "$PID_FILE" ]] || ! kill -0 $(cat "$PID_FILE") 2>/dev/null; then
         echo -e "${RED}❌ โหนดไม่ทำงาน กรุณาเปิดโหนดก่อน${NC}"
         return 1
     fi
-    
+
     # Generate certificate if not exists
     if [[ ! -f "$CONFIG_DIR/cert.pem" ]]; then
         echo -e "${YELLOW}🔐 กำลังสร้าง RPC certificate...${NC}"
         "$INSTALL_DIR/bin/bitquan-node" generate-cert --output "$CONFIG_DIR"
     fi
-    
+
     # Check if RPC is already running
     if curl -s --connect-timeout 2 http://localhost:19443/health >/dev/null 2>&1; then
         echo -e "${GREEN}✅ RPC server ทำงานอยู่แล้ว${NC}"
         return 0
     fi
-    
+
     echo -e "${YELLOW}⚠️  RPC server อาจต้องเปิดแยกต่างหาก${NC}"
     echo "กรุณาตรวจสอบว่า BitQuan node รองรับ RPC หรือไม่"
     echo "หรือลองคำสั่ง: $INSTALL_DIR/bin/bitquan-node --help ดูว่ามี rpc command หรือไม่"
@@ -707,7 +707,7 @@ show_logs() {
 show_management_menu() {
     while true; do
         show_banner
-        
+
         # Show different menu based on installation status
         if [[ -f "$INSTALL_DIR/bin/bitquan-node" ]] && [[ -f "$INSTALL_DIR/start.sh" ]]; then
         echo -e "${YELLOW}เลือกการทำงาน:${NC}"
@@ -724,7 +724,7 @@ show_management_menu() {
             echo "  11) ออก (Exit)"
             echo ""
             read -p "เลือกตัวเลือก (1-11): " choice
-            
+
             case $choice in
                 1)
                     clean_reinstall
@@ -781,7 +781,7 @@ show_management_menu() {
             echo "  2) ออก (Exit)"
             echo ""
             read -p "เลือกตัวเลือก (1-2): " choice
-            
+
             case $choice in
                 1)
                     full_setup
@@ -808,38 +808,38 @@ clean_reinstall() {
     echo "  • Configuration files"
     echo "  • Logs ทั้งหมด"
     echo ""
-    
+
     read -p "❌ ยืนยันการลบข้อมูลทั้งหมด? (พิมพ์ 'DELETE' เพื่อยืนยัน): " confirm
     if [[ "$confirm" != "DELETE" ]]; then
         echo "❌ ยกเลิกการดำเนินการ"
         return 0
     fi
-    
+
     echo -e "${YELLOW}🗑️ กำลังลบข้อมูลเก่า...${NC}"
-    
+
     # Stop node if running
     if [[ -f "$PID_FILE" ]] && kill -0 $(cat "$PID_FILE") 2>/dev/null; then
         echo "กำลังปิดโหนด..."
         kill $(cat "$PID_FILE") 2>/dev/null || true
         sleep 2
     fi
-    
+
     # Stop mining if running
     if [[ -f "$MINING_PID_FILE" ]] && kill -0 $(cat "$MINING_PID_FILE") 2>/dev/null; then
         echo "กำลังหยุดการขุด..."
         kill $(cat "$MINING_PID_FILE") 2>/dev/null || true
         sleep 2
     fi
-    
+
     # Remove installation directory
     if [[ -d "$INSTALL_DIR" ]]; then
         rm -rf "$INSTALL_DIR"
         echo "✅ ลบ $INSTALL_DIR เรียบร้อย"
     fi
-    
+
     echo -e "${GREEN}✅ ลบข้อมูลเก่าเรียบร้อยแล้ว${NC}"
     echo ""
-    
+
     # Start fresh installation
     full_setup
 }
@@ -848,7 +848,7 @@ clean_reinstall() {
 full_setup() {
     echo -e "${YELLOW}🚀 เริ่มการติดตั้ง BitQuan Testnet Node แบบอัตโนมัติ...${NC}"
     echo ""
-    
+
     # Ask for confirmation
     read -p "ต้องการติดตั้ง BitQuan Testnet Node หรือไม่? (y/n) " -n 1 -r
     echo
@@ -856,11 +856,11 @@ full_setup() {
         echo "ยกเลิกการติดตั้ง"
         return 0
     fi
-    
+
     echo ""
     echo -e "${GREEN}เริ่มกระบวนการติดตั้ง...${NC}"
     echo ""
-    
+
     # Run all setup steps
     install_dependencies
     setup_directories
@@ -869,10 +869,10 @@ full_setup() {
     create_wallet
     create_config
     create_helper_scripts
-    
+
     # Start the node
     start_node
-    
+
     # Print summary
     echo ""
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -901,7 +901,7 @@ full_setup() {
     echo "  • ตรวจสอบ logs เป็นประจำ"
     echo ""
     echo -e "${GREEN}ทดสอบ BitQuan ให้สนุก! 🚀${NC}"
-    
+
     read -p "กด Enter เพื่อดำเนินการต่อ..."
 }
 

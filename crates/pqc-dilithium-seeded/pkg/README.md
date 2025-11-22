@@ -10,7 +10,7 @@
 
 A rust implementation of Dilithium, a KEM standardised by the NIST Post-Quantum Standardization Project, packaged as a Wasm binary.
 
-It is recommended to use Dilithium in a hybrid system alongside a traditional signature algorithm such as ed25519. 
+It is recommended to use Dilithium in a hybrid system alongside a traditional signature algorithm such as ed25519.
 
 
 ---
@@ -20,7 +20,7 @@ It is recommended to use Dilithium in a hybrid system alongside a traditional si
 npm i pqc-dilithium
 ```
 
-## Usage 
+## Usage
 
 ```js
 import * as dilithium from "pqc_dilithium";

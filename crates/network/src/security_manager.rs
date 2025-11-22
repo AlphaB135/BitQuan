@@ -16,11 +16,12 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
+use rand;
 
 use super::{
     rate_limiter::{RateLimiter, RateLimitError, MessageType},
     connection_manager::{ConnectionManager, ConnectionError, ConnectionStats},
-    reputation::{ReputationManager, ReputationAction, Violation},
+    reputation::{ReputationManager, ReputationAction, Violation, ReputationStats},
     ban_manager::{BanManager, BanError, BanReason, BanStats},
     dos_protection::{DoSProtection, DoSError, DoSStats, AttackInfo, AttackSeverity},
     security_config::{SecurityConfig, SecurityLevel},
@@ -112,7 +113,7 @@ pub enum SecurityEvent {
 }
 
 /// Security statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct SecurityStatistics {
     /// Rate limiting statistics
     pub rate_limiting: RateLimitStats,
@@ -129,7 +130,7 @@ pub struct SecurityStatistics {
 }
 
 /// Rate limiting statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct RateLimitStats {
     pub total_messages: u64,
     pub rejected_messages: u64,
@@ -138,7 +139,6 @@ pub struct RateLimitStats {
 }
 
 /// Comprehensive security manager
-#[derive(Debug)]
 pub struct SecurityManager {
     /// Rate limiter
     rate_limiter: RateLimiter,
@@ -192,7 +192,7 @@ impl SecurityManager {
             .map_err(SecurityError::RateLimit)?;
 
         // Check DoS protection
-        self.dos_protection.analyze_pattern(*peer_id, 1, 0)
+        self.dos_protection.analyze_pattern(peer_id.clone(), 1, 0)
             .map_err(SecurityError::DoS)?;
 
         Ok(())
@@ -208,8 +208,8 @@ impl SecurityManager {
     ) -> Result<(), SecurityError> {
         // Check SYN flood protection
         if is_inbound {
-            if let Some(syn_cookie) = self.dos_protection.handle_syn_packet(ip, Some(*peer_id))? {
-                if !self.dos_protection.validate_syn_cookie(ip, syn_cookie.value)? {
+            if let Some(syn_cookie) = self.dos_protection.handle_syn_packet(ip, Some(peer_id.clone()))? {
+                if !self.dos_protection.validate_syn_cookie(ip, syn_cookie.value())? {
                     return Err(SecurityError::DoS(DoSError::SynFlood));
                 }
             } else {
@@ -219,15 +219,15 @@ impl SecurityManager {
 
         // Check connection limits
         if is_inbound {
-            self.connection_manager.accept_inbound_connection(*peer_id, ip, user_agent)
+            self.connection_manager.accept_inbound_connection(peer_id.clone(), ip, user_agent)
                 .map_err(SecurityError::Connection)?;
         } else {
-            self.connection_manager.initiate_outbound_connection(*peer_id, ip, user_agent)
+            self.connection_manager.initiate_outbound_connection(peer_id.clone(), ip, user_agent)
                 .map_err(SecurityError::Connection)?;
         }
 
         // Track connection for DoS detection
-        self.dos_protection.track_connection(*peer_id, ip)
+        self.dos_protection.track_connection(peer_id.clone(), ip)
             .map_err(SecurityError::DoS)?;
 
         Ok(())
@@ -238,30 +238,30 @@ impl SecurityManager {
         // Update connection state
         if let Some(connection) = self.connection_manager.get_connection(&peer_id) {
             let old_state = format!("{:?}", connection.state);
-            connection.state = super::connection_manager::ConnectionState::Connected;
+            self.connection_manager.update_connection_state(&peer_id, super::connection_manager::ConnectionState::Connected);
 
             self.emit_event(SecurityEvent::ConnectionStateChanged {
-                peer_id: *peer_id,
+                peer_id: peer_id.clone(),
                 old_state,
                 new_state: "Connected".to_string(),
             });
         }
 
         // Report good behavior to reputation
-        self.reputation_manager.report_good_behavior(peer_id);
+        self.reputation_manager.report_good_behavior(&peer_id);
     }
 
     /// Handle connection closed
     pub fn handle_connection_closed(&mut self, peer_id: PeerId, reason: Option<String>) {
         // Remove from connection manager
-        self.connection_manager.remove_connection(peer_id);
+        self.connection_manager.remove_connection(&peer_id);
 
         // Remove from rate limiter
-        self.rate_limiter.remove_peer(peer_id);
+        self.rate_limiter.remove_peer(&peer_id);
 
         // Emit event
         self.emit_event(SecurityEvent::ConnectionStateChanged {
-            peer_id: *peer_id,
+            peer_id: peer_id.clone(),
             old_state: "Connected".to_string(),
             new_state: "Disconnected".to_string(),
         });
@@ -273,13 +273,13 @@ impl SecurityManager {
         peer_id: PeerId,
         violation: Violation,
     ) -> ReputationAction {
-        let action = self.reputation_manager.report_violation(peer_id, violation);
+        let action = self.reputation_manager.report_violation(&peer_id, violation);
 
         // Emit event
         self.emit_event(SecurityEvent::ReputationChanged {
-            peer_id: *peer_id,
-            old_score: self.reputation_manager.get_score(peer_id).unwrap_or(0),
-            new_score: self.reputation_manager.get_score(peer_id).unwrap_or(0),
+            peer_id: peer_id.clone(),
+            old_score: self.reputation_manager.get_score(&peer_id).unwrap_or(0),
+            new_score: self.reputation_manager.get_score(&peer_id).unwrap_or(0),
             action: action.clone(),
         });
 
@@ -294,7 +294,7 @@ impl SecurityManager {
         bytes_received: u64,
     ) -> Result<(), SecurityError> {
         // Track bandwidth
-        self.dos_protection.track_bandwidth(*peer_id, bytes_sent, bytes_received)
+        self.dos_protection.track_bandwidth(peer_id.clone(), bytes_sent, bytes_received)
             .map_err(SecurityError::DoS)?;
 
         Ok(())
@@ -309,18 +309,18 @@ impl SecurityManager {
         banned_by: Option<String>,
     ) -> Result<(), SecurityError> {
         // Ban in ban manager
-        self.ban_manager.ban_peer(*peer_id, reason.clone(), duration, banned_by.clone())
+        self.ban_manager.ban_peer(peer_id.clone(), reason.clone(), duration, banned_by.clone(), None)
             .map_err(SecurityError::Ban)?;
 
         // Remove from connection manager
-        self.connection_manager.remove_connection(peer_id);
+        self.connection_manager.remove_connection(&peer_id);
 
         // Remove from rate limiter
-        self.rate_limiter.remove_peer(peer_id);
+        self.rate_limiter.remove_peer(&peer_id);
 
         // Emit event
         self.emit_event(SecurityEvent::PeerBanned {
-            peer_id: *peer_id,
+            peer_id: peer_id.clone(),
             reason: reason.clone(),
             duration,
             is_permanent: duration.is_none(),
@@ -332,17 +332,17 @@ impl SecurityManager {
     /// Unban a peer
     pub fn unban_peer(&mut self, peer_id: PeerId) -> Result<(), SecurityError> {
         // Unban in ban manager
-        self.ban_manager.unban_peer(peer_id)
+        self.ban_manager.unban_peer(&peer_id)
             .map_err(SecurityError::Ban)?;
 
         // Emit event
-        self.emit_event(SecurityEvent::PeerUnbanned { peer_id: *peer_id });
+        self.emit_event(SecurityEvent::PeerUnbanned { peer_id: peer_id.clone() });
 
         Ok(())
     }
 
     /// Check if peer is allowed to connect
-    pub fn can_connect(&self, ip: &std::net::IpAddr) -> bool {
+    pub fn can_connect(&mut self, ip: &std::net::IpAddr) -> bool {
         // Check connection limits
         if !self.connection_manager.can_accept_connection(ip) {
             return false;
@@ -365,6 +365,11 @@ impl SecurityManager {
     pub fn is_peer_banned(&self, peer_id: &PeerId) -> bool {
         self.ban_manager.is_peer_banned(peer_id) ||
         self.reputation_manager.is_banned(peer_id)
+    }
+
+    /// Check if IP is banned
+    pub fn is_ip_banned(&self, ip: &std::net::IpAddr) -> bool {
+        self.ban_manager.is_ip_banned(ip)
     }
 
     /// Get peer's current security status
@@ -398,7 +403,7 @@ impl SecurityManager {
         // Calculate overall security score
         stats.security_score = self.calculate_security_score(&stats);
 
-        stats
+        stats.clone()
     }
 
     /// Add event handler
@@ -421,8 +426,8 @@ impl SecurityManager {
         self.rate_limiter.cleanup();
 
         // Cleanup connection manager
-        let mut connection_disconnected = self.connection_manager.cleanup_connections();
-        disconnected_peers.extend(&connection_disconnected);
+        let connection_disconnected = self.connection_manager.cleanup_connections();
+        disconnected_peers.extend(connection_disconnected.clone());
 
         // Cleanup reputation manager
         self.reputation_manager.apply_decay();
@@ -485,8 +490,9 @@ impl SecurityManager {
     pub fn export_security_state(&self) -> String {
         let stats = self.get_statistics();
 
-        format!(
-            "BitQuan Network Security State\n\
+format!(
+            "=========================\n\
+             Security Report\n\
              =========================\n\
              Security Level: {:?}\n\
              Overall Score: {:.1}\n\
@@ -505,8 +511,6 @@ impl SecurityManager {
              Reputation:\n\
              - Total Peers: {}\n\
              - Average Score: {:.1}\n\
-             - Banned Peers: {}\n\
-             - Throttled Peers: {}\n\
              \n\
              Bans:\n\
              - Total Bans: {}\n\
@@ -526,7 +530,6 @@ impl SecurityManager {
             stats.rate_limiting.total_messages,
             stats.rate_limiting.rejected_messages,
             stats.rate_limiting.rate_limited_peers,
-            stats.rate_limiting.banned_peers,
             stats.connections.total_connections,
             stats.connections.current_connections,
             stats.connections.inbound_connections,
@@ -569,15 +572,15 @@ mod tests {
     fn test_security_manager_integration() {
         let config = SecurityConfig::for_security_level(SecurityLevel::Standard);
         let mut security = SecurityManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
         let ip = "127.0.0.1".parse().unwrap();
 
         // Should allow connection
-        assert!(security.handle_connection_attempt(peer, ip, None, true).is_ok());
+        assert!(security.handle_connection_attempt(peer.clone(), ip, None, true).is_ok());
         assert!(security.can_connect(&ip));
 
         // Handle connection established
-        security.handle_connection_established(peer);
+        security.handle_connection_established(peer.clone());
 
         // Process messages
         for _ in 0..10 {
@@ -595,10 +598,10 @@ mod tests {
     fn test_security_ban_flow() {
         let config = SecurityConfig::for_security_level(SecurityLevel::Standard);
         let mut security = SecurityManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Ban peer
-        assert!(security.ban_peer(peer, BanReason::ProtocolViolation, Some(Duration::from_secs(3600)), None).is_ok());
+        assert!(security.ban_peer(peer.clone(), BanReason::ProtocolViolation, Some(Duration::from_secs(3600)), None).is_ok());
         assert!(security.is_peer_banned(&peer));
 
         // Should not be able to connect

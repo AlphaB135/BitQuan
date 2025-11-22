@@ -3,7 +3,7 @@ name: Known Answer Tests
 on:
   workflow_dispatch: {}
   pull_request:
-    branches: [ master ] 
+    branches: [ master ]
 
 jobs:
   build:
@@ -11,7 +11,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         toolchain: [stable, 1.50.0] # MSRV
-      
+
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout

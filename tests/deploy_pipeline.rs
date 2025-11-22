@@ -65,7 +65,7 @@ fn test_github_workflows_exist() {
 fn test_build_script_is_executable() {
     let script_path = PathBuf::from("deploy/scripts/build-release.sh");
     let metadata = fs::metadata(&script_path).expect("Failed to read script metadata");
-    
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -143,7 +143,7 @@ fn test_systemd_service_template_exists() {
 
     let content = fs::read_to_string(&service_path)
         .expect("Failed to read systemd template");
-    
+
     assert!(
         content.contains("[Unit]") && content.contains("[Service]"),
         "systemd template must be valid"

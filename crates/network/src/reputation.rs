@@ -13,6 +13,7 @@
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use rand;
 
 use crate::PeerId;
 
@@ -141,7 +142,7 @@ pub struct ReputationManager {
 }
 
 /// Reputation statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ReputationStats {
     pub total_peers: usize,
     pub banned_peers: usize,
@@ -167,7 +168,7 @@ impl ReputationManager {
         violation: Violation,
     ) -> ReputationAction {
         let rep = self.reputations
-            .entry(*peer_id)
+            .entry(peer_id.clone())
             .or_insert_with(|| PeerReputation {
                 score: self.config.initial_score,
                 violations: Vec::new(),
@@ -333,7 +334,7 @@ impl ReputationManager {
         self.reputations
             .iter()
             .filter(|(_, rep)| rep.score >= min && rep.score <= max)
-            .map(|(peer_id, _)| *peer_id)
+            .map(|(peer_id, _)| peer_id.clone())
             .collect()
     }
 
@@ -342,7 +343,7 @@ impl ReputationManager {
         self.reputations
             .iter()
             .filter(|(_, rep)| rep.is_banned)
-            .map(|(peer_id, _)| *peer_id)
+            .map(|(peer_id, _)| peer_id.clone())
             .collect()
     }
 
@@ -351,7 +352,7 @@ impl ReputationManager {
         self.reputations
             .iter()
             .filter(|(_, rep)| rep.is_throttled)
-            .map(|(peer_id, _)| *peer_id)
+            .map(|(peer_id, _)| peer_id.clone())
             .collect()
     }
 
@@ -386,7 +387,7 @@ mod tests {
     fn test_reputation_initial_score() {
         let config = ReputationConfig::default();
         let mut manager = ReputationManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         let score = manager.get_score(&peer);
         assert_eq!(score, Some(50));
@@ -396,7 +397,7 @@ mod tests {
     fn test_reputation_violation_penalties() {
         let config = ReputationConfig::default();
         let mut manager = ReputationManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Report rate limit violation
         let action = manager.report_violation(&peer, Violation::RateLimitExceeded);
@@ -410,7 +411,7 @@ mod tests {
     fn test_reputation_banning() {
         let config = ReputationConfig::default();
         let mut manager = ReputationManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Report multiple violations to trigger ban
         for _ in 0..5 {
@@ -427,7 +428,7 @@ mod tests {
     fn test_reputation_good_behavior() {
         let config = ReputationConfig::default();
         let mut manager = ReputationManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Report violation
         manager.report_violation(&peer, Violation::RateLimitExceeded);
@@ -444,7 +445,7 @@ mod tests {
     fn test_reputation_decay() {
         let config = ReputationConfig::default();
         let mut manager = ReputationManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Report violation
         manager.report_violation(&peer, Violation::ProtocolViolation);
@@ -461,7 +462,7 @@ mod tests {
     fn test_temporary_ban_expiry() {
         let config = ReputationConfig::default();
         let mut manager = ReputationManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Trigger temporary ban
         for _ in 0..4 {

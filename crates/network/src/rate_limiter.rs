@@ -13,6 +13,7 @@
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use rand;
 use std::net::IpAddr;
 
 use crate::PeerId;
@@ -179,9 +180,12 @@ impl RateLimiter {
             return Err(RateLimitError::GlobalLimitReached);
         }
 
+        // Get limit before mutable borrow
+        let limit = self.get_limit_for_message_type(msg_type);
+        
         // Get or create peer counter
         let counter = self.peer_counters
-            .entry(*peer_id)
+            .entry(peer_id.clone())
             .or_insert_with(MessageCounter::new);
 
         // Reset peer window if expired
@@ -192,7 +196,7 @@ impl RateLimiter {
         // Check per-message-type limit
         if !counter.check_message_type_limit(
             msg_type,
-            self.get_limit_for_message_type(msg_type),
+            limit,
         ) {
             counter.violations += 1;
             self.total_messages += 1;
@@ -289,7 +293,7 @@ mod tests {
     fn test_rate_limiter_allows_normal_traffic() {
         let config = RateLimitConfig::default();
         let mut limiter = RateLimiter::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Should allow normal traffic
         for _ in 0..50 {
@@ -301,7 +305,7 @@ mod tests {
     fn test_rate_limiter_blocks_spam() {
         let config = RateLimitConfig::default();
         let mut limiter = RateLimiter::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Should allow up to ping limit
         for _ in 0..5 {
@@ -320,7 +324,7 @@ mod tests {
         let mut config = RateLimitConfig::default();
         config.violation_threshold = 2; // Lower for testing
         let mut limiter = RateLimiter::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // First violation
         assert!(matches!(
@@ -339,7 +343,7 @@ mod tests {
     fn test_message_type_limits() {
         let config = RateLimitConfig::default();
         let mut limiter = RateLimiter::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Should allow up to transaction limit
         for _ in 0..50 {

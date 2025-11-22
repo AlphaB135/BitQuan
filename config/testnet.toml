@@ -19,7 +19,7 @@ rpc_port = 19443
 # Bootstrap nodes for initial peer discovery
 bootstrap_nodes = [
     "bootstrap1.testnet.bitquan.org:19444",
-    "bootstrap2.testnet.bitquan.org:19444", 
+    "bootstrap2.testnet.bitquan.org:19444",
     "bootstrap3.testnet.bitquan.org:19444",
     "seed.testnet.bitquan.org:19444",
 ]

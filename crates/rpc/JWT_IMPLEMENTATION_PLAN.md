@@ -125,16 +125,16 @@ pub enum Permission {
     WalletCreate,
     WalletSign,
     WalletQuery,
-    
+
     // Mining operations
     MineBlock,
     SubmitBlock,
-    
+
     // Query operations
     QueryBlock,
     QueryTransaction,
     QueryMempool,
-    
+
     // Admin operations
     AdminShutdown,
     AdminConfig,
@@ -246,7 +246,7 @@ impl TokenGenerator {
             algorithm: Algorithm::HS256,
         }
     }
-    
+
     pub fn generate_token(&self, user_id: &str, roles: Vec<String>, lifetime: Duration) -> Result<String, Error> {
         let now = Utc::now();
         let claims = Claims {
@@ -258,17 +258,17 @@ impl TokenGenerator {
             aud: self.audience.clone(),
             roles,
         };
-        
+
         let header = Header::new(self.algorithm);
         encode(&header, &claims, &self.encoding_key)
             .map_err(|e| Error::TokenGeneration(e.to_string()))
     }
-    
+
     pub fn verify_token(&self, token: &str) -> Result<Claims, Error> {
         let mut validation = Validation::new(self.algorithm);
         validation.set_audience(&[&self.audience]);
         validation.set_issuer(&[&self.issuer]);
-        
+
         decode::<Claims>(token, &self.decoding_key, &validation)
             .map(|data| data.claims)
             .map_err(|e| Error::InvalidToken(e.to_string()))
@@ -335,29 +335,29 @@ impl AuthorizationMiddleware {
     pub fn check_permission(&self, token: &str, required: Permission) -> Result<(), Error> {
         // 1. Verify token
         let claims = self.token_generator.verify_token(token)?;
-        
+
         // 2. Check if revoked
         if self.is_revoked(token) {
             return Err(Error::TokenRevoked);
         }
-        
+
         // 3. Check expiration
         if claims.is_expired() {
             return Err(Error::TokenExpired);
         }
-        
+
         // 4. Check permission
         if !self.has_permission(&claims, &required) {
             return Err(Error::InsufficientPermissions);
         }
-        
+
         Ok(())
     }
-    
+
     fn has_permission(&self, claims: &Claims, required: &Permission) -> bool {
         claims.roles.iter().any(|role| {
             let role_permissions = role.permissions();
-            role_permissions.contains(&Permission::All) || 
+            role_permissions.contains(&Permission::All) ||
             role_permissions.contains(required)
         })
     }
@@ -372,21 +372,21 @@ impl AuthorizationMiddleware {
 fn handle_login(request: LoginRequest) -> Result<LoginResponse, Error> {
     // 1. Validate credentials
     let user = validate_credentials(&request.username, &request.password)?;
-    
+
     // 2. Generate access token (short-lived: 1 hour)
     let access_token = token_generator.generate_token(
         &user.id,
         user.roles,
         Duration::hours(1),
     )?;
-    
+
     // 3. Generate refresh token (long-lived: 30 days)
     let refresh_token = token_generator.generate_token(
         &user.id,
         vec!["refresh".to_string()],
         Duration::days(30),
     )?;
-    
+
     Ok(LoginResponse {
         access_token,
         refresh_token,
@@ -409,10 +409,10 @@ fn dispatch_rpc(method: &str, auth: &RpcAuth) -> Result<Response> {
 // After: JWT Auth
 fn dispatch_rpc(method: &str, token: &str, jwt_auth: &JwtMiddleware) -> Result<Response> {
     let claims = jwt_auth.authenticate(token)?;
-    
+
     let required_permission = get_required_permission(method)?;
     jwt_auth.authorize(&claims, required_permission)?;
-    
+
     // ...
 }
 ```
@@ -443,7 +443,7 @@ impl JwtConfig {
             algorithm: Algorithm::HS256,
         }
     }
-    
+
     pub fn devnet() -> Self {
         Self {
             access_token_lifetime: Duration::hours(24),  // Longer for dev
@@ -498,16 +498,16 @@ impl TokenRevocation {
         self.revoked.write().unwrap().insert(token.to_string());
         self.expiry.write().unwrap().insert(token.to_string(), expires_at);
     }
-    
+
     pub fn is_revoked(&self, token: &str) -> bool {
         self.revoked.read().unwrap().contains(token)
     }
-    
+
     pub fn cleanup_expired(&self) {
         let now = Utc::now().timestamp();
         let mut revoked = self.revoked.write().unwrap();
         let mut expiry = self.expiry.write().unwrap();
-        
+
         expiry.retain(|token, exp| {
             if *exp < now {
                 revoked.remove(token);
@@ -601,7 +601,7 @@ fn test_permission_check() {
 #[tokio::test]
 async fn test_login_flow() {
     let server = spawn_test_server();
-    
+
     // 1. Login
     let response = client.post("/auth/login")
         .json(&json!({
@@ -610,11 +610,11 @@ async fn test_login_flow() {
         }))
         .send()
         .await?;
-    
+
     assert_eq!(response.status(), 200);
     let body: LoginResponse = response.json().await?;
     assert!(!body.access_token.is_empty());
-    
+
     // 2. Use token
     let response = client.post("/")
         .header("Authorization", format!("Bearer {}", body.access_token))
@@ -625,7 +625,7 @@ async fn test_login_flow() {
         }))
         .send()
         .await?;
-    
+
     assert_eq!(response.status(), 200);
 }
 ```
@@ -645,13 +645,13 @@ pub struct TokenCache {
 impl TokenCache {
     pub fn get_or_verify(&self, token: &str, generator: &TokenGenerator) -> Result<Claims> {
         let mut cache = self.cache.lock().unwrap();
-        
+
         if let Some(claims) = cache.get(token) {
             if !claims.is_expired() {
                 return Ok(claims.clone());
             }
         }
-        
+
         let claims = generator.verify_token(token)?;
         cache.put(token.to_string(), claims.clone());
         Ok(claims)

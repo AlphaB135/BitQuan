@@ -66,13 +66,13 @@ echo "" >> "$RAW_LOG_FILE"
 run_check() {
     local check_name="$1"
     local check_script="$2"
-    
+
     echo "Running: $check_name..."
     echo "---[ $check_name ]---" >> "$RAW_LOG_FILE"
-    
+
     local output
     local status
-    
+
     if output=$("$check_script" "$NETWORK" "$RELEASE_TAG" 2>&1); then
         status="PASS"
         echo "✓ $check_name: PASS"
@@ -81,13 +81,13 @@ run_check() {
         EXIT_CODE=1
         echo "✗ $check_name: FAIL"
     fi
-    
+
     echo "$output" >> "$RAW_LOG_FILE"
     echo "" >> "$RAW_LOG_FILE"
-    
+
     # Parse check output for details
     local detail=$(echo "$output" | grep -E "^CHECK \|" | tail -1 | cut -d'|' -f4- | xargs || echo "No details")
-    
+
     CHECKS+=("$check_name")
     RESULTS+=("$status")
     DETAILS+=("$detail")
@@ -111,9 +111,9 @@ echo "========================================="
 cat > "$REPORT_FILE" <<EOF
 # BitQuan Pre-Launch Preflight Report
 
-**Network:** $NETWORK  
-**Release Tag:** $RELEASE_TAG  
-**Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")  
+**Network:** $NETWORK
+**Release Tag:** $RELEASE_TAG
+**Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 **Overall Status:** $([ $EXIT_CODE -eq 0 ] && echo "✓ PASS" || echo "✗ FAIL")
 
 ---

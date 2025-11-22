@@ -77,7 +77,7 @@ fn handle_connection() {
 ```rust
 // Add security headers to all responses
 fn add_security_headers(headers: &mut HeaderMap) {
-    headers.insert("Strict-Transport-Security", 
+    headers.insert("Strict-Transport-Security",
                    "max-age=31536000; includeSubDomains");
     headers.insert("X-Content-Type-Options", "nosniff");
     headers.insert("X-Frame-Options", "DENY");
@@ -152,7 +152,7 @@ fn test_self_signed_rejected_on_mainnet() {
     let server = RpcServer::new(handler, "127.0.0.1:8332")
         .with_tls_config(TlsConfig::self_signed()?)
         .require_tls(true);
-    
+
     assert!(server.validate_for_mainnet().is_err());
 }
 ```
@@ -162,7 +162,7 @@ fn test_self_signed_rejected_on_mainnet() {
 #[tokio::test]
 async fn test_http_rejected_when_tls_required() {
     let server = spawn_server_with_tls_required();
-    
+
     let response = reqwest::get("http://localhost:8332/health").await;
     assert!(response.is_err() || response.status() == 426); // Upgrade Required
 }
@@ -170,11 +170,11 @@ async fn test_http_rejected_when_tls_required() {
 #[tokio::test]
 async fn test_https_works() {
     let server = spawn_server_with_tls();
-    
+
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true) // test cert
         .build()?;
-    
+
     let response = client.get("https://localhost:8332/health").await?;
     assert_eq!(response.status(), 200);
 }
@@ -186,7 +186,7 @@ async fn test_https_works() {
 1. **Development**:
    - Self-signed certs OK
    - Warn users about trust issues
-   
+
 2. **Production**:
    - Use proper CA-signed certs
    - Let's Encrypt recommended (free)

@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
+use rand;
 
 use crate::PeerId;
 
@@ -129,7 +130,7 @@ pub struct ConnectionManager {
 }
 
 /// Connection statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ConnectionStats {
     pub total_connections: u64,
     pub inbound_connections: u64,
@@ -190,7 +191,7 @@ impl ConnectionManager {
 
         // Accept connection
         let connection = Connection {
-            peer_id,
+            peer_id: peer_id.clone(),
             ip,
             direction: Direction::Inbound,
             connected_at: Instant::now(),
@@ -201,7 +202,7 @@ impl ConnectionManager {
             state: ConnectionState::Connected,
         };
 
-        self.active_connections.insert(peer_id, connection.clone());
+        self.active_connections.insert(peer_id.clone(), connection.clone());
         self.ip_connections.entry(ip).or_insert_with(Vec::new).push(peer_id);
 
         self.update_stats(&connection);
@@ -237,7 +238,7 @@ impl ConnectionManager {
 
         // Create connection
         let connection = Connection {
-            peer_id,
+            peer_id: peer_id.clone(),
             ip,
             direction: Direction::Outbound,
             connected_at: Instant::now(),
@@ -248,7 +249,7 @@ impl ConnectionManager {
             state: ConnectionState::Connecting,
         };
 
-        self.active_connections.insert(peer_id, connection.clone());
+        self.active_connections.insert(peer_id.clone(), connection.clone());
         self.ip_connections.entry(ip).or_insert_with(Vec::new).push(peer_id);
 
         self.update_stats(&connection);
@@ -260,7 +261,7 @@ impl ConnectionManager {
         if let Some(connection) = self.active_connections.remove(peer_id) {
             // Remove from IP tracking
             if let Some(peers) = self.ip_connections.get_mut(&connection.ip) {
-                peers.retain(|&p| p != *peer_id);
+                peers.retain(|p| *p != *peer_id);
                 if peers.is_empty() {
                     self.ip_connections.remove(&connection.ip);
                 }
@@ -281,6 +282,13 @@ impl ConnectionManager {
         }
     }
 
+    /// Update connection state
+    pub fn update_connection_state(&mut self, peer_id: &PeerId, new_state: ConnectionState) {
+        if let Some(connection) = self.active_connections.get_mut(peer_id) {
+            connection.state = new_state;
+        }
+    }
+
     /// Clean up idle and timed out connections
     pub fn cleanup_connections(&mut self) -> Vec<PeerId> {
         let now = Instant::now();
@@ -291,7 +299,7 @@ impl ConnectionManager {
             let idle_duration = now.duration_since(connection.last_activity);
 
             if idle_duration > self.config.idle_timeout {
-                to_disconnect.push(*peer_id);
+                to_disconnect.push(peer_id.clone());
             }
         }
 
@@ -404,7 +412,7 @@ impl ConnectionManager {
     }
 
     /// Check if can accept more connections
-    pub fn can_accept_connection(&self, ip: &IpAddr) -> bool {
+    pub fn can_accept_connection(&mut self, ip: &IpAddr) -> bool {
         self.active_connections.len() < self.config.max_total_connections &&
         self.count_inbound_connections() < self.config.max_inbound_connections &&
         self.count_connections_from_ip(ip) < self.config.max_connections_per_ip &&
@@ -420,7 +428,7 @@ mod tests {
     fn test_connection_manager_basic_operations() {
         let config = ConnectionConfig::default();
         let mut manager = ConnectionManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
         let ip = "127.0.0.1".parse().unwrap();
 
         // Should accept inbound connection
@@ -428,7 +436,7 @@ mod tests {
         assert_eq!(manager.get_connection_counts(), (1, 0, 1));
 
         // Should reject duplicate from same IP
-        let peer2 = PeerId::random();
+        let peer2 = format!("test_peer_{}", rand::random::<u64>());
         assert!(matches!(
             manager.accept_inbound_connection(peer2, ip, None),
             Err(ConnectionError::IpLimitReached)
@@ -441,8 +449,8 @@ mod tests {
         config.max_total_connections = 2;
         let mut manager = ConnectionManager::new(config);
 
-        let peer1 = PeerId::random();
-        let peer2 = PeerId::random();
+        let peer1 = format!("test_peer_{}", rand::random::<u64>());
+        let peer2 = format!("test_peer_{}", rand::random::<u64>());
         let ip1 = "127.0.0.1".parse().unwrap();
         let ip2 = "127.0.0.2".parse().unwrap();
 
@@ -451,7 +459,7 @@ mod tests {
         assert!(manager.accept_inbound_connection(peer2, ip2, None).is_ok());
 
         // Should reject third connection
-        let peer3 = PeerId::random();
+        let peer3 = format!("test_peer_{}", rand::random::<u64>());
         let ip3 = "127.0.0.3".parse().unwrap();
         assert!(matches!(
             manager.accept_inbound_connection(peer3, ip3, None),
@@ -463,7 +471,7 @@ mod tests {
     fn test_outbound_connections() {
         let config = ConnectionConfig::default();
         let mut manager = ConnectionManager::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
         let ip = "127.0.0.1".parse().unwrap();
 
         // Should accept outbound connection
@@ -473,14 +481,14 @@ mod tests {
 
     #[test]
     fn test_connection_cleanup() {
-        let config = ConnectionConfig::default();
+        let mut config = ConnectionConfig::default();
         config.idle_timeout = Duration::from_millis(100);
         let mut manager = ConnectionManager::new(config);
 
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
         let ip = "127.0.0.1".parse().unwrap();
 
-        assert!(manager.accept_inbound_connection(peer, ip, None).is_ok());
+        assert!(manager.accept_inbound_connection(peer.clone(), ip, None).is_ok());
 
         // Wait for timeout
         std::thread::sleep(Duration::from_millis(150));

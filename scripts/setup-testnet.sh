@@ -18,7 +18,7 @@ echo -e "${NC}"
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}❌ This script must be run as root (use sudo)${NC}" 
+   echo -e "${RED}❌ This script must be run as root (use sudo)${NC}"
    exit 1
 fi
 
@@ -87,14 +87,14 @@ if curl -fsSL "$BIN_URL" -o "$INSTALL_DIR/bin/bitquan-node" 2>/dev/null; then
     echo "✅ Downloaded from GitHub releases"
 else
     echo "⚠️  Release not found, building from source..."
-    
+
     # Install Rust
     if ! command -v cargo &> /dev/null; then
         echo "📦 Installing Rust..."
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
         source "$HOME/.cargo/env"
     fi
-    
+
     # Clone and build
     cd /tmp
     if [[ -d BitQuan ]]; then

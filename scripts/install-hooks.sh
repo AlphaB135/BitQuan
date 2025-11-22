@@ -13,10 +13,10 @@ set -euo pipefail
 if command -v cargo >/dev/null 2>&1; then
   echo "[pre-commit] running cargo fmt --check"
   cargo fmt --all --check || { echo "Format check failed. Run: cargo fmt --all"; exit 1; }
-  
+
   echo "[pre-commit] running cargo clippy"
   cargo clippy --all-targets --all-features -- -D warnings || { echo "Clippy failed"; exit 1; }
-  
+
   echo "[pre-commit] running cargo test"
   cargo test --all --locked || { echo "Tests failed"; exit 1; }
 fi

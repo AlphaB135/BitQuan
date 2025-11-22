@@ -30,10 +30,10 @@ EXISTING_HASH=$(shasum -a 256 "$BUILD_DIR/$BINARY_NAME" | awk '{print $1}')
 if [[ "$RELEASE_TAG" != "unknown" ]] && [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
     # Try to fetch release asset hash from GitHub
     RELEASE_URL="https://github.com/bitquan/bitquan/releases/download/$RELEASE_TAG/$BINARY_NAME.sha256"
-    
+
     if command -v curl &> /dev/null; then
         RELEASE_HASH=$(curl -sL "$RELEASE_URL" 2>/dev/null | awk '{print $1}' || echo "")
-        
+
         if [[ -n "$RELEASE_HASH" ]] && [[ ${#RELEASE_HASH} -eq 64 ]]; then
             if [[ "$EXISTING_HASH" == "$RELEASE_HASH" ]]; then
                 echo "CHECK | build_repro | PASS | Build hash matches release: $EXISTING_HASH"

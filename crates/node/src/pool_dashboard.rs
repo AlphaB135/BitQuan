@@ -509,7 +509,7 @@ fn get_dashboard_html() -> String {
             <h1>⛏️ BitQuan Mining Pool Dashboard</h1>
             <p>Real-time mining pool statistics and monitoring</p>
         </div>
-        
+
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-value" id="active-miners">0</div>
@@ -536,7 +536,7 @@ fn get_dashboard_html() -> String {
                 <div class="stat-label">Network Difficulty</div>
             </div>
         </div>
-        
+
         <div class="miners-table">
             <h2>Active Miners</h2>
             <table>
@@ -561,21 +561,21 @@ fn get_dashboard_html() -> String {
             </table>
         </div>
     </div>
-    
+
     <script>
         // Connect to WebSocket for real-time updates
         const ws = new WebSocket('ws://' + window.location.host + '/ws');
-        
+
         ws.onmessage = function(event) {
             const message = JSON.parse(event.data);
-            
+
             if (message.type === 'stats') {
                 updateStats(message.data);
             } else if (message.type === 'miners') {
                 updateMiners(message.data);
             }
         };
-        
+
         function updateStats(stats) {
             document.getElementById('active-miners').textContent = stats.active_miners;
             document.getElementById('hashrate-total').textContent = formatHashrate(stats.hashrate_total);
@@ -584,15 +584,15 @@ fn get_dashboard_html() -> String {
             document.getElementById('block-height').textContent = stats.block_height.toLocaleString();
             document.getElementById('network-difficulty').textContent = stats.network_difficulty.toFixed(2);
         }
-        
+
         function updateMiners(miners) {
             const tbody = document.getElementById('miners-tbody');
-            
+
             if (miners.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #7f8c8d;">No active miners</td></tr>';
                 return;
             }
-            
+
             tbody.innerHTML = miners.map(miner => `
                 <tr>
                     <td><span class="status-indicator status-online"></span></td>
@@ -607,7 +607,7 @@ fn get_dashboard_html() -> String {
                 </tr>
             `).join('');
         }
-        
+
         function formatHashrate(h) {
             if (h >= 1e18) return (h / 1e18).toFixed(2) + ' EH/s';
             if (h >= 1e15) return (h / 1e15).toFixed(2) + ' PH/s';
@@ -617,17 +617,17 @@ fn get_dashboard_html() -> String {
             if (h >= 1e3) return (h / 1e3).toFixed(2) + ' KH/s';
             return h.toFixed(2) + ' H/s';
         }
-        
+
         function formatUptime(seconds) {
             const days = Math.floor(seconds / 86400);
             const hours = Math.floor((seconds % 86400) / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
-            
+
             if (days > 0) return `${days}d ${hours}h ${minutes}m`;
             if (hours > 0) return `${hours}h ${minutes}m`;
             return `${minutes}m`;
         }
-        
+
         // Fallback: refresh data every 5 seconds if WebSocket fails
         setInterval(function() {
             if (ws.readyState !== WebSocket.OPEN) {
@@ -635,7 +635,7 @@ fn get_dashboard_html() -> String {
                     .then(response => response.json())
                     .then(data => updateStats(data))
                     .catch(console.error);
-                    
+
                 fetch('/api/miners')
                     .then(response => response.json())
                     .then(data => updateMiners(data))

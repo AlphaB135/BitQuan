@@ -27,14 +27,14 @@ check_endpoint() {
     local path="$3"
     local expected_code="$4"
     local extra_args="${5:-}"
-    
+
     if ! command -v curl &> /dev/null; then
         return 1
     fi
-    
+
     local actual_code
     actual_code=$(curl -s -o /dev/null -w "%{http_code}" -X "$method" $extra_args "$BASE_URL$path" 2>/dev/null || echo "000")
-    
+
     if [[ "$actual_code" == "$expected_code" ]]; then
         PASS_COUNT=$((PASS_COUNT + 1))
         return 0

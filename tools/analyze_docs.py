@@ -45,7 +45,7 @@ def find_duplicates(md_files):
     by_normalized = defaultdict(list)
     for f in md_files:
         by_normalized[f['normalized']].append(f)
-    
+
     duplicates = {k: v for k, v in by_normalized.items() if len(v) > 1}
     return duplicates
 
@@ -73,7 +73,7 @@ def extract_links(file_path):
 def check_link(link, source_file, docs_dir):
     """Check if a link target exists"""
     source_dir = os.path.dirname(source_file)
-    
+
     # Handle relative links
     if link.startswith('../'):
         # Relative to docs root
@@ -84,23 +84,23 @@ def check_link(link, source_file, docs_dir):
     else:
         # Assume relative to current file
         target = os.path.normpath(os.path.join(source_dir, link))
-    
+
     # Check if exists
     if os.path.exists(target):
         return True, target
-    
+
     # If link doesn't have extension, try .md
     if not target.endswith('.md'):
         target_md = target + '.md'
         if os.path.exists(target_md):
             return True, target_md
-    
+
     # Check if it's a directory with README.md
     if os.path.isdir(target):
         readme = os.path.join(target, 'README.md')
         if os.path.exists(readme):
             return True, readme
-    
+
     return False, target
 
 def find_broken_links(md_files, docs_dir):
@@ -127,20 +127,20 @@ def get_file_info(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
             lines = content.split('\n')
-            
+
             # Find H1
             h1 = None
             for line in lines:
                 if line.startswith('# '):
                     h1 = line[2:].strip()
                     break
-            
+
             # Count H2s
             h2_count = sum(1 for line in lines if line.startswith('## '))
-            
+
             # Word count
             words = len(re.findall(r'\b\w+\b', content))
-            
+
             return {
                 'h1': h1,
                 'h2_count': h2_count,
@@ -152,19 +152,19 @@ def get_file_info(file_path):
 
 def main():
     docs_dir = 'docs'
-    
+
     print("🔍 Phase B: Documentation Analysis")
     print("=" * 60)
-    
+
     # Get all markdown files
     md_files = get_md_files(docs_dir)
     print(f"\n📄 Found {len(md_files)} markdown files")
-    
+
     # Find duplicates
     print("\n🔎 Finding potential duplicates...")
     duplicates = find_duplicates(md_files)
     print(f"   Found {len(duplicates)} normalized names with multiple files")
-    
+
     # Detailed duplicate analysis
     duplicate_details = []
     for norm_name, files in duplicates.items():
@@ -176,21 +176,21 @@ def main():
                 'size': f['size'],
                 **info
             })
-        
+
         duplicate_details.append({
             'normalized_name': norm_name,
             'count': len(files),
             'files': files_with_info
         })
-    
+
     # Sort by count
     duplicate_details.sort(key=lambda x: x['count'], reverse=True)
-    
+
     # Find broken links
     print("\n🔗 Checking internal links...")
     broken_links = find_broken_links(md_files, docs_dir)
     print(f"   Found {len(broken_links)} broken internal links")
-    
+
     # Save results
     results = {
         'total_files': len(md_files),
@@ -199,12 +199,12 @@ def main():
         'duplicates': duplicate_details,
         'broken': broken_links
     }
-    
+
     with open('tools/phase_b_analysis.json', 'w') as f:
         json.dump(results, f, indent=2)
-    
+
     print(f"\n💾 Results saved to tools/phase_b_analysis.json")
-    
+
     # Print summary
     print("\n" + "=" * 60)
     print("📊 SUMMARY")
@@ -212,7 +212,7 @@ def main():
     print(f"Total markdown files: {len(md_files)}")
     print(f"Duplicate groups: {len(duplicates)}")
     print(f"Broken links: {len(broken_links)}")
-    
+
     # Top duplicates
     if duplicate_details:
         print(f"\n🔝 Top 10 duplicate groups:")
@@ -220,7 +220,7 @@ def main():
             print(f"{i}. '{dup['normalized_name']}' - {dup['count']} files")
             for f in dup['files']:
                 print(f"   - {f['path']:<50} {f['words']:>6} words, H1: {f.get('h1', 'None')[:30]}")
-    
+
     # Sample broken links
     if broken_links:
         print(f"\n❌ Sample broken links (showing first 10):")

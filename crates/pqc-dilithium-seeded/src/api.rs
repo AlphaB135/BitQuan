@@ -71,7 +71,7 @@ impl Keypair {
   /// let msg = "Hello".as_bytes();
   /// let sig = keys.sign(&msg);
   /// assert!(sig.len() == SIGNBYTES);
-  /// ```  
+  /// ```
   pub fn sign(&self, msg: &[u8]) -> [u8; SIGNBYTES] {
     let mut sig = [0u8; SIGNBYTES];
     crypto_sign_signature(&mut sig, msg, &self.secret);

@@ -34,18 +34,18 @@ fn test_dns_seeds_format() {
             "DNS seed must include port: {}",
             line
         );
-        
+
         // Validate basic domain format
         let parts: Vec<&str> = line.split(':').collect();
         assert_eq!(parts.len(), 2, "Seed format must be domain:port");
-        
+
         let domain = parts[0];
         assert!(
             domain.contains('.'),
             "Domain must contain at least one dot: {}",
             domain
         );
-        
+
         let port = parts[1].parse::<u16>();
         assert!(port.is_ok(), "Port must be valid u16: {}", parts[1]);
     }
@@ -70,7 +70,7 @@ fn test_mainnet_testnet_seeds_separated() {
         !mainnet_seeds.is_empty(),
         "Must have mainnet DNS seeds"
     );
-    
+
     assert!(
         !testnet_seeds.is_empty(),
         "Must have testnet DNS seeds"
@@ -93,7 +93,7 @@ fn test_seed_domains_use_standard_ports() {
         let parts: Vec<&str> = line.split(':').collect();
         if parts.len() == 2 {
             let port: u16 = parts[1].parse().expect("Failed to parse port number");
-            
+
             // Mainnet typically uses 8333, testnet uses 18333
             if line.contains("testnet") {
                 assert_eq!(
@@ -114,10 +114,10 @@ fn test_seed_domains_use_standard_ports() {
 fn test_genesis_json_matches_dns_seeds() {
     let seeds_content = fs::read_to_string("genesis/dns_seeds.txt")
         .expect("Failed to read DNS seeds");
-    
+
     let mainnet_content = fs::read_to_string("genesis/mainnet.json")
         .expect("Failed to read mainnet genesis");
-    
+
     let mainnet_json: serde_json::Value = serde_json::from_str(&mainnet_content).expect("Failed to parse mainnet genesis JSON");
     let dns_seeds = mainnet_json["dns_seeds"].as_array().expect("dns_seeds must be an array");
 
@@ -125,7 +125,7 @@ fn test_genesis_json_matches_dns_seeds() {
     let file_mainnet_seeds: Vec<String> = seeds_content
         .lines()
         .filter(|line| {
-            !line.trim().is_empty() 
+            !line.trim().is_empty()
             && !line.trim().starts_with('#')
             && !line.contains("testnet")
         })
@@ -151,7 +151,7 @@ fn test_genesis_json_matches_dns_seeds() {
 fn test_dns_bootstrap_mock_resolution() {
     // Mock test: verify that DNS resolution API is callable
     // In real deployment, this would resolve actual DNS records
-    
+
     let seeds_content = fs::read_to_string("genesis/dns_seeds.txt")
         .expect("Failed to read DNS seeds");
 
@@ -164,14 +164,14 @@ fn test_dns_bootstrap_mock_resolution() {
         let parts: Vec<&str> = seed.split(':').collect();
         let domain = parts[0];
         let port = parts[1].parse::<u16>().expect("Failed to parse port number");
-        
+
         // Validate that we can construct socket address format
         let socket_addr_str = format!("{}:{}", domain, port);
         assert!(
             socket_addr_str.contains(':'),
             "Should form valid socket address string"
         );
-        
+
         println!("✓ Seed format validated: {}", socket_addr_str);
     }
 }
@@ -187,12 +187,12 @@ fn test_bootstrap_peer_connectivity_check() {
     for peer in bootstrap_peers {
         let peer_str = peer.as_str().expect("Peer must be a string");
         let parts: Vec<&str> = peer_str.split(':').collect();
-        
+
         assert_eq!(parts.len(), 2, "Bootstrap peer must be host:port format");
-        
+
         let _host = parts[0];
         let port = parts[1].parse::<u16>().expect("Failed to parse port number");
-        
+
         assert!(
             port > 0 && port < 65536,
             "Port must be valid: {}",
@@ -210,7 +210,7 @@ fn test_dns_health_check_simulation() {
     let mainnet_seeds: Vec<&str> = seeds_content
         .lines()
         .filter(|line| {
-            !line.trim().is_empty() 
+            !line.trim().is_empty()
             && !line.trim().starts_with('#')
             && !line.contains("testnet")
         })
@@ -230,7 +230,7 @@ fn test_dns_health_check_simulation() {
         healthy_count >= 3,
         "Should have at least 3 healthy mainnet seeds"
     );
-    
+
     println!("✓ Simulated {} healthy seeds", healthy_count);
 }
 
@@ -243,7 +243,7 @@ fn test_dns_seed_redundancy() {
     let mainnet_count = seeds_content
         .lines()
         .filter(|line| {
-            !line.trim().is_empty() 
+            !line.trim().is_empty()
             && !line.trim().starts_with('#')
             && !line.contains("testnet")
         })

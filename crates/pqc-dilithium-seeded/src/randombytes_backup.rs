@@ -22,15 +22,15 @@ pub fn randombytes(x: &mut [u8], len: usize) {
 /// adversaries attempting to exploit entropy sources.
 pub fn randombytes_conditioned(out: &mut [u8]) {
     let len = out.len();
-    
+
     // 1. Collect raw entropy from OS CSPRNG (2x length for security margin)
     let mut raw_entropy = vec![0u8; len * 2];
     OsRng.fill_bytes(&mut raw_entropy);
-    
+
     // 2. Process through SHAKE-256 sponge construction
     let mut hasher = Shake256::default();
     hasher.update(&raw_entropy);
-    
+
     // 3. Squeeze conditioned entropy output
     let mut reader = hasher.finalize_xof();
     reader.read(out);

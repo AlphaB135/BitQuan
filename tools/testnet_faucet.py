@@ -35,7 +35,7 @@ def get_client_ip():
 def check_rate_limit(ip: str) -> Optional[str]:
     """Check if IP is rate limited"""
     now = datetime.now()
-    
+
     if ip not in faucet_db:
         faucet_db[ip] = {
             "last_request": now,
@@ -43,22 +43,22 @@ def check_rate_limit(ip: str) -> Optional[str]:
             "daily_reset": now.replace(hour=0, minute=0, second=0, microsecond=0)
         }
         return None
-    
+
     user_data = faucet_db[ip]
-    
+
     # Reset daily counter if needed
     if now.date() > user_data["daily_reset"].date():
         user_data["daily_count"] = 0
         user_data["daily_reset"] = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     # Check cooldown
     if now - user_data["last_request"] < timedelta(hours=COOLDOWN_HOURS):
         return f"Please wait {COOLDOWN_HOURS} hours between requests"
-    
+
     # Check daily limit
     if user_data["daily_count"] >= MAX_DAILY_PER_IP:
         return f"Maximum {MAX_DAILY_PER_IP} requests per day per IP"
-    
+
     return None
 
 def send_transaction(address: str) -> Optional[str]:
@@ -76,13 +76,13 @@ def send_transaction(address: str) -> Optional[str]:
             },
             "id": 1
         }
-        
+
         response = requests.post(RPC_URL, json=payload, timeout=30)
         if response.status_code == 200:
             result = response.json()
             if "result" in result:
                 return result["result"].get("txid")
-        
+
         return None
     except Exception as e:
         print(f"Transaction error: {e}")
@@ -149,7 +149,7 @@ FAUCET_HTML = """
     <div class="form">
         <form method="POST">
             <label for="address">🏠 Your BitQuan Testnet Address:</label>
-            <input type="text" id="address" name="address" class="input" 
+            <input type="text" id="address" name="address" class="input"
                    placeholder="bq1q..." required>
             <button type="submit" class="button">🚰 Get Testnet Coins</button>
         </form>
@@ -170,20 +170,20 @@ FAUCET_HTML = """
 @app.route("/", methods=["GET", "POST"])
 def faucet():
     if request.method == "GET":
-        return render_template_string(FAUCET_HTML, 
+        return render_template_string(FAUCET_HTML,
                                  cooldown_hours=COOLDOWN_HOURS,
                                  max_daily=MAX_DAILY_PER_IP)
-    
+
     # POST request
     address = request.form.get("address", "").strip()
-    
+
     if not address:
-        return render_template_string(FAUCET_HTML, 
+        return render_template_string(FAUCET_HTML,
                                  message="❌ Please enter a valid address",
                                  error=True,
                                  cooldown_hours=COOLDOWN_HOURS,
                                  max_daily=MAX_DAILY_PER_IP)
-    
+
     # Validate address format (basic check)
     if not address.startswith("bq1q") or len(address) < 20:
         return render_template_string(FAUCET_HTML,
@@ -191,7 +191,7 @@ def faucet():
                                  error=True,
                                  cooldown_hours=COOLDOWN_HOURS,
                                  max_daily=MAX_DAILY_PER_IP)
-    
+
     # Check rate limits
     ip = get_client_ip()
     rate_error = check_rate_limit(ip)
@@ -201,14 +201,14 @@ def faucet():
                                  error=True,
                                  cooldown_hours=COOLDOWN_HOURS,
                                  max_daily=MAX_DAILY_PER_IP)
-    
+
     # Send transaction
     txid = send_transaction(address)
     if txid:
         # Update rate limit data
         faucet_db[ip]["last_request"] = datetime.now()
         faucet_db[ip]["daily_count"] += 1
-        
+
         return render_template_string(FAUCET_HTML,
                                  message=f"✅ Success! Transaction sent: {txid}",
                                  error=False,
@@ -241,5 +241,5 @@ if __name__ == "__main__":
     print(f"💰 Distribution amount: {DISTRIBUTION_AMOUNT} qbits ({DISTRIBUTION_AMOUNT/100000000} BQ)")
     print(f"⏰ Cooldown: {COOLDOWN_HOURS} hours")
     print(f"📊 Daily limit: {MAX_DAILY_PER_IP} per IP")
-    
+
     app.run(host="0.0.0.0", port=8080, debug=False)

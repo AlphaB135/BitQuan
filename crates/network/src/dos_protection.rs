@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+use rand;
 
 use crate::PeerId;
 
@@ -102,13 +103,20 @@ struct SynProtection {
 
 /// SYN cookie information
 #[derive(Debug, Clone)]
-struct SynCookie {
+pub struct SynCookie {
     /// Cookie value
     value: u32,
     /// When issued
     issued_at: Instant,
     /// Peer ID
     peer_id: Option<PeerId>,
+}
+
+impl SynCookie {
+    /// Get the cookie value
+    pub fn value(&self) -> u32 {
+        self.value
+    }
 }
 
 /// Connection flood detection
@@ -212,7 +220,7 @@ pub enum AttackSeverity {
 }
 
 /// DoS protection statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct DoSStats {
     pub syn_floods_detected: u64,
     pub connection_floods_detected: u64,
@@ -274,7 +282,7 @@ impl DoSProtection {
             let attack = AttackInfo {
                 attack_type: DoSError::SynFlood,
                 source_ip: Some(source_ip),
-                source_peer: peer_id,
+                source_peer: peer_id.clone(),
                 detected_at: Instant::now(),
                 severity: AttackSeverity::High,
                 mitigations: vec![
@@ -294,9 +302,9 @@ impl DoSProtection {
         // Generate SYN cookie
         let cookie = self.syn_protection.cookie_counter.fetch_add(1, Ordering::Relaxed);
         let syn_cookie = SynCookie {
-            value: cookie,
+            value: cookie as u32,
             issued_at: Instant::now(),
-            peer_id,
+            peer_id: peer_id.clone(),
         };
 
         half_open.push(syn_cookie.clone());
@@ -368,7 +376,7 @@ impl DoSProtection {
             let attack = AttackInfo {
                 attack_type: DoSError::ConnectionFlood,
                 source_ip: Some(source_ip),
-                source_peer: Some(peer_id),
+                source_peer: Some(peer_id.clone()),
                 detected_at: now,
                 severity: AttackSeverity::High,
                 mitigations: vec![
@@ -401,7 +409,7 @@ impl DoSProtection {
 
         let now = Instant::now();
         let usage = self.bandwidth_tracker.peer_usage
-            .entry(peer_id)
+            .entry(peer_id.clone())
             .or_insert_with(|| BandwidthUsage {
                 bytes_sent: 0,
                 bytes_received: 0,
@@ -422,7 +430,7 @@ impl DoSProtection {
             let attack = AttackInfo {
                 attack_type: DoSError::BandwidthAttack,
                 source_ip: None, // Unknown at this level
-                source_peer: Some(peer_id),
+                source_peer: Some(peer_id.clone()),
                 detected_at: now,
                 severity: AttackSeverity::Medium,
                 mitigations: vec![
@@ -465,7 +473,7 @@ impl DoSProtection {
 
         let now = Instant::now();
         let pattern = self.pattern_detector.peer_patterns
-            .entry(peer_id)
+            .entry(peer_id.clone())
             .or_insert_with(|| ActivityPattern {
                 message_frequency: Vec::new(),
                 connection_attempts: 0,
@@ -490,7 +498,7 @@ impl DoSProtection {
             let attack = AttackInfo {
                 attack_type: DoSError::SuspiciousPattern,
                 source_ip: None,
-                source_peer: Some(peer_id),
+                source_peer: Some(peer_id.clone()),
                 detected_at: now,
                 severity: AttackSeverity::Medium,
                 mitigations: vec![
@@ -590,7 +598,7 @@ mod tests {
 
     #[test]
     fn test_syn_flood_detection() {
-        let config = DoSConfig::default();
+        let mut config = DoSConfig::default();
         config.max_half_open_per_ip = 3;
         let mut protection = DoSProtection::new(config);
         let ip = "192.168.1.100".parse().unwrap();
@@ -621,15 +629,15 @@ mod tests {
 
     #[test]
     fn test_connection_flood_detection() {
-        let config = DoSConfig::default();
+        let mut config = DoSConfig::default();
         config.connection_flood_threshold = 5;
         let mut protection = DoSProtection::new(config);
         let ip = "192.168.1.100".parse().unwrap();
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Should allow normal connections
         for _ in 0..4 {
-            assert!(protection.track_connection(peer, ip).is_ok());
+            assert!(protection.track_connection(peer.clone(), ip).is_ok());
         }
 
         // Should detect flood
@@ -639,13 +647,13 @@ mod tests {
 
     #[test]
     fn test_bandwidth_tracking() {
-        let config = DoSConfig::default();
+        let mut config = DoSConfig::default();
         config.max_bandwidth_per_peer = 1000;
         let mut protection = DoSProtection::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Should allow normal bandwidth
-        assert!(protection.track_bandwidth(peer, 500, 500).is_ok());
+        assert!(protection.track_bandwidth(peer.clone(), 500, 500).is_ok());
 
         // Should detect bandwidth attack
         let result = protection.track_bandwidth(peer, 600, 600);
@@ -654,13 +662,13 @@ mod tests {
 
     #[test]
     fn test_pattern_analysis() {
-        let config = DoSConfig::default();
+        let mut config = DoSConfig::default();
         config.suspicious_pattern_threshold = 0.7;
         let mut protection = DoSProtection::new(config);
-        let peer = PeerId::random();
+        let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Normal activity
-        assert!(protection.analyze_pattern(peer, 10, 0).is_ok());
+        assert!(protection.analyze_pattern(peer.clone(), 10, 0).is_ok());
 
         // Suspicious activity
         let result = protection.analyze_pattern(peer, 100, 50);

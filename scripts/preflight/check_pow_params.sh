@@ -31,7 +31,7 @@ if [[ "$NETWORK" == "mainnet" ]]; then
         echo "CHECK | pow_params | FAIL | Mainnet must use sha256d, found: $POW_ALGO"
         exit 1
     fi
-    
+
     # Check if hybrid is forbidden in code
     if [[ -f "$CONSENSUS_CODE" ]]; then
         if grep -q "hybrid.*forbidden\|mainnet.*sha256d.*only" "$CONSENSUS_CODE" 2>/dev/null; then
@@ -39,7 +39,7 @@ if [[ "$NETWORK" == "mainnet" ]]; then
             exit 0
         fi
     fi
-    
+
     echo "CHECK | pow_params | PASS | Mainnet using SHA-256d: $POW_ALGO"
     exit 0
 else

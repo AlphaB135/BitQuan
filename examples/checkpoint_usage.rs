@@ -1,8 +1,8 @@
 #!/usr/bin/env rust-script
 //! BitQuan Checkpoint System - ตัวอย่างการใช้งานจริง
-//! 
+//!
 //! สคริปต์นี้แสดงวิธีการใช้งาน checkpoint system ในสถานการณ์ต่างๆ
-//! 
+//!
 //! การรัน: `cargo run --bin checkpoint_example`
 
 use std::error::Error;
@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 2. สถานการณ์ Mining Bug
     mining_bug_scenario()?;
 
-    // 3. สถานการณ์ Network Attack  
+    // 3. สถานการณ์ Network Attack
     network_attack_scenario()?;
 
     // 4. การตรวจสอบสถานะ
@@ -81,8 +81,8 @@ fn mining_bug_scenario() -> Result<(), Box<dyn Error>> {
                          0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00,
                          0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88];
     println!("   Height: Safe height: {}", last_safe_height);
-    println!("   Hash: Safe hash: {:02x}{:02x}{:02x}{:02x}...", 
-             last_safe_hash[0], last_safe_hash[1], 
+    println!("   Hash: Safe hash: {:02x}{:02x}{:02x}{:02x}...",
+             last_safe_hash[0], last_safe_hash[1],
              last_safe_hash[2], last_safe_hash[3]);
 
     // Step 3: สร้าง emergency checkpoint
@@ -173,7 +173,7 @@ fn network_attack_scenario() -> Result<(), Box<dyn Error>> {
     // Step 5: ถ้าจำเป็นต้อง rollback
     println!("\nAction: Step 5: ประเมินความจำเป็นในการ rollback");
     let chain_compromised = true; // สมมติว่า chain state เสียหาย
-    
+
     if chain_compromised {
         println!("   ⚠️  Chain state เสียหาย ต้อง rollback");
         let rollback_action = EmergencyAction::RollbackTo { height: 580000 };
@@ -222,11 +222,11 @@ fn monitoring_example() -> Result<(), Box<dyn Error>> {
     println!("\nSecurity: Checkpoints:");
     let checkpoint_manager = emergency_manager.checkpoint_manager();
     let checkpoints = checkpoint_manager.export();
-    
+
     for (i, cp) in checkpoints.iter().enumerate() {
         println!("   {}. Height {}: {}", i + 1, cp.height, cp.reason);
         println!("      Created: {}", cp.created_at);
-        println!("      Hash: {:02x}{:02x}...{:02x}{:02x}", 
+        println!("      Hash: {:02x}{:02x}...{:02x}{:02x}",
                  cp.hash[0], cp.hash[1], cp.hash[30], cp.hash[31]);
     }
 
@@ -251,7 +251,7 @@ fn monitoring_example() -> Result<(), Box<dyn Error>> {
                 println!("   {}. Ban: Ban {} peers", i + 1, peer_ids.len());
             }
             EmergencyAction::SendAlert { message } => {
-                println!("   {}. Notify: Send Alert: {}", i + 1, 
+                println!("   {}. Notify: Send Alert: {}", i + 1,
                          message.chars().take(50).collect::<String>());
             }
         }

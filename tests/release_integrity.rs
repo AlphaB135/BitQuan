@@ -44,12 +44,12 @@ fn test_build_script_reproducibility_flags() {
         script.contains("--locked"),
         "Must use --locked to pin dependencies"
     );
-    
+
     assert!(
         script.contains("--release"),
         "Must build in release mode"
     );
-    
+
     assert!(
         script.contains("SOURCE_DATE_EPOCH"),
         "Must set SOURCE_DATE_EPOCH for reproducible timestamps"
@@ -123,7 +123,7 @@ fn test_release_artifacts_structure() {
         build_script.contains("dist") || build_script.contains("DIST_DIR"),
         "Build script must specify dist directory"
     );
-    
+
     assert!(
         build_script.contains("bitquan-node"),
         "Build script must produce bitquan-node binary"
@@ -243,11 +243,11 @@ fn test_no_dirty_builds() {
 fn test_binary_hash_consistency() {
     // Mock test for hash consistency
     // In real scenario, would build twice and compare hashes
-    
+
     println!("✓ Binary hash consistency check (mock)");
     println!("  In production: cargo build --locked --release");
     println!("  Should produce identical binary hash on repeat builds");
-    
+
     // This is a placeholder for actual reproducibility testing
     // which requires building the same code twice and comparing outputs
 }

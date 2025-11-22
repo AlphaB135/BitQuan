@@ -17,39 +17,39 @@ impl RpcMethods for MockHandler {
     fn getblockcount(&self) -> Result<u64, RpcError> {
         Ok(100)
     }
-    
+
     fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError> {
         Err(RpcError::MethodNotFound("not implemented".to_string()))
     }
-    
+
     fn getmininginfo(&self) -> Result<MiningInfo, RpcError> {
         Err(RpcError::MethodNotFound("not implemented".to_string()))
     }
-    
+
     fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError> {
         Err(RpcError::MethodNotFound("not implemented".to_string()))
     }
-    
+
     fn getwork(&self) -> Result<WorkData, RpcError> {
         Err(RpcError::MethodNotFound("not implemented".to_string()))
     }
-    
+
     fn submitblock(&self, _block_hex: String) -> Result<bool, RpcError> {
         Err(RpcError::MethodNotFound("not implemented".to_string()))
     }
-    
+
     fn submitwork(&self, _work_data: String) -> Result<bool, RpcError> {
         Err(RpcError::MethodNotFound("not implemented".to_string()))
     }
-    
+
     fn gettransaction(&self, _txid: String) -> Result<TxInfo, RpcError> {
         Err(RpcError::MethodNotFound("not implemented".to_string()))
     }
-    
+
     fn getbestblockhash(&self) -> Result<String, RpcError> {
         Ok("0000000000000000".to_string())
     }
-    
+
     fn getblockhash(&self, _height: u64) -> Result<String, RpcError> {
         Ok("0000000000000000".to_string())
     }
@@ -61,26 +61,26 @@ fn test_jwt_login_endpoint() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = mpsc::channel();
-    
+
     let jwt_auth = JwtAuth::new("test-secret-key-123");
     let handler = MockHandler;
     let config = RpcConfig::default();
     let server = RpcServer::with_jwt(handler, addr.to_string(), jwt_auth, config);
-    
+
     // Start server in background
     thread::spawn(move || {
         let _ = server.serve_with_listener_and_shutdown(listener, Some(rx));
     });
-    
+
     // Wait for server to start
     thread::sleep(Duration::from_millis(100));
-    
+
     // Test 1: Login with correct credentials
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
         .unwrap();
-    
+
     let login_url = format!("http://{}/auth/login", addr);
     let response = client
         .post(&login_url)
@@ -90,16 +90,16 @@ fn test_jwt_login_endpoint() {
         }))
         .send()
         .unwrap();
-    
+
     assert_eq!(response.status(), 200);
-    
+
     let body: serde_json::Value = response.json().unwrap();
     assert!(body["access_token"].is_string());
     assert_eq!(body["token_type"], "Bearer");
     assert_eq!(body["expires_in"], 3600);
-    
+
     let token = body["access_token"].as_str().unwrap();
-    
+
     // Test 2: Use JWT token for RPC call
     let rpc_url = format!("http://{}", addr);
     let rpc_response = client
@@ -112,12 +112,12 @@ fn test_jwt_login_endpoint() {
         }))
         .send()
         .unwrap();
-    
+
     assert_eq!(rpc_response.status(), 200);
-    
+
     let rpc_body: serde_json::Value = rpc_response.json().unwrap();
     assert_eq!(rpc_body["result"], 100);
-    
+
     // Shutdown
     let _ = tx.send(());
 }
@@ -127,7 +127,7 @@ fn test_jwt_login_invalid_credentials() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = mpsc::channel();
-    
+
     let jwt_auth = JwtAuth::new("test-secret");
     let server = RpcServer::with_jwt(
         MockHandler,
@@ -135,16 +135,16 @@ fn test_jwt_login_invalid_credentials() {
         jwt_auth,
         RpcConfig::default(),
     );
-    
+
     thread::spawn(move || {
         let _ = server.serve_with_listener_and_shutdown(listener, Some(rx));
     });
-    
+
     thread::sleep(Duration::from_millis(100));
-    
+
     let client = reqwest::blocking::Client::new();
     let login_url = format!("http://{}/auth/login", addr);
-    
+
     let response = client
         .post(&login_url)
         .json(&json!({
@@ -153,12 +153,12 @@ fn test_jwt_login_invalid_credentials() {
         }))
         .send()
         .unwrap();
-    
+
     assert_eq!(response.status(), 401);
-    
+
     let body: serde_json::Value = response.json().unwrap();
     assert_eq!(body["error"], "invalid_credentials");
-    
+
     let _ = tx.send(());
 }
 
@@ -167,7 +167,7 @@ fn test_jwt_login_malformed_request() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = mpsc::channel();
-    
+
     let jwt_auth = JwtAuth::new("test-secret");
     let server = RpcServer::with_jwt(
         MockHandler,
@@ -175,23 +175,23 @@ fn test_jwt_login_malformed_request() {
         jwt_auth,
         RpcConfig::default(),
     );
-    
+
     thread::spawn(move || {
         let _ = server.serve_with_listener_and_shutdown(listener, Some(rx));
     });
-    
+
     thread::sleep(Duration::from_millis(100));
-    
+
     let client = reqwest::blocking::Client::new();
     let login_url = format!("http://{}/auth/login", addr);
-    
+
     let response = client
         .post(&login_url)
         .body("invalid json {")
         .send()
         .unwrap();
-    
+
     assert_eq!(response.status(), 400);
-    
+
     let _ = tx.send(());
 }

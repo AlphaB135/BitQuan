@@ -60,7 +60,7 @@ fuzz_target!(|data: &[u8]| {
         seed: [0u8; 32], // Use fixed seed for reproducible caching
     };
     let mut randomx_engine = RandomXEngine::new(randomx_config);
-    
+
     // Test multiple calls to exercise caching
     for _ in 0..3 {
         let _ = randomx_engine.verify(&header);
@@ -72,7 +72,7 @@ fuzz_target!(|data: &[u8]| {
         cache_size: 1024, // Fixed size for reproducible caching
     };
     let mut ethash_engine = EthashEngine::new(ethash_config);
-    
+
     // Test multiple calls to exercise caching
     for _ in 0..3 {
         let _ = ethash_engine.verify(&header);
@@ -86,16 +86,16 @@ fuzz_target!(|data: &[u8]| {
             let mut seed = [0u8; 32];
             let seed_start = (i * 32) % (data.len() - 32);
             seed.copy_from_slice(&data[seed_start..seed_start + 32]);
-            
+
             let rx_config = RandomXConfig {
-                mode: if i % 2 == 0 { 
-                    bitquan_consensus::RandomXMode::Fast 
-                } else { 
-                    bitquan_consensus::RandomXMode::Full 
+                mode: if i % 2 == 0 {
+                    bitquan_consensus::RandomXMode::Fast
+                } else {
+                    bitquan_consensus::RandomXMode::Full
                 },
                 seed,
             };
-            
+
             let mut rx_engine = RandomXEngine::new(rx_config);
             let _ = rx_engine.verify(&header);
             let _ = rx_engine.pow_hash(&header);
@@ -107,11 +107,11 @@ fuzz_target!(|data: &[u8]| {
         // Test with maximum nonce values
         let mut extreme_header = header.clone();
         extreme_header.nonce = u64::MAX;
-        
+
         let mut rx_engine = RandomXEngine::new(randomx_config);
         let _ = rx_engine.verify(&extreme_header);
         let _ = rx_engine.pow_hash(&extreme_header);
-        
+
         let mut ethash_engine = EthashEngine::new(ethash_config);
         let _ = ethash_engine.verify(&extreme_header);
         let _ = ethash_engine.pow_hash(&extreme_header);
@@ -121,14 +121,14 @@ fuzz_target!(|data: &[u8]| {
     if data.len() > 400 {
         use std::sync::Arc;
         use std::thread;
-        
+
         let header_arc = Arc::new(header);
         let rx_config_arc = Arc::new(randomx_config);
-        
+
         let handles: Vec<_> = (0..3).map(|_| {
             let header_clone = Arc::clone(&header_arc);
             let config_clone = Arc::clone(&rx_config_arc);
-            
+
             thread::spawn(move || {
                 let mut engine = RandomXEngine::new((*config_clone).clone());
                 for _ in 0..2 {
@@ -137,7 +137,7 @@ fuzz_target!(|data: &[u8]| {
                 }
             })
         }).collect();
-        
+
         // Wait for all threads to complete
         for handle in handles {
             let _ = handle.join();

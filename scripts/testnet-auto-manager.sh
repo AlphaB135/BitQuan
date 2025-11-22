@@ -52,7 +52,7 @@ detect_os() {
 # Function to install dependencies
 install_dependencies() {
     echo -e "${YELLOW}📦 กำลังติดตั้ง dependencies...${NC}"
-    
+
     if [[ "$OS" == "ubuntu" ]] || [[ "$OS" == "debian" ]]; then
         apt update -qq
         apt install -y curl wget git build-essential pkg-config libssl-dev python3 python3-pip jq docker.io docker-compose
@@ -67,14 +67,14 @@ install_dependencies() {
         systemctl enable docker
         systemctl start docker
     fi
-    
+
     echo -e "${GREEN}✅ ติดตั้ง dependencies เรียบร้อย${NC}"
 }
 
 # Function to create user and directories
 setup_user_directories() {
     echo -e "${YELLOW}👤 กำลังสร้าง user และ directories...${NC}"
-    
+
     # Create user
     if ! id "$BITQUAN_USER" &>/dev/null; then
         useradd -m -s /bin/bash "$BITQUAN_USER"
@@ -83,7 +83,7 @@ setup_user_directories() {
     else
         echo "✅ user $BITQUAN_USER มีอยู่แล้ว"
     fi
-    
+
     # Create directories
     mkdir -p "$INSTALL_DIR"/{bin,data,logs,backups,config}
     mkdir -p "$DATA_DIR"
@@ -95,21 +95,21 @@ setup_user_directories() {
 # Function to get BitQuan binary
 get_binary() {
     echo -e "${YELLOW}⬇️ กำลังดาวน์โหลด BitQuan binary...${NC}"
-    
+
     # Try to download from releases first
     BIN_URL="https://github.com/AlphaB135/BitQuan/releases/download/v1.0.0/bitquan-linux-x86_64"
     if curl -fsSL "$BIN_URL" -o "$INSTALL_DIR/bin/bitquan-node" 2>/dev/null; then
         echo "✅ ดาวน์โหลดจาก GitHub releases"
     else
         echo "⚠️ ไม่พบ release กำลัง build จาก source..."
-        
+
         # Install Rust
         if ! command -v cargo &> /dev/null; then
             echo "📦 กำลังติดตั้ง Rust..."
             sudo -u "$BITQUAN_USER" bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
             sudo -u "$BITQUAN_USER" bash -c 'source $HOME/.cargo/env'
         fi
-        
+
         # Clone and build
         cd /tmp
         if [[ -d BitQuan ]]; then
@@ -124,7 +124,7 @@ get_binary() {
         rm -rf BitQuan
         echo "✅ Build จาก source เรียบร้อย"
     fi
-    
+
     chmod +x "$INSTALL_DIR/bin/bitquan-node"
     chown "$BITQUAN_USER":"$BITQUAN_USER" "$INSTALL_DIR/bin/bitquan-node"
 }
@@ -142,7 +142,7 @@ generate_jwt_secret() {
 # Function to create wallet
 create_wallet() {
     echo -e "${YELLOW}💰 กำลังสร้าง testnet wallet...${NC}"
-    
+
     # Ask for wallet password
     while true; do
         read -s -p "🔑 ใส่รหัสผ่านสำหรับ wallet: " WALLET_PASSWORD
@@ -155,13 +155,13 @@ create_wallet() {
             echo -e "${RED}❌ รหัสผ่านไม่ตรงกัน กรุณาลองใหม่${NC}"
         fi
     done
-    
+
     # Create wallet
     sudo -u "$BITQUAN_USER" "$INSTALL_DIR/bin/bitquan-node" wallet create \
       --network testnet \
       --output "$CONFIG_DIR/pool-wallet.keystore" \
       --password "$WALLET_PASSWORD" || true
-    
+
     # Get mining address
     MINING_ADDRESS=$(sudo -u "$BITQUAN_USER" "$INSTALL_DIR/bin/bitquan-node" wallet address \
       --keystore "$CONFIG_DIR/pool-wallet.keystore" 2>/dev/null | tail -1 || echo "tBQ1_CHANGE_ME")
@@ -171,7 +171,7 @@ create_wallet() {
 # Function to create configuration
 create_config() {
     echo -e "${YELLOW}⚙️ กำลังสร้าง configuration...${NC}"
-    
+
     cat > "$CONFIG_DIR/testnet.toml" << EOF
 # BitQuan Testnet Configuration
 
@@ -246,7 +246,7 @@ EOF
 # Function to create systemd service
 create_service() {
     echo -e "${YELLOW}🔧 กำลังสร้าง systemd service...${NC}"
-    
+
     cat > /etc/systemd/system/$SERVICE_NAME.service << EOF
 [Unit]
 Description=BitQuan Testnet Node
@@ -284,7 +284,7 @@ EOF
 # Function to configure firewall
 configure_firewall() {
     echo -e "${YELLOW}🔥 กำลังตั้งค่า firewall...${NC}"
-    
+
     if command -v ufw &> /dev/null; then
         ufw allow 19444/tcp comment 'BitQuan P2P'
         ufw allow 19443/tcp comment 'BitQuan RPC'
@@ -302,7 +302,7 @@ configure_firewall() {
 # Function to create helper scripts
 create_helper_scripts() {
     echo -e "${YELLOW}📝 กำลังสร้าง helper scripts...${NC}"
-    
+
     # Menu script
     cat > "$INSTALL_DIR/menu.sh" << 'EOF'
 #!/bin/bash
@@ -418,7 +418,7 @@ EOF
 
     chmod +x "$INSTALL_DIR/menu.sh"
     chown "$BITQUAN_USER":"$BITQUAN_USER" "$INSTALL_DIR/menu.sh"
-    
+
     echo "✅ สร้าง helper scripts เรียบร้อย"
 }
 
@@ -428,7 +428,7 @@ start_node() {
     systemctl enable $SERVICE_NAME
     systemctl start $SERVICE_NAME
     sleep 3
-    
+
     if systemctl is-active --quiet $SERVICE_NAME; then
         echo -e "${GREEN}✅ BitQuan testnet node กำลังทำงาน!${NC}"
     else
@@ -449,21 +449,21 @@ stop_node() {
 show_status() {
     echo -e "${YELLOW}📊 สถานะ BitQuan Testnet Node:${NC}"
     echo ""
-    
+
     if systemctl is-active --quiet $SERVICE_NAME; then
         echo -e "Status: ${GREEN}● กำลังทำงาน${NC}"
     else
         echo -e "Status: ${RED}● หยุดทำงาน${NC}"
     fi
-    
+
     echo ""
     echo -e "${YELLOW}=== Service Status ===${NC}"
     systemctl status $SERVICE_NAME --no-pager -l
-    
+
     echo ""
     echo -e "${YELLOW}=== Network Ports ===${NC}"
     netstat -tlnp | grep -E ':(19443|19444)' || echo "ไม่มีพอร์ตเปิด"
-    
+
     echo ""
     echo -e "${YELLOW}=== Recent Logs ===${NC}"
     sudo journalctl -u $SERVICE_NAME -n 10 --no-pager
@@ -486,7 +486,7 @@ show_management_menu() {
             echo -e "  โหนด: ${RED}● หยุดทำงาน${NC}"
         fi
         echo ""
-        
+
         echo -e "${YELLOW}🛠️  เลือกการทำงาน:${NC}"
         echo "  1) 🚀 ติดตั้งโหนดใหม่ (Full Setup)"
         echo "  2) ▶️  เปิดโหนด (Start Node)"
@@ -497,9 +497,9 @@ show_management_menu() {
         echo "  7) 🎛️  เข้าถึงเมนูจัดการขั้นสูง (Advanced Menu)"
         echo "  8) ❌ ออก (Exit)"
         echo ""
-        
+
         read -p "เลือกตัวเลือก (1-8): " choice
-        
+
         case $choice in
             1)
                 full_setup
@@ -545,7 +545,7 @@ show_management_menu() {
 full_setup() {
     echo -e "${YELLOW}🚀 เริ่มการติดตั้ง BitQuan Testnet Node แบบอัตโนมัติ...${NC}"
     echo ""
-    
+
     # Ask for confirmation
     read -p "ต้องการติดตั้ง BitQuan Testnet Node หรือไม่? (y/n) " -n 1 -r
     echo
@@ -553,11 +553,11 @@ full_setup() {
         echo "ยกเลิกการติดตั้ง"
         return 0
     fi
-    
+
     echo ""
     echo -e "${GREEN}เริ่มกระบวนการติดตั้ง...${NC}"
     echo ""
-    
+
     # Run all setup steps
     detect_os
     install_dependencies
@@ -570,7 +570,7 @@ full_setup() {
     configure_firewall
     create_helper_scripts
     start_node
-    
+
     # Print summary
     echo ""
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -599,14 +599,14 @@ full_setup() {
     echo "  • ตรวจสอบ logs เป็นประจำ"
     echo ""
     echo -e "${GREEN}ทดสอบ BitQuan ให้สนุก! 🚀${NC}"
-    
+
     read -p "กด Enter เพื่อดำเนินการต่อ..."
 }
 
 # Main function
 main() {
     check_root
-    
+
     # Check if already installed
     if [[ -f "$INSTALL_DIR/bin/bitquan-node" ]] && [[ -f "/etc/systemd/system/$SERVICE_NAME.service" ]]; then
         show_management_menu
@@ -623,7 +623,7 @@ main() {
         echo "  ✅ สร้าง systemd service"
         echo "  ✅ เมนูจัดการโหนด"
         echo ""
-        
+
         full_setup
         show_management_menu
     fi

@@ -29,7 +29,7 @@ EXPECTED_HASH=""
 if [[ -f "$GENESIS_DOC" ]]; then
     # Try to extract hash for this network from docs
     EXPECTED_HASH=$(grep -E "^${NETWORK}.*hash.*:" "$GENESIS_DOC" 2>/dev/null | grep -oE '[0-9a-f]{64}' | head -1 || echo "")
-    
+
     # Fallback: look for the actual hash in any form
     if [[ -z "$EXPECTED_HASH" ]]; then
         EXPECTED_HASH=$(grep -F "$ACTUAL_HASH" "$GENESIS_DOC" 2>/dev/null | grep -oE '[0-9a-f]{64}' | head -1 || echo "")

@@ -11,16 +11,16 @@ FOUND_ISSUES=0
 check_pattern() {
     local pattern="$1"
     local description="$2"
-    
+
     echo "Checking: $description"
-    
+
     RESULTS=$(grep -rn "println!\|eprintln!" crates/ --include="*.rs" \
         | grep -i "$pattern" \
         | grep -v "// Safe:" \
         | grep -v "password:\|password ()\|Enter password" \
         | grep -v "secret key:\|bytes" \
         | grep -v "test_\|#\[test\]" || true)
-    
+
     if [ -n "$RESULTS" ]; then
         echo "⚠️  Found:"
         echo "$RESULTS" | head -3

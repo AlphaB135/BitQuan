@@ -27,17 +27,17 @@ def fix_link_in_file(file_path, old_link, new_link):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         # Escape special regex characters in old_link
         old_escaped = re.escape(old_link)
-        
+
         # Replace the link
         new_content = re.sub(
             rf'\[([^\]]+)\]\({old_escaped}\)',
             rf'[\1]({new_link})',
             content
         )
-        
+
         if new_content != content:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
@@ -50,17 +50,17 @@ def fix_link_in_file(file_path, old_link, new_link):
 def main():
     print("🔧 Fixing broken links...")
     print("=" * 60)
-    
+
     fixed = 0
     not_fixed = 0
-    
+
     for broken in analysis['broken']:
         file_path = os.path.join('docs', broken['file'])
         old_link = broken['link']
-        
+
         # Try to find replacement
         new_link = None
-        
+
         # Check known moved files
         if old_link in MOVED_FILES:
             new_link = MOVED_FILES[old_link]
@@ -77,7 +77,7 @@ def main():
                 new_link = f'../testnet/{basename}'
             elif os.path.exists(f'docs/releases/{basename}'):
                 new_link = f'../releases/{basename}'
-        
+
         if new_link:
             if fix_link_in_file(file_path, old_link, new_link):
                 print(f"✓ Fixed in {broken['file']}")
@@ -89,7 +89,7 @@ def main():
             print(f"⚠ Could not auto-fix: {broken['file']}:{broken['line']}")
             print(f"  Link: {old_link}")
             not_fixed += 1
-    
+
     print("\n" + "=" * 60)
     print(f"✅ Fixed: {fixed}")
     print(f"⚠  Still broken: {not_fixed}")

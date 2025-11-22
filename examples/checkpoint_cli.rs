@@ -1,6 +1,6 @@
 #!/usr/bin/env rust-script
 //! BitQuan Checkpoint CLI - เครื่องมือจัดการ checkpoint ผ่าน command line
-//! 
+//!
 //! การใช้งาน:
 //!   cargo run --bin checkpoint_cli -- --help
 //!   cargo run --bin checkpoint_cli -- status
@@ -214,7 +214,7 @@ fn cmd_rollback(height: u64) -> Result<(), Box<dyn Error>> {
     println!("=" .repeat(40));
 
     println!("Height: Target height: {}", height);
-    
+
     // จำลองการ rollback
     println!("\nSearch: Finding checkpoints above height {}...", height);
     println!("   Count: Found 2 checkpoints to remove:");
@@ -226,7 +226,7 @@ fn cmd_rollback(height: u64) -> Result<(), Box<dyn Error>> {
     use std::io;
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
-    
+
     if !input.trim().to_lowercase().starts_with('y') {
         println!("   ERROR: Rollback cancelled");
         return Ok(());

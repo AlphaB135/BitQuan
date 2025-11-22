@@ -13,7 +13,7 @@ fuzz_target!(|data: &[u8]| {
     }
 
     let mut fork_choice = ForkChoice::new();
-    
+
     // Add genesis block first
     let genesis_header = BlockHeader {
         version: 1,
@@ -25,30 +25,30 @@ fuzz_target!(|data: &[u8]| {
         nonce: 0,
         algo_id: 0,
     };
-    
+
     let _ = fork_choice.add_genesis(genesis_header);
 
     // Parse multiple block headers from fuzz data
     let num_blocks = (data.len() / 117).min(10); // Limit to prevent excessive computation
     let mut prev_hash = [0u8; 32]; // Will be set after first block
-    
+
     for i in 0..num_blocks {
         let start = i * 117;
         let end = (start + 117).min(data.len());
         if end - start < 117 {
             break;
         }
-        
+
         let block_data = &data[start..end];
-        
+
         // Create block header from fuzz data
         let header = BlockHeader {
             version: i32::from_le_bytes([
                 block_data[0], block_data[1], block_data[2], block_data[3]
             ]),
-            prev_block: if i == 0 { 
+            prev_block: if i == 0 {
                 [0u8; 32] // Genesis child
-            } else { 
+            } else {
                 prev_hash // Chain from previous block
             },
             merkle_root: {
@@ -81,7 +81,7 @@ fuzz_target!(|data: &[u8]| {
                 if is_new_tip {
                     prev_hash = bitquan_consensus::pow::header_hash(&header);
                 }
-                
+
                 // Test reorg info if present
                 if let Some(reorg) = reorg_info {
                     // Verify reorg depth is reasonable
@@ -93,7 +93,7 @@ fuzz_target!(|data: &[u8]| {
                 // Expected for some blocks - continue
             }
             Err(ForkError::DuplicateBlock(_)) => {
-                // Expected for some blocks - continue  
+                // Expected for some blocks - continue
             }
             Err(ForkError::ReorgTooDeep(depth, max)) => {
                 // Expected for deep reorgs - verify bounds
@@ -107,18 +107,18 @@ fuzz_target!(|data: &[u8]| {
         // Test U256 chain work calculations directly
         if let Ok(target_bytes) = compact_to_target(header.bits) {
             let target = U256::from_big_endian(&target_bytes);
-            
+
             // Test extreme target values
             if target == U256::zero() {
                 // Should handle zero target gracefully
                 continue;
             }
-            
+
             if target == U256::max_value() {
                 // Should handle max target gracefully
                 continue;
             }
-            
+
             // Test work calculation (should not overflow)
             let work = if target != U256::zero() {
                 U256::max_value().checked_div(target.saturating_add(U256::one()))
@@ -126,7 +126,7 @@ fuzz_target!(|data: &[u8]| {
             } else {
                 U256::one()
             };
-            
+
             // Work should be reasonable
             assert!(work > U256::zero(), "Work should be positive");
         }
@@ -143,7 +143,7 @@ fuzz_target!(|data: &[u8]| {
         // Test with maximum reorg depth
         let mut limited_fc = ForkChoice::with_max_reorg(1);
         let _ = limited_fc.add_genesis(genesis_header);
-        
+
         // Try to create deep reorg
         for i in 0..5 {
             let header = BlockHeader {
@@ -156,7 +156,7 @@ fuzz_target!(|data: &[u8]| {
                 nonce: i as u64,
                 algo_id: 0,
             };
-            
+
             let _ = limited_fc.add_block(header);
         }
     }
@@ -165,7 +165,7 @@ fuzz_target!(|data: &[u8]| {
     if data.len() > 700 {
         use std::sync::{Arc, Mutex};
         use std::thread;
-        
+
         let fc_arc = Arc::new(Mutex::new(ForkChoice::new()));
         let handles: Vec<_> = (0..3).map(|thread_id| {
             let fc_clone = Arc::clone(&fc_arc);
@@ -179,7 +179,7 @@ fuzz_target!(|data: &[u8]| {
                 nonce: thread_id as u64,
                 algo_id: 0,
             };
-            
+
             thread::spawn(move || {
                 let mut fc = fc_clone.lock().unwrap();
                 let _ = fc.add_genesis(test_header.clone());
@@ -188,7 +188,7 @@ fuzz_target!(|data: &[u8]| {
                 let _ = fc.height();
             })
         }).collect();
-        
+
         // Wait for all threads
         for handle in handles {
             let _ = handle.join();

@@ -151,7 +151,7 @@ let ks = encrypt_keystore(secret, password, None, mem, time, par);
 use wallet::keystore::rotate_keystore;
 
 // Re-encrypt with new password and optionally stronger KDF params
-let new_ks = rotate_keystore(&old_ks, "old-pass", "new-pass", 
+let new_ks = rotate_keystore(&old_ks, "old-pass", "new-pass",
                              65536, 3, 1)?;
 write_keystore_file_atomic("keystore.json", &new_ks)?;
 ```

@@ -59,12 +59,12 @@ else
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         TOTAL=$((TOTAL + 1))
-        
+
         # Extract domain:port
         SEED=$(echo "$line" | awk '{print $1}')
         DOMAIN=$(echo "$SEED" | cut -d: -f1)
         SEED_PORT=$(echo "$SEED" | cut -d: -f2)
-        
+
         # Quick DNS resolution check (prefer getent/dig)
         if command -v dig &> /dev/null; then
             if dig +time=$TIMEOUT +short "$DOMAIN" A 2>/dev/null | grep -q .; then
