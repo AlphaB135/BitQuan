@@ -1,5 +1,13 @@
-//! Peer-to-peer networking scaffolding for BitQuan.
+//! Peer-to-peer networking with comprehensive security for BitQuan.
 #![warn(missing_docs)]
+
+// pub mod connection_manager;
+// pub mod rate_limiter;
+// pub mod reputation;
+// pub mod ban_manager;
+// pub mod dos_protection;
+// pub mod security_manager;
+// pub mod security_config;
 
 pub mod discovery;
 pub mod dns_bootstrap;
@@ -9,6 +17,26 @@ pub mod propagation;
 pub mod protocol;
 pub mod relay;
 pub mod sync;
+
+// pub use connection_manager::{
+//     ConnectionConfig, ConnectionError, ConnectionManager, ConnectionStats, Direction, ConnectionState,
+// };
+// pub use rate_limiter::{
+//     RateLimitConfig, RateLimitError, RateLimiter, MessageType, MessageTypeLimits,
+// };
+// pub use reputation::{
+//     ReputationConfig, ReputationManager, ReputationAction, ReputationStats, Violation, PeerReputation,
+// };
+// pub use ban_manager::{
+//     BanConfig, BanManager, BanError, BanInfo, BanReason, BanStats,
+// };
+// pub use dos_protection::{
+//     DoSConfig, DoSProtection, DoSError, DoSStats, AttackInfo, AttackSeverity,
+// };
+// pub use security_manager::{
+//     SecurityManager, SecurityConfig, SecurityError, SecurityEvent, SecurityStatistics,
+//     PeerSecurityStatus,
+// };
 
 pub use discovery::{
     bootstrap_peers, discover_from_seeds, PeerBook, PersistentPeer, MAINNET_SEEDS,
@@ -25,8 +53,8 @@ pub use propagation::{
 pub use relay::{create_block_inv, create_tx_inv, RelayManager, RelayPolicy};
 pub use sync::{process_headers, request_blocks, ChainSync, SyncProgress, SyncStatus};
 
-use bitquan_types::Block;
-use thiserror::Error;
+pub use bitquan_types::Block;
+pub use thiserror::Error;
 
 /// Logical peer identifier.
 pub type PeerId = String;
@@ -34,10 +62,10 @@ pub type PeerId = String;
 /// Result type for network operations.
 pub type Result<T> = std::result::Result<T, NetworkError>;
 
-/// Configuration values for the networking layer.
+/// Configuration values for networking layer.
 #[derive(Clone, Debug)]
 pub struct NetworkConfig {
-    /// Address to bind the listening socket to (multiaddr style in the future).
+    /// Address to bind listening socket to (multiaddr style in future).
     pub listen_addr: String,
     /// Maximum concurrent peers accepted.
     pub max_peers: usize,
@@ -47,7 +75,25 @@ pub struct NetworkConfig {
     pub max_message_size: usize,
     /// Rate limit: max messages per second per peer
     pub rate_limit_per_peer: usize,
+    
+    // /// Security configuration
+    // pub security: SecurityConfig,
 }
+
+// /// Security configuration for network layer
+// #[derive(Clone, Debug)]
+// pub struct SecurityConfig {
+//     /// Rate limiting configuration
+//     pub rate_limiting: RateLimitConfig,
+//     /// Connection management configuration
+//     pub connections: ConnectionConfig,
+//     /// Reputation management configuration
+//     pub reputation: ReputationConfig,
+//     /// Ban management configuration
+//     pub bans: BanConfig,
+//     /// DoS protection configuration
+//     pub dos_protection: DoSConfig,
+// }
 
 impl Default for NetworkConfig {
     fn default() -> Self {
@@ -81,9 +127,12 @@ pub enum NetworkError {
         /// Actual message type received.
         got: String,
     },
+    /// Security error
+    #[error("security error: {0}")]
+    Security(String),
 }
 
-/// High-level façade for managing peer connections.
+/// High-level network service with comprehensive security.
 pub struct NetworkService {
     config: NetworkConfig,
     peers: Vec<PeerId>,
@@ -123,3 +172,5 @@ impl NetworkService {
         Ok(())
     }
 }
+
+
