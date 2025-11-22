@@ -1,8 +1,8 @@
 # 🎯 Next Steps - Phase 1B Action Plan
 
-**Current Status:** Phase 1A Complete ✅  
-**Next Phase:** Phase 1B - Consensus & Storage Hardening  
-**Timeline:** 1-2 weeks  
+**Current Status:** Phase 1A Complete ✅
+**Next Phase:** Phase 1B - Consensus & Storage Hardening
+**Timeline:** 1-2 weeks
 **Goal:** Reduce unwrap() from 303 → 150 (50% reduction)
 
 ---
@@ -23,9 +23,9 @@ cargo test --all
 ## 🎯 Target Files (Priority Order)
 
 ### 1. Consensus Module (High Priority)
-**File:** `crates/consensus/src/fork.rs`  
-**Unwraps:** ~27  
-**Complexity:** High  
+**File:** `crates/consensus/src/fork.rs`
+**Unwraps:** ~27
+**Complexity:** High
 **Time Estimate:** 2-3 hours
 
 **Key Areas:**
@@ -44,9 +44,9 @@ let block = store.get_block(&hash)
 ```
 
 ### 2. Mempool Module (High Priority)
-**File:** `crates/mempool/src/lib.rs`  
-**Unwraps:** ~21  
-**Complexity:** Medium  
+**File:** `crates/mempool/src/lib.rs`
+**Unwraps:** ~21
+**Complexity:** Medium
 **Time Estimate:** 1-2 hours
 
 **Key Areas:**
@@ -55,9 +55,9 @@ let block = store.get_block(&hash)
 - Eviction policy
 
 ### 3. Storage Module (Medium Priority)
-**File:** `crates/storage/src/rocksdb_store.rs`  
-**Unwraps:** ~15  
-**Complexity:** Medium  
+**File:** `crates/storage/src/rocksdb_store.rs`
+**Unwraps:** ~15
+**Complexity:** Medium
 **Time Estimate:** 1-2 hours
 
 **Key Areas:**
@@ -66,9 +66,9 @@ let block = store.get_block(&hash)
 - UTXO management
 
 ### 4. Wallet Module (Medium Priority)
-**File:** `crates/wallet/src/multisig.rs`  
-**Unwraps:** ~37  
-**Complexity:** High  
+**File:** `crates/wallet/src/multisig.rs`
+**Unwraps:** ~37
+**Complexity:** High
 **Time Estimate:** 3-4 hours
 
 **Key Areas:**
@@ -95,7 +95,7 @@ let value = map.get(&key)
 // ❌ Before
 let data = decode(&bytes).unwrap();
 
-// ✅ After  
+// ✅ After
 let data = decode(&bytes)
     .map_err(Error::Decode)?;
 ```
@@ -193,7 +193,7 @@ Before committing each module:
 
 ### Build & CI
 - [ ] `cargo build --all` passes
-- [ ] `cargo test --all` passes  
+- [ ] `cargo test --all` passes
 - [ ] `cargo clippy --all-targets` clean
 - [ ] `cargo fmt --all` applied
 

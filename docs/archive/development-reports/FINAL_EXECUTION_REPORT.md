@@ -52,7 +52,7 @@ $ git rev-list --left-right --count main...ci/code-audit-md-cleanup
 
 ### ✅ สิ่งที่ md-cleanup ทำ (และ main มีแล้ว):
 - ✅ docs/ restructured (confirmed: 9 categories exist)
-- ✅ Docsify deployed (confirmed: _sidebar.md, .nojekyll exist)  
+- ✅ Docsify deployed (confirmed: _sidebar.md, .nojekyll exist)
 - ✅ Config examples added (confirmed: in git history)
 - ✅ Benchmarks organized (confirmed: docs/benchmarks/ exists)
 
@@ -68,7 +68,7 @@ $ git rev-list --left-right --count main...ci/code-audit-md-cleanup
 ```bash
 # ไฟล์เหล่านี้เป็น tracking/progress reports ที่ล้าสมัย
 rm -f CURRENT_STATUS_REPORT.md
-rm -f FINAL_SUMMARY.md  
+rm -f FINAL_SUMMARY.md
 rm -f MERGE_ANALYSIS_REPORT.md
 rm -f MERGE_REPORT.md
 rm -f MERGE_STATUS_REPORT.md
@@ -113,7 +113,7 @@ git commit -S -m "chore: remove obsolete progress tracking reports
 
 Removed 20 temporary status/progress reports that are now outdated:
 - P0/P1 status reports (work completed)
-- Merge/audit reports (incorporated)  
+- Merge/audit reports (incorporated)
 - Sprint summaries (archived)
 - Cleanup plans (executed)
 

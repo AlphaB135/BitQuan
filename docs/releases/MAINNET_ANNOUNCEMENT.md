@@ -2,17 +2,17 @@
 
 ## Release Information
 
-**Version:** v1.0.0  
-**Launch Date:** TBD (Post-Audit)  
-**Network ID:** `mainnet`  
+**Version:** v1.0.0
+**Launch Date:** TBD (Post-Audit)
+**Network ID:** `mainnet`
 **Chain ID:** `bitquan-mainnet-v1`
 
 ---
 
 ## Genesis Parameters
 
-**Genesis Hash:** `000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f`  
-**Genesis Timestamp:** `1704067200` (January 1, 2024 00:00:00 UTC)  
+**Genesis Hash:** `000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f`
+**Genesis Timestamp:** `1704067200` (January 1, 2024 00:00:00 UTC)
 **Genesis File:** [`genesis/mainnet.json`](../genesis/mainnet.json)
 
 **Consensus:**
@@ -51,7 +51,7 @@ seed5.bitquan.network:8333
 
 ### RPC Endpoint
 
-**Default:** `http://localhost:8332`  
+**Default:** `http://localhost:8332`
 **Authentication:** JWT tokens (required for production)
 
 Example RPC call:
@@ -64,7 +64,7 @@ curl -X POST http://localhost:8332 \
 
 ### Stratum Mining Pool
 
-**Default:** `stratum+tcp://localhost:3333`  
+**Default:** `stratum+tcp://localhost:3333`
 **Supported Algorithms:** SHA-256d (block 0+), RandomX & Ethash (block 10,000+)
 
 **Miner Connection:**
@@ -205,7 +205,7 @@ View:
 
 For testing before mainnet:
 
-**Testnet Faucet:** `https://faucet.bitquan.org`  
+**Testnet Faucet:** `https://faucet.bitquan.org`
 **Testnet Explorer:** `https://testnet-explorer.bitquan.org`
 
 Testnet allows:
@@ -248,7 +248,7 @@ For future releases:
 
 For verifying signed communications and releases:
 
-**Release Signing Key:**  
+**Release Signing Key:**
 `AB12 34CD 56EF 7890 1234  5678 90AB CDEF 0123 4567` (example)
 
 Import key:
@@ -280,7 +280,7 @@ Apache 2.0 - See [LICENSE](../LICENSE)
 
 ---
 
-**Prepared by:** BitQuan Core Team  
+**Prepared by:** BitQuan Core Team
 **Last Updated:** 2025-11-06
 
 **Ready for Launch:** ✅ (Pending final audit)

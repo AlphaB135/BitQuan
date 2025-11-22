@@ -167,7 +167,7 @@ The `preflight_report.md` file is the primary output of the preflight validation
 | Genesis Hash Verification | ❌ FAIL | Hash mismatch: expected 00000..., got 11111... |
 ```
 
-**Action:** 
+**Action:**
 - Update `docs/GENESIS.md` with correct hash
 - OR regenerate genesis file if incorrect
 
@@ -487,6 +487,6 @@ The `preflight_report.md` file is your **single source of truth** for pre-launch
 
 ---
 
-*Document Version: 1.0.0*  
-*Last Updated: November 6, 2024*  
+*Document Version: 1.0.0*
+*Last Updated: November 6, 2024*
 *Phase: 6.5 - Pre-Launch Validation*

@@ -16,7 +16,7 @@
 ## 🔴 CRITICAL - Must Fix Before Mainnet
 
 ### 1. Security: Production Unwraps (Priority #1)
-- **Current:** 344 unwrap() in production code  
+- **Current:** 344 unwrap() in production code
 - **Target:** < 50 (85% reduction needed)
 - **Risk:** Potential panics in production
 - **Timeline:** 1-2 weeks intensive work
@@ -24,7 +24,7 @@
 **Top files to fix:**
 ```
 crates/wallet/src/multisig.rs      (~37 unwraps)
-crates/node/src/mnemonic.rs        (~32 unwraps)  
+crates/node/src/mnemonic.rs        (~32 unwraps)
 crates/consensus/src/fork.rs       (~27 unwraps)
 crates/mempool/src/lib.rs          (~21 unwraps)
 crates/consensus/src/sighash.rs    (~20 unwraps)
@@ -55,7 +55,7 @@ crates/consensus/src/sighash.rs    (~20 unwraps)
 
 **Must benchmark:**
 - Block validation time
-- Transaction signature verification  
+- Transaction signature verification
 - Mempool operations
 - Database reads/writes
 
@@ -140,7 +140,7 @@ crates/consensus/src/sighash.rs    (~20 unwraps)
 - [ ] Remove dead code OR document why it exists
 - [ ] Add overflow tests for all arithmetic
 
-### Phase 2: Observability (3 days)  
+### Phase 2: Observability (3 days)
 - [ ] Add benchmarks (consensus, crypto, mempool)
 - [ ] Add /metrics endpoint
 - [ ] Create performance baseline docs
@@ -167,8 +167,8 @@ crates/consensus/src/sighash.rs    (~20 unwraps)
 
 ## ⏱️ Estimated Timeline to Mainnet
 
-**Optimistic:** 6-8 weeks (if full-time focus)  
-**Realistic:** 10-12 weeks (part-time + reviews)  
+**Optimistic:** 6-8 weeks (if full-time focus)
+**Realistic:** 10-12 weeks (part-time + reviews)
 **Conservative:** 16 weeks (with external audit delays)
 
 ---
@@ -182,7 +182,7 @@ crates/consensus/src/sighash.rs    (~20 unwraps)
 4. ✅ External audit completed (find blind spots)
 5. ✅ Testnet runs 6+ weeks (stability proof)
 
-**Current status:** ~30-40% ready for mainnet  
+**Current status:** ~30-40% ready for mainnet
 **Next step:** Focus on Security Phase (unwrap elimination)
 
 ---
@@ -190,7 +190,7 @@ crates/consensus/src/sighash.rs    (~20 unwraps)
 ## 📋 Next Actions (This Week)
 
 1. **Monday-Tuesday:** Fix wallet unwraps (37 → 0)
-2. **Wednesday-Thursday:** Fix node unwraps (32 → 0)  
+2. **Wednesday-Thursday:** Fix node unwraps (32 → 0)
 3. **Friday:** Add benchmarks skeleton
 4. **Weekend:** Start metrics endpoint
 

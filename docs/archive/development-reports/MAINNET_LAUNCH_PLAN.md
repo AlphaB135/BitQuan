@@ -1,5 +1,5 @@
 # 🚀 BitQuan Mainnet Launch Plan
-**Last Updated:** 2025-11-08  
+**Last Updated:** 2025-11-08
 **Current Status:** 🟡 30-40% Ready (Pre-Alpha)
 
 ---
@@ -11,7 +11,7 @@
 - **Root Cause:** rocksdb 0.22 incompatible with RocksDB 10.7.5
 - **Solution Applied:**
   1. Installed RocksDB 10.7.5 via Homebrew
-  2. Upgraded rocksdb crate: `0.22 → 0.23`  
+  2. Upgraded rocksdb crate: `0.22 → 0.23`
   3. Set env vars: `ROCKSDB_LIB_DIR`, `ROCKSDB_INCLUDE_DIR`
 - **Status:** ✅ **RESOLVED** - Build completes successfully
 
@@ -43,7 +43,7 @@
 - [ ] Test: All wallet operations handle errors gracefully
 - **Target:** -52 unwraps
 
-#### Wednesday-Thursday: Node Unwrap Elimination  
+#### Wednesday-Thursday: Node Unwrap Elimination
 - [ ] Fix `crates/node/src/mnemonic.rs` (32 unwraps → 0)
 - [ ] Fix `crates/node/src/tx_builder.rs` (est. 10 unwraps → 0)
 - [ ] Test: CLI commands don't panic
@@ -309,15 +309,15 @@
 
 ## 📞 Emergency Contacts
 
-**Security Issues:**  
+**Security Issues:**
 - Email: security@bitquan.org (if exists)
 - GitHub: Security Advisories (private)
 
-**Build Issues:**  
+**Build Issues:**
 - GitHub Issues: Public tracker
 - CI/CD: GitHub Actions logs
 
-**Community:**  
+**Community:**
 - Discord/Telegram: TBD
 - Twitter: TBD
 
@@ -367,9 +367,9 @@
 
 ---
 
-**Estimated Total Time to Mainnet:**  
+**Estimated Total Time to Mainnet:**
 - **Optimistic:** 6 weeks (if full-time)
-- **Realistic:** 10 weeks (if part-time + waiting for audit)  
+- **Realistic:** 10 weeks (if part-time + waiting for audit)
 - **Conservative:** 16 weeks (with delays and iterations)
 
 **Next Milestone:** Week 1 complete (Nov 15) - Security 65→75
@@ -377,4 +377,3 @@
 ---
 
 *"Better to delay mainnet 3 months than launch with security holes."*
-

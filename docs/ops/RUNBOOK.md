@@ -1,7 +1,7 @@
 # BitQuan Operations Runbook
 
-**Version**: 1.0  
-**Last Updated**: 2024-11-04  
+**Version**: 1.0
+**Last Updated**: 2024-11-04
 **Audience**: Node operators, emergency responders
 
 ---
@@ -612,6 +612,6 @@ After any incident, create post-mortem:
 
 ---
 
-**Runbook Version**: 1.0  
-**Maintained by**: BitQuan Core Team  
+**Runbook Version**: 1.0
+**Maintained by**: BitQuan Core Team
 **Last Tested**: 2024-11-04

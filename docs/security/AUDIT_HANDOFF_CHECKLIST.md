@@ -28,7 +28,7 @@ Auditors should prioritize:
 Upon completion, auditors must produce:
 
 ### 1. Audit Report (JSON)
-**File:** `auditor_report.json`  
+**File:** `auditor_report.json`
 **Schema:**
 ```json
 {
@@ -51,11 +51,11 @@ Upon completion, auditors must produce:
 ```
 
 ### 2. Differential Analysis
-**File:** `auditor_diff.md`  
+**File:** `auditor_diff.md`
 Changes since last audit (if applicable), with risk assessment for each delta.
 
 ### 3. Attestation Signature
-**File:** `attestation.sig`  
+**File:** `attestation.sig`
 PGP/GPG signature of `auditor_report.json` for authenticity verification.
 
 ## Delivery

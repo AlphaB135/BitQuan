@@ -1,7 +1,7 @@
 # BitQuan Security Review Summary (v1.0.0-pre)
 
-**Overall Rating:** A+ (99/100)  
-**Last Verified:** 2025-11-09  
+**Overall Rating:** A+ (99/100)
+**Last Verified:** 2025-11-09
 **Status:** Ready for Public Testnet
 
 ## Executive Summary
@@ -12,7 +12,7 @@ BitQuan has completed comprehensive security hardening across all critical areas
 
 ### Cryptographic Security
 - **Post-Quantum Cryptography**: CRYSTALS-Dilithium3 signatures implemented and production-ready
-- **Constant-Time Operations**: All sensitive comparisons use `subtle::ConstantTimeEq` 
+- **Constant-Time Operations**: All sensitive comparisons use `subtle::ConstantTimeEq`
 - **Memory Security**: Private keys locked with `mlock()` on Unix systems
 - **Zeroization**: Complete memory zeroization on drop via `zeroize` crate
 - **No Unsafe Code**: Zero `unsafe` blocks in production code paths
@@ -31,7 +31,7 @@ BitQuan has completed comprehensive security hardening across all critical areas
 ## Issues Addressed [DONE]
 
 ### Memory Protection
-- [DONE] **Memory Locking**: Private keys locked in RAM with `mlock()` 
+- [DONE] **Memory Locking**: Private keys locked in RAM with `mlock()`
 - [DONE] **Graceful Degradation**: Non-Unix systems handled gracefully
 - [DONE] **Feature Gated**: Optional memory-locking for compatibility
 

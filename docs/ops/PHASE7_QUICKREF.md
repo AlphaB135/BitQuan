@@ -172,9 +172,9 @@ promtool check rules alerts/mainnet-rules.yml
 ## 🔐 Security Gates
 
 ### Mainnet Invariants
-✅ **PoW Algorithm**: SHA-256d from genesis, RandomX/Ethash at block 10,000  
-✅ **RPC Auth**: TLS + JWT (no Basic Auth)  
-✅ **Rate Limiting**: Enabled (CORS, CSRF, request quotas)  
+✅ **PoW Algorithm**: SHA-256d from genesis, RandomX/Ethash at block 10,000
+✅ **RPC Auth**: TLS + JWT (no Basic Auth)
+✅ **Rate Limiting**: Enabled (CORS, CSRF, request quotas)
 ✅ **Mock PoW**: Forbidden on mainnet (returns error)
 
 ### Build Verification
@@ -261,5 +261,5 @@ sha256sum target/release/bitquan-node
 
 ---
 
-**Phase 7 Quick Reference** — Updated 2025-11-06  
+**Phase 7 Quick Reference** — Updated 2025-11-06
 **Full Details**: [PHASE7_COMPLETE.md](./PHASE7_COMPLETE.md)

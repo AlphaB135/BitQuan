@@ -122,7 +122,7 @@ cargo run --bin bitquan-node -- --track-invalid-blocks
 // Alert on deep reorgs
 if reorg.depth() > MAX_SAFE_REORG_DEPTH {
     alert_system.send_alert(&format!(
-        "Deep reorg detected: {} blocks", 
+        "Deep reorg detected: {} blocks",
         reorg.depth()
     ));
 }
@@ -242,9 +242,9 @@ cargo run --bin bitquan-node -- --health-check
 
 BitQuan security ให้:
 
-✅ **Automatic Protection** - ไม่ต้อง manual intervention  
-✅ **Mathematical Security** - ความปลอดภัยจาก proof-of-work  
-✅ **Decentralized Response** - Network ป้องกันตัวเอง  
-✅ **Transparent Rules** - ทุกคนรู้กฎเดียวกัน  
+✅ **Automatic Protection** - ไม่ต้อง manual intervention
+✅ **Mathematical Security** - ความปลอดภัยจาก proof-of-work
+✅ **Decentralized Response** - Network ป้องกันตัวเอง
+✅ **Transparent Rules** - ทุกคนรู้กฎเดียวกัน
 
 **True Decentralization** - ความปลอดภัยจาก mathematics ไม่ใช่ authorities

@@ -201,18 +201,18 @@ const MIN_HASHRATE_THRESHOLD: f64 = 0.3; // 30% of normal
 ## ⚡ Quick Tips
 
 ### Do's
-✅ Monitor network health continuously  
-✅ Set up alerting for anomalies  
-✅ Keep software updated  
-✅ Diversify mining pools  
-✅ Run full validation nodes  
+✅ Monitor network health continuously
+✅ Set up alerting for anomalies
+✅ Keep software updated
+✅ Diversify mining pools
+✅ Run full validation nodes
 
 ### Don'ts
-❌ Ignore invalid block spikes  
-❌ Disable validation for speed  
-❌ Run with centralized features  
-❌ Trust single data source  
-❌ Skip security updates  
+❌ Ignore invalid block spikes
+❌ Disable validation for speed
+❌ Run with centralized features
+❌ Trust single data source
+❌ Skip security updates
 
 ---
 

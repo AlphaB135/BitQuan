@@ -1,6 +1,6 @@
 # Transaction Specification
 
-Version: 0.0.1-alpha  
+Version: 0.0.1-alpha
 Status: Draft
 
 ## Overview

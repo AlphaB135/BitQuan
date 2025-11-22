@@ -46,7 +46,7 @@ You'll receive **100 testnet BQ** for testing!
 
 ### 🔰 Beginner Level
 - ✅ Create and restore wallets
-- ✅ Send and receive transactions  
+- ✅ Send and receive transactions
 - ✅ Check balances
 - ✅ Use the faucet
 
@@ -130,7 +130,7 @@ See detailed guide: [docs/TESTNET_SETUP.md](docs/TESTNET_SETUP.md)
 ## 🗺️ Testnet Roadmap
 
 ### Phase 1: Core Testing ✅ (Current)
-**Duration**: 2 weeks  
+**Duration**: 2 weeks
 **Focus**: Basic functionality
 - [x] Node stability
 - [x] Wallet operations
@@ -139,10 +139,10 @@ See detailed guide: [docs/TESTNET_SETUP.md](docs/TESTNET_SETUP.md)
 - [ ] 1000+ transactions
 
 ### Phase 2: Mining Testing
-**Duration**: 2 weeks  
+**Duration**: 2 weeks
 **Focus**: Mining functionality
 - [ ] Solo mining
-- [ ] Pool mining  
+- [ ] Pool mining
 - [ ] Algorithm testing
 - [ ] 50+ miners
 - [ ] 500+ blocks mined
@@ -182,7 +182,7 @@ See detailed guide: [docs/TESTNET_SETUP.md](docs/TESTNET_SETUP.md)
 
 ### Get Help
 - 💬 **Discord**: https://discord.gg/bitquan
-- 📱 **Telegram**: https://t.me/bitquan_testnet  
+- 📱 **Telegram**: https://t.me/bitquan_testnet
 - 🐦 **Twitter**: https://twitter.com/bitquan
 - 📧 **Email**: testnet@bitquan.io
 

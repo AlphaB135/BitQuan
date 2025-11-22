@@ -69,7 +69,7 @@ forbidden_keywords:
   - "hidden_feature"
   - "secret_mode"
   - "hardcoded_address"
-  
+
 action: FAIL_BUILD
 ```
 
@@ -345,6 +345,6 @@ NO EXCEPTIONS.
 
 **This policy is legally binding on all BitQuan contributors and maintainers.**
 
-**Signed**: BitQuan Core Team  
-**Date**: 2025-10-25  
+**Signed**: BitQuan Core Team
+**Date**: 2025-10-25
 **GPG Signature**: [To be added]

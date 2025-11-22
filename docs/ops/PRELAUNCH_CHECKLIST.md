@@ -372,6 +372,6 @@ For preflight validation issues:
 
 ---
 
-*Last Updated: November 2024*  
-*Phase: 6.5 - Pre-Launch Validation*  
+*Last Updated: November 2024*
+*Phase: 6.5 - Pre-Launch Validation*
 *Document Version: 1.0.0*

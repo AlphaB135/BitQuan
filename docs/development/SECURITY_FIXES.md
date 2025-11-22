@@ -4,7 +4,7 @@
 
 ### 1. ✅ Dilithium Signature Verification Implementation (CRITICAL)
 **Previous State**: Placeholder that always returned `NotImplemented` error
-**Fix Applied**: 
+**Fix Applied**:
 - Integrated `pqc_dilithium` crate v0.2
 - Implemented actual signature verification with proper size validation
 - Added DoS protection (1MB message size limit)
@@ -87,7 +87,7 @@
 - [ ] **Rate Limiting Implementation**: Network layer actual enforcement
 - [ ] **Memory Lock for Secrets**: Use mlock() for sensitive data
 
-### Medium Priority  
+### Medium Priority
 - [ ] **Block Propagation**: Compact blocks implementation
 - [ ] **P2P Anti-Sybil**: Implement peer reputation system
 - [ ] **Storage Integrity**: Add checksums and corruption detection
@@ -109,7 +109,7 @@
 ## Testing Status
 ✅ All tests passing (21 tests total)
 - Consensus: 14 tests
-- Types validation: 4 tests  
+- Types validation: 4 tests
 - Crypto RNG: 3 tests
 
 ## Build Status

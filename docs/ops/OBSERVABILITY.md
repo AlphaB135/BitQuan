@@ -1,7 +1,7 @@
 # BitQuan Observability & Monitoring
 
-**Version**: 1.0  
-**Last Updated**: 2024-11-04  
+**Version**: 1.0
+**Last Updated**: 2024-11-04
 **Audience**: DevOps, Node Operators, SRE
 
 ---
@@ -735,6 +735,6 @@ promtool check rules alerts/mainnet-rules.yml
 
 ---
 
-**Document Version**: 1.1  
-**Maintainer**: BitQuan DevOps Team  
+**Document Version**: 1.1
+**Maintainer**: BitQuan DevOps Team
 **Last Updated**: 2025-11-06

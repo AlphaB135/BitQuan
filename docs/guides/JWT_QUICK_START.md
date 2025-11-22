@@ -10,7 +10,7 @@
 
 ### What we'll build:
 - ✅ JWT token generation
-- ✅ JWT token verification  
+- ✅ JWT token verification
 - ✅ Bearer token authentication
 - ✅ Basic role checking
 - ✅ Login endpoint
@@ -61,11 +61,11 @@ impl Claims {
             iat: now,
         }
     }
-    
+
     pub fn is_expired(&self) -> bool {
         chrono::Utc::now().timestamp() > self.exp
     }
-    
+
     pub fn is_admin(&self) -> bool {
         self.role == "admin"
     }
@@ -91,21 +91,21 @@ impl TokenGenerator {
             secret: secret.as_bytes().to_vec(),
         }
     }
-    
+
     pub fn generate(&self, username: &str, role: &str) -> Result<String, Error> {
         let claims = Claims::new(
             username.to_string(),
             role.to_string(),
             3600,  // 1 hour
         );
-        
+
         encode(
             &Header::default(),
             &claims,
             &EncodingKey::from_secret(&self.secret),
         )
     }
-    
+
     pub fn verify(&self, token: &str) -> Result<Claims, Error> {
         decode::<Claims>(
             token,
@@ -119,7 +119,7 @@ impl TokenGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_token_roundtrip() {
         let gen = TokenGenerator::new("test-secret-key-123");
@@ -154,7 +154,7 @@ struct UserCredentials {
 impl JwtAuth {
     pub fn new(secret: &str) -> Self {
         let mut users = HashMap::new();
-        
+
         // Default admin user (TODO: load from config)
         users.insert(
             "admin".to_string(),
@@ -163,13 +163,13 @@ impl JwtAuth {
                 role: "admin".to_string(),
             },
         );
-        
+
         Self {
             token_gen: TokenGenerator::new(secret),
             users,
         }
     }
-    
+
     pub fn login(&self, username: &str, password: &str) -> Result<String, String> {
         match self.users.get(username) {
             Some(creds) if creds.password == password => {
@@ -180,7 +180,7 @@ impl JwtAuth {
             _ => Err("Invalid credentials".to_string()),
         }
     }
-    
+
     pub fn verify_token(&self, token: &str) -> Result<Claims, String> {
         self.token_gen
             .verify(token)
@@ -234,7 +234,7 @@ pub struct RpcServer<T> {
 fn handle_connection() {
     // Extract Authorization header
     let auth_header = extract_auth_header(&headers)?;
-    
+
     match &auth {
         Some(AuthMethod::Basic(basic_auth)) => {
             // Old way - Basic Auth
@@ -268,7 +268,7 @@ fn handle_connection() {
 if method == "POST" && path == "/auth/login" {
     // Parse login request
     let body: LoginRequest = serde_json::from_slice(&body)?;
-    
+
     if let Some(AuthMethod::Jwt(jwt_auth)) = &auth {
         match jwt_auth.login(&body.username, &body.password) {
             Ok(token) => {
@@ -339,14 +339,14 @@ curl -X POST http://localhost:8332 \
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_jwt_login() {
         let jwt_auth = JwtAuth::new("test-secret");
         let token = jwt_auth.login("admin", "admin123").unwrap();
         assert!(!token.is_empty());
     }
-    
+
     #[test]
     fn test_jwt_verification() {
         let jwt_auth = JwtAuth::new("test-secret");
@@ -355,7 +355,7 @@ mod tests {
         assert_eq!(claims.sub, "admin");
         assert!(claims.is_admin());
     }
-    
+
     #[test]
     fn test_invalid_credentials() {
         let jwt_auth = JwtAuth::new("test-secret");
@@ -389,7 +389,7 @@ Once MVP works, add:
 1. **Password Hashing**
    ```rust
    use argon2::{Argon2, PasswordHasher};
-   
+
    fn hash_password(password: &str) -> String {
        // Use argon2 (we already have it!)
    }
@@ -401,7 +401,7 @@ Once MVP works, add:
    username = "admin"
    password_hash = "$argon2id$..."
    role = "admin"
-   
+
    [[users]]
    username = "miner1"
    password_hash = "$argon2id$..."

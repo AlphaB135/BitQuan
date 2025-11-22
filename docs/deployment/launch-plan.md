@@ -42,7 +42,7 @@ echo "Genesis timestamp: $GENESIS_TIMESTAMP"
 
 ### Recommended Launch Time
 - **Date:** January 1, 2025
-- **Time:** 00:00:00 UTC  
+- **Time:** 00:00:00 UTC
 - **Unix Timestamp:** 1735689600
 - **Reason:** New Year symbolism, global participation
 
@@ -86,7 +86,7 @@ pub const GENESIS_HASH: &str = "<NEW_HASH>";
 - [ ] Security audit passed
 - [ ] Load testing completed
 
-### Community Readiness  
+### Community Readiness
 - [ ] Mining pools ready
 - [ ] Exchanges listed (future)
 - [ ] Wallet applications available

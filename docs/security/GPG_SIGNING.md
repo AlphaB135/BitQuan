@@ -222,18 +222,18 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          
+
       - name: Import Maintainer Keys
         run: |
           for key in docs/security/keys/maintainers/*.asc; do
             gpg --import "$key"
           done
-          
+
       - name: Verify Commits
         run: |
           # Get commits in PR
           commits=$(git log origin/main..HEAD --format="%H")
-          
+
           for commit in $commits; do
             if ! git verify-commit "$commit" 2>/dev/null; then
               echo "❌ Commit $commit is not signed!"
@@ -396,6 +396,6 @@ gpg --edit-key ABCD1234EFGH5678
 
 ---
 
-**For BitQuan Security Questions**: security@bitquan.org  
-**Last Updated**: 2025-10-25  
+**For BitQuan Security Questions**: security@bitquan.org
+**Last Updated**: 2025-10-25
 **Next Review**: 2026-01-25

@@ -6,35 +6,35 @@ Fuzzing infrastructure prepared for continuous security testing.
 
 ## Current Status
 
-**Infrastructure**: ✅ Ready  
-**Targets**: 📝 Planned  
+**Infrastructure**: ✅ Ready
+**Targets**: 📝 Planned
 **Coverage**: 🔄 Initial phase
 
 ## Planned Fuzz Targets
 
 ### 1. Transaction Parsing (`tx_fuzz`)
-**Target**: Transaction deserialization  
-**Focus**: Malformed transaction handling  
+**Target**: Transaction deserialization
+**Focus**: Malformed transaction handling
 **Priority**: High
 
 ### 2. Mempool Operations (`mempool_fuzz`)
-**Target**: Transaction insertion/validation  
-**Focus**: Edge cases in fee calculation  
+**Target**: Transaction insertion/validation
+**Focus**: Edge cases in fee calculation
 **Priority**: High
 
 ### 3. Wallet Keystore (`wallet_fuzz`)
-**Target**: Keystore encryption/decryption  
-**Focus**: Password handling, KDF edge cases  
+**Target**: Keystore encryption/decryption
+**Focus**: Password handling, KDF edge cases
 **Priority**: Medium
 
 ### 4. RPC Parser (`rpc_fuzz`)
-**Target**: JSON-RPC request parsing  
-**Focus**: Malformed requests, injection attempts  
+**Target**: JSON-RPC request parsing
+**Focus**: Malformed requests, injection attempts
 **Priority**: Medium
 
 ### 5. Block Validation (`block_fuzz`)
-**Target**: Block header validation  
-**Focus**: Difficulty calculation, timestamp checks  
+**Target**: Block header validation
+**Focus**: Difficulty calculation, timestamp checks
 **Priority**: High
 
 ## Setup Instructions
@@ -101,5 +101,5 @@ Expected benefits:
 
 ---
 
-**Status**: Infrastructure ready, implementation in progress  
+**Status**: Infrastructure ready, implementation in progress
 **Last Updated**: November 4, 2024

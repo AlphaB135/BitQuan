@@ -12,7 +12,7 @@
    - Added `Result<T>` type alias
    - Status: ✅ Compiles with 2 documentation warnings (non-critical)
 
-2. **crates/network/src/relay.rs** 
+2. **crates/network/src/relay.rs**
    - Converted 8 `.expect("relay lock poisoned")` → `map_err(NetworkError::LockPoisoned)`
    - Changed 9 method signatures to return `Result<T>`
    - Updated tests to use `.unwrap()` (acceptable in test code)
@@ -69,7 +69,7 @@
 6. **crates/crypto/src/wallet/kdf.rs**
    - `.expect("OS RNG failure")` - line 68
    - Add proper error handling
-   
+
 7. **crates/node/src/mnemonic.rs**
    - Multiple `.unwrap()` calls
    - Wallet generation failures
@@ -84,7 +84,7 @@
 // ❌ Before
 let data = mutex.lock().expect("lock poisoned");
 
-// ✅ After  
+// ✅ After
 let data = mutex.lock()
     .map_err(|e| Error::LockPoisoned(format!("field_name: {}", e)))?;
 ```

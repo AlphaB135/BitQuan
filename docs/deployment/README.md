@@ -6,7 +6,7 @@ This directory contains comprehensive infrastructure-as-code and deployment auto
 
 ### Environments
 - **Staging**: Development and testing environment (2 replicas)
-- **Testnet**: Public test network (3 replicas) 
+- **Testnet**: Public test network (3 replicas)
 - **Mainnet**: Production network (5+ replicas with auto-scaling)
 
 ### Technology Stack
@@ -49,7 +49,7 @@ deploy/
    ```bash
    # Install CLI tools
    brew install terraform kubectl helm docker
-   
+
    # AWS CLI and authentication
    aws configure
    ```
@@ -221,10 +221,10 @@ Critical alerts are configured for:
    ```bash
    # Check deployment status
    kubectl get deployment bitquan-node -n bitquan-staging -o wide
-   
+
    # Check pod logs
    kubectl logs -f deployment/bitquan-node -n bitquan-staging
-   
+
    # Describe pod for errors
    kubectl describe pod -l app=bitquan-node -n bitquan-staging
    ```
@@ -234,7 +234,7 @@ Critical alerts are configured for:
    # Test health endpoint directly
    kubectl port-forward service/bitquan-node 8080:80 -n bitquan-staging
    curl http://localhost:8080/health
-   
+
    # Check resource limits
    kubectl top pods -n bitquan-staging
    ```
@@ -243,7 +243,7 @@ Critical alerts are configured for:
    ```bash
    # Check Terraform state
    terraform show
-   
+
    # Validate AWS resources
    aws eks describe-cluster --name bitquan-staging
    ```

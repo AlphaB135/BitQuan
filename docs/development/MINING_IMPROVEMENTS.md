@@ -3,7 +3,7 @@
 ## 🟢 ปัญหาที่แก้สำเร็จ (From 🟡 → ✅)
 
 ### 1. ✅ **Persistent Mining** (แก้แล้ว!)
-**ก่อน**: ⚠️ In-Memory Only - เมื่อปิดโปรแกรม chain หาย  
+**ก่อน**: ⚠️ In-Memory Only - เมื่อปิดโปรแกรม chain หาย
 **ตอนนี้**: ✅ RocksDB persistent storage - เปิดใหม่ขุดต่อได้!
 
 **หลักฐาน**:
@@ -15,7 +15,7 @@ $ ./target/release/bitquan-node mine
 ```
 
 ### 2. ✅ **Continuous Mining** (แก้แล้ว!)
-**ก่อน**: ⚠️ Single Block Mining - ขุดทีละบล็อก ไม่ต่อเนื่อง  
+**ก่อน**: ⚠️ Single Block Mining - ขุดทีละบล็อก ไม่ต่อเนื่อง
 **ตอนนี้**: ✅ Loop ขุดต่อเนื่องอัตโนมัติ ไม่ต้อง restart!
 
 **หลักฐาน**:
@@ -27,7 +27,7 @@ $ ./target/release/bitquan-node mine
 ```
 
 ### 3. ✅ **Auto Difficulty** (แก้แล้ว!)
-**ก่อน**: ⚠️ Easy Difficulty - ต้องใส่ bits manual  
+**ก่อน**: ⚠️ Easy Difficulty - ต้องใส่ bits manual
 **ตอนนี้**: ✅ Auto-adjust difficulty หา nonce ไม่เจอ
 
 **Features**:
@@ -49,16 +49,16 @@ $ ./target/release/bitquan-node mine
 
 ## 🟡 ยังทำไม่เสร็จ (TODO ต่อไป)
 
-### 1. ⏳ **No Network** 
-**สถานะ**: ⚠️ ยังขุดคนเดียว ไม่มี P2P broadcast  
+### 1. ⏳ **No Network**
+**สถานะ**: ⚠️ ยังขุดคนเดียว ไม่มี P2P broadcast
 **ต้องทำ**:
 - P2P block relay
 - Peer discovery
 - Chain sync between nodes
 
 ### 2. ⏳ **CPU Only**
-**สถานะ**: ⚠️ ไม่มี GPU miner  
-**ต้องทำ**: 
+**สถานะ**: ⚠️ ไม่มี GPU miner
+**ต้องทำ**:
 - OpenCL/CUDA miner
 - SIMD optimization
 - Multi-threaded mining (ตอนนี้มี --threads แต่ยังไม่ใช้งาน)
@@ -67,7 +67,7 @@ $ ./target/release/bitquan-node mine
 
 ## 🔴 ยังต้องทำ (Future Work)
 
-### 1. ❌ **Mining Pool** 
+### 1. ❌ **Mining Pool**
 **ต้องทำ**:
 - Stratum protocol server
 - Share validation
@@ -180,7 +180,7 @@ RocksDBStore (persistent)
 
 ---
 
-**Conclusion**: 
+**Conclusion**:
 - ✅ 5/8 ข้อจำกัดแก้เสร็จแล้ว (62.5%)
 - 🎉 **ขุดได้จริง persistent แล้ว!**
 - 🚀 **พร้อมสำหรับ solo mining**

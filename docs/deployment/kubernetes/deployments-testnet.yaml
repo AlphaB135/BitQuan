@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bitquan-node
+  namespace: bitquan-testnet
+  labels:
+    app: bitquan-node
+    environment: testnet
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: bitquan-node
+  template:
+    metadata:
+      labels:
+        app: bitquan-node
+        environment: testnet
+    spec:
+      serviceAccountName: bitquan-node
+      containers:
+      - name: bitquan-node
+        image: ghcr.io/alphab/bitquan:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8081
+          name: metrics
+        - containerPort: 3333
+          name: stratum
+        env:
+        - name: RUST_LOG
+          value: "info,bitquan=info"
+        - name: CONFIG_PATH
+          value: "/etc/bitquan/config.toml"
+        - name: DATA_DIR
+          value: "/data/bitquan"
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: config
+          mountPath: /etc/bitquan
+        - name: data
+          mountPath: /data
+        - name: logs
+          emptyDir: {}
+      volumes:
+      - name: config
+        configMap:
+          name: bitquan-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: bitquan-data-testnet
+      - name: logs
+        emptyDir: {}

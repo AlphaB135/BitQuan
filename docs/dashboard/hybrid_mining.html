@@ -204,11 +204,11 @@
             .charts-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .stats-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .container {
                 padding: 1rem;
             }
@@ -415,7 +415,7 @@
             const days = Math.floor(seconds / 86400);
             const hours = Math.floor((seconds % 86400) / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
-            
+
             if (days > 0) return `${days}d ${hours}h`;
             if (hours > 0) return `${hours}h ${minutes}m`;
             return `${minutes}m`;
@@ -458,7 +458,7 @@
             hashrateChart.update();
 
             // Update last updated time
-            document.getElementById('last-updated').textContent = 
+            document.getElementById('last-updated').textContent =
                 `Last updated: ${new Date().toLocaleString()}`;
         }
 
@@ -471,10 +471,10 @@
 
             miners.forEach(miner => {
                 const row = document.createElement('tr');
-                
+
                 const algoClass = `algo-${miner.algo}`;
                 const efficiencyWidth = Math.min(100, Math.max(0, miner.efficiency));
-                
+
                 row.innerHTML = `
                     <td>${miner.address.substring(0, 20)}...</td>
                     <td><span class="algo-badge ${algoClass}">${miner.algo}</span></td>
@@ -489,7 +489,7 @@
                     <td>${formatUptime(miner.uptime)}</td>
                     <td>${miner.shares_ok.toLocaleString()}</td>
                 `;
-                
+
                 tbody.appendChild(row);
             });
         }
@@ -498,7 +498,7 @@
         function connect() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.hostname}:8081`;
-            
+
             try {
                 ws = new WebSocket(wsUrl);
 
@@ -510,7 +510,7 @@
                 ws.onmessage = function(event) {
                     try {
                         const message = JSON.parse(event.data);
-                        
+
                         if (message.type === 'stats') {
                             updateStats(message.data);
                         } else if (message.type === 'miners') {
@@ -534,7 +534,7 @@
 
             } catch (error) {
                 console.error('Failed to connect:', error);
-                document.getElementById('last-updated').textContent = 
+                document.getElementById('last-updated').textContent =
                     'Failed to connect to dashboard. Retrying...';
                 setTimeout(connect, 5000);
             }

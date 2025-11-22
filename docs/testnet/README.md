@@ -102,7 +102,7 @@ Hybrid miner exposes detailed per-algorithm metrics:
 # Total blocks mined per algorithm
 pow_mined_blocks_total{algo="sha256d|randomx"}
 
-# Total hash attempts per algorithm  
+# Total hash attempts per algorithm
 pow_hash_attempts_total{algo="sha256d|randomx"}
 
 # PoW verification failures (should be rare)
@@ -283,7 +283,7 @@ Run BitQuan as a complete mining pool with real-time dashboard and variable diff
 # Pool statistics stream
 ws://localhost:8081/ws/stats
 
-# Active miners stream  
+# Active miners stream
 ws://localhost:8081/ws/miners
 ```
 

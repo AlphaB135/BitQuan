@@ -26,7 +26,7 @@ Running `./verify_release.sh`:
 
 ```
 ✅ PASS - README version v0.0.2-alpha
-✅ PASS - README tests 522 passing  
+✅ PASS - README tests 522 passing
 ✅ PASS - README completion 98%
 ✅ PASS - docs/TESTNET_README.md exists
 ✅ PASS - Security email specified
@@ -58,7 +58,7 @@ Running `./verify_release.sh`:
 All Phase 7 components are implemented and documented:
 
 ### 1. External Audit Integration ✅
-- **Files**: 
+- **Files**:
   - `.github/workflows/audit-report.yml` (workflow_dispatch + preflight trigger)
   - `docs/AUDIT_HANDOFF_CHECKLIST.md` (comprehensive auditor guide)
   - `tests/audit_report_schema.rs` (JSON schema validation)
@@ -80,7 +80,7 @@ All Phase 7 components are implemented and documented:
 - **Scripts**: `build-release.sh`, `deploy-cluster.sh`, `verify-signature.sh`
 
 ### 4. DNS Bootstrap ✅
-- **Files**: 
+- **Files**:
   - `crates/tools/preflight/src/main.rs` (--dns-seed-threshold flag)
   - `docs/GENESIS.md` (final seed FQDNs and policy)
   - `dns_seeds.txt` (≥60% reachability requirement)
@@ -106,7 +106,7 @@ cargo test --all --locked
 
 **Results**: 522 tests passing
 - Consensus: 91 tests ✅
-- Crypto: 16 tests ✅  
+- Crypto: 16 tests ✅
 - Mempool: 45 tests ✅
 - Network: 38 tests ✅
 - RPC: 52 tests ✅

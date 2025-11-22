@@ -32,29 +32,29 @@ mapfile -t NODES < "$NODES_FILE"
 for NODE in "${NODES[@]}"; do
     # Skip comments and empty lines
     [[ "$NODE" =~ ^#.*$ || -z "$NODE" ]] && continue
-    
+
     echo ""
     echo "Deploying to: $NODE"
-    
+
     # Stop existing node
     ssh "$DEPLOY_USER@$NODE" "systemctl --user stop bitquan-node || true"
-    
+
     # Backup existing binary
     ssh "$DEPLOY_USER@$NODE" "[ -f $REMOTE_DIR/bitquan-node ] && mv $REMOTE_DIR/bitquan-node $REMOTE_DIR/bitquan-node.bak || true"
-    
+
     # Upload new binary
     scp "$DIST_DIR/bitquan-node" "$DEPLOY_USER@$NODE:$REMOTE_DIR/"
-    
+
     # Set permissions
     ssh "$DEPLOY_USER@$NODE" "chmod +x $REMOTE_DIR/bitquan-node"
-    
+
     # Restart node
     ssh "$DEPLOY_USER@$NODE" "systemctl --user start bitquan-node"
-    
+
     # Check status
     sleep 2
     ssh "$DEPLOY_USER@$NODE" "systemctl --user status bitquan-node --no-pager" || true
-    
+
     echo "✓ Deployed to $NODE"
 done
 

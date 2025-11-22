@@ -156,7 +156,7 @@ sudo nano /etc/bitquan/mainnet.toml
 [network.p2p]
 bootstrap_peers = [
     "mainnet1.bitquan.org:8333",
-    "mainnet2.bitquan.org:8333", 
+    "mainnet2.bitquan.org:8333",
     "mainnet3.bitquan.org:8333"
 ]
 ```
@@ -221,7 +221,7 @@ bitquan-cli getnetworkinfo
 # Block height
 bitquan-cli getblockcount
 
-# Peer connections  
+# Peer connections
 bitquan-cli getpeerinfo
 
 # Mempool size
@@ -248,7 +248,7 @@ Access metrics at `http://your-node:9100/metrics`
    ```bash
    # Check peer connections
    bitquan-cli getpeerinfo | jq '.length'
-   
+
    # Add more peers if needed
    bitquan-cli addnode "peer.ip:8333" "add"
    ```
@@ -264,7 +264,7 @@ Access metrics at `http://your-node:9100/metrics`
    ```bash
    # Check service status
    sudo systemctl status bitquan
-   
+
    # Verify RPC credentials
    bitquan-cli -rpcuser=user -rpcpassword=pass getblockchaininfo
    ```

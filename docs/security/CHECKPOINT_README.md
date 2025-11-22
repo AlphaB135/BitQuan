@@ -57,7 +57,7 @@ Chain B: Genesis -> B1 -> B2 (VALID)
 ### ไม่มี Special Privileges
 
 - ❌ ไม่มี emergency rollback
-- ❌ ไม่มี developer checkpoints  
+- ❌ ไม่มี developer checkpoints
 - ❌ ไม่มี manual voting
 - ❌ ไม่มี circuit breakers
 
@@ -191,9 +191,9 @@ cargo run --bin bitquan-node -- --chain-work <tip-hash>
 
 BitQuan ใช้ Bitcoin-style consensus ที่:
 
-✅ **กระจายอำนาจ** - ไม่มีศูนย์กลางควบคุม  
-✅ **คานวณได้** - ทุก node ตรวจสอบด้วยกฎเดียวกัน  
-✅ **ปลอดภัย** - ความปลอดภัยจาก mathematics ไม่ใช่คน  
-✅ **โปร่งใส** - ไม่มี special privileges หรือ backdoors  
+✅ **กระจายอำนาจ** - ไม่มีศูนย์กลางควบคุม
+✅ **คานวณได้** - ทุก node ตรวจสอบด้วยกฎเดียวกัน
+✅ **ปลอดภัย** - ความปลอดภัยจาก mathematics ไม่ใช่คน
+✅ **โปร่งใส** - ไม่มี special privileges หรือ backdoors
 
 **True Decentralization** - อำนาจอยู่ที่ network ไม่ใช่ developers

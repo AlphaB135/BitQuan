@@ -1,6 +1,6 @@
 # Block Weight Specification
 
-Version: 0.0.1-alpha  
+Version: 0.0.1-alpha
 Status: Draft
 
 ## Overview
@@ -72,7 +72,7 @@ fn tx_weight(tx: &Transaction) -> usize {
     let sig_count = tx.witnesses.iter()
         .map(|w| w.signatures.len())
         .sum();
-    
+
     base_size * WITNESS_SCALE_FACTOR + sig_count * SIGNATURE_WEIGHT
 }
 ```
@@ -135,18 +135,18 @@ def select_transactions(mempool, max_weight):
     selected = []
     total_weight = 0
     total_fee = 0
-    
+
     # Sort by fee per weight (descending)
-    sorted_txs = sorted(mempool, 
+    sorted_txs = sorted(mempool,
                        key=lambda tx: tx.fee / tx.weight,
                        reverse=True)
-    
+
     for tx in sorted_txs:
         if total_weight + tx.weight <= max_weight:
             selected.append(tx)
             total_weight += tx.weight
             total_fee += tx.fee
-    
+
     return selected, total_fee
 ```
 
@@ -265,7 +265,7 @@ produce identical results.
 
 Test vectors required for:
 - Single signature transaction
-- Multi-signature transaction  
+- Multi-signature transaction
 - Maximum weight transaction
 - Edge cases (empty witness, etc.)
 

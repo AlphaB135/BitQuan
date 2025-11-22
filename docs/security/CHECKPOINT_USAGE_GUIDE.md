@@ -259,9 +259,9 @@ if let Some(reorg) = reorg_info {
 
 BitQuan consensus ให้:
 
-✅ **True Decentralization** - ไม่มีศูนย์กลางควบคุม  
-✅ **Mathematical Security** - ความปลอดภัยจาก proof-of-work  
-✅ **Deterministic Rules** - ทุก node ใช้กฎเดียวกัน  
-✅ **Transparent Validation** - ไม่มี hidden privileges  
+✅ **True Decentralization** - ไม่มีศูนย์กลางควบคุม
+✅ **Mathematical Security** - ความปลอดภัยจาก proof-of-work
+✅ **Deterministic Rules** - ทุก node ใช้กฎเดียวกัน
+✅ **Transparent Validation** - ไม่มี hidden privileges
 
 **Bitcoin-Style Consensus** - ทดสอบแล้วว่าปลอดภัยและน่าเชื่อถือ

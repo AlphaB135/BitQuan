@@ -1,6 +1,6 @@
 # Security Standards & Best Practices
 
-**Status:** v0.0.2-alpha (In Progress)  
+**Status:** v0.0.2-alpha (In Progress)
 **Last Updated:** 2025-11-08
 
 ---
@@ -65,7 +65,7 @@ fn test_transaction_validation() {
 
 **As of 2025-11-08:**
 - Total unwrap/expect in production: **430** ❌
-- SAFETY comments: **~5** 
+- SAFETY comments: **~5**
 - Compliance rate: **1%**
 - **Target:** <10 unwraps with SAFETY comments
 
@@ -210,7 +210,7 @@ if !valid {
 
 **When to use:**
 - Signature verification
-- MAC verification  
+- MAC verification
 - Password/hash comparison
 - Any secret comparison
 
@@ -276,7 +276,7 @@ pub fn validate_transaction(tx: &Transaction) -> Result<(), Error> {
     if tx.outputs.len() > MAX_OUTPUTS {
         return Err(Error::TooManyOutputs);
     }
-    
+
     // 2. Value validation (checked arithmetic)
     let total_out = tx.outputs.iter().try_fold(0u64, |acc, out| {
         if out.value == 0 {
@@ -285,29 +285,29 @@ pub fn validate_transaction(tx: &Transaction) -> Result<(), Error> {
         acc.checked_add(out.value)
             .ok_or(Error::Overflow("total output value"))
     })?;
-    
+
     // 3. Script size validation
     for input in &tx.inputs {
         if input.script.len() > MAX_SCRIPT_SIZE {
             return Err(Error::ScriptTooLarge);
         }
     }
-    
+
     // 4. Network context (replay protection)
     if tx.network_id != expected_network {
-        return Err(Error::WrongNetwork { 
+        return Err(Error::WrongNetwork {
             expected: expected_network,
             got: tx.network_id,
         });
     }
-    
+
     // 5. Signature count limits
     let sig_count = tx.count_signatures()
         .ok_or(Error::TooManySignatures)?;
     if sig_count > MAX_SIGNATURES_PER_TX {
         return Err(Error::TooManySignatures);
     }
-    
+
     Ok(())
 }
 ```
@@ -372,21 +372,21 @@ fn test_underflow() {
 #[test]
 fn test_constant_time_comparison() {
     use std::time::Instant;
-    
+
     let sig1 = [0u8; 64];
     let sig2 = [1u8; 64];
     let sig3 = sig1.clone();
-    
+
     // Measure time for mismatch
     let start = Instant::now();
     let _ = verify_signature_ct(&sig1, &sig2);
     let mismatch_time = start.elapsed();
-    
+
     // Measure time for match
     let start = Instant::now();
     let _ = verify_signature_ct(&sig1, &sig3);
     let match_time = start.elapsed();
-    
+
     // Times should be similar (within 10%)
     let diff = mismatch_time.as_nanos().abs_diff(match_time.as_nanos());
     let avg = (mismatch_time.as_nanos() + match_time.as_nanos()) / 2;
@@ -435,18 +435,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      
+
       - name: Check for unwrap without SAFETY
         run: |
           ./scripts/check_unwraps.sh
-      
+
       - name: Check for thread_rng
         run: |
           if rg "thread_rng" crates/; then
             echo "Found thread_rng usage"
             exit 1
           fi
-      
+
       - name: Run security tests
         run: cargo test --all -- --test-threads=1 security::
 ```
@@ -491,5 +491,5 @@ jobs:
 
 ---
 
-**Last Updated:** 2025-11-08  
+**Last Updated:** 2025-11-08
 **Next Review:** Before v0.0.3-alpha release

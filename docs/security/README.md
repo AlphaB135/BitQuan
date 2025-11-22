@@ -19,7 +19,7 @@ BitQuan implements multiple layers of security:
 
 **DO NOT** open public GitHub issues for security vulnerabilities.
 
-📧 **Email**: security@bitquan.network (or maintainer contact)  
+📧 **Email**: security@bitquan.network (or maintainer contact)
 🔐 **PGP Keys**: See [keys/](./keys/) directory
 
 Expected response time: 48 hours

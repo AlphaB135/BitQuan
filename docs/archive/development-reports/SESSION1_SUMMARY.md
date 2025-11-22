@@ -6,16 +6,16 @@
 1. **crates/network/src/lib.rs**
    - Added error variants: `LockPoisoned`, `InvalidMessageType`
    - Added type alias: `Result<T>`
-   
+
 2. **crates/network/src/relay.rs**
    - Fixed: 8 `.expect()` → proper error handling
    - Updated: 9 methods to return `Result<T>`
-   
+
 3. **crates/network/src/propagation.rs**
    - Fixed: 12 `.expect()` → proper error handling
    - Updated: 9 methods to return `Result<T>`
    - Fixed: Logic bug in `should_propagate_block()`
-   
+
 4. **crates/network/src/peer.rs**
    - Updated: Relay API calls to handle Results
    - Used: `.unwrap_or(false)` for non-critical checks
@@ -23,7 +23,7 @@
 ### Tests Updated
 - **crates/network/tests/network_integration.rs**
   - Fixed: 3 test functions to handle new Result types
-  
+
 ### Test Results
 ```
 ✅ All tests passing (61 tests total)
@@ -77,12 +77,12 @@
 1. **API Changes Cascade**
    - Changing method signatures requires updating all callers
    - Tests need updates too
-   
+
 2. **Unwrap Strategies**
    - Critical paths: Use `?` operator
    - Non-critical: Use `.unwrap_or(default)`
    - Test code: Keep `.unwrap()` - it's acceptable
-   
+
 3. **Lock Poisoning Pattern**
    ```rust
    // Standard pattern established
@@ -98,7 +98,7 @@ cargo check --package bitquan-network
 ✅ Success (2 non-critical doc warnings)
 
 # Tests
-cargo test --package bitquan-network  
+cargo test --package bitquan-network
 ✅ Success (61 tests passed)
 
 # No errors, ready for next session

@@ -1,6 +1,6 @@
 # BitQuan v0.0.2-alpha Release Notes
 
-**Release Date:** November 2, 2025  
+**Release Date:** November 2, 2025
 **Status:** Alpha (Devnet Ready)
 
 ## Critical Security Updates
@@ -57,8 +57,8 @@ cargo test --all --locked
 
 Security hardening made possible with AI assistance:
 
-- Claude (Anthropic) – architecture review & test design  
-- Cursor – refactoring and diagnostics  
+- Claude (Anthropic) – architecture review & test design
+- Cursor – refactoring and diagnostics
 - Codex – codebase analysis & implementation support
 
 Solo developer: Atsadawut Khunthong

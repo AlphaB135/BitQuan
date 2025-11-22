@@ -53,7 +53,7 @@ All maintainer keys must:
 ## Trust Model
 
 - **Commits**: 1+ Core Maintainer signature
-- **Release Tags**: 2+ Core Maintainer signatures  
+- **Release Tags**: 2+ Core Maintainer signatures
 - **Consensus Changes**: Lead + 2 Core Maintainers
 
 ---

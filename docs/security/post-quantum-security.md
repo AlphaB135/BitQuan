@@ -15,7 +15,7 @@ BitQuan uses **Dilithium3**, a NIST-standardized post-quantum digital signature 
 #### Key Properties:
 - **Security Level**: Dilithium3 provides ~128-bit quantum security
 - **Signature Size**: 3,293 bytes
-- **Public Key Size**: 1,952 bytes  
+- **Public Key Size**: 1,952 bytes
 - **Standardization**: NIST PQC FIPS 204 (draft)
 
 #### Implementation Details:
@@ -130,7 +130,7 @@ Comprehensive test suite validates:
 
 ### Test Results:
 - **Signature Generation**: ~2-5ms per signature
-- **Verification**: ~1-3ms per verification  
+- **Verification**: ~1-3ms per verification
 - **Cache Speedup**: 10-100x faster repeated operations
 - **Memory Usage**: Configurable cache with automatic cleanup
 
@@ -179,7 +179,7 @@ Comprehensive test suite validates:
 
 ### Benchmarks:
 - **Key Generation**: ~10-20ms
-- **Signing**: ~2-5ms  
+- **Signing**: ~2-5ms
 - **Verification**: ~1-3ms
 - **Encryption**: ~1-2ms for 1KB data
 - **Decryption**: ~1-2ms for 1KB data

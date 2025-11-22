@@ -118,7 +118,7 @@ let result = submitter.submit(&block, Some("miner_id")).await?;
 if accepted {
     let height = chain_state.append_block(&block, hash)?;
     let reward = reward_engine.record_block(&block, hash, height, "miner_id")?;
-    
+
     println!("Block accepted! height={}, reward={:.2} BQ", height, reward / 1e8);
 }
 ```
@@ -157,7 +157,7 @@ if balance >= minimum_payout {
         balance,
         Some("tx_hash".to_string())
     )?;
-    
+
     // Send on-chain transaction
     send_payout_transaction(miner_address, balance)?;
 }
@@ -332,23 +332,23 @@ curl -X POST http://localhost:8332 \
 sqlite3 data/pool.db
 
 # Query miner balances
-SELECT id, total_reward / 100000000.0 as balance_bq 
-FROM miners 
-ORDER BY total_reward DESC 
+SELECT id, total_reward / 100000000.0 as balance_bq
+FROM miners
+ORDER BY total_reward DESC
 LIMIT 10;
 
 # Query recent blocks
-SELECT height, miner_id, reward / 100000000.0 as reward_bq, 
+SELECT height, miner_id, reward / 100000000.0 as reward_bq,
        datetime(timestamp, 'unixepoch') as time
-FROM blocks 
-ORDER BY height DESC 
+FROM blocks
+ORDER BY height DESC
 LIMIT 20;
 
 # Query payouts
-SELECT miner_id, amount / 100000000.0 as amount_bq, 
+SELECT miner_id, amount / 100000000.0 as amount_bq,
        datetime(created_at, 'unixepoch') as time
-FROM payouts 
-ORDER BY created_at DESC 
+FROM payouts
+ORDER BY created_at DESC
 LIMIT 10;
 ```
 

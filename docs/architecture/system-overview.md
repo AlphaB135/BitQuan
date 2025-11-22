@@ -189,7 +189,7 @@ where:
   exponent = (time_delta - block_time * height_delta) / half_life
   block_time = 600 seconds (10 minutes)
   half_life = 86400 seconds (1 day)
-  
+
 Bounds:
   1.0 ≤ target ≤ 2^208 * 65535
 ```

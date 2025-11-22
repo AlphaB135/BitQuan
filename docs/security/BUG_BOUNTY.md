@@ -1,7 +1,7 @@
 # BitQuan Bug Bounty Program
 
-**Status**: Active (Testnet Phase)  
-**Launch Date**: 2024-11-04  
+**Status**: Active (Testnet Phase)
+**Launch Date**: 2024-11-04
 **Version**: 1.0
 
 ---
@@ -211,10 +211,10 @@ BitQuan is committed to the security of our post-quantum blockchain. We welcome 
 
 ### Payment Mechanism
 
-**Testnet Phase**: Rewards paid in testnet BQ (symbolic)  
+**Testnet Phase**: Rewards paid in testnet BQ (symbolic)
 **Mainnet Phase**: Rewards paid from multi-signature dev fund
 
-**Dev Fund Address** (Testnet): `[TBD - 3-of-5 multisig address]`  
+**Dev Fund Address** (Testnet): `[TBD - 3-of-5 multisig address]`
 **Mainnet Address**: `[TBD - after mainnet launch]`
 
 ### Bonus Multipliers
@@ -523,9 +523,9 @@ BitQuan provides safe harbor for security researchers acting in good faith, prov
 
 ## Contact
 
-**Security Team**: [TBD - email or contact form]  
-**PGP Key**: [TBD - public key fingerprint]  
-**Response Time**: 48 hours for acknowledgment  
+**Security Team**: [TBD - email or contact form]
+**PGP Key**: [TBD - public key fingerprint]
+**Response Time**: 48 hours for acknowledgment
 **GitHub**: https://github.com/AlphaB135/BitQuan/security
 
 ---
@@ -538,8 +538,8 @@ This bug bounty program may be updated as BitQuan evolves:
 - Reward structure changes
 - New vulnerability categories
 
-**Current Version**: 1.0 (Testnet Phase)  
-**Last Updated**: 2024-11-04  
+**Current Version**: 1.0 (Testnet Phase)
+**Last Updated**: 2024-11-04
 **Next Review**: After mainnet launch
 
 ---
@@ -552,6 +552,6 @@ BitQuan thanks the security community for helping build a more secure post-quant
 
 ---
 
-**Program Status**: ✅ Active  
-**Testnet Rewards**: Active  
+**Program Status**: ✅ Active
+**Testnet Rewards**: Active
 **Mainnet Rewards**: TBD (after mainnet launch)

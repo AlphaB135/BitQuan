@@ -9,7 +9,7 @@ BitQuan supports hybrid multi-algorithm mining through Stratum V1 protocol. This
 BitQuan implements a hybrid mining system that supports multiple Proof-of-Work algorithms simultaneously:
 
 - **SHA-256d** - ASIC-friendly (Bitcoin-style)
-- **RandomX** - CPU-friendly, quantum-resistant (Monero-style) 
+- **RandomX** - CPU-friendly, quantum-resistant (Monero-style)
 - **Ethash** - GPU-friendly (Ethereum-style)
 
 The Stratum V1 protocol is extended to support algorithm selection and weighted distribution.
@@ -38,7 +38,7 @@ bitquan-node stratum-server \
   --algorithm sha256d \
   --stratum-diff 1.0
 
-# Ethash only (GPU miners)  
+# Ethash only (GPU miners)
 bitquan-node stratum-server \
   --network testnet \
   --stratum-bind 0.0.0.0:3335 \
@@ -308,7 +308,7 @@ stratum_algorithm_distribution{pool="main",algorithm="randomx"} 0.17
 
 The hybrid mining dashboard provides real-time visualization:
 - Algorithm hashrate distribution
-- Mining efficiency per algorithm  
+- Mining efficiency per algorithm
 - Block discovery by algorithm
 - Network difficulty trends
 - Miner performance analytics
@@ -328,7 +328,7 @@ The hybrid system uses weighted round-robin to distribute mining work:
 # GPU-focused mining
 algorithm_weights = "sha256d:1,ethash:4,randomx:1"
 
-# CPU-focused mining  
+# CPU-focused mining
 algorithm_weights = "sha256d:1,ethash:1,randomx:3"
 
 # ASIC-focused mining

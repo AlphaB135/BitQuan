@@ -108,10 +108,10 @@ BitQuan uses Bech32m with human-readable parts:
 fn generate_pq_p2pkh_address(public_key: &[u8; 1952]) -> String {
     // 1. Hash Dilithium public key with SHA-256
     let hash = sha256(public_key);
-    
+
     // 2. RIPEMD-160 hash of SHA-256 result
     let pkh = ripemd160(&hash);
-    
+
     // 3. Encode with Bech32m
     bech32m_encode("bq", 0x10, &pkh)
 }
@@ -128,10 +128,10 @@ Standard BIP39 with quantum-resistant enhancements:
 struct QuantumEntropy {
     // 256 bits of standard entropy
     standard_entropy: [u8; 32],
-    
+
     // 128 bits of quantum-resistant entropy
     quantum_entropy: [u8; 16],
-    
+
     // 32 bits checksum
     checksum: [u8; 4],
 }
@@ -154,7 +154,7 @@ fn quantum_mnemonic_to_seed(
     quantum_salt: Option<&str>
 ) -> [u8; 64] {
     let base_seed = bip39_mnemonic_to_seed(mnemonic, passphrase);
-    
+
     if let Some(q_salt) = quantum_salt {
         // Mix with quantum salt using Argon2id
         let quantum_mix = argon2id_mix(&base_seed, q_salt.as_bytes());
@@ -173,19 +173,19 @@ fn quantum_mnemonic_to_seed(
 /// Core wallet operations trait
 pub trait Wallet {
     type Error: std::error::Error;
-    
+
     /// Generate new wallet with quantum-resistant keys
     fn generate(config: &WalletConfig) -> Result<Self, Self::Error>;
-    
+
     /// Restore from mnemonic
     fn from_mnemonic(mnemonic: &str, config: &WalletConfig) -> Result<Self, Self::Error>;
-    
+
     /// Get address at derivation path
     fn get_address(&self, path: &DerivationPath) -> Result<Address, Self::Error>;
-    
+
     /// Sign PQ-PSBT
     fn sign_psbt(&mut self, psbt: &mut PQPSBT) -> Result<(), Self::Error>;
-    
+
     /// Get public key for address
     fn get_public_key(&self, address: &Address) -> Result<Vec<u8>, Self::Error>;
 }
@@ -194,19 +194,19 @@ pub trait Wallet {
 pub trait PQPSBT {
     /// Create new PQ-PSBT from transaction
     fn from_transaction(tx: Transaction) -> Self;
-    
+
     /// Add input with UTXO data
     fn add_input(&mut self, input: PSBTInput) -> Result<(), PSBTError>;
-    
+
     /// Add output
     fn add_output(&mut self, output: PSBTOutput) -> Result<(), PSBTError>;
-    
+
     /// Sign with Dilithium key
     fn sign_dilithium(&mut self, private_key: &[u8]) -> Result<(), PSBTError>;
-    
+
     /// Add ECDSA fallback signature
     fn sign_ecdsa(&mut self, private_key: &[u8]) -> Result<(), PSBTError>;
-    
+
     /// Finalize and extract transaction
     fn finalize(self) -> Result<Transaction, PSBTError>;
 }
@@ -218,16 +218,16 @@ pub trait PQPSBT {
 pub struct WalletConfig {
     /// Network (mainnet/testnet/regtest)
     pub network: Network,
-    
+
     /// Signature algorithms to support
     pub signature_algorithms: Vec<SignatureAlgorithm>,
-    
+
     /// Key derivation strategy
     pub derivation: DerivationConfig,
-    
+
     /// Security settings
     pub security: SecurityConfig,
-    
+
     /// Performance settings
     pub performance: PerformanceConfig,
 }
@@ -235,13 +235,13 @@ pub struct WalletConfig {
 pub struct SecurityConfig {
     /// Require both PQC and ECDSA signatures
     pub hybrid_signatures: bool,
-    
+
     /// Memory locking for private keys
     pub memory_locking: bool,
-    
+
     /// Cache timeout for decrypted keys
     pub cache_timeout: Duration,
-    
+
     /// Quantum entropy source
     pub quantum_entropy: bool,
 }
@@ -249,10 +249,10 @@ pub struct SecurityConfig {
 pub struct DerivationConfig {
     /// Use BIP32 standard paths
     pub bip32_standard: bool,
-    
+
     /// Custom derivation path
     pub custom_path: Option<DerivationPath>,
-    
+
     /// Account gap limit
     pub gap_limit: u32,
 }
@@ -280,19 +280,19 @@ Command Structure:
 pub struct DeviceCapabilities {
     /// Supports Dilithium signatures
     pub supports_dilithium: bool,
-    
+
     /// Supports ECDSA fallback
     pub supports_ecdsa: bool,
-    
+
     /// Has secure display
     pub has_display: bool,
-    
+
     /// Has physical buttons
     pub has_buttons: bool,
-    
+
     /// Maximum message size
     pub max_message_size: usize,
-    
+
     /// Firmware version
     pub firmware_version: String,
 }
@@ -306,25 +306,25 @@ pub struct DeviceCapabilities {
 pub fn validate_address(address: &str, network: Network) -> ValidationResult {
     // 1. Check Bech32m format
     let (hrp, version, data) = bech32m_decode(address)?;
-    
+
     // 2. Check human-readable part
     if hrp != network.hrp() {
         return Err(ValidationError::WrongNetwork);
     }
-    
+
     // 3. Check version
     if !VALID_VERSIONS.contains(&version) {
         return Err(ValidationError::InvalidVersion);
     }
-    
+
     // 4. Check data length
     if data.len() != 20 && data.len() != 32 {
         return Err(ValidationError::InvalidLength);
     }
-    
+
     // 5. Check checksum
     verify_checksum(address)?;
-    
+
     Ok(ValidationResult::Valid)
 }
 ```
@@ -345,12 +345,12 @@ pub struct TransactionBuilder {
 
 impl TransactionBuilder {
     pub fn new(network: Network) -> Self;
-    
+
     pub fn add_input(&mut self, txid: &[u8; 32], vout: u32) -> &mut Self;
     pub fn add_output(&mut self, address: &str, amount: u64) -> Result<&mut Self, BuilderError>;
     pub fn set_locktime(&mut self, locktime: u32) -> &mut Self;
     pub fn set_signature_algorithm(&mut self, algo: SignatureAlgorithm) -> &mut Self;
-    
+
     pub fn build(self) -> Result<Transaction, BuilderError>;
     pub fn build_psbt(self) -> Result<PQPSBT, BuilderError>;
 }
@@ -459,17 +459,17 @@ bindings/ts/
 #[cfg(test)]
 mod conformance_tests {
     use super::*;
-    
+
     #[test]
     fn test_address_generation() {
         // Test vectors for all address types
     }
-    
+
     #[test]
     fn test_psbt_serialization() {
         // Round-trip PSBT serialization
     }
-    
+
     #[test]
     fn test_mnemonic_validation() {
         // Test mnemonic phrase validation

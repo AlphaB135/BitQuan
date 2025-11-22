@@ -1,7 +1,7 @@
 # BitQuan Post-Launch Monitoring Guide
 
-**Version:** v1.0.0  
-**Purpose:** Production monitoring and operational procedures for BitQuan mainnet  
+**Version:** v1.0.0
+**Purpose:** Production monitoring and operational procedures for BitQuan mainnet
 **Target Audience:** Node Operators, Infrastructure Teams, DevOps Engineers
 
 ---
@@ -523,8 +523,8 @@ curl -s http://localhost:8332/getblockchaininfo
 
 ---
 
-**Last Updated:** November 9, 2025  
-**Version:** v1.0.0  
+**Last Updated:** November 9, 2025
+**Version:** v1.0.0
 **Next Review:** December 9, 2025
 
 ---

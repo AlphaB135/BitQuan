@@ -141,7 +141,7 @@ stratum_shares_rejected{algo="sha256d",reason="..."}
 
 ---
 
-**Commit**: `be0d66b` - node/stratum: bounded share queue (1024), ShareVerifier worker pool (spawn_blocking), and backpressure metrics/error (-20001)  
-**Branch**: `fix/p2-stratum-bounded` → merged to `main`  
-**Date**: 2025-11-07  
+**Commit**: `be0d66b` - node/stratum: bounded share queue (1024), ShareVerifier worker pool (spawn_blocking), and backpressure metrics/error (-20001)
+**Branch**: `fix/p2-stratum-bounded` → merged to `main`
+**Date**: 2025-11-07
 **Status**: ✅ COMPLETE, ALL TESTS PASS

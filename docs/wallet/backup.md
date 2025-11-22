@@ -42,13 +42,13 @@ bitquan-node wallet-restore \
 
 ## FAQ
 
-**Q: Backup password = wallet password?**  
+**Q: Backup password = wallet password?**
 A: No! Use different passwords for each layer.
 
-**Q: Lost backup password?**  
+**Q: Lost backup password?**
 A: Backup cannot be recovered. Use mnemonic instead.
 
-**Q: Backup portable?**  
+**Q: Backup portable?**
 A: Yes, works across networks (metadata records network type).
 
 ## Related

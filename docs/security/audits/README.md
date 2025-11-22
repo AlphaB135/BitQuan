@@ -70,5 +70,5 @@ Typical audit coverage:
 
 ---
 
-**Security Contact**: security@bitquan.org  
+**Security Contact**: security@bitquan.org
 **PGP Key**: See `docs/security/keys/security-team.asc`

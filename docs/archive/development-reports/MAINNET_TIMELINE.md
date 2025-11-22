@@ -1,7 +1,7 @@
 # 🚀 BitQuan Mainnet Timeline & Roadmap
 
-**Current Status:** Alpha Development  
-**Target Mainnet:** Q3-Q4 2025 (8-10 เดือน)  
+**Current Status:** Alpha Development
+**Target Mainnet:** Q3-Q4 2025 (8-10 เดือน)
 **Last Updated:** 2025-01-08
 
 ---
@@ -31,7 +31,7 @@
 ## 🎯 Mainnet Roadiness Milestones
 
 ### Phase 1: Security Hardening (2-3 เดือน)
-**Target:** March 2025  
+**Target:** March 2025
 **Goal:** Security score 65 → 90/100
 
 #### Week 1-4: Unwrap Elimination Sprint
@@ -59,7 +59,7 @@
 ---
 
 ### Phase 2: Performance & Stability (1.5-2 เดือน)
-**Target:** May 2025  
+**Target:** May 2025
 **Goal:** Performance score 68 → 85/100
 
 #### Week 1-3: Benchmarking
@@ -86,7 +86,7 @@
 ---
 
 ### Phase 3: Testnet Rollout (1.5 เดือน)
-**Target:** June-July 2025  
+**Target:** June-July 2025
 **Goal:** Stable testnet with external validators
 
 #### Week 1-2: Testnet Setup
@@ -112,7 +112,7 @@
 ---
 
 ### Phase 4: Documentation & Tooling (1 เดือน)
-**Target:** August 2025  
+**Target:** August 2025
 **Goal:** Documentation score 72 → 95/100
 
 #### Week 1-2: Core Documentation
@@ -138,7 +138,7 @@
 ---
 
 ### Phase 5: Pre-Mainnet (1 เดือน)
-**Target:** September 2025  
+**Target:** September 2025
 **Goal:** Final preparations
 
 #### Week 1-2: Code Freeze
@@ -164,7 +164,7 @@
 ---
 
 ### Phase 6: Mainnet Launch 🎉
-**Target:** October 2025  
+**Target:** October 2025
 **Goal:** Successful launch
 
 #### Launch Day

@@ -70,7 +70,7 @@ tx_weight = base_size * 4 + sig_count * 384
 where:
   base_size = size(version + lock_time + inputs + outputs)
   sig_count = total number of SignaturePayload in witnesses
-  
+
 Constants:
   WITNESS_SCALE_FACTOR = 4 (Bitcoin-compatible)
   SIGNATURE_WEIGHT = 384 WU (per PQC signature)
@@ -176,7 +176,7 @@ BlockHeader {
 where:
   Hi = SHA-256d(TXi)
   Hij = SHA-256d(Hi || Hj)
-  
+
 SHA-256d = SHA-256(SHA-256(data))
 ```
 
@@ -198,7 +198,7 @@ Block with:
   - TX1: 200 bytes, 2 sigs → 200*4 + 2*384 = 1568 WU
   - TX2: 300 bytes, 1 sig → 300*4 + 1*384 = 1584 WU
   - TX3: 150 bytes, 1 sig → 150*4 + 1*384 = 984 WU
-  
+
 Total weight = 1000 + 1568 + 1584 + 984 = 5136 WU
 ```
 

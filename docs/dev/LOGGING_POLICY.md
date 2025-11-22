@@ -187,7 +187,7 @@ fn test_key_generation() {
     let key = generate_key();
     // ✅ GOOD
     println!("Key fingerprint: {}", fingerprint(&key));
-    
+
     // ❌ BAD
     println!("Key: {:?}", key);
 }
@@ -285,6 +285,6 @@ fi
 
 ---
 
-**Policy Version**: 1.0  
-**Last Updated**: 2025-11-02  
+**Policy Version**: 1.0
+**Last Updated**: 2025-11-02
 **Review Date**: Every major release

@@ -7,20 +7,20 @@
 1. **crates/network/src/lib.rs**
    - เพิ่ม error types ใหม่: `LockPoisoned`, `InvalidMessageType`
    - เพิ่ม `Result<T>` type alias สำหรับ network module
-   
+
 2. **crates/network/src/relay.rs**
    - แก้ไข: 8 จุด `.expect("relay lock poisoned")` → error handling ที่ถูกต้อง
    - เปลี่ยน: 9 methods ให้ return `Result<T>` แทน panic
-   
+
 3. **crates/network/src/propagation.rs**
    - แก้ไข: 12 จุด `.expect("propagation lock poisoned")` → error handling
    - เปลี่ยน: 9 methods ให้ return `Result<T>`
    - แก้บั๊ก: Logic ใน `should_propagate_block()` ที่ผิด
-   
+
 4. **crates/network/src/peer.rs**
    - อัปเดต: การเรียกใช้ relay API ให้รองรับ Result types
    - ใช้: `.unwrap_or(false)` สำหรับการเช็คที่ไม่สำคัญ
-   
+
 5. **crates/network/tests/network_integration.rs**
    - แก้ไข: 3 test functions ให้รองรับ Result types ใหม่
 
@@ -28,7 +28,7 @@
 ```
 ✅ ผ่านทุก test (61 tests รวม)
    - bitquan-network lib: 36 passed
-   - Eclipse tests: 4 passed  
+   - Eclipse tests: 4 passed
    - Memory exhaustion: 4 passed
    - Network integration: 14 passed
    - Peer tests: 3 passed
@@ -57,11 +57,11 @@
 1. **crates/storage/src/rocksdb_store.rs**
    - เสี่ยง: Data corruption / Data loss
    - Line 119: มี `.unwrap()` ใน production path
-   
+
 2. **crates/rpc/src/server.rs**
    - เสี่ยง: RPC server crash
    - มี ~10 จุด `.unwrap()` ใน JSON serialization
-   
+
 3. **crates/rpc/src/methods.rs**
    - เสี่ยง: RPC methods ล้มเหลว
    - มี ~9 จุด `.unwrap()` ใน JSON operations
@@ -112,7 +112,7 @@ let data = mutex.lock()
 cargo check --package bitquan-network
 ✅ Success (มี 2 warnings ไม่สำคัญเรื่อง docs)
 
-# Tests  
+# Tests
 cargo test --package bitquan-network
 ✅ Success (61 tests ผ่านหมด)
 ```

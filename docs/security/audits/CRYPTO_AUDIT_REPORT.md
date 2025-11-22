@@ -1,8 +1,8 @@
 # BitQuan Cryptographic Audit Report
 
-**Audit Date:** 2025-11-09  
-**Auditor:** External Blockchain Security Auditor  
-**Scope:** All cryptographic implementations across BitQuan v1.0.0-pre  
+**Audit Date:** 2025-11-09
+**Auditor:** External Blockchain Security Auditor
+**Scope:** All cryptographic implementations across BitQuan v1.0.0-pre
 **Severity Classification:** P0 (Critical) → P2 (Low)
 
 ---
@@ -11,8 +11,8 @@
 
 BitQuan demonstrates strong cryptographic foundations with post-quantum Dilithium3 signatures, proper key derivation parameters, and comprehensive constant-time implementations. However, several critical security gaps require immediate attention before mainnet deployment.
 
-**Overall Rating:** B+ (82/100)  
-**Critical Issues:** 2 P0, 1 P1  
+**Overall Rating:** B+ (82/100)
+**Critical Issues:** 2 P0, 1 P1
 **Recommendation:** Address P0 issues before mainnet launch
 
 ---
@@ -23,7 +23,7 @@ BitQuan demonstrates strong cryptographic foundations with post-quantum Dilithiu
 
 **Files:** `crates/pqc-dilithium-seeded/src/`, `crates/crypto/src/lib.rs`
 
-**Assessment:** 
+**Assessment:**
 - [DONE] NIST FIPS 204 compliant implementation
 - [DONE] Correct Dilithium3 parameters (K=6, L=5, ETA=4)
 - [DONE] Proper key sizes: PK=1952B, SK=4000B, SIG=3293B
@@ -45,8 +45,8 @@ pub struct Keypair {
 }
 ```
 
-**Impact:** Private keys remain in memory after use, vulnerable to memory dumps  
-**Risk:** Key extraction via cold boot or memory attacks  
+**Impact:** Private keys remain in memory after use, vulnerable to memory dumps
+**Risk:** Key extraction via cold boot or memory attacks
 **Fix Required:** Implement `Zeroize` and `ZeroizeOnDrop` traits
 
 **File:** `crates/node/src/wallet.rs:43`
@@ -58,8 +58,8 @@ pub struct WalletKeypair {
 }
 ```
 
-**Impact:** Wallet private keys persist in memory indefinitely  
-**Risk:** Key extraction from memory dumps  
+**Impact:** Wallet private keys persist in memory indefinitely
+**Risk:** Key extraction from memory dumps
 
 ---
 
@@ -71,8 +71,8 @@ pub struct WalletKeypair {
 let extranonce1 = rand::random::<u32>(); // ❌ Uses thread_rng, not OsRng
 ```
 
-**Impact:** Predictable mining extranonce generation  
-**Risk:** Share collisions, mining manipulation  
+**Impact:** Predictable mining extranonce generation
+**Risk:** Share collisions, mining manipulation
 **Fix:** Replace with `OsRng.fill_bytes()`
 
 **File:** `crates/node/src/stratum_server.rs:1276`
@@ -81,8 +81,8 @@ let extranonce1 = rand::random::<u32>(); // ❌ Uses thread_rng, not OsRng
 let seed = [0u8; 32]; // ❌ Hardcoded RandomX seed
 ```
 
-**Impact:** All mining uses same RandomX seed  
-**Risk:** Predictable computation, DoS vector  
+**Impact:** All mining uses same RandomX seed
+**Risk:** Predictable computation, DoS vector
 **Fix:** Derive seed from consensus state
 
 ---
@@ -97,8 +97,8 @@ if c != c2 { // ❌ Direct comparison in signature verification
 }
 ```
 
-**Impact:** Potential timing leak in signature verification  
-**Risk:** Side-channel attacks on verification process  
+**Impact:** Potential timing leak in signature verification
+**Risk:** Side-channel attacks on verification process
 **Fix:** Use `subtle::ConstantTimeEq`
 
 ---
@@ -126,8 +126,8 @@ if c != c2 { // ❌ Direct comparison in signature verification
 | `keystore.rs` (Light) | 16MB | 3 | 1 | [DONE] Meets |
 | `main.rs` | 19MB | 2 | 1 | [DONE] OWASP Spec |
 
-**All salt lengths:** 16-32 bytes [DONE]  
-**All output lengths:** 32 bytes [DONE]  
+**All salt lengths:** 16-32 bytes [DONE]
+**All output lengths:** 32 bytes [DONE]
 
 **Status:** SECURE
 

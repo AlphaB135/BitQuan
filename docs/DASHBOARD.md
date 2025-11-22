@@ -138,7 +138,7 @@ Broadcasts list of active miners with their stats.
 
 #### 1. Active Miners Gauge
 
-**Panel Type:** Gauge  
+**Panel Type:** Gauge
 **Query:**
 ```promql
 stratum_active_miners
@@ -154,7 +154,7 @@ stratum_active_miners
 
 #### 2. Hashrate per Algorithm
 
-**Panel Type:** Time Series  
+**Panel Type:** Time Series
 **Queries:**
 ```promql
 # SHA-256d Hashrate (estimated)
@@ -171,11 +171,11 @@ rate(mining_hash_attempts_total{algo="randomx"}[5m]) * 4294967296 / 15
 
 #### 3. Share Acceptance Rate
 
-**Panel Type:** Stat  
+**Panel Type:** Stat
 **Query:**
 ```promql
-sum(rate(stratum_shares_total{status="ok"}[5m])) 
-/ 
+sum(rate(stratum_shares_total{status="ok"}[5m]))
+/
 sum(rate(stratum_shares_total[5m])) * 100
 ```
 
@@ -188,7 +188,7 @@ sum(rate(stratum_shares_total[5m])) * 100
 
 #### 4. Shares Over Time
 
-**Panel Type:** Time Series  
+**Panel Type:** Time Series
 **Queries:**
 ```promql
 # Accepted shares
@@ -205,7 +205,7 @@ rate(stratum_shares_total{status="reject"}[1m]) * 60
 
 #### 5. Difficulty Trend
 
-**Panel Type:** Time Series  
+**Panel Type:** Time Series
 **Query:**
 ```promql
 # Average difficulty per miner (approximation)
@@ -218,7 +218,7 @@ rate(stratum_vardiff_adjustments_total[5m])
 
 #### 6. Connection Stats
 
-**Panel Type:** Stat (horizontal)  
+**Panel Type:** Stat (horizontal)
 **Queries:**
 ```promql
 # Total connections
@@ -232,7 +232,7 @@ stratum_active_miners
 
 #### 7. Blocks Found
 
-**Panel Type:** Stat + Time Series  
+**Panel Type:** Stat + Time Series
 **Query:**
 ```promql
 # Total blocks by algorithm
@@ -248,7 +248,7 @@ rate(mining_blocks_found_total[1h]) * 3600
 
 #### 8. Last Share Timestamp
 
-**Panel Type:** Stat  
+**Panel Type:** Stat
 **Query:**
 ```promql
 # Seconds since last share
@@ -355,7 +355,7 @@ const ws = new WebSocket('ws://localhost:8081/ws/stats');
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
-  
+
   if (msg.type === 'stats') {
     console.log('Active miners:', msg.data.active_miners);
     console.log('SHA-256d hashrate:', msg.data.hashrate_sha256d);
@@ -380,10 +380,10 @@ ws.onmessage = (event) => {
 <body>
   <h1>BitQuan Mining Pool</h1>
   <div id="stats"></div>
-  
+
   <script>
     const ws = new WebSocket('ws://localhost:8081/ws/stats');
-    
+
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === 'stats') {
@@ -441,7 +441,7 @@ groups:
           severity: critical
         annotations:
           summary: "No shares submitted in 5 minutes"
-          
+
       - alert: HighRejectionRate
         expr: |
           sum(rate(stratum_shares_total{status="reject"}[5m]))
@@ -452,7 +452,7 @@ groups:
           severity: warning
         annotations:
           summary: "Share rejection rate > 10%"
-          
+
       - alert: NoActiveMiners
         expr: stratum_active_miners == 0
         for: 5m
@@ -527,7 +527,7 @@ nginx:
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
-    
+
     # Basic auth
     auth_basic "Pool Dashboard";
     auth_basic_user_file /etc/nginx/.htpasswd;

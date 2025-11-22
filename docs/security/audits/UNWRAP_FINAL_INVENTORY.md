@@ -1,7 +1,7 @@
 # Final Unwrap/Expect/Panic Inventory - Production Code
 
-**Scan Date:** 2025-11-09  
-**Scope:** crates/*/src/**/*.rs (production code only)  
+**Scan Date:** 2025-11-09
+**Scope:** crates/*/src/**/*.rs (production code only)
 **Exclusions:** tests/, benches/, fuzz_targets/, tools/, examples/
 
 ## Baseline Findings
@@ -76,7 +76,7 @@
 
 1. **crates/crypto/src/wallet/** - High priority (13 unwrap calls)
    - encryption.rs: 3 unwrap calls
-   - kdf.rs: 4 unwrap calls  
+   - kdf.rs: 4 unwrap calls
    - keystore.rs: 6 unwrap calls
 
 2. **crates/crypto/src/rng/rng_impl.rs** - Medium priority (8 expect calls)

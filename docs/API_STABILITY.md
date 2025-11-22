@@ -1,6 +1,6 @@
 # API Stability and Visibility Policy
 
-**Status:** Draft (v0.0.2-alpha)  
+**Status:** Draft (v0.0.2-alpha)
 **Last Updated:** 2025-11-08
 
 ---

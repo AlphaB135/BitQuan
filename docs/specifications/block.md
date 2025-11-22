@@ -1,6 +1,6 @@
 # Block Specification
 
-Version: 0.0.1-alpha  
+Version: 0.0.1-alpha
 Status: Draft
 
 ## Overview
@@ -154,7 +154,7 @@ def merkle_root(hashes):
         return bytes(32)
     if len(hashes) == 1:
         return hashes[0]
-    
+
     tree = hashes[:]
     while len(tree) > 1:
         next_level = []
@@ -165,7 +165,7 @@ def merkle_root(hashes):
                 # Odd number: hash with itself
                 next_level.append(sha256(sha256(tree[i] + tree[i])))
         tree = next_level
-    
+
     return tree[0]
 ```
 

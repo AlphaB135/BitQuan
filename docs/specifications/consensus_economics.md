@@ -22,7 +22,7 @@ BitQuan uses **Bitcoin-style consensus** with the following principles:
 
 ### Examples
 - Block reward: 5,000,000,000 qbits = 50 BQ
-- Transaction fee: 1,000 qbits = 0.00001 BQ  
+- Transaction fee: 1,000 qbits = 0.00001 BQ
 - Dust threshold: 546 qbits
 
 ## 1. PQC Performance & Fee Policy

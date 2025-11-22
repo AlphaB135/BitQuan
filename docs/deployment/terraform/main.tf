@@ -18,7 +18,7 @@ terraform {
       version = "~> 3.5"
     }
   }
-  
+
   backend "s3" {
     bucket = "bitquan-terraform-state"
     key    = "bitquan-infrastructure/terraform.tfstate"
@@ -30,7 +30,7 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
-  
+
   default_tags {
     tags = {
       Project     = "BitQuan"

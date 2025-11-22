@@ -5,10 +5,10 @@ This document contains the canonical genesis block hashes for BitQuan networks. 
 
 ## Mainnet Genesis
 
-**Network ID:** `mainnet`  
-**Chain ID:** `bitquan-mainnet-v1`  
-**Genesis Hash:** `000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f`  
-**Genesis Timestamp:** `1704067200` (January 1, 2024 00:00:00 UTC)  
+**Network ID:** `mainnet`
+**Chain ID:** `bitquan-mainnet-v1`
+**Genesis Hash:** `000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f`
+**Genesis Timestamp:** `1704067200` (January 1, 2024 00:00:00 UTC)
 **Genesis File:** [`genesis/mainnet.json`](../genesis/mainnet.json)
 
 ### Consensus Parameters
@@ -36,10 +36,10 @@ BitQuan mainnet genesis - Jan 2024 - Post-Quantum Secure Blockchain
 
 ## Testnet Genesis
 
-**Network ID:** `testnet`  
-**Chain ID:** `bitquan-testnet-v1`  
-**Genesis Hash:** `000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943`  
-**Genesis Timestamp:** `1704153600` (January 2, 2024 00:00:00 UTC)  
+**Network ID:** `testnet`
+**Chain ID:** `bitquan-testnet-v1`
+**Genesis Hash:** `000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943`
+**Genesis Timestamp:** `1704153600` (January 2, 2024 00:00:00 UTC)
 **Genesis File:** [`genesis/testnet.json`](../genesis/testnet.json)
 
 ### Consensus Parameters
@@ -119,8 +119,8 @@ Before mainnet v1.0.0 launch, the following must be verified:
 
 The genesis block includes a post-quantum signature using Dilithium3 to prove authenticity and establish the chain of trust.
 
-**Algorithm:** Dilithium3  
-**Public Key:** `302a300506032b657003210065ca823a1dbeb5c5d76e8c7d8d9f3f2c7e5d4c3b2a191f0e9d8c7b6a594837261f0e9d8c7b6a5948372`  
+**Algorithm:** Dilithium3
+**Public Key:** `302a300506032b657003210065ca823a1dbeb5c5d76e8c7d8d9f3f2c7e5d4c3b2a191f0e9d8c7b6a594837261f0e9d8c7b6a5948372`
 **Signature:** `a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4`
 
 ## References
@@ -132,5 +132,5 @@ The genesis block includes a post-quantum signature using Dilithium3 to prove au
 
 ---
 
-*Last Updated: November 2024*  
+*Last Updated: November 2024*
 *Document Version: 1.0.0*

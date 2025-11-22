@@ -168,7 +168,7 @@ cargo build --release
    curl -X POST http://testnet.bitquan.io:8334/rpc \
      -H "Content-Type: application/json" \
      -d '{"jsonrpc":"2.0","method":"getblockchaininfo","params":[],"id":1}'
-   
+
    # Get block by height
    curl -X POST http://testnet.bitquan.io:8334/rpc \
      -H "Content-Type: application/json" \
@@ -275,7 +275,7 @@ Logs:
 **A**: Yes! See: docs/TESTNET_SETUP.md
 
 ### Q: What are the system requirements?
-**A**: 
+**A**:
 - RAM: 4GB minimum
 - Storage: 50GB
 - Network: Decent internet connection
@@ -297,7 +297,7 @@ Find critical bugs? Get rewarded on mainnet launch!
 
 **Severity Levels**:
 - 🔴 **Critical**: Network halt, fund loss → 1000-5000 BQ
-- 🟠 **High**: Security vulnerability → 500-1000 BQ  
+- 🟠 **High**: Security vulnerability → 500-1000 BQ
 - 🟡 **Medium**: Functionality bug → 100-500 BQ
 - 🟢 **Low**: UI/UX issue → 50-100 BQ
 
@@ -349,7 +349,7 @@ Print and check off as you test:
 
 **Overall Rating**: ⭐⭐⭐⭐⭐
 
-**Comments**: 
+**Comments**:
 _________________________________
 _________________________________
 _________________________________

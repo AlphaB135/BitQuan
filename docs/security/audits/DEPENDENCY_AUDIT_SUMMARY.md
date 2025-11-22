@@ -1,8 +1,8 @@
 # BitQuan Dependency & Supply-Chain Audit Report
 
-**Audit Date:** 2025-11-09  
-**Auditor:** External Blockchain Security Auditor  
-**Scope:** All dependencies across BitQuan v1.0.0-pre  
+**Audit Date:** 2025-11-09
+**Auditor:** External Blockchain Security Auditor
+**Scope:** All dependencies across BitQuan v1.0.0-pre
 **Severity Classification:** P0 (Critical) → P2 (Low)
 
 ---
@@ -11,8 +11,8 @@
 
 BitQuan demonstrates excellent supply-chain security with zero CVEs and strong dependency management. However, several license compliance issues and dependency duplicates require attention before mainnet deployment.
 
-**Overall Rating:** B+ (85/100)  
-**Critical Issues:** 0 P0, 2 P1  
+**Overall Rating:** B+ (85/100)
+**Critical Issues:** 0 P0, 2 P1
 **Recommendation:** Address P1 license issues for production readiness
 
 ---
@@ -60,8 +60,8 @@ BitQuan demonstrates excellent supply-chain security with zero CVEs and strong d
 bitquan-types = { path = "../types" }  # Wildcard dependency
 ```
 
-**Issue:** Missing version constraint for internal dependency  
-**Risk:** Version conflicts, dependency resolution issues  
+**Issue:** Missing version constraint for internal dependency
+**Risk:** Version conflicts, dependency resolution issues
 **Fix:** Add explicit version constraint
 
 ---
@@ -103,7 +103,7 @@ bitquan-types = { path = "../types" }  # Wildcard dependency
 ```toml
 allow = [
     "Apache-2.0",
-    "MIT", 
+    "MIT",
     "BSD-3-Clause",
     "ISC",
     "CC0-1.0",
@@ -118,9 +118,9 @@ allow = [
 
 ### Dependency Tree Analysis
 
-**Total Dependencies:** 357  
-**Unique Crates:** ~340 (after accounting for duplicates)  
-**Direct Dependencies:** 85  
+**Total Dependencies:** 357
+**Unique Crates:** ~340 (after accounting for duplicates)
+**Direct Dependencies:** 85
 **Transitive Dependencies:** 272
 
 **Critical Dependencies:**

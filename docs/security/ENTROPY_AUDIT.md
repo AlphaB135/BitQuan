@@ -1,8 +1,8 @@
 # Entropy Audit Report
 
-**Date:** 2025-11-02  
-**Auditor:** Security Team  
-**Scope:** All RNG usage in BitQuan codebase  
+**Date:** 2025-11-02
+**Auditor:** Security Team
+**Scope:** All RNG usage in BitQuan codebase
 
 ## Executive Summary
 
@@ -207,18 +207,18 @@ use rand::prelude::*;
 ## RNG Security Tiers
 
 ### Tier 1: CSPRNGs (Production)
-✅ `OsRng` - Uses OS entropy sources (`/dev/urandom`, `getrandom()`, etc.)  
-✅ `getrandom` - Direct syscall to OS CSPRNG  
-✅ `ChaCha20Rng` - When seeded with 256 bits from CSPRNG  
+✅ `OsRng` - Uses OS entropy sources (`/dev/urandom`, `getrandom()`, etc.)
+✅ `getrandom` - Direct syscall to OS CSPRNG
+✅ `ChaCha20Rng` - When seeded with 256 bits from CSPRNG
 
 ### Tier 2: Acceptable for Tests
-✅ `ChaCha20Rng` - With deterministic seed (for reproducible tests)  
+✅ `ChaCha20Rng` - With deterministic seed (for reproducible tests)
 
 ### Tier 3: NEVER USE
-❌ `rand::random()` - Not cryptographically secure  
-❌ `SmallRng` - Fast but not secure  
-❌ `StdRng` - Deterministic, not for crypto  
-❌ `thread_rng()` - May use weak RNG on some platforms  
+❌ `rand::random()` - Not cryptographically secure
+❌ `SmallRng` - Fast but not secure
+❌ `StdRng` - Deterministic, not for crypto
+❌ `thread_rng()` - May use weak RNG on some platforms
 
 ---
 
@@ -307,7 +307,7 @@ BitQuan's RNG usage follows industry best practices:
 
 ---
 
-**Signed:**  
-Security Team  
-BitQuan Project  
+**Signed:**
+Security Team
+BitQuan Project
 2025-11-02

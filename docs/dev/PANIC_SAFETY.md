@@ -119,7 +119,7 @@ fn main() -> Result<()> {
         eprintln!("💥 PANIC: {}", panic_info);
         // Log to file, send metrics, etc.
     }));
-    
+
     run_node()
 }
 ```
@@ -179,10 +179,10 @@ fi
 pub enum ConsensusError {
     #[error("Block not found: {0}")]
     BlockNotFound(BlockHash),
-    
+
     #[error("Invalid proof of work")]
     InvalidPoW,
-    
+
     #[error("Arithmetic overflow in {operation}")]
     Overflow { operation: String },
 }
@@ -196,7 +196,7 @@ use anyhow::Context;
 fn load_config(path: &Path) -> Result<Config> {
     let contents = fs::read_to_string(path)
         .with_context(|| format!("Failed to read config: {:?}", path))?;
-    
+
     serde_json::from_str(&contents)
         .context("Failed to parse config JSON")?
 }
@@ -224,7 +224,7 @@ fn test_invariant_violation() {
         // Code that should panic
         validate_invariant(invalid_data);
     });
-    
+
     assert!(result.is_err());
 }
 ```
@@ -329,6 +329,6 @@ fn test_missing_block() {
 
 ---
 
-**Policy Version**: 1.0  
-**Last Updated**: 2025-11-02  
+**Policy Version**: 1.0
+**Last Updated**: 2025-11-02
 **Next Review**: Before v1.0 release

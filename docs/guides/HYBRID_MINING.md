@@ -23,7 +23,7 @@ Find a pool that supports your preferred algorithm:
 stratum+tcp://pool1.bitquan.org:3334  # ASIC-focused
 stratum+tcp://pool2.bitquan.org:3334  # Backup pool
 
-# Ethash pools  
+# Ethash pools
 stratum+tcp://pool1.bitquan.org:3335  # GPU-focused
 stratum+tcp://pool2.bitquan.org:3335  # Backup pool
 
@@ -156,7 +156,7 @@ Pool 1: stratum+tcp://pool1.bitquan.org:3334
 Worker: wallet.worker1
 Password: x
 
-# Backup pool  
+# Backup pool
 Pool 2: stratum+tcp://pool2.bitquan.org:3334
 Worker: wallet.worker1
 Password: x
@@ -340,18 +340,18 @@ def calculate_profitability(hashrate_ths, power_watts, electricity_cost_usd, blo
     # Network stats (example values)
     network_hashrate = 1000000  # TH/s
     blocks_per_day = 1440  # 60-second blocks
-    
+
     # Daily earnings
     daily_blocks = blocks_per_day * (hashrate_ths / network_hashrate)
     daily_bq = daily_blocks * block_reward
-    
+
     # Daily costs
     daily_power_kwh = (power_watts / 1000) * 24
     daily_electricity_cost = daily_power_kwh * electricity_cost_usd
-    
+
     # Net profit
     daily_profit = daily_bq * bq_price_usd - daily_electricity_cost
-    
+
     return daily_profit
 ```
 

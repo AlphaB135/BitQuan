@@ -145,6 +145,6 @@ Apache License 2.0 - See [LICENSE](https://github.com/AlphaB135/BitQuan/blob/mai
 
 ---
 
-**Release Date:** 2025-10-27  
-**Git Commit:** `0f47798`  
+**Release Date:** 2025-10-27
+**Git Commit:** `0f47798`
 **Rust Version:** 1.79+
