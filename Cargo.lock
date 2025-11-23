@@ -370,7 +370,9 @@ dependencies = [
 name = "bitquan-network"
 version = "0.1.0"
 dependencies = [
+ "bitquan-consensus",
  "bitquan-types",
+ "hex",
  "log",
  "rand 0.8.5",
  "serde",

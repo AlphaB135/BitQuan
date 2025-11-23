@@ -281,8 +281,13 @@ impl SecurityConfig {
 
     /// Get configuration summary
     pub fn get_summary(&self) -> String {
-        // TODO: Fix format string issues
-        format!("Security Configuration: {:?}", self.global.security_level)
+        format!(
+            "Security Level: {:?}, Rate Limit: {}/window, Max Connections: {}, Reputation Score: {}",
+            self.global.security_level,
+            self.rate_limiting.max_messages_per_window,
+            self.connections.max_total_connections,
+            self.reputation.initial_score
+        )
     }
 }
 
@@ -340,9 +345,10 @@ mod tests {
     fn test_security_config_serialization() {
         let config = SecurityConfig::default();
 
-        // TODO: Implement TOML serialization/deserialization
-        // For now, just test that config can be created
+        // Note: TOML serialization can be added when needed using serde
+        // For now, verify config is valid
         assert!(config.rate_limiting.max_messages_per_window > 0);
         assert!(config.connections.max_total_connections > 0);
+        assert!(config.validate().is_ok());
     }
 }

@@ -17,6 +17,8 @@ pub struct BlockRecord {
     pub miner_id: String,
     pub reward: u64,
     pub timestamp: u64,
+    /// Whether the reward is spendable (mature).
+    pub spendable: bool,
 }
 
 /// Record of a payout transaction.
@@ -87,10 +89,17 @@ impl PoolDatabase {
                 height INTEGER NOT NULL,
                 miner_id TEXT NOT NULL,
                 reward INTEGER NOT NULL,
-                timestamp INTEGER NOT NULL
+                timestamp INTEGER NOT NULL,
+                spendable INTEGER NOT NULL DEFAULT 0
             )",
             [],
         )?;
+
+        // Migration: Add spendable column if it doesn't exist
+        conn.execute(
+            "ALTER TABLE blocks ADD COLUMN spendable INTEGER NOT NULL DEFAULT 0",
+            [],
+        ).ok(); // Ignore error if column already exists
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS payouts (
@@ -126,14 +135,15 @@ impl PoolDatabase {
     pub fn insert_block(&self, block: &BlockRecord) -> SqlResult<()> {
         let conn = self.lock_conn()?;
         conn.execute(
-            "INSERT INTO blocks (hash, height, miner_id, reward, timestamp)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO blocks (hash, height, miner_id, reward, timestamp, spendable)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 &block.hash,
                 block.height,
                 &block.miner_id,
                 block.reward,
-                block.timestamp
+                block.timestamp,
+                if block.spendable { 1 } else { 0 }
             ],
         )?;
         Ok(())
@@ -143,7 +153,7 @@ impl PoolDatabase {
     pub fn get_block(&self, hash: &str) -> SqlResult<Option<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
-            "SELECT hash, height, miner_id, reward, timestamp FROM blocks WHERE hash = ?1",
+            "SELECT hash, height, miner_id, reward, timestamp, spendable FROM blocks WHERE hash = ?1",
         )?;
 
         let mut rows = stmt.query(params![hash])?;
@@ -154,6 +164,7 @@ impl PoolDatabase {
                 miner_id: row.get(2)?,
                 reward: row.get(3)?,
                 timestamp: row.get(4)?,
+                spendable: row.get::<_, i64>(5)? != 0,
             }))
         } else {
             Ok(None)
@@ -164,7 +175,7 @@ impl PoolDatabase {
     pub fn get_latest_block(&self) -> SqlResult<Option<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
-            "SELECT hash, height, miner_id, reward, timestamp
+            "SELECT hash, height, miner_id, reward, timestamp, spendable
              FROM blocks
              ORDER BY height DESC
              LIMIT 1",
@@ -178,6 +189,7 @@ impl PoolDatabase {
                 miner_id: row.get(2)?,
                 reward: row.get(3)?,
                 timestamp: row.get(4)?,
+                spendable: row.get::<_, i64>(5)? != 0,
             }))
         } else {
             Ok(None)
@@ -214,7 +226,7 @@ impl PoolDatabase {
     pub fn get_miner_blocks(&self, miner_id: &str, limit: usize) -> SqlResult<Vec<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
-            "SELECT hash, height, miner_id, reward, timestamp
+            "SELECT hash, height, miner_id, reward, timestamp, spendable
              FROM blocks
              WHERE miner_id = ?1
              ORDER BY height DESC
@@ -228,6 +240,7 @@ impl PoolDatabase {
                 miner_id: row.get(2)?,
                 reward: row.get(3)?,
                 timestamp: row.get(4)?,
+                spendable: row.get::<_, i64>(5)? != 0,
             })
         })?;
 
@@ -292,6 +305,65 @@ impl PoolDatabase {
         Ok(count as u64)
     }
 
+    /// Get blocks at a specific height.
+    pub fn get_blocks_at_height(&self, height: u64) -> SqlResult<Vec<BlockRecord>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT hash, height, miner_id, reward, timestamp, spendable
+             FROM blocks
+             WHERE height = ?1",
+        )?;
+
+        let rows = stmt.query_map(params![height], |row| {
+            Ok(BlockRecord {
+                hash: row.get(0)?,
+                height: row.get(1)?,
+                miner_id: row.get(2)?,
+                reward: row.get(3)?,
+                timestamp: row.get(4)?,
+                spendable: row.get::<_, i64>(5)? != 0,
+            })
+        })?;
+
+        rows.collect()
+    }
+
+    /// Mark a block's reward as spendable.
+    pub fn mark_reward_spendable(&self, block_hash: &str) -> SqlResult<()> {
+        let conn = self.lock_conn()?;
+        conn.execute(
+            "UPDATE blocks SET spendable = 1 WHERE hash = ?1",
+            params![block_hash],
+        )?;
+        Ok(())
+    }
+
+    /// Get miner's spendable balance (only mature rewards).
+    pub fn get_spendable_rewards(&self, miner_id: &str) -> SqlResult<u64> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT COALESCE(SUM(reward), 0)
+             FROM blocks
+             WHERE miner_id = ?1 AND spendable = 1",
+        )?;
+
+        let total: i64 = stmt.query_row(params![miner_id], |row| row.get(0))?;
+        Ok(total as u64)
+    }
+
+    /// Get miner's pending balance (immature rewards).
+    pub fn get_pending_rewards(&self, miner_id: &str) -> SqlResult<u64> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT COALESCE(SUM(reward), 0)
+             FROM blocks
+             WHERE miner_id = ?1 AND spendable = 0",
+        )?;
+
+        let total: i64 = stmt.query_row(params![miner_id], |row| row.get(0))?;
+        Ok(total as u64)
+    }
+
     /// Get total number of blocks.
     pub fn block_count(&self) -> SqlResult<u64> {
         let conn = self.lock_conn()?;
@@ -299,7 +371,7 @@ impl PoolDatabase {
 
         let count: i64 = stmt.query_row([], |row| row.get(0))?;
         Ok(count as u64)
-    }
+    }"}
 }
 
 #[cfg(test)]

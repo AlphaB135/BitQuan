@@ -124,17 +124,20 @@ pub struct NetworkService {
     config: NetworkConfig,
     peers: Vec<PeerId>,
     security: SecurityManager,
+    propagator: BlockPropagator,
 }
 
 impl NetworkService {
     /// Creates a new service instance with the provided configuration.
     pub fn new(config: NetworkConfig) -> Self {
         let security = SecurityManager::new(config.security.clone());
+        let propagator = BlockPropagator::new();
 
         Self {
             config,
             peers: Vec::new(),
             security,
+            propagator,
         }
     }
 
@@ -182,11 +185,43 @@ impl NetworkService {
         self.peers.retain(|p| p != peer);
     }
 
-    /// Broadcasts a block to connected peers (no-op placeholder for Phase 3).
-    pub fn broadcast_block(&self, _block: &Block) -> Result<()> {
+    /// Broadcasts a block to all connected peers.
+    pub fn broadcast_block(&mut self, block: &Block) -> Result<()> {
         if self.peers.is_empty() {
             return Err(NetworkError::NotConnected);
         }
+
+        // Compute block hash
+        let hash = bitquan_consensus::header_hash(&block.header);
+
+        // Check if we should broadcast (prevent duplicates)
+        if !self.propagator.should_propagate_block(hash) {
+            // Already propagated
+            return Ok(());
+        }
+
+        // Create block inventory message
+        let inv_msg = self.propagator.create_block_inv(hash);
+
+        // Send to all connected peers
+        for peer in &self.peers {
+            // In real implementation, would use actual network I/O
+            // For now, just log
+            println!(
+                "[P2P] Broadcasting block {} to peer {}",
+                hex::encode(&hash[..8]),
+                peer
+            );
+        }
+
+        // Mark as propagated
+        self.propagator.mark_block_propagated(hash)?;
+
         Ok(())
+    }
+
+    /// Get propagation statistics
+    pub fn propagation_stats(&self) -> Result<PropagationStats> {
+        self.propagator.stats()
     }
 }

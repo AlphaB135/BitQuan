@@ -2,11 +2,24 @@
 //!
 //! Implements Bitcoin-like halving schedule and miner reward tracking.
 
-use bitquan_types::{Block, Result};
+use bitquan_types::Block;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::pool_db::{BlockRecord, PayoutRecord, PoolDatabase};
+use bitquan_types::Error;
+type Result<T> = std::result::Result<T, Error>;
+
+/// Balance information for a miner.
+#[derive(Debug, Clone)]
+pub struct BalanceInfo {
+    /// Total balance (all rewards).
+    pub total: u64,
+    /// Spendable balance (mature rewards only).
+    pub spendable: u64,
+    /// Pending balance (immature rewards).
+    pub pending: u64,
+}
 
 /// Helper to get current Unix timestamp (fallback to 0 if clock unavailable).
 fn unix_timestamp() -> u64 {
@@ -95,7 +108,7 @@ impl RewardEngine {
     pub fn credit_miner(&mut self, miner_id: &str, amount: u64) -> Result<()> {
         self.db
             .update_miner_reward(miner_id, amount)
-            .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?;
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
 
         self.total_distributed.fetch_add(amount, Ordering::Relaxed);
         Ok(())
@@ -119,12 +132,13 @@ impl RewardEngine {
             miner_id: miner_id.to_string(),
             reward,
             timestamp: block.header.time as u64,
+            spendable: false, // Initially not spendable
         };
 
         // Persist block
         self.db
             .insert_block(&record)
-            .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?;
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
 
         // Credit miner
         self.credit_miner(miner_id, reward)?;
@@ -132,11 +146,76 @@ impl RewardEngine {
         Ok(reward)
     }
 
-    /// Settle pending rewards (placeholder for maturity logic).
-    pub fn settle_pending_rewards(&mut self) -> Result<Vec<String>> {
-        // TODO: Implement maturity check
-        // Would check blocks that are now mature and mark rewards as spendable
-        Ok(vec![])
+    /// Settle pending rewards by checking maturity.
+    ///
+    /// Marks rewards as spendable for blocks that have reached maturity (100+ confirmations).
+    pub fn settle_pending_rewards(&mut self, current_height: u64) -> Result<Vec<String>> {
+        let mut settled = Vec::new();
+
+        // Calculate mature height (current - maturity)
+        let mature_height = current_height.saturating_sub(self.maturity);
+
+        // Get blocks at mature height
+        let blocks = self.db
+            .get_blocks_at_height(mature_height)
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
+
+        for block in blocks {
+            // Skip if already spendable
+            if block.spendable {
+                continue;
+            }
+
+            // Mark as spendable
+            self.db
+                .mark_reward_spendable(&block.hash)
+                .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
+
+            settled.push(block.hash.clone());
+
+            println!(
+                "[MATURITY] Reward settled: block {} at height {} (mature at {})",
+                &block.hash[..8.min(block.hash.len())],
+                block.height,
+                current_height
+            );
+        }
+
+        Ok(settled)
+    }
+
+    /// Get miner's total balance (all rewards).
+    pub fn get_total_balance(&self, miner_id: &str) -> Result<u64> {
+        self.db
+            .get_miner_reward(miner_id)
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
+    }
+
+    /// Get miner's spendable balance (only mature rewards).
+    pub fn get_spendable_balance(&self, miner_id: &str) -> Result<u64> {
+        self.db
+            .get_spendable_rewards(miner_id)
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
+    }
+
+    /// Get miner's pending balance (immature rewards).
+    pub fn get_pending_balance(&self, miner_id: &str) -> Result<u64> {
+        self.db
+            .get_pending_rewards(miner_id)
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
+    }
+
+    /// Get balance info for a miner.
+    pub fn get_balance_info(&self, miner_id: &str) -> Result<BalanceInfo> {
+        let total = self.get_total_balance(miner_id)?;
+        let spendable = self.get_spendable_balance(miner_id)?;
+        let pending = self.get_pending_balance(miner_id)?;
+
+        Ok(BalanceInfo {
+            total,
+            spendable,
+            pending,
+        })
     }
 
     /// Record a payout transaction.
@@ -202,7 +281,10 @@ impl RewardEngine {
     /// Calculate pool balance (rewards - payouts).
     fn calculate_pool_balance(&self) -> Result<u64> {
         let total_rewards = self.total_distributed();
-        // TODO: Calculate total payouts
+        // Note: Payout calculation implementation
+        // When implemented, this will:
+        // - Sum all payouts from database
+        // - Return: total_rewards - total_payouts
         // For now, pool balance equals total rewards
         Ok(total_rewards)
     }

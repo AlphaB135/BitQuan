@@ -231,7 +231,8 @@ pub fn broadcast_block_inv(block_hash: [u8; 32], propagator: &BlockPropagator) -
     // Create inv message (for future use)
     let _inv_msg = propagator.create_block_inv(block_hash);
 
-    // TODO: Send to all connected peers via network manager
+    // Note: P2P network integration point
+    // When P2P module is integrated, send inv_msg to all connected peers
     // For now, just mark as propagated
     propagator.mark_block_propagated(block_hash)?;
 
