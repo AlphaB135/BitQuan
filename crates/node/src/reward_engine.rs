@@ -6,6 +6,7 @@ use bitquan_types::Block;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+#[cfg(feature = "pool")]
 use crate::pool_db::{BlockRecord, PayoutRecord, PoolDatabase};
 use bitquan_types::Error;
 type Result<T> = std::result::Result<T, Error>;

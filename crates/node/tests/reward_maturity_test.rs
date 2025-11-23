@@ -34,7 +34,11 @@ fn test_reward_becomes_spendable_after_100_blocks() {
     let settled = engine
         .settle_pending_rewards(99)
         .expect("Failed to settle at height 99");
-    assert_eq!(settled.len(), 0, "No rewards should be settled at height 99");
+    assert_eq!(
+        settled.len(),
+        0,
+        "No rewards should be settled at height 99"
+    );
 
     // At height 100, reward should become spendable
     let settled = engine

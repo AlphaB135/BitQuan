@@ -1,0 +1,809 @@
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/pqc_dilithium_seeded-2a55kwrui9ed5/s-hd9bagb82c-0ty4hc4-working`
+
+warning: `pqc-dilithium-seeded` (lib) generated 1 warning
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bq_crypto-3k9goaa631p8l/s-hd9bakjrwr-1iybt10-working`
+
+warning: `bq-crypto` (lib) generated 1 warning
+   Compiling bitquan-consensus v0.1.0 (/Volumes/ORICO_EXFAT/BitQuan/crates/consensus)
+   Compiling wallet v0.1.0 (/Volumes/ORICO_EXFAT/BitQuan/crates/wallet)
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/wallet-3riw4pm9sjx8u/s-hd9bb9shrm-0v30j7z-working`
+
+warning: `wallet` (lib test) generated 1 warning
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/pqc_dilithium_seeded-0356xxu3xiark/s-hd8edusvi5-0kcpd46-working`
+
+   Compiling bq-sdk v0.1.0 (/Volumes/ORICO_EXFAT/BitQuan/crates/bq-sdk)
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bq_crypto-035mbovv3ou2e/s-hd9bakjrwz-05t0x52-working`
+
+warning: `pqc-dilithium-seeded` (lib test) generated 1 warning
+warning: `bq-crypto` (lib test) generated 1 warning
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_consensus-1j3pfg5q6i0px/s-hd9bpqqfxp-0bh36mm-working`
+
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/wallet-0z6lszfgbtqw9/s-hd9bpqs29k-0x9789t-working`
+
+   Compiling bitquan-network v0.1.0 (/Volumes/ORICO_EXFAT/BitQuan/crates/network)
+   Compiling bitquan-rpc v0.1.0 (/Volumes/ORICO_EXFAT/BitQuan/crates/rpc)
+   Compiling bitquan-mempool v0.1.0 (/Volumes/ORICO_EXFAT/BitQuan/crates/mempool)
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bq_sdk-0hkwah20mrou3/s-hd9bpqs3ce-0gmwfvq-working`
+
+warning: `wallet` (lib) generated 1 warning
+error: failed to create dependency graph at `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bq_sdk-0hkwah20mrou3/s-hd9bpqs3ce-0gmwfvq-working/dep-graph.part.bin`: No such file or directory (os error 2)
+
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_consensus-1jakvf5fc9jdl/s-hd9bpqse1y-1vou4l9-working`
+
+warning: `bitquan-consensus` (lib) generated 1 warning
+error: failed to create dependency graph at `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_consensus-1jakvf5fc9jdl/s-hd9bpqse1y-1vou4l9-working/dep-graph.part.bin`: No such file or directory (os error 2)
+
+warning: `bq-sdk` (lib test) generated 1 warning
+error: could not compile `bq-sdk` (lib test) due to 1 previous error; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...
+warning: unused imports: `Ipv4Addr` and `SocketAddr`
+  --> crates/network/src/dos_protection.rs:17:24
+   |
+17 | use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+   |                        ^^^^^^^^  ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `AtomicUsize`
+  --> crates/network/src/dos_protection.rs:18:36
+   |
+18 | use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+   |                                    ^^^^^^^^^^^
+
+warning: unused import: `std::net::IpAddr`
+  --> crates/network/src/rate_limiter.rs:16:5
+   |
+16 | use std::net::IpAddr;
+   |     ^^^^^^^^^^^^^^^^
+
+warning: unused import: `MessageTypeLimits`
+  --> crates/network/src/security_config.rs:21:20
+   |
+21 |     rate_limiter::{MessageTypeLimits, RateLimitConfig},
+   |                    ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> crates/network/src/security_manager.rs:17:5
+   |
+17 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `AttackSeverity`
+  --> crates/network/src/security_manager.rs:24:34
+   |
+24 |     dos_protection::{AttackInfo, AttackSeverity, DoSError, DoSProtection, DoSStats},
+   |                                  ^^^^^^^^^^^^^^
+
+warning: unused import: `std::net::IpAddr`
+   --> crates/network/src/security_manager.rs:589:9
+    |
+589 |     use std::net::IpAddr;
+    |         ^^^^^^^^^^^^^^^^
+
+warning: unused variable: `cookie`
+   --> crates/network/src/dos_protection.rs:336:21
+    |
+336 |         if let Some(cookie) = half_open {
+    |                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_cookie`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `reason`
+   --> crates/network/src/reputation.rs:353:50
+    |
+353 |     pub fn ban_peer(&mut self, peer_id: &PeerId, reason: String, duration: Option<Duration>) {
+    |                                                  ^^^^^^ help: if this is intentional, prefix it with an underscore: `_reason`
+
+warning: unused variable: `reason`
+   --> crates/network/src/security_manager.rs:263:65
+    |
+263 |     pub fn handle_connection_closed(&mut self, peer_id: PeerId, reason: Option<String>) {
+    |                                                                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_reason`
+
+warning: variable does not need to be mutable
+   --> crates/network/src/security_manager.rs:657:13
+    |
+657 |         let mut security = SecurityManager::new(config);
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `peer_id` is never read
+   --> crates/network/src/dos_protection.rs:112:5
+    |
+106 | pub struct SynCookie {
+    |            --------- field in this struct
+...
+112 |     peer_id: Option<PeerId>,
+    |     ^^^^^^^
+    |
+    = note: `SynCookie` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `global_usage` is never read
+   --> crates/network/src/dos_protection.rs:137:5
+    |
+133 | struct BandwidthTracker {
+    |        ---------------- field in this struct
+...
+137 |     global_usage: BandwidthUsage,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `BandwidthTracker` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: missing documentation for a struct field
+   --> crates/network/src/ban_manager.rs:108:5
+    |
+108 |     pub total_bans: u64,
+    |     ^^^^^^^^^^^^^^^^^^^
+    |
+note: the lint level is defined here
+   --> crates/network/src/lib.rs:2:9
+    |
+  2 | #![warn(missing_docs)]
+    |         ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/ban_manager.rs:109:5
+    |
+109 |     pub active_bans: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/ban_manager.rs:110:5
+    |
+110 |     pub temporary_bans: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/ban_manager.rs:111:5
+    |
+111 |     pub permanent_bans: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/ban_manager.rs:112:5
+    |
+112 |     pub expired_bans: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/ban_manager.rs:113:5
+    |
+113 |     pub bans_by_reason: HashMap<BanReason, u64>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/connection_manager.rs:42:5
+   |
+42 |     Inbound,
+   |     ^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/connection_manager.rs:43:5
+   |
+43 |     Outbound,
+   |     ^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/connection_manager.rs:72:5
+   |
+72 |     Connecting,
+   |     ^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/connection_manager.rs:73:5
+   |
+73 |     Connected,
+   |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/connection_manager.rs:74:5
+   |
+74 |     Disconnecting,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/connection_manager.rs:75:5
+   |
+75 |     Disconnected,
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/connection_manager.rs:83:5
+   |
+83 |     pub max_inbound_connections: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/connection_manager.rs:84:5
+   |
+84 |     pub max_outbound_connections: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/connection_manager.rs:91:5
+   |
+91 |     pub idle_timeout: Duration,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/connection_manager.rs:98:5
+   |
+98 |     pub max_connection_attempts_per_minute: u32,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/connection_manager.rs:135:5
+    |
+135 |     pub total_connections: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/connection_manager.rs:136:5
+    |
+136 |     pub inbound_connections: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/connection_manager.rs:137:5
+    |
+137 |     pub outbound_connections: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/connection_manager.rs:138:5
+    |
+138 |     pub rejected_connections: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/connection_manager.rs:139:5
+    |
+139 |     pub timed_out_connections: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/connection_manager.rs:140:5
+    |
+140 |     pub current_connections: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/connection_manager.rs:141:5
+    |
+141 |     pub unique_ips: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:50:5
+   |
+50 |     pub connection_flood_threshold: u32,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:51:5
+   |
+51 |     pub connection_flood_window: Duration,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:55:5
+   |
+55 |     pub max_bandwidth_per_peer: u64, // bytes per second
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:56:5
+   |
+56 |     pub bandwidth_burst_size: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:57:5
+   |
+57 |     pub bandwidth_window_duration: Duration,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:61:5
+   |
+61 |     pub suspicious_pattern_threshold: f64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:62:5
+   |
+62 |     pub pattern_analysis_window: Duration,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:66:5
+   |
+66 |     pub auto_ban_duration: Duration,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/dos_protection.rs:67:5
+   |
+67 |     pub enable_rate_limiting: bool,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+   --> crates/network/src/dos_protection.rs:216:5
+    |
+216 |     Low,
+    |     ^^^
+
+warning: missing documentation for a variant
+   --> crates/network/src/dos_protection.rs:217:5
+    |
+217 |     Medium,
+    |     ^^^^^^
+
+warning: missing documentation for a variant
+   --> crates/network/src/dos_protection.rs:218:5
+    |
+218 |     High,
+    |     ^^^^
+
+warning: missing documentation for a variant
+   --> crates/network/src/dos_protection.rs:219:5
+    |
+219 |     Critical,
+    |     ^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/dos_protection.rs:225:5
+    |
+225 |     pub syn_floods_detected: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/dos_protection.rs:226:5
+    |
+226 |     pub connection_floods_detected: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/dos_protection.rs:227:5
+    |
+227 |     pub bandwidth_attacks_detected: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/dos_protection.rs:228:5
+    |
+228 |     pub pattern_attacks_detected: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/dos_protection.rs:229:5
+    |
+229 |     pub total_attacks_detected: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/dos_protection.rs:230:5
+    |
+230 |     pub auto_bans_issued: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/dos_protection.rs:231:5
+    |
+231 |     pub mitigations_applied: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:35:5
+   |
+35 |     Block,
+   |     ^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:36:5
+   |
+36 |     Transaction,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:37:5
+   |
+37 |     Ping,
+   |     ^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:38:5
+   |
+38 |     Pong,
+   |     ^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:39:5
+   |
+39 |     GetBlocks,
+   |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:40:5
+   |
+40 |     GetHeaders,
+   |     ^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:41:5
+   |
+41 |     Headers,
+   |     ^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:42:5
+   |
+42 |     Inv,
+   |     ^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:43:5
+   |
+43 |     GetData,
+   |     ^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:44:5
+   |
+44 |     NotFound,
+   |     ^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:45:5
+   |
+45 |     Tx,
+   |     ^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/rate_limiter.rs:46:5
+   |
+46 |     Other,
+   |     ^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:52:5
+   |
+52 |     pub block: u32,       // 10/sec
+   |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:53:5
+   |
+53 |     pub transaction: u32, // 50/sec
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:54:5
+   |
+54 |     pub ping: u32,        // 5/sec
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:55:5
+   |
+55 |     pub pong: u32,        // 5/sec
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:56:5
+   |
+56 |     pub get_blocks: u32,  // 20/sec
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:57:5
+   |
+57 |     pub get_headers: u32, // 20/sec
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:58:5
+   |
+58 |     pub headers: u32,     // 100/sec (burst)
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:59:5
+   |
+59 |     pub inv: u32,         // 100/sec (burst)
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:60:5
+   |
+60 |     pub get_data: u32,    // 50/sec
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:61:5
+   |
+61 |     pub not_found: u32,   // 20/sec
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:62:5
+   |
+62 |     pub tx: u32,          // 100/sec (burst)
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:63:5
+   |
+63 |     pub block_msg: u32,   // 10/sec
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/rate_limiter.rs:64:5
+   |
+64 |     pub other: u32,       // 10/sec
+   |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/reputation.rs:147:5
+    |
+147 |     pub total_peers: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/reputation.rs:148:5
+    |
+148 |     pub banned_peers: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/reputation.rs:149:5
+    |
+149 |     pub throttled_peers: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/reputation.rs:150:5
+    |
+150 |     pub average_score: f64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/reputation.rs:151:5
+    |
+151 |     pub total_violations: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/security_config.rs:92:5
+   |
+92 |     Log,
+   |     ^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/security_config.rs:93:5
+   |
+93 |     Email,
+   |     ^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/security_config.rs:94:5
+   |
+94 |     Webhook,
+   |     ^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/security_config.rs:95:5
+   |
+95 |     Slack,
+   |     ^^^^^
+
+warning: missing documentation for a variant
+  --> crates/network/src/security_config.rs:96:5
+   |
+96 |     Telegram,
+   |     ^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:77:9
+   |
+77 |         peer_id: PeerId,
+   |         ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:78:9
+   |
+78 |         message_type: MessageType,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:79:9
+   |
+79 |         violation_count: u32,
+   |         ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:83:9
+   |
+83 |         peer_id: PeerId,
+   |         ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:84:9
+   |
+84 |         old_state: String,
+   |         ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:85:9
+   |
+85 |         new_state: String,
+   |         ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:89:9
+   |
+89 |         peer_id: PeerId,
+   |         ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:90:9
+   |
+90 |         old_score: i32,
+   |         ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:91:9
+   |
+91 |         new_score: i32,
+   |         ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:92:9
+   |
+92 |         action: ReputationAction,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:96:9
+   |
+96 |         peer_id: PeerId,
+   |         ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:97:9
+   |
+97 |         reason: BanReason,
+   |         ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:98:9
+   |
+98 |         duration: Option<Duration>,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/network/src/security_manager.rs:99:9
+   |
+99 |         is_permanent: bool,
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/security_manager.rs:102:20
+    |
+102 |     PeerUnbanned { peer_id: PeerId },
+    |                    ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/security_manager.rs:104:22
+    |
+104 |     AttackDetected { attack: AttackInfo },
+    |                      ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/security_manager.rs:106:25
+    |
+106 |     StatisticsUpdated { interval: Duration },
+    |                         ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/security_manager.rs:129:5
+    |
+129 |     pub total_messages: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/security_manager.rs:130:5
+    |
+130 |     pub rejected_messages: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/security_manager.rs:131:5
+    |
+131 |     pub rate_limited_peers: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/network/src/security_manager.rs:132:5
+    |
+132 |     pub banned_peers: usize,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+   --> crates/network/src/security_manager.rs:159:5
+    |
+159 |     fn handle_security_event(&self, event: SecurityEvent);
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `bitquan-consensus` (lib test) generated 1 warning
+error: could not compile `bitquan-consensus` (lib test) due to 1 previous error; 1 warning emitted
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_mempool-0k18kbprl54tt/s-hd9bq2lqn4-1qnv0f6-working`
+
+warning: `bitquan-mempool` (lib) generated 1 warning
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_rpc-2vbjxabhrlg80/s-hd9bpygcsw-05bxam1-working`
+
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_network-3hvkfvf4zfqvf/s-hd9bpy5ugg-1n8mqxj-working`
+
+error: failed to create dependency graph at `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_rpc-2vbjxabhrlg80/s-hd9bpygcsw-05bxam1-working/dep-graph.part.bin`: No such file or directory (os error 2)
+
+error: failed to create dependency graph at `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_network-3hvkfvf4zfqvf/s-hd9bpy5ugg-1n8mqxj-working/dep-graph.part.bin`: No such file or directory (os error 2)
+
+warning: unused import: `rand`
+  --> crates/network/src/ban_manager.rs:15:5
+   |
+15 | use rand;
+   |     ^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `rand`
+  --> crates/network/src/connection_manager.rs:15:5
+   |
+15 | use rand;
+   |     ^^^^
+
+warning: unused import: `rand`
+  --> crates/network/src/dos_protection.rs:15:5
+   |
+15 | use rand;
+   |     ^^^^
+
+warning: unused imports: `Ipv4Addr` and `SocketAddr`
+  --> crates/network/src/dos_protection.rs:17:24
+   |
+17 | use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+   |                        ^^^^^^^^  ^^^^^^^^^^
+
+warning: unused import: `rand`
+  --> crates/network/src/rate_limiter.rs:14:5
+   |
+14 | use rand;
+   |     ^^^^
+
+warning: unused import: `rand`
+  --> crates/network/src/reputation.rs:14:5
+   |
+14 | use rand;
+   |     ^^^^
+
+warning: unused import: `rand`
+  --> crates/network/src/security_manager.rs:16:5
+   |
+16 | use rand;
+   |     ^^^^
+
+warning: `bitquan-network` (lib test) generated 113 warnings (run `cargo fix --lib -p bitquan-network --tests` to apply 8 suggestions)
+warning: `bitquan-rpc` (lib) generated 1 warning
+error: could not compile `bitquan-rpc` (lib) due to 1 previous error; 1 warning emitted
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_rpc-14o8aqe4uebet/s-hd9bq58qzh-1v4qijz-working`
+
+warning: `bitquan-network` (lib) generated 16 warnings (8 duplicates)
+error: could not compile `bitquan-network` (lib) due to 1 previous error; 16 warnings emitted
+error: failed to create dependency graph at `/Volumes/ORICO_EXFAT/BitQuan/target/debug/incremental/bitquan_rpc-14o8aqe4uebet/s-hd9bq58qzh-1v4qijz-working/dep-graph.part.bin`: No such file or directory (os error 2)
+
+warning: `bitquan-rpc` (lib test) generated 1 warning
+error: could not compile `bitquan-rpc` (lib test) due to 1 previous error; 1 warning emitted

@@ -1,3 +1,5 @@
+#![cfg(feature = "pool")]
+
 //! Pool database layer for miners, blocks, and payouts.
 //!
 //! Provides SQLite-backed persistence for pool operations including:

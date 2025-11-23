@@ -10,6 +10,7 @@ pub mod metrics;
 pub mod miner;
 pub mod monitoring;
 pub mod pool_dashboard;
+#[cfg(feature = "pool")]
 pub mod pool_db;
 pub mod pool_template;
 pub mod reward_engine;
@@ -24,6 +25,7 @@ pub use metrics::MiningMetrics;
 pub use miner::{HybridMiner, MinerMetrics};
 pub use monitoring::{HealthStatus, MonitoringSystem, PerformanceMetrics};
 pub use pool_dashboard::PoolDashboard;
+#[cfg(feature = "pool")]
 pub use pool_db::{BlockRecord, PayoutRecord, PoolDatabase};
 pub use pool_template::{BlockTemplate, PoolTemplateManager};
 pub use reward_engine::{PoolStats, RewardEngine};

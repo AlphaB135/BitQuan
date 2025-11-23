@@ -46,6 +46,7 @@ warp = "0.3"
 
 [features]
 default = ["rocksdb-backend"]
+pool = []  # Enable pool database functionality (Phase 8)
 rocksdb-backend = ["bitquan-storage/rocksdb-backend"]
 randomx = ["bitquan-consensus/randomx"]
 mainnet = []

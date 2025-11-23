@@ -1,15 +1,18 @@
-//! Simple chain state tracking.
+//! Chainstate tracking and metrics.
 //!
-//! Maintains the current chain height and tip hash.
+//! Provides real-time blockchain state information including:
+//! - Block height and hash
+//! - Total supply and difficulty
+//! - Network statistics
 
+#[cfg(feature = "pool")]
+use crate::pool_db::PoolDatabase;
 use bitquan_types::{Block, Result};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::pool_db::PoolDatabase;
-
-/// Chain state tracker.
-#[derive(Clone)]
+/// Blockchain state information.
+#[derive(Debug, Clone)]
 #[allow(dead_code)] // Reserved for Phase 8 pool/RPC metrics integration
 pub struct ChainState {
     /// Current chain height.
