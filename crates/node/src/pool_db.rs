@@ -46,7 +46,7 @@ impl PoolDatabase {
     /// Create or open a pool database at the given path.
     pub fn open(path: &str) -> SqlResult<Self> {
         let conn = Connection::open(path)?;
-        
+
         // Set file permissions to 600 (read/write owner only) for security
         // This prevents other users from reading miner data
         #[cfg(unix)]
@@ -57,7 +57,7 @@ impl PoolDatabase {
                 eprintln!("[pool_db] Warning: Could not set file permissions: {}", e);
             }
         }
-        
+
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
         };
