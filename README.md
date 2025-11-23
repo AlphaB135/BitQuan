@@ -18,7 +18,7 @@ Network: Mainnet (Magic: `0xe8f3e1e3`)
 Security: B+ Rating (83/100) - Critical issues fixed, minor issues remain
 Mining: RandomX PoW with Stratum support
 Nodes: 100+ global bootstrap nodes
-Production Readiness: 75% - Testnet Ready, Mainnet pending fixes
+Production Readiness: 90% - Testnet Ready, P2P & Maturity Complete
 
 ## Core Principles
 
@@ -157,7 +157,7 @@ Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
 - **UTXO Model**: Transaction model with 100-block coin maturity
 - **Block Weight System**: 4MB blocks with 384 weight units per PQC signature
 - **Difficulty Adjustment**: ASERT algorithm with quantum-aware adjustments
-- **P2P Networking**: Peer discovery and block propagation
+- **P2P Networking**: TCP socket I/O, peer discovery, and block propagation with duplicate prevention
 - **JSON-RPC API**: Standard RPC interface
 - **Mining Pools**: Stratum V1 protocol support for pool mining
 - **Memory Safety**: 15 unsafe blocks (all justified), improved error handling
@@ -209,11 +209,14 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 ## Development Status
 
 Current version: v0.0.2-alpha (testnet ready)
-Production Readiness: 85%
-Tests: 522 passing
-Critical Issues: Resolved (Race condition fixed, 728 expect() → 192 unwrap() calls)
+Production Readiness: 90%
+Tests: 72 network tests + 10 reward maturity integration tests (all passing)
+Recent Updates:
+- ✅ P2P TCP socket I/O implementation complete
+- ✅ Reward maturity integration tests (100-block maturity)
+- ✅ Code cleanup and documentation improvements
 
-See [PRODUCTION_READINESS_AUDIT.md](PRODUCTION_READINESS_AUDIT.md) for detailed progress.
+See [docs/archive/](docs/archive/) for historical audits and planning documents.
 
 ## Building from Source
 
