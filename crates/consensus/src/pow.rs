@@ -5,10 +5,9 @@
 //! Supports pluggable PoW algorithms (SHA-256d, RandomX) with per-algorithm difficulty.
 
 use bitquan_types::{BlockHeader, Result};
-use parking_lot::Mutex;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 #[cfg(feature = "randomx")]
@@ -123,10 +122,6 @@ impl PowEngine for Sha256dEngine {
 }
 
 /// RandomX VM cache to prevent DoS from repeated VM creation.
-///
-/// Note: We use parking_lot::Mutex here because randomx_rs::RandomXVM is not Send/Sync.
-/// parking_lot::Mutex doesn't require the inner type to be Send/Sync, unlike std::sync::Mutex.
-/// This is a temporary workaround until upstream randomx_rs implements Send/Sync.
 #[cfg(feature = "randomx")]
 pub struct RandomXVMCache {
     cache: HashMap<[u8; 32], Arc<Mutex<Option<randomx_rs::RandomXVM>>>>,
@@ -172,12 +167,18 @@ impl Default for RandomXVMCache {
 /// RandomX PoW engine.
 pub struct RandomXEngine {
     _config: RandomXConfig,
+    #[cfg(feature = "randomx")]
+    vm_cache: Arc<Mutex<RandomXVMCache>>,
 }
 
 impl RandomXEngine {
     /// Create a new RandomX engine with given configuration.
     pub fn new(config: RandomXConfig) -> Self {
-        Self { _config: config }
+        Self {
+            _config: config,
+            #[cfg(feature = "randomx")]
+            vm_cache: Arc::new(Mutex::new(RandomXVMCache::new())),
+        }
     }
 }
 
@@ -201,13 +202,16 @@ impl PowEngine for RandomXEngine {
 
     fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
         let bytes = header.to_bytes();
-        #[cfg(not(feature = "randomx"))]
-        {
-            Ok(randomx_pow_hash(&bytes, &self._config.seed))
-        }
         #[cfg(feature = "randomx")]
         {
-            // Use fallback when RandomX feature is enabled but thread safety is an issue
+            Ok(randomx_pow_hash_cached(
+                &bytes,
+                &self._config.seed,
+                &self.vm_cache,
+            )?)
+        }
+        #[cfg(not(feature = "randomx"))]
+        {
             Ok(randomx_pow_hash(&bytes, &self._config.seed))
         }
     }
@@ -220,12 +224,21 @@ pub fn randomx_pow_hash_cached(
     seed: &[u8; 32],
     vm_cache: &Arc<Mutex<RandomXVMCache>>,
 ) -> Result<[u8; 32]> {
+    use randomx_rs::{RandomXCache, RandomXVM};
+
     // Get or create cached VM for this seed
-    let vm_ref = vm_cache.lock().get_vm(seed)?;
+    let vm_ref = vm_cache
+        .lock()
+        .map_err(|e| {
+            bitquan_types::Error::Invalid(format!("Failed to acquire VM cache lock: {}", e))
+        })?
+        .get_vm(seed)?;
 
     // Calculate hash using cached VM
     let hash = {
-        let vm_guard = vm_ref.lock();
+        let vm_guard = vm_ref.lock().map_err(|e| {
+            bitquan_types::Error::Invalid(format!("Failed to acquire VM lock: {}", e))
+        })?;
         if let Some(ref vm) = *vm_guard {
             vm.calculate_hash(preimage).map_err(|e| {
                 bitquan_types::Error::Invalid(format!("Failed to calculate RandomX hash: {}", e))
@@ -408,7 +421,9 @@ pub fn ethash_pow_hash_cached(
     // Get or create cached data for this epoch
     let cache_ref = cache
         .lock()
-        .map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire cache lock: {}", e)))?
+        .map_err(|e| {
+            bitquan_types::Error::Invalid(format!("Failed to acquire Ethash cache lock: {}", e))
+        })?
         .get_cache(epoch)?;
 
     // Use a simple nonce for now (in real implementation, this would be mining nonce)
@@ -417,7 +432,10 @@ pub fn ethash_pow_hash_cached(
     // Get cache data
     let cache_data = {
         let cache_guard = cache_ref.lock().map_err(|e| {
-            bitquan_types::Error::Invalid(format!("Failed to acquire cache data lock: {}", e))
+            bitquan_types::Error::Invalid(format!(
+                "Failed to acquire Ethash cache data lock: {}",
+                e
+            ))
         })?;
         if let Some(ref data) = *cache_guard {
             data.clone()
@@ -442,7 +460,7 @@ pub fn ethash_pow_hash_cached(
 pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
     // Create temporary cache for legacy compatibility
     let cache = Arc::new(Mutex::new(EthashCache::new()));
-    ethash_pow_hash_cached(preimage, cache_size, &cache).unwrap_or_else(|e| {
+    ethash_pow_hash_cached(preimage, cache_size, &cache).unwrap_or_else(|_e| {
         // In legacy compatibility mode, we should never fail, but if we do,
         // return a fallback hash to maintain API compatibility
         use sha3::{Digest, Keccak256};
@@ -589,7 +607,6 @@ fn clamp_bits(bits: u32) -> std::result::Result<u32, PowError> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 

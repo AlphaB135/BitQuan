@@ -303,3 +303,6 @@ docs/.doctrees/
 # Git patch files
 *.patch
 *.diff.bak
+
+# Multi-agent workflow kit
+agents/

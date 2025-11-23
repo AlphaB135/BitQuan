@@ -100,9 +100,25 @@ pub enum NetworkError {
     /// Generic I/O failure placeholder.
     #[error("io failure: {0}")]
     Io(String),
-    /// Attempted operation requires at least one connected peer.
-    #[error("no peers connected")]
+    /// Peer not connected.
+    #[error("peer not connected")]
     NotConnected,
+
+    /// Invalid peer address.
+    #[error("invalid address: {0}")]
+    InvalidAddress(String),
+
+    /// Connection failed.
+    #[error("connection failed: {0}")]
+    ConnectionFailed(String),
+
+    /// Serialization error.
+    #[error("serialization error: {0}")]
+    SerializationError(String),
+
+    /// I/O error.
+    #[error("I/O error: {0}")]
+    IoError(String),
     /// Lock poisoned error
     #[error("lock poisoned: {0}")]
     LockPoisoned(String),
@@ -200,22 +216,78 @@ impl NetworkService {
             return Ok(());
         }
 
-        // Create block inventory message
-        let inv_msg = self.propagator.create_block_inv(hash);
+        // Create block message
+        let message = protocol::Message::Block {
+            block: block.clone(),
+        };
 
         // Send to all connected peers
         for peer in &self.peers {
-            // In real implementation, would use actual network I/O
-            // For now, just log
-            println!(
-                "[P2P] Broadcasting block {} to peer {}",
-                hex::encode(&hash[..8]),
-                peer
-            );
+            // Send block to peer via TCP
+            if let Err(e) = self.send_to_peer(peer, &message) {
+                // Log error but continue to other peers
+                eprintln!(
+                    "[P2P] Failed to send block {} to peer {}: {}",
+                    hex::encode(&hash[..8]),
+                    peer,
+                    e
+                );
+            }
         }
 
         // Mark as propagated
         self.propagator.mark_block_propagated(hash)?;
+
+        Ok(())
+    }
+
+    /// Sends a message to a peer via TCP.
+    ///
+    /// This is a simple, synchronous TCP implementation with timeout.
+    /// The message is serialized using JSON and sent with a length prefix.
+    ///
+    /// # Arguments
+    /// * `peer_addr` - Peer address (e.g., "127.0.0.1:8333")
+    /// * `message` - Message to send
+    ///
+    /// # Errors
+    /// Returns error if connection fails, serialization fails, or send fails.
+    fn send_to_peer(&self, peer_addr: &str, message: &protocol::Message) -> Result<()> {
+        use std::io::Write;
+        use std::net::TcpStream;
+        use std::time::Duration;
+
+        // Create message envelope
+        let envelope = protocol::MessageEnvelope::new(message.clone());
+
+        // Serialize message
+        let data = envelope
+            .serialize()
+            .map_err(|e| NetworkError::SerializationError(e.to_string()))?;
+
+        // Connect to peer with timeout (5 seconds)
+        let mut stream = TcpStream::connect_timeout(
+            &peer_addr
+                .parse()
+                .map_err(|e| NetworkError::InvalidAddress(format!("Invalid address: {}", e)))?,
+            Duration::from_secs(5),
+        )
+        .map_err(|e| NetworkError::ConnectionFailed(format!("Failed to connect: {}", e)))?;
+
+        // Set write timeout
+        stream
+            .set_write_timeout(Some(Duration::from_secs(5)))
+            .map_err(|e| NetworkError::IoError(format!("Failed to set timeout: {}", e)))?;
+
+        // Send data
+        stream
+            .write_all(&data)
+            .map_err(|e| NetworkError::IoError(format!("Failed to send data: {}", e)))?;
+
+        // Flush to ensure data is sent
+        stream
+            .flush()
+            .map_err(|e| NetworkError::IoError(format!("Failed to flush: {}", e)))?;
 
         Ok(())
     }
