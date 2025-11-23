@@ -46,6 +46,18 @@ impl PoolDatabase {
     /// Create or open a pool database at the given path.
     pub fn open(path: &str) -> SqlResult<Self> {
         let conn = Connection::open(path)?;
+        
+        // Set file permissions to 600 (read/write owner only) for security
+        // This prevents other users from reading miner data
+        #[cfg(unix)]
+        {
+            use std::fs;
+            use std::os::unix::fs::PermissionsExt;
+            if let Err(e) = fs::set_permissions(path, fs::Permissions::from_mode(0o600)) {
+                eprintln!("[pool_db] Warning: Could not set file permissions: {}", e);
+            }
+        }
+        
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
         };
@@ -77,6 +89,11 @@ impl PoolDatabase {
     fn init_schema(&self) -> SqlResult<()> {
         let conn = self.lock_conn()?;
 
+        // Enable WAL mode for better concurrency (Gemini recommendation)
+        // This allows multiple readers and one writer simultaneously
+        conn.execute("PRAGMA journal_mode=WAL;", [])?;
+
+        // Create miners table
         conn.execute(
             "CREATE TABLE IF NOT EXISTS miners (
                 id TEXT PRIMARY KEY,
@@ -85,6 +102,7 @@ impl PoolDatabase {
             [],
         )?;
 
+        // Create blocks table
         conn.execute(
             "CREATE TABLE IF NOT EXISTS blocks (
                 hash TEXT PRIMARY KEY,
@@ -98,11 +116,31 @@ impl PoolDatabase {
         )?;
 
         // Migration: Add spendable column if it doesn't exist
-        conn.execute(
-            "ALTER TABLE blocks ADD COLUMN spendable INTEGER NOT NULL DEFAULT 0",
+        // Check if column exists before attempting to add it
+        let column_exists: Result<i32, _> = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('blocks') WHERE name='spendable'",
             [],
-        ).ok(); // Ignore error if column already exists
+            |row| row.get(0),
+        );
 
+        match column_exists {
+            Ok(0) => {
+                // Column doesn't exist, add it
+                conn.execute(
+                    "ALTER TABLE blocks ADD COLUMN spendable INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )?;
+            }
+            Ok(_) => {
+                // Column already exists, skip
+            }
+            Err(e) => {
+                // Error checking column, log and continue
+                eprintln!("[pool_db] Warning: Could not check spendable column: {}", e);
+            }
+        }
+
+        // Create payouts table
         conn.execute(
             "CREATE TABLE IF NOT EXISTS payouts (
                 id TEXT PRIMARY KEY,
