@@ -1,29 +1,29 @@
-! Pool database layer for miners, blocks, and payouts.
-!
-! Provides SQLite-backed persistence for pool operations including:
-! - Miner reward tracking
-! - Block history
-! - Payout records
+//! Pool database layer for miners, blocks, and payouts.
+//!
+//! Provides SQLite-backed persistence for pool operations including:
+//! - Miner reward tracking
+//! - Block history
+//! - Payout records
 
 use rusqlite::{params, Connection, Error as SqlError, Result as SqlResult};
 use std::sync::{Arc, Mutex};
 
-/ Record of a persisted block.
+/// Record of a persisted block.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]  Phase 8 pool integration
+#[allow(dead_code)] // Phase 8 pool integration
 pub struct BlockRecord {
     pub hash: String,
     pub height: u64,
     pub miner_id: String,
     pub reward: u64,
     pub timestamp: u64,
-    / Whether the reward is spendable (mature).
+    /// Whether the reward is spendable (mature).
     pub spendable: bool,
 }
 
-/ Record of a payout transaction.
+/// Record of a payout transaction.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]  Phase 8 pool integration
+#[allow(dead_code)] // Phase 8 pool integration
 pub struct PayoutRecord {
     pub id: String,
     pub miner_id: String,
@@ -32,16 +32,16 @@ pub struct PayoutRecord {
     pub created_at: u64,
 }
 
-/ Thread-safe SQLite database for pool operations.
+/// Thread-safe SQLite database for pool operations.
 #[derive(Clone)]
-#[allow(dead_code)]  Reserved for Phase 8 pool integration
+#[allow(dead_code)] // Reserved for Phase 8 pool integration
 pub struct PoolDatabase {
     conn: Arc<Mutex<Connection>>,
 }
 
-#[allow(dead_code)]  Phase 8 pool integration
+#[allow(dead_code)] // Phase 8 pool integration
 impl PoolDatabase {
-    / Create or open a pool database at the given path.
+    /// Create or open a pool database at the given path.
     pub fn open(path: &str) -> SqlResult<Self> {
         let conn = Connection::open(path)?;
         let db = Self {
@@ -51,7 +51,7 @@ impl PoolDatabase {
         Ok(db)
     }
 
-    / Create an in-memory database for testing.
+    /// Create an in-memory database for testing.
     pub fn memory() -> SqlResult<Self> {
         let conn = Connection::open_in_memory()?;
         let db = Self {
@@ -61,7 +61,7 @@ impl PoolDatabase {
         Ok(db)
     }
 
-    / Helper to acquire mutex lock with proper error handling.
+    /// Helper to acquire mutex lock with proper error handling.
     fn lock_conn(&self) -> SqlResult<std::sync::MutexGuard<'_, Connection>> {
         self.conn.lock().map_err(|e| {
             SqlError::ToSqlConversionFailure(Box::new(std::io::Error::other(format!(
@@ -71,7 +71,7 @@ impl PoolDatabase {
         })
     }
 
-    / Initialize database schema.
+    /// Initialize database schema.
     fn init_schema(&self) -> SqlResult<()> {
         let conn = self.lock_conn()?;
 
@@ -95,11 +95,11 @@ impl PoolDatabase {
             [],
         )?;
 
-         Migration: Add spendable column if it doesn't exist
+        // Migration: Add spendable column if it doesn't exist
         conn.execute(
             "ALTER TABLE blocks ADD COLUMN spendable INTEGER NOT NULL DEFAULT 0",
             [],
-        ).ok();  Ignore error if column already exists
+        ).ok(); // Ignore error if column already exists
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS payouts (
@@ -112,7 +112,7 @@ impl PoolDatabase {
             [],
         )?;
 
-         Create indexes for common queries
+        // Create indexes for common queries
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_blocks_height ON blocks(height)",
             [],
@@ -131,7 +131,7 @@ impl PoolDatabase {
         Ok(())
     }
 
-    / Insert a new block record.
+    /// Insert a new block record.
     pub fn insert_block(&self, block: &BlockRecord) -> SqlResult<()> {
         let conn = self.lock_conn()?;
         conn.execute(
@@ -149,7 +149,7 @@ impl PoolDatabase {
         Ok(())
     }
 
-    / Get a block by hash.
+    /// Get a block by hash.
     pub fn get_block(&self, hash: &str) -> SqlResult<Option<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
@@ -171,7 +171,7 @@ impl PoolDatabase {
         }
     }
 
-    / Get the latest block (highest height).
+    /// Get the latest block (highest height).
     pub fn get_latest_block(&self) -> SqlResult<Option<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
@@ -196,11 +196,11 @@ impl PoolDatabase {
         }
     }
 
-    / Update miner's total reward (adds to existing amount).
+    /// Update miner's total reward (adds to existing amount).
     pub fn update_miner_reward(&self, miner_id: &str, amount: u64) -> SqlResult<()> {
         let conn = self.lock_conn()?;
 
-         Insert or update miner
+        // Insert or update miner
         conn.execute(
             "INSERT INTO miners (id, total_reward) VALUES (?1, ?2)
              ON CONFLICT(id) DO UPDATE SET total_reward = total_reward + ?2",
@@ -209,7 +209,7 @@ impl PoolDatabase {
         Ok(())
     }
 
-    / Get miner's total reward.
+    /// Get miner's total reward.
     pub fn get_miner_reward(&self, miner_id: &str) -> SqlResult<u64> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT total_reward FROM miners WHERE id = ?1")?;
@@ -222,7 +222,7 @@ impl PoolDatabase {
         }
     }
 
-    / Get blocks mined by a specific miner.
+    /// Get blocks mined by a specific miner.
     pub fn get_miner_blocks(&self, miner_id: &str, limit: usize) -> SqlResult<Vec<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
@@ -247,7 +247,7 @@ impl PoolDatabase {
         rows.collect()
     }
 
-    / Insert a payout record.
+    /// Insert a payout record.
     pub fn insert_payout(&self, payout: &PayoutRecord) -> SqlResult<()> {
         let conn = self.lock_conn()?;
         conn.execute(
@@ -264,7 +264,7 @@ impl PoolDatabase {
         Ok(())
     }
 
-    / List recent payouts.
+    /// List recent payouts.
     pub fn list_payouts(&self, limit: usize) -> SqlResult<Vec<PayoutRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
@@ -287,7 +287,7 @@ impl PoolDatabase {
         rows.collect()
     }
 
-    / Get total rewards distributed.
+    /// Get total rewards distributed.
     pub fn total_rewards(&self) -> SqlResult<u64> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT COALESCE(SUM(total_reward), 0) FROM miners")?;
@@ -296,7 +296,7 @@ impl PoolDatabase {
         Ok(total as u64)
     }
 
-    / Get total number of miners.
+    /// Get total number of miners.
     pub fn miner_count(&self) -> SqlResult<u64> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM miners WHERE total_reward > 0")?;
@@ -305,7 +305,7 @@ impl PoolDatabase {
         Ok(count as u64)
     }
 
-    / Get blocks at a specific height.
+    /// Get blocks at a specific height.
     pub fn get_blocks_at_height(&self, height: u64) -> SqlResult<Vec<BlockRecord>> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
@@ -328,7 +328,7 @@ impl PoolDatabase {
         rows.collect()
     }
 
-    / Mark a block's reward as spendable.
+    /// Mark a block's reward as spendable.
     pub fn mark_reward_spendable(&self, block_hash: &str) -> SqlResult<()> {
         let conn = self.lock_conn()?;
         conn.execute(
@@ -338,7 +338,7 @@ impl PoolDatabase {
         Ok(())
     }
 
-    / Get miner's spendable balance (only mature rewards).
+    /// Get miner's spendable balance (only mature rewards).
     pub fn get_spendable_rewards(&self, miner_id: &str) -> SqlResult<u64> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
@@ -351,7 +351,7 @@ impl PoolDatabase {
         Ok(total as u64)
     }
 
-    / Get miner's pending balance (immature rewards).
+    /// Get miner's pending balance (immature rewards).
     pub fn get_pending_rewards(&self, miner_id: &str) -> SqlResult<u64> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
@@ -364,7 +364,7 @@ impl PoolDatabase {
         Ok(total as u64)
     }
 
-    / Get total number of blocks.
+    /// Get total number of blocks.
     pub fn block_count(&self) -> SqlResult<u64> {
         let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM blocks")?;
@@ -400,7 +400,6 @@ mod tests {
             miner_id: "miner1".to_string(),
             reward: 5000000000,
             timestamp: 1234567890,
-            spendable: false,
         };
 
         db.insert_block(&block).expect("Failed to insert block");
