@@ -297,7 +297,7 @@ impl DoSProtection {
             .syn_protection
             .half_open_connections
             .entry(source_ip)
-            .or_insert_with(Vec::new);
+            .or_default();
 
         if half_open.len() >= self.syn_protection.config.max_half_open_per_ip {
             let attack = AttackInfo {

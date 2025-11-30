@@ -20,7 +20,7 @@ use super::{
 };
 
 /// Comprehensive security configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SecurityConfig {
     /// Rate limiting configuration
     pub rate_limiting: RateLimitConfig,
@@ -130,18 +130,7 @@ pub struct MonitoringConfig {
     pub metrics_retention: Duration,
 }
 
-impl Default for SecurityConfig {
-    fn default() -> Self {
-        Self {
-            rate_limiting: RateLimitConfig::default(),
-            connections: ConnectionConfig::default(),
-            reputation: ReputationConfig::default(),
-            bans: BanConfig::default(),
-            dos_protection: DoSConfig::default(),
-            global: GlobalSecurityConfig::default(),
-        }
-    }
-}
+
 
 impl Default for GlobalSecurityConfig {
     fn default() -> Self {

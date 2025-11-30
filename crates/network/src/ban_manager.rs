@@ -350,7 +350,7 @@ impl BanManager {
     /// Check if ban is currently active
     fn is_ban_active(&self, ban: &BanInfo) -> bool {
         if !self.config.enable_expiration {
-            return !ban.expires_at.is_some(); // Permanent bans always active
+            return ban.expires_at.is_none(); // Permanent bans always active
         }
 
         match ban.expires_at {

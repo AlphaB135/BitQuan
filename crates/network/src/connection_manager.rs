@@ -222,7 +222,7 @@ impl ConnectionManager {
             .insert(peer_id.clone(), connection.clone());
         self.ip_connections
             .entry(ip)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(peer_id);
 
         self.update_stats(&connection);
@@ -273,7 +273,7 @@ impl ConnectionManager {
             .insert(peer_id.clone(), connection.clone());
         self.ip_connections
             .entry(ip)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(peer_id);
 
         self.update_stats(&connection);
@@ -370,7 +370,7 @@ impl ConnectionManager {
         }
 
         let now = Instant::now();
-        let attempts = self.connection_attempts.entry(*ip).or_insert_with(Vec::new);
+        let attempts = self.connection_attempts.entry(*ip).or_default();
 
         // Remove old attempts (older than 1 minute)
         attempts.retain(|&timestamp| now.duration_since(timestamp) < Duration::from_secs(60));

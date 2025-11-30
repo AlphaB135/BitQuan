@@ -210,11 +210,7 @@ impl PowEngine for RandomXEngine {
         let bytes = header.to_bytes();
         #[cfg(feature = "randomx")]
         {
-            randomx_pow_hash_cached(
-                &bytes,
-                &self._config.seed,
-                &self.vm_cache,
-            )
+            randomx_pow_hash_cached(&bytes, &self._config.seed, &self.vm_cache)
         }
         #[cfg(not(feature = "randomx"))]
         {
@@ -393,11 +389,7 @@ impl PowEngine for EthashEngine {
         let bytes = header.to_bytes();
         #[cfg(feature = "ethash")]
         {
-            ethash_pow_hash_cached(
-                &bytes,
-                &self._config.cache_size,
-                &self.cache,
-            )
+            ethash_pow_hash_cached(&bytes, &self._config.cache_size, &self.cache)
         }
         #[cfg(not(feature = "ethash"))]
         {
