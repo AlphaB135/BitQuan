@@ -1,4 +1,3 @@
-#![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
 //! Proof-of-Work helpers: header hashing and target checks with bounded difficulty.
@@ -121,10 +120,17 @@ impl PowEngine for Sha256dEngine {
     }
 }
 
+/// Wrapper for RandomXVM to implement Send
+#[cfg(feature = "randomx")]
+pub struct SendableRandomXVM(randomx_rs::RandomXVM);
+
+#[cfg(feature = "randomx")]
+unsafe impl Send for SendableRandomXVM {}
+
 /// RandomX VM cache to prevent DoS from repeated VM creation.
 #[cfg(feature = "randomx")]
 pub struct RandomXVMCache {
-    cache: HashMap<[u8; 32], Arc<Mutex<Option<randomx_rs::RandomXVM>>>>,
+    cache: HashMap<[u8; 32], Arc<Mutex<Option<SendableRandomXVM>>>>,
 }
 
 #[cfg(feature = "randomx")]
@@ -137,7 +143,7 @@ impl RandomXVMCache {
     }
 
     /// Get or create VM for given seed.
-    pub fn get_vm(&mut self, seed: &[u8; 32]) -> Result<Arc<Mutex<Option<randomx_rs::RandomXVM>>>> {
+    pub fn get_vm(&mut self, seed: &[u8; 32]) -> Result<Arc<Mutex<Option<SendableRandomXVM>>>> {
         if let Some(vm) = self.cache.get(seed) {
             return Ok(Arc::clone(vm));
         }
@@ -151,7 +157,7 @@ impl RandomXVMCache {
             bitquan_types::Error::Invalid(format!("Failed to create RandomX VM: {}", e))
         })?;
 
-        let vm_ref = Arc::new(Mutex::new(Some(vm)));
+        let vm_ref = Arc::new(Mutex::new(Some(SendableRandomXVM(vm))));
         self.cache.insert(*seed, Arc::clone(&vm_ref));
         Ok(vm_ref)
     }
@@ -204,11 +210,11 @@ impl PowEngine for RandomXEngine {
         let bytes = header.to_bytes();
         #[cfg(feature = "randomx")]
         {
-            Ok(randomx_pow_hash_cached(
+            randomx_pow_hash_cached(
                 &bytes,
                 &self._config.seed,
                 &self.vm_cache,
-            )?)
+            )
         }
         #[cfg(not(feature = "randomx"))]
         {
@@ -224,8 +230,6 @@ pub fn randomx_pow_hash_cached(
     seed: &[u8; 32],
     vm_cache: &Arc<Mutex<RandomXVMCache>>,
 ) -> Result<[u8; 32]> {
-    use randomx_rs::{RandomXCache, RandomXVM};
-
     // Get or create cached VM for this seed
     let vm_ref = vm_cache
         .lock()
@@ -240,7 +244,7 @@ pub fn randomx_pow_hash_cached(
             bitquan_types::Error::Invalid(format!("Failed to acquire VM lock: {}", e))
         })?;
         if let Some(ref vm) = *vm_guard {
-            vm.calculate_hash(preimage).map_err(|e| {
+            vm.0.calculate_hash(preimage).map_err(|e| {
                 bitquan_types::Error::Invalid(format!("Failed to calculate RandomX hash: {}", e))
             })?
         } else {
@@ -389,11 +393,11 @@ impl PowEngine for EthashEngine {
         let bytes = header.to_bytes();
         #[cfg(feature = "ethash")]
         {
-            Ok(ethash_pow_hash_cached(
+            ethash_pow_hash_cached(
                 &bytes,
                 &self._config.cache_size,
                 &self.cache,
-            )?)
+            )
         }
         #[cfg(not(feature = "ethash"))]
         {
@@ -416,7 +420,7 @@ pub fn ethash_pow_hash_cached(
     let header_hash = H256::from_slice(preimage);
 
     // Calculate epoch from cache size (simplified - normally derived from block number)
-    let epoch = (*cache_size / 32) as u32; // Rough approximation
+    let epoch = *cache_size / 32; // Rough approximation
 
     // Get or create cached data for this epoch
     let cache_ref = cache

@@ -12,7 +12,6 @@
 //! - Ban persistence
 //! - Ban statistics
 
-use rand;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
@@ -105,11 +104,17 @@ impl Default for BanConfig {
 /// Ban statistics
 #[derive(Debug, Clone, Default)]
 pub struct BanStats {
+    /// Total number of bans issued
     pub total_bans: u64,
+    /// Number of currently active bans
     pub active_bans: usize,
+    /// Number of temporary bans issued
     pub temporary_bans: u64,
+    /// Number of permanent bans issued
     pub permanent_bans: u64,
+    /// Number of expired bans
     pub expired_bans: u64,
+    /// Count of bans by reason
     pub bans_by_reason: HashMap<BanReason, u64>,
 }
 

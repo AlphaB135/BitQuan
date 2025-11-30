@@ -11,7 +11,6 @@
 //! - Temporary and permanent bans
 //! - Configurable thresholds
 
-use rand;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -144,10 +143,15 @@ pub struct ReputationManager {
 /// Reputation statistics
 #[derive(Debug, Clone, Default)]
 pub struct ReputationStats {
+    /// Total number of tracked peers
     pub total_peers: usize,
+    /// Number of banned peers
     pub banned_peers: usize,
+    /// Number of throttled peers
     pub throttled_peers: usize,
+    /// Average reputation score
     pub average_score: f64,
+    /// Total number of violations recorded
     pub total_violations: u64,
 }
 
@@ -350,7 +354,7 @@ impl ReputationManager {
     }
 
     /// Manually ban a peer
-    pub fn ban_peer(&mut self, peer_id: &PeerId, reason: String, duration: Option<Duration>) {
+    pub fn ban_peer(&mut self, peer_id: &PeerId, _reason: String, duration: Option<Duration>) {
         if let Some(rep) = self.reputations.get_mut(peer_id) {
             rep.is_banned = true;
             rep.ban_expires = duration.map(|d| Instant::now() + d);

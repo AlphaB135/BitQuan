@@ -20,6 +20,7 @@ pub struct ChainState {
     /// Current tip hash.
     tip_hash: Arc<Mutex<[u8; 32]>>,
     /// Pool database for persistence.
+    #[cfg(feature = "pool")]
     db: Option<PoolDatabase>,
 }
 
@@ -30,11 +31,13 @@ impl ChainState {
         Self {
             height: Arc::new(AtomicU64::new(0)),
             tip_hash: Arc::new(Mutex::new([0u8; 32])),
+            #[cfg(feature = "pool")]
             db: None,
         }
     }
 
     /// Create chain state with database backend.
+    #[cfg(feature = "pool")]
     pub fn with_db(db: PoolDatabase) -> Result<Self> {
         let state = Self {
             height: Arc::new(AtomicU64::new(0)),
@@ -48,6 +51,7 @@ impl ChainState {
     }
 
     /// Load chain state from database.
+    #[cfg(feature = "pool")]
     fn load_from_db(&self) -> Result<()> {
         if let Some(ref db) = self.db {
             if let Some(latest) = db

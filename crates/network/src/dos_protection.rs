@@ -12,10 +12,9 @@
 //! - OS-level protection integration
 //! - Automatic response to attacks
 
-use rand;
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::net::IpAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::PeerId;
@@ -47,23 +46,32 @@ pub struct DoSConfig {
 
     /// Connection flood detection
     pub max_connections_per_second: u32,
+    /// Connection flood threshold
     pub connection_flood_threshold: u32,
+    /// Connection flood window duration
     pub connection_flood_window: Duration,
 
     /// Bandwidth protection
     pub enable_bandwidth_protection: bool,
+    /// Maximum bandwidth per peer (bytes/sec)
     pub max_bandwidth_per_peer: u64, // bytes per second
+    /// Bandwidth burst size (bytes)
     pub bandwidth_burst_size: u64,
+    /// Bandwidth window duration
     pub bandwidth_window_duration: Duration,
 
     /// Pattern detection
     pub enable_pattern_detection: bool,
+    /// Suspicious pattern threshold
     pub suspicious_pattern_threshold: f64,
+    /// Pattern analysis window duration
     pub pattern_analysis_window: Duration,
 
     /// Response actions
     pub auto_ban_on_detection: bool,
+    /// Automatic ban duration
     pub auto_ban_duration: Duration,
+    /// Enable rate limiting
     pub enable_rate_limiting: bool,
 }
 
@@ -109,7 +117,7 @@ pub struct SynCookie {
     /// When issued
     issued_at: Instant,
     /// Peer ID
-    peer_id: Option<PeerId>,
+    _peer_id: Option<PeerId>,
 }
 
 impl SynCookie {
@@ -134,7 +142,7 @@ struct BandwidthTracker {
     /// Bandwidth usage by peer
     peer_usage: HashMap<PeerId, BandwidthUsage>,
     /// Global bandwidth usage
-    global_usage: BandwidthUsage,
+    _global_usage: BandwidthUsage,
     /// Configuration
     config: DoSConfig,
 }
@@ -213,21 +221,32 @@ pub struct AttackInfo {
 /// Attack severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AttackSeverity {
+    /// Low severity
     Low,
+    /// Medium severity
     Medium,
+    /// High severity
     High,
+    /// Critical severity
     Critical,
 }
 
 /// DoS protection statistics
 #[derive(Debug, Clone, Default)]
 pub struct DoSStats {
+    /// Number of SYN floods detected
     pub syn_floods_detected: u64,
+    /// Number of connection floods detected
     pub connection_floods_detected: u64,
+    /// Number of bandwidth attacks detected
     pub bandwidth_attacks_detected: u64,
+    /// Number of pattern attacks detected
     pub pattern_attacks_detected: u64,
+    /// Total number of attacks detected
     pub total_attacks_detected: u64,
+    /// Number of automatic bans issued
     pub auto_bans_issued: u64,
+    /// Number of mitigations applied
     pub mitigations_applied: u64,
 }
 
@@ -246,7 +265,7 @@ impl DoSProtection {
             },
             bandwidth_tracker: BandwidthTracker {
                 peer_usage: HashMap::new(),
-                global_usage: BandwidthUsage {
+                _global_usage: BandwidthUsage {
                     bytes_sent: 0,
                     bytes_received: 0,
                     window_start: Instant::now(),
@@ -309,7 +328,7 @@ impl DoSProtection {
         let syn_cookie = SynCookie {
             value: cookie as u32,
             issued_at: Instant::now(),
-            peer_id: peer_id.clone(),
+            _peer_id: peer_id.clone(),
         };
 
         half_open.push(syn_cookie.clone());
@@ -333,7 +352,7 @@ impl DoSProtection {
                 })
             });
 
-        if let Some(cookie) = half_open {
+        if let Some(_cookie) = half_open {
             // Remove used cookie
             if let Some(cookies) = self
                 .syn_protection

@@ -12,7 +12,6 @@
 //! - Idle connection cleanup
 //! - Connection tracking and monitoring
 
-use rand;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
@@ -39,7 +38,9 @@ pub enum ConnectionError {
 /// Connection direction
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
+    /// Inbound connection
     Inbound,
+    /// Outbound connection
     Outbound,
 }
 
@@ -69,9 +70,13 @@ pub struct Connection {
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionState {
+    /// Connection is being established
     Connecting,
+    /// Connection is established
     Connected,
+    /// Connection is being closed
     Disconnecting,
+    /// Connection is closed
     Disconnected,
 }
 
@@ -80,7 +85,9 @@ pub enum ConnectionState {
 pub struct ConnectionConfig {
     /// Global connection limits
     pub max_total_connections: usize,
+    /// Maximum number of inbound connections
     pub max_inbound_connections: usize,
+    /// Maximum number of outbound connections
     pub max_outbound_connections: usize,
 
     /// Per-IP limits
@@ -88,6 +95,7 @@ pub struct ConnectionConfig {
 
     /// Timeouts
     pub connection_timeout: Duration,
+    /// Idle timeout duration
     pub idle_timeout: Duration,
 
     /// Rate limiting
@@ -95,6 +103,7 @@ pub struct ConnectionConfig {
 
     /// Security settings
     pub allow_only_outbound: bool,
+    /// Maximum connection attempts per minute
     pub max_connection_attempts_per_minute: u32,
 }
 
@@ -132,12 +141,19 @@ pub struct ConnectionManager {
 /// Connection statistics
 #[derive(Debug, Clone, Default)]
 pub struct ConnectionStats {
+    /// Total number of connections handled
     pub total_connections: u64,
+    /// Number of inbound connections
     pub inbound_connections: u64,
+    /// Number of outbound connections
     pub outbound_connections: u64,
+    /// Number of rejected connections
     pub rejected_connections: u64,
+    /// Number of timed out connections
     pub timed_out_connections: u64,
+    /// Current number of active connections
     pub current_connections: usize,
+    /// Number of unique IPs connected
     pub unique_ips: usize,
 }
 

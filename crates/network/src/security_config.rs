@@ -15,11 +15,8 @@
 use std::time::Duration;
 
 use super::{
-    ban_manager::BanConfig,
-    connection_manager::ConnectionConfig,
-    dos_protection::DoSConfig,
-    rate_limiter::{MessageTypeLimits, RateLimitConfig},
-    reputation::ReputationConfig,
+    ban_manager::BanConfig, connection_manager::ConnectionConfig, dos_protection::DoSConfig,
+    rate_limiter::RateLimitConfig, reputation::ReputationConfig,
 };
 
 /// Comprehensive security configuration
@@ -89,10 +86,15 @@ pub struct AlertConfig {
 /// Alert channels
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AlertChannel {
+    /// Log to standard output/file
     Log,
+    /// Send email alert
     Email,
+    /// Send webhook alert
     Webhook,
+    /// Send Slack alert
     Slack,
+    /// Send Telegram alert
     Telegram,
 }
 

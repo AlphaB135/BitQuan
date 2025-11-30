@@ -6,13 +6,35 @@ use bitquan_types::Block;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use bitquan_types::Result;
+
 #[cfg(feature = "pool")]
 use crate::pool_db::{BlockRecord, PayoutRecord, PoolDatabase};
-use bitquan_types::Error;
-type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(not(feature = "pool"))]
+#[allow(dead_code)]
+pub struct BlockRecord {
+    pub hash: String,
+    pub height: u64,
+    pub miner_id: String,
+    pub reward: u64,
+    pub timestamp: u64,
+    pub spendable: bool,
+}
+
+#[cfg(not(feature = "pool"))]
+#[allow(dead_code)]
+pub struct PayoutRecord {
+    pub id: String,
+    pub miner_id: String,
+    pub amount: u64,
+    pub txid: Option<String>,
+    pub created_at: u64,
+}
 
 /// Balance information for a miner.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct BalanceInfo {
     /// Total balance (all rewards).
     pub total: u64,
@@ -118,10 +140,10 @@ impl RewardEngine {
     }
 
     /// Credit reward to miner account.
-    pub fn credit_miner(&mut self, miner_id: &str, amount: u64) -> Result<()> {
+    pub fn credit_miner(&mut self, _miner_id: &str, amount: u64) -> Result<()> {
         #[cfg(feature = "pool")]
         self.db
-            .update_miner_reward(miner_id, amount)
+            .update_miner_reward(_miner_id, amount)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
 
         self.total_distributed.fetch_add(amount, Ordering::Relaxed);
@@ -140,7 +162,7 @@ impl RewardEngine {
         let reward = self.calculate_reward(block, height);
 
         // Create block record
-        let record = BlockRecord {
+        let _record = BlockRecord {
             hash: hex::encode(block_hash),
             height,
             miner_id: miner_id.to_string(),
@@ -173,7 +195,7 @@ impl RewardEngine {
         }
 
         // Calculate mature height (current - maturity)
-        let mature_height = current_height - self.maturity;
+        let _mature_height = current_height - self.maturity;
 
         // Get blocks at mature height
         #[cfg(feature = "pool")]
@@ -211,7 +233,7 @@ impl RewardEngine {
     }
 
     /// Get miner's total balance (all rewards).
-    pub fn get_total_balance(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_total_balance(&self, _miner_id: &str) -> Result<u64> {
         #[cfg(feature = "pool")]
         return self
             .db
@@ -223,11 +245,11 @@ impl RewardEngine {
     }
 
     /// Get miner's spendable balance (only mature rewards).
-    pub fn get_spendable_balance(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_spendable_balance(&self, _miner_id: &str) -> Result<u64> {
         #[cfg(feature = "pool")]
         return self
             .db
-            .get_spendable_rewards(miner_id)
+            .get_spendable_rewards(_miner_id)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)));
 
         #[cfg(not(feature = "pool"))]
@@ -235,11 +257,11 @@ impl RewardEngine {
     }
 
     /// Get miner's pending balance (immature rewards).
-    pub fn get_pending_balance(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_pending_balance(&self, _miner_id: &str) -> Result<u64> {
         #[cfg(feature = "pool")]
         return self
             .db
-            .get_pending_rewards(miner_id)
+            .get_pending_rewards(_miner_id)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)));
 
         #[cfg(not(feature = "pool"))]
@@ -269,7 +291,7 @@ impl RewardEngine {
         let payout_id = uuid::Uuid::new_v4().to_string();
         let now = unix_timestamp();
 
-        let payout = PayoutRecord {
+        let _payout = PayoutRecord {
             id: payout_id.clone(),
             miner_id: miner_id.to_string(),
             amount,
@@ -291,7 +313,7 @@ impl RewardEngine {
     }
 
     /// Get miner's total reward.
-    pub fn get_miner_reward(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_miner_reward(&self, _miner_id: &str) -> Result<u64> {
         #[cfg(feature = "pool")]
         return self
             .db
@@ -303,7 +325,7 @@ impl RewardEngine {
     }
 
     /// Get recent payouts.
-    pub fn list_payouts(&self, limit: usize) -> Result<Vec<PayoutRecord>> {
+    pub fn list_payouts(&self, _limit: usize) -> Result<Vec<PayoutRecord>> {
         #[cfg(feature = "pool")]
         return self
             .db

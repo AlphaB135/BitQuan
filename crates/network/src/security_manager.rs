@@ -13,15 +13,13 @@
 //! - Event-driven architecture
 //! - Performance optimized
 
-use rand;
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use super::{
     ban_manager::{BanError, BanManager, BanReason, BanStats},
     connection_manager::{ConnectionError, ConnectionManager, ConnectionStats},
-    dos_protection::{AttackInfo, AttackSeverity, DoSError, DoSProtection, DoSStats},
+    dos_protection::{AttackInfo, DoSError, DoSProtection, DoSStats},
     rate_limiter::{MessageType, RateLimitError, RateLimiter},
     reputation::{ReputationAction, ReputationManager, ReputationStats, Violation},
     security_config::{SecurityConfig, SecurityLevel},
@@ -288,7 +286,7 @@ impl SecurityManager {
     }
 
     /// Handle connection closed
-    pub fn handle_connection_closed(&mut self, peer_id: PeerId, reason: Option<String>) {
+    pub fn handle_connection_closed(&mut self, peer_id: PeerId, _reason: Option<String>) {
         // Remove from connection manager
         self.connection_manager.remove_connection(&peer_id);
 

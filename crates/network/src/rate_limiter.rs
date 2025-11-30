@@ -11,9 +11,8 @@
 //! - Automatic peer throttling and banning
 //! - Configurable windows and thresholds
 
-use rand;
 use std::collections::HashMap;
-use std::net::IpAddr;
+
 use std::time::{Duration, Instant};
 
 use crate::PeerId;
@@ -32,36 +31,61 @@ pub enum RateLimitError {
 /// Message types with different rate limits
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MessageType {
+    /// Block message
     Block,
+    /// Transaction message
     Transaction,
+    /// Ping message
     Ping,
+    /// Pong message
     Pong,
+    /// GetBlocks message
     GetBlocks,
+    /// GetHeaders message
     GetHeaders,
+    /// Headers message
     Headers,
+    /// Inventory message
     Inv,
+    /// GetData message
     GetData,
+    /// NotFound message
     NotFound,
+    /// Tx message
     Tx,
+    /// Other message types
     Other,
 }
 
 /// Per-message-type rate limits
 #[derive(Debug, Clone)]
 pub struct MessageTypeLimits {
-    pub block: u32,       // 10/sec
+    /// Block message limit
+    pub block: u32, // 10/sec
+    /// Transaction message limit
     pub transaction: u32, // 50/sec
-    pub ping: u32,        // 5/sec
-    pub pong: u32,        // 5/sec
-    pub get_blocks: u32,  // 20/sec
+    /// Ping message limit
+    pub ping: u32, // 5/sec
+    /// Pong message limit
+    pub pong: u32, // 5/sec
+    /// GetBlocks message limit
+    pub get_blocks: u32, // 20/sec
+    /// GetHeaders message limit
     pub get_headers: u32, // 20/sec
-    pub headers: u32,     // 100/sec (burst)
-    pub inv: u32,         // 100/sec (burst)
-    pub get_data: u32,    // 50/sec
-    pub not_found: u32,   // 20/sec
-    pub tx: u32,          // 100/sec (burst)
-    pub block_msg: u32,   // 10/sec
-    pub other: u32,       // 10/sec
+    /// Headers message limit
+    pub headers: u32, // 100/sec (burst)
+    /// Inventory message limit
+    pub inv: u32, // 100/sec (burst)
+    /// GetData message limit
+    pub get_data: u32, // 50/sec
+    /// NotFound message limit
+    pub not_found: u32, // 20/sec
+    /// Tx message limit
+    pub tx: u32, // 100/sec (burst)
+    /// Block message limit (deprecated, use block)
+    pub block_msg: u32, // 10/sec
+    /// Other message types limit
+    pub other: u32, // 10/sec
 }
 
 impl Default for MessageTypeLimits {
