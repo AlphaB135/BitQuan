@@ -121,7 +121,8 @@ fn test_end_to_end_pqc_signature_basic() -> Result<(), Box<dyn std::error::Error
     let start = Instant::now();
 
     // Decrypt private key
-    let decrypted_key = decrypt_keystore_with_config(&keystore, password, &server_config)?;
+    let decrypted_key =
+        decrypt_keystore_with_config(&keystore.as_ref().unwrap(), password, &server_config)?;
 
     // Sign the sighash using Dilithium
     let mut signature = vec![0u8; 3293]; // DILITHIUM3_SIG_SIZE
@@ -198,9 +199,12 @@ fn test_multithreaded_signing_with_cache() -> Result<(), Box<dyn std::error::Err
             let thread_start = Instant::now();
 
             // Decrypt and sign
-            let decrypted_key =
-                decrypt_keystore_with_config(&keystore_clone, &password_clone, &config_clone)
-                    .expect("Failed to decrypt key");
+            let decrypted_key = decrypt_keystore_with_config(
+                keystore_clone.as_ref().as_ref().unwrap(),
+                &password_clone,
+                &config_clone,
+            )
+            .expect("Failed to decrypt key");
 
             let mut signature = vec![0u8; 3293]; // DILITHIUM3_SIG_SIZE
             crypto_sign_signature(&mut signature, &*sighash_clone, &decrypted_key);
@@ -281,7 +285,8 @@ fn test_cache_timeout_and_cleanup() -> Result<(), Box<dyn std::error::Error>> {
     // First decryption (should populate cache)
     println!("  🔄 First decryption (populating cache)...");
     let start1 = Instant::now();
-    let _decrypted1 = decrypt_keystore_with_config(&keystore, password, &short_timeout_config)?;
+    let decrypted =
+        decrypt_keystore_with_config(&keystore.as_ref().unwrap(), password, &short_timeout_config)?;
     let time1 = start1.elapsed();
 
     let stats1 = get_cache_stats();
@@ -293,7 +298,8 @@ fn test_cache_timeout_and_cleanup() -> Result<(), Box<dyn std::error::Error>> {
     // Second decryption immediately (should use cache)
     println!("  ⚡ Second decryption (should use cache)...");
     let start2 = Instant::now();
-    let _decrypted2 = decrypt_keystore_with_config(&keystore, password, &short_timeout_config)?;
+    let _decrypted2 =
+        decrypt_keystore_with_config(&keystore.as_ref().unwrap(), password, &short_timeout_config)?;
     let time2 = start2.elapsed();
 
     let stats2 = get_cache_stats();
@@ -320,7 +326,8 @@ fn test_cache_timeout_and_cleanup() -> Result<(), Box<dyn std::error::Error>> {
     // Third decryption (should still use cache)
     println!("  🔄 Third decryption (should still use cache)...");
     let start3 = Instant::now();
-    let _decrypted3 = decrypt_keystore_with_config(&keystore, password, &short_timeout_config)?;
+    let _decrypted3 =
+        decrypt_keystore_with_config(&keystore.as_ref().unwrap(), password, &short_timeout_config)?;
     let time3 = start3.elapsed();
 
     println!("  ✅ Third decryption: {:?}", time3);
@@ -356,14 +363,22 @@ fn test_error_handling_and_security() -> Result<(), Box<dyn std::error::Error>> 
 
     // Test wrong password
     println!("  ❌ Testing wrong password...");
-    match decrypt_keystore_with_config(&keystore, "wrong-password", &server_config) {
+    match decrypt_keystore_with_config(
+        &keystore.as_ref().unwrap(),
+        "wrong-password",
+        &server_config,
+    ) {
         Ok(_) => panic!("Should have failed with wrong password"),
         Err(e) => println!("  ✅ Wrong password correctly rejected: {}", e),
     }
 
     // Test correct password
     println!("  ✅ Testing correct password...");
-    let decrypted = decrypt_keystore_with_config(&keystore, correct_password, &server_config)?;
+    let decrypted = decrypt_keystore_with_config(
+        &keystore.as_ref().unwrap(),
+        correct_password,
+        &server_config,
+    )?;
     assert_eq!(decrypted, private_key_bytes);
     println!("  ✅ Correct password accepted");
 

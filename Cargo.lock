@@ -553,6 +553,7 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "bitquan-types",
+ "blake3",
  "chrono",
  "getrandom 0.2.16",
  "hex",

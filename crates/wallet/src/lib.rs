@@ -20,7 +20,7 @@
 //!     b"my secret data",
 //!     "my strong password",
 //!     None, // no metadata
-//! );
+//! ).unwrap();
 //!
 //! // Decrypt (automatically uses cache for performance)
 //! let decrypted = decrypt_keystore(&keystore, "my strong password")?;
@@ -54,7 +54,7 @@
 //!     "password",
 //!     None,
 //!     &mobile_config,
-//! );
+//! ).unwrap();
 //! ```
 //!
 //! ## Security Features

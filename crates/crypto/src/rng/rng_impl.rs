@@ -3,7 +3,7 @@
 
 //! Deterministic random number generation backed by ChaCha20.
 
-use crate::rng::hkdf_expand;
+use crate::rng::blake3_expand;
 #[cfg(not(feature = "deterministic_tests"))]
 use rand::rngs::OsRng;
 use rand_chacha::ChaCha20Rng;
@@ -89,7 +89,7 @@ impl RngService {
 
     /// Derives a new RNG stream using HKDF-SHA256 domain separation.
     pub fn derive_stream(&self, label: &str) -> Self {
-        let derived_seed = hkdf_expand(&self.master_seed, label);
+        let derived_seed = blake3_expand(&self.master_seed, label);
         let drbg = ChaCha20Rng::from_seed(derived_seed);
         Self {
             drbg,

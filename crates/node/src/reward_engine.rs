@@ -40,6 +40,7 @@ const HALVING_INTERVAL: u64 = 210_000;
 #[allow(dead_code)] // Reserved for Phase 8 pool payout integration
 pub struct RewardEngine {
     /// Pool database for persistence.
+    #[cfg(feature = "pool")]
     db: PoolDatabase,
     /// Reward multiplier (default 1.0).
     reward_rate: f64,
@@ -53,6 +54,7 @@ pub struct RewardEngine {
 #[allow(dead_code)] // Phase 8 pool payout integration
 impl RewardEngine {
     /// Create a new reward engine.
+    #[cfg(feature = "pool")]
     pub fn new(db: PoolDatabase) -> Self {
         // Load total from database
         let total = db.total_rewards().unwrap_or(0);
@@ -62,6 +64,16 @@ impl RewardEngine {
             reward_rate: 1.0,
             maturity: 100,
             total_distributed: Arc::new(AtomicU64::new(total)),
+        }
+    }
+
+    /// Create a new reward engine (no pool DB).
+    #[cfg(not(feature = "pool"))]
+    pub fn new() -> Self {
+        Self {
+            reward_rate: 1.0,
+            maturity: 100,
+            total_distributed: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -107,6 +119,7 @@ impl RewardEngine {
 
     /// Credit reward to miner account.
     pub fn credit_miner(&mut self, miner_id: &str, amount: u64) -> Result<()> {
+        #[cfg(feature = "pool")]
         self.db
             .update_miner_reward(miner_id, amount)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
@@ -137,6 +150,7 @@ impl RewardEngine {
         };
 
         // Persist block
+        #[cfg(feature = "pool")]
         self.db
             .insert_block(&record)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
@@ -153,13 +167,23 @@ impl RewardEngine {
     pub fn settle_pending_rewards(&mut self, current_height: u64) -> Result<Vec<String>> {
         let mut settled = Vec::new();
 
+        // Check if we have reached maturity threshold
+        if current_height < self.maturity {
+            return Ok(settled);
+        }
+
         // Calculate mature height (current - maturity)
-        let mature_height = current_height.saturating_sub(self.maturity);
+        let mature_height = current_height - self.maturity;
 
         // Get blocks at mature height
-        let blocks = self.db
+        #[cfg(feature = "pool")]
+        let blocks = self
+            .db
             .get_blocks_at_height(mature_height)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
+
+        #[cfg(not(feature = "pool"))]
+        let blocks: Vec<BlockRecord> = Vec::new();
 
         for block in blocks {
             // Skip if already spendable
@@ -168,6 +192,7 @@ impl RewardEngine {
             }
 
             // Mark as spendable
+            #[cfg(feature = "pool")]
             self.db
                 .mark_reward_spendable(&block.hash)
                 .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
@@ -187,23 +212,38 @@ impl RewardEngine {
 
     /// Get miner's total balance (all rewards).
     pub fn get_total_balance(&self, miner_id: &str) -> Result<u64> {
-        self.db
+        #[cfg(feature = "pool")]
+        return self
+            .db
             .get_miner_reward(miner_id)
-            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)));
+
+        #[cfg(not(feature = "pool"))]
+        Ok(0)
     }
 
     /// Get miner's spendable balance (only mature rewards).
     pub fn get_spendable_balance(&self, miner_id: &str) -> Result<u64> {
-        self.db
+        #[cfg(feature = "pool")]
+        return self
+            .db
             .get_spendable_rewards(miner_id)
-            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)));
+
+        #[cfg(not(feature = "pool"))]
+        Ok(0)
     }
 
     /// Get miner's pending balance (immature rewards).
     pub fn get_pending_balance(&self, miner_id: &str) -> Result<u64> {
-        self.db
+        #[cfg(feature = "pool")]
+        return self
+            .db
             .get_pending_rewards(miner_id)
-            .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
+            .map_err(|e| Error::Invalid(format!("DB error: {}", e)));
+
+        #[cfg(not(feature = "pool"))]
+        Ok(0)
     }
 
     /// Get balance info for a miner.
@@ -237,6 +277,7 @@ impl RewardEngine {
             created_at: now,
         };
 
+        #[cfg(feature = "pool")]
         self.db
             .insert_payout(&payout)
             .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?;
@@ -251,21 +292,32 @@ impl RewardEngine {
 
     /// Get miner's total reward.
     pub fn get_miner_reward(&self, miner_id: &str) -> Result<u64> {
-        self.db
+        #[cfg(feature = "pool")]
+        return self
+            .db
             .get_miner_reward(miner_id)
-            .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))
+            .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)));
+
+        #[cfg(not(feature = "pool"))]
+        Ok(0)
     }
 
     /// Get recent payouts.
     pub fn list_payouts(&self, limit: usize) -> Result<Vec<PayoutRecord>> {
-        self.db
+        #[cfg(feature = "pool")]
+        return self
+            .db
             .list_payouts(limit)
-            .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))
+            .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)));
+
+        #[cfg(not(feature = "pool"))]
+        Ok(Vec::new())
     }
 
     /// Get pool statistics.
     pub fn get_pool_stats(&self) -> Result<PoolStats> {
-        Ok(PoolStats {
+        #[cfg(feature = "pool")]
+        return Ok(PoolStats {
             total_rewards: self.total_distributed(),
             miner_count: self
                 .db
@@ -276,6 +328,14 @@ impl RewardEngine {
                 .block_count()
                 .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?,
             pool_balance: self.calculate_pool_balance()?,
+        });
+
+        #[cfg(not(feature = "pool"))]
+        Ok(PoolStats {
+            total_rewards: self.total_distributed(),
+            miner_count: 0,
+            block_count: 0,
+            pool_balance: 0,
         })
     }
 
@@ -296,6 +356,7 @@ impl RewardEngine {
     }
 
     /// Get reference to database.
+    #[cfg(feature = "pool")]
     pub fn db(&self) -> &PoolDatabase {
         &self.db
     }

@@ -74,36 +74,59 @@ impl From<DoSError> for SecurityError {
 pub enum SecurityEvent {
     /// Peer violated rate limits
     RateLimitViolation {
+        /// The peer ID
         peer_id: PeerId,
+        /// The type of message
         message_type: MessageType,
+        /// Number of violations
         violation_count: u32,
     },
     /// Peer connection state changed
     ConnectionStateChanged {
+        /// The peer ID
         peer_id: PeerId,
+        /// Previous state
         old_state: String,
+        /// New state
         new_state: String,
     },
     /// Peer reputation changed
     ReputationChanged {
+        /// The peer ID
         peer_id: PeerId,
+        /// Previous score
         old_score: i32,
+        /// New score
         new_score: i32,
+        /// Action taken
         action: ReputationAction,
     },
     /// Peer was banned
     PeerBanned {
+        /// The peer ID
         peer_id: PeerId,
+        /// Reason for ban
         reason: BanReason,
+        /// Duration of ban
         duration: Option<Duration>,
+        /// Whether ban is permanent
         is_permanent: bool,
     },
     /// Peer was unbanned
-    PeerUnbanned { peer_id: PeerId },
+    PeerUnbanned {
+        /// The peer ID
+        peer_id: PeerId,
+    },
     /// Attack detected
-    AttackDetected { attack: AttackInfo },
+    AttackDetected {
+        /// Information about the attack
+        attack: AttackInfo,
+    },
     /// Security statistics updated
-    StatisticsUpdated { interval: Duration },
+    StatisticsUpdated {
+        /// Update interval
+        interval: Duration,
+    },
 }
 
 /// Security statistics
@@ -126,9 +149,13 @@ pub struct SecurityStatistics {
 /// Rate limiting statistics
 #[derive(Debug, Clone, Default)]
 pub struct RateLimitStats {
+    /// Total messages processed
     pub total_messages: u64,
+    /// Total messages rejected due to rate limiting
     pub rejected_messages: u64,
+    /// Number of peers currently rate limited
     pub rate_limited_peers: usize,
+    /// Number of peers currently banned via rate limiting
     pub banned_peers: usize,
 }
 
@@ -156,6 +183,7 @@ pub struct SecurityManager {
 
 /// Security event handler trait
 pub trait SecurityEventHandler: Send + Sync {
+    /// Handle a security event
     fn handle_security_event(&self, event: SecurityEvent);
 }
 

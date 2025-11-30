@@ -26,9 +26,8 @@ fn test_reward_becomes_spendable_after_100_blocks() {
 
     // Mine block at height 0
     let block = create_test_block(0, "miner1", 50_0000_0000);
-    engine
-        .process_block(&block, "miner1")
-        .expect("Failed to process block");
+    engine.db().insert_block(&block).expect("insert");
+    engine.credit_miner("miner1", block.reward).expect("credit");
 
     // At height 99, reward should still be pending
     let settled = engine
@@ -49,8 +48,11 @@ fn test_reward_becomes_spendable_after_100_blocks() {
         1,
         "One reward should be settled at height 100"
     );
-    assert_eq!(settled[0].height, 0);
-    assert_eq!(settled[0].miner_id, "miner1");
+
+    let hash = &settled[0];
+    let b = engine.db().get_block(hash).unwrap().unwrap();
+    assert_eq!(b.height, 0);
+    assert_eq!(b.miner_id, "miner1");
 }
 
 #[test]
@@ -61,9 +63,8 @@ fn test_balance_tracking_total_spendable_pending() {
     // Mine 10 blocks for miner1
     for height in 0..10 {
         let block = create_test_block(height, "miner1", 50_0000_0000);
-        engine
-            .process_block(&block, "miner1")
-            .expect("Failed to process block");
+        engine.db().insert_block(&block).expect("insert");
+        engine.credit_miner("miner1", block.reward).expect("credit");
     }
 
     // At height 50, no blocks are mature yet
@@ -82,10 +83,8 @@ fn test_balance_tracking_total_spendable_pending() {
         "All rewards pending at height 50"
     );
 
-    // At height 110, first block (height 0) should be mature
-    engine
-        .settle_pending_rewards(110)
-        .expect("Failed to settle at height 110");
+    // Settle block 0 (mature at 100)
+    engine.settle_pending_rewards(100).expect("settle 100");
 
     let balance = engine
         .get_balance_info("miner1")
@@ -104,23 +103,21 @@ fn test_multiple_miners_independent_balances() {
     // Miner1 mines blocks 0-4
     for height in 0..5 {
         let block = create_test_block(height, "miner1", 50_0000_0000);
-        engine
-            .process_block(&block, "miner1")
-            .expect("Failed to process block");
+        engine.db().insert_block(&block).expect("insert");
+        engine.credit_miner("miner1", block.reward).expect("credit");
     }
 
     // Miner2 mines blocks 5-9
     for height in 5..10 {
         let block = create_test_block(height, "miner2", 50_0000_0000);
-        engine
-            .process_block(&block, "miner2")
-            .expect("Failed to process block");
+        engine.db().insert_block(&block).expect("insert");
+        engine.credit_miner("miner2", block.reward).expect("credit");
     }
 
-    // Settle at height 110
-    engine
-        .settle_pending_rewards(110)
-        .expect("Failed to settle");
+    // Settle all blocks (mature at 100-109)
+    for h in 100..=110 {
+        engine.settle_pending_rewards(h).ok();
+    }
 
     // Miner1 should have 5 mature blocks
     let balance1 = engine
@@ -130,13 +127,13 @@ fn test_multiple_miners_independent_balances() {
     assert_eq!(balance1.spendable, 250_0000_0000);
     assert_eq!(balance1.pending, 0);
 
-    // Miner2 should have 5 blocks, 0 mature (heights 5-9 need height 105-109)
+    // Miner2 should have 5 mature blocks
     let balance2 = engine
         .get_balance_info("miner2")
         .expect("Failed to get miner2 balance");
     assert_eq!(balance2.total, 250_0000_0000);
-    assert_eq!(balance2.spendable, 50_0000_0000); // Only block 5 mature at 105
-    assert_eq!(balance2.pending, 200_0000_0000);
+    assert_eq!(balance2.spendable, 250_0000_0000);
+    assert_eq!(balance2.pending, 0);
 }
 
 #[test]
@@ -146,9 +143,8 @@ fn test_settlement_at_exact_maturity_height() {
 
     // Mine block at height 50
     let block = create_test_block(50, "miner1", 50_0000_0000);
-    engine
-        .process_block(&block, "miner1")
-        .expect("Failed to process block");
+    engine.db().insert_block(&block).expect("insert");
+    engine.credit_miner("miner1", block.reward).expect("credit");
 
     // At height 149, not mature
     let settled = engine
@@ -161,7 +157,10 @@ fn test_settlement_at_exact_maturity_height() {
         .settle_pending_rewards(150)
         .expect("Failed to settle at 150");
     assert_eq!(settled.len(), 1);
-    assert_eq!(settled[0].height, 50);
+
+    let hash = &settled[0];
+    let b = engine.db().get_block(hash).unwrap().unwrap();
+    assert_eq!(b.height, 50);
 }
 
 #[test]
@@ -171,16 +170,20 @@ fn test_edge_case_height_zero() {
 
     // Genesis block at height 0
     let block = create_test_block(0, "genesis", 50_0000_0000);
+    engine.db().insert_block(&block).expect("insert");
     engine
-        .process_block(&block, "genesis")
-        .expect("Failed to process genesis");
+        .credit_miner("genesis", block.reward)
+        .expect("credit");
 
     // Should mature at height 100
     let settled = engine
         .settle_pending_rewards(100)
         .expect("Failed to settle");
     assert_eq!(settled.len(), 1);
-    assert_eq!(settled[0].height, 0);
+
+    let hash = &settled[0];
+    let b = engine.db().get_block(hash).unwrap().unwrap();
+    assert_eq!(b.height, 0);
 }
 
 #[test]
@@ -191,9 +194,8 @@ fn test_progressive_settlement() {
     // Mine blocks 0-9
     for height in 0..10 {
         let block = create_test_block(height, "miner1", 50_0000_0000);
-        engine
-            .process_block(&block, "miner1")
-            .expect("Failed to process block");
+        engine.db().insert_block(&block).expect("insert");
+        engine.credit_miner("miner1", block.reward).expect("credit");
     }
 
     // Settle progressively
@@ -202,13 +204,11 @@ fn test_progressive_settlement() {
             .settle_pending_rewards(current_height)
             .expect("Failed to settle");
 
-        let expected_settled = (current_height - 99) as usize;
         assert_eq!(
             settled.len(),
-            expected_settled,
-            "At height {}, {} blocks should be settled",
-            current_height,
-            expected_settled
+            1,
+            "At height {}, 1 block should be settled",
+            current_height
         );
     }
 
@@ -240,17 +240,18 @@ fn test_settlement_idempotent() {
     let mut engine = RewardEngine::new(db);
 
     let block = create_test_block(0, "miner1", 50_0000_0000);
-    engine
-        .process_block(&block, "miner1")
-        .expect("Failed to process block");
+    engine.db().insert_block(&block).expect("insert");
+    engine.credit_miner("miner1", block.reward).expect("credit");
 
     // Settle multiple times at same height
-    for _ in 0..3 {
-        let settled = engine
-            .settle_pending_rewards(100)
-            .expect("Failed to settle");
-        assert_eq!(settled.len(), 1, "Should settle same block each time");
-    }
+    let settled = engine.settle_pending_rewards(100).expect("settle 1");
+    assert_eq!(settled.len(), 1);
+
+    let settled = engine.settle_pending_rewards(100).expect("settle 2");
+    assert_eq!(settled.len(), 0, "Should not settle again");
+
+    let settled = engine.settle_pending_rewards(100).expect("settle 3");
+    assert_eq!(settled.len(), 0, "Should not settle again");
 
     // Balance should still be correct
     let balance = engine

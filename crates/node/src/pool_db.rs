@@ -35,7 +35,7 @@ pub struct PayoutRecord {
 }
 
 /// Thread-safe SQLite database for pool operations.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[allow(dead_code)] // Reserved for Phase 8 pool integration
 pub struct PoolDatabase {
     conn: Arc<Mutex<Connection>>,
@@ -91,7 +91,7 @@ impl PoolDatabase {
 
         // Enable WAL mode for better concurrency (Gemini recommendation)
         // This allows multiple readers and one writer simultaneously
-        conn.execute("PRAGMA journal_mode=WAL;", [])?;
+        conn.execute_batch("PRAGMA journal_mode=WAL;")?;
 
         // Create miners table
         conn.execute(
@@ -411,7 +411,7 @@ impl PoolDatabase {
 
         let count: i64 = stmt.query_row([], |row| row.get(0))?;
         Ok(count as u64)
-    }"}
+    }
 }
 
 #[cfg(test)]
@@ -432,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_block_insertion_and_retrieval() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
+        let db = PoolDatabase::memory().expect(r#"Failed to create memory database"#);
 
         let block = BlockRecord {
             hash: "abc123".to_string(),
@@ -440,43 +440,44 @@ mod tests {
             miner_id: "miner1".to_string(),
             reward: 5000000000,
             timestamp: 1234567890,
+            spendable: false,
         };
 
-        db.insert_block(&block).expect("Failed to insert block");
+        db.insert_block(&block).expect(r#"Failed to insert block"#);
 
         let retrieved = db
             .get_block("abc123")
-            .expect("Failed to get block")
-            .expect("Block not found");
+            .expect(r#"Failed to get block"#)
+            .expect(r#"Block not found"#);
         assert_eq!(retrieved.height, 100);
         assert_eq!(retrieved.miner_id, "miner1");
     }
 
     #[test]
     fn test_miner_reward_accumulation() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
+        let db = PoolDatabase::memory().expect(r#"Failed to create memory database"#);
 
         db.update_miner_reward("miner1", 1000)
-            .expect("Failed to update miner reward");
+            .expect(r#"Failed to update miner reward"#);
         db.update_miner_reward("miner1", 2000)
-            .expect("Failed to update miner reward");
+            .expect(r#"Failed to update miner reward"#);
 
         let total = db
             .get_miner_reward("miner1")
-            .expect("Failed to get miner reward");
+            .expect(r#"Failed to get miner reward"#);
         assert_eq!(total, 3000);
     }
 
     #[test]
     fn test_total_rewards() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
+        let db = PoolDatabase::memory().expect(r#"Failed to create memory database"#);
 
         db.update_miner_reward("miner1", 1000)
-            .expect("Failed to update miner reward");
+            .expect(r#"Failed to update miner reward"#);
         db.update_miner_reward("miner2", 2000)
-            .expect("Failed to update miner reward");
+            .expect(r#"Failed to update miner reward"#);
 
-        let total = db.total_rewards().expect("Failed to get total rewards");
+        let total = db.total_rewards().expect(r#"Failed to get total rewards"#);
         assert_eq!(total, 3000);
     }
 }

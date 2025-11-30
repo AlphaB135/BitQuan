@@ -42,7 +42,7 @@
 //! use wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore};
 //!
 //! // Encrypt - automatically optimizes for your hardware
-//! let keystore = encrypt_keystore_adaptive(b"secret", "password", None);
+//! let keystore = encrypt_keystore_adaptive(b"secret", "password", None).unwrap();
 //!
 //! // Decrypt - uses cache for speed
 //! let decrypted = decrypt_keystore(&keystore, "password")?;
@@ -662,7 +662,7 @@ pub fn encrypt_keystore_with_config(
 ///     "password",
 ///     None,
 ///     &config,
-/// );
+/// ).unwrap();
 ///
 /// // Decrypt respecting the config (no caching in this case)
 /// let decrypted = decrypt_keystore_with_config(&keystore, "password", &config)?;
@@ -699,7 +699,7 @@ pub fn decrypt_keystore_with_config(
 /// ```rust
 /// use wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore, get_cache_stats, get_cache_memory_usage};
 ///
-/// let keystore = encrypt_keystore_adaptive(b"test", "password", None);
+/// let keystore = encrypt_keystore_adaptive(b"test", "password", None).unwrap();
 ///
 /// // Decrypt to populate cache
 /// decrypt_keystore(&keystore, "password")?;
@@ -950,7 +950,7 @@ pub fn encrypt_keystore(
 /// ```rust
 /// use wallet::keystore::{encrypt_keystore_adaptive, decrypt_keystore};
 ///
-/// let keystore = encrypt_keystore_adaptive(b"secret", "password", None);
+/// let keystore = encrypt_keystore_adaptive(b"secret", "password", None).unwrap();
 ///
 /// // First decryption: ~10ms (KDF computation)
 /// let data1 = decrypt_keystore(&keystore, "password")?;

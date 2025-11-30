@@ -14,13 +14,20 @@ fn test_password_rotation_roundtrip() {
     let keystore = encrypt_keystore(plaintext, old_password, None, 8192, 1, 1);
 
     // Verify old password works
-    let decrypted = decrypt_keystore(&keystore, old_password)
+    let decrypted = decrypt_keystore(&keystore.as_ref().unwrap(), old_password)
         .expect("decrypt with old password should succeed");
     assert_eq!(decrypted, plaintext);
 
     // Rotate to new password
-    let rotated = rotate_keystore(&keystore, old_password, new_password, 8192, 1, 1)
-        .expect("password rotation should succeed");
+    let rotated = rotate_keystore(
+        &keystore.as_ref().unwrap(),
+        old_password,
+        new_password,
+        8192,
+        1,
+        1,
+    )
+    .expect("password rotation should succeed");
 
     // Old password should no longer work
     let old_result = decrypt_keystore(&rotated, old_password);
@@ -46,7 +53,11 @@ fn test_password_rotation_persists() {
 
     // Create and save keystore
     let keystore = encrypt_keystore(data, old_pw, None, 8192, 1, 1);
-    let json = keystore.to_json().expect("serialize");
+    let json = keystore
+        .as_ref()
+        .expect("encrypt")
+        .to_json()
+        .expect("serialize");
     fs::write(&path, &json).expect("write file");
 
     // Load and rotate
@@ -75,7 +86,14 @@ fn test_password_rotation_wrong_old_password() {
     let keystore = encrypt_keystore(data, old_password, None, 8192, 1, 1);
 
     // Attempt rotation with wrong old password should fail
-    let result = rotate_keystore(&keystore, wrong_password, new_password, 8192, 1, 1);
+    let result = rotate_keystore(
+        &keystore.as_ref().unwrap(),
+        wrong_password,
+        new_password,
+        8192,
+        1,
+        1,
+    );
     assert!(
         result.is_err(),
         "rotation with wrong old password should fail"
@@ -91,16 +109,23 @@ fn test_multiple_password_rotations() {
 
     // Rotate through multiple passwords
     for i in 0..passwords.len() - 1 {
-        keystore = rotate_keystore(&keystore, passwords[i], passwords[i + 1], 8192, 1, 1)
-            .expect("Failed to rotate keystore");
+        keystore = Ok(rotate_keystore(
+            &keystore.as_ref().unwrap(),
+            passwords[i],
+            passwords[i + 1],
+            8192,
+            1,
+            1,
+        )
+        .expect("Failed to rotate keystore"));
 
         // Verify new password works
-        let decrypted = decrypt_keystore(&keystore, passwords[i + 1])
+        let decrypted = decrypt_keystore(&keystore.as_ref().unwrap(), passwords[i + 1])
             .expect("Failed to decrypt with new password");
         assert_eq!(decrypted, data);
 
         // Verify old password no longer works
-        let old_result = decrypt_keystore(&keystore, passwords[i]);
+        let old_result = decrypt_keystore(&keystore.as_ref().unwrap(), passwords[i]);
         assert!(old_result.is_err(), "old password {} should not work", i);
     }
 }
