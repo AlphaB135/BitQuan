@@ -627,6 +627,8 @@ impl DoSProtection {
         }
 
         // Enable TCP_SYNCOOKIES (SYN flood protection)
+        // Commented out due to compilation issues on macOS
+        /*
         let syn_cookies: libc::c_int = 1;
         let result = unsafe {
             libc::setsockopt(
@@ -640,6 +642,7 @@ impl DoSProtection {
         if result != 0 {
             return Err(std::io::Error::last_os_error());
         }
+        */
 
         Ok(())
     }

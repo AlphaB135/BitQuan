@@ -220,10 +220,7 @@ impl ConnectionManager {
 
         self.active_connections
             .insert(peer_id.clone(), connection.clone());
-        self.ip_connections
-            .entry(ip)
-            .or_default()
-            .push(peer_id);
+        self.ip_connections.entry(ip).or_default().push(peer_id);
 
         self.update_stats(&connection);
         Ok(())
@@ -271,10 +268,7 @@ impl ConnectionManager {
 
         self.active_connections
             .insert(peer_id.clone(), connection.clone());
-        self.ip_connections
-            .entry(ip)
-            .or_default()
-            .push(peer_id);
+        self.ip_connections.entry(ip).or_default().push(peer_id);
 
         self.update_stats(&connection);
         Ok(())

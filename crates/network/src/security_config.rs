@@ -130,8 +130,6 @@ pub struct MonitoringConfig {
     pub metrics_retention: Duration,
 }
 
-
-
 impl Default for GlobalSecurityConfig {
     fn default() -> Self {
         Self {

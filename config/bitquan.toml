@@ -9,7 +9,8 @@ rpc_port = 18332
 
 bootstrap_nodes = [
     "seed1.bitquan.network:18444",
-    "seed2.bitquan.network:18444"
+    "seed2.bitquan.network:18444",
+    "149.56.132.54:18444"
 ]
 
 difficulty_bits = "0x1d00ffff"
