@@ -28,7 +28,7 @@ use bitquan_consensus::{
     target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
 };
 use bitquan_network::io::{recv_envelope, send_envelope};
-use bitquan_network::protocol::{Message, MessageEnvelope, PROTOCOL_VERSION};
+use bitquan_network::protocol::{network_magic, Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_rpc::{server::RpcServer, tls::TlsConfig, IpNetwork, RpcConfig};
 #[cfg(feature = "rocksdb-backend")]
@@ -532,6 +532,9 @@ enum Commands {
         /// Data directory for blockchain storage
         #[arg(long, default_value = "./data/chainstate")]
         datadir: String,
+        /// Network to target (mainnet|testnet|devnet|regtest).
+        #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
+        network: String,
         /// Optional RPC bind address (e.g., 127.0.0.1:8332)
         #[cfg(feature = "rocksdb-backend")]
         #[arg(long)]
@@ -714,7 +717,10 @@ async fn main() -> Result<()> {
             config,
             rpc_bind,
             p2p_bind,
-        } => run_node(&config, rpc_bind.as_deref(), p2p_bind.as_deref()),
+        } => {
+            let network = load_network_from_config(&config)?;
+            run_node(&config, rpc_bind.as_deref(), p2p_bind.as_deref(), network)
+        }
         Commands::MineGenesis { max_tries, output } => mine_genesis(max_tries, &output),
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
@@ -871,6 +877,7 @@ async fn main() -> Result<()> {
             listen,
             max_peers,
             datadir,
+            network,
             #[cfg(feature = "rocksdb-backend")]
             rpc_listen,
             #[cfg(feature = "rocksdb-backend")]
@@ -906,6 +913,7 @@ async fn main() -> Result<()> {
         } => {
             #[cfg(feature = "rocksdb-backend")]
             {
+                let network_id = parse_network_id(&network)?;
                 p2p_server(
                     &listen,
                     max_peers,
@@ -928,10 +936,12 @@ async fn main() -> Result<()> {
                         jwt_config_path: jwt_config.as_deref(),
                         jwt_secret: jwt_secret.as_deref(),
                     },
+                    network_id,
                 )
             }
             #[cfg(not(feature = "rocksdb-backend"))]
             {
+                let network_id = parse_network_id(&network)?;
                 let _ = (&listen, max_peers, &datadir);
                 p2p_server(
                     &listen,
@@ -942,6 +952,7 @@ async fn main() -> Result<()> {
                         username: None,
                         password: None,
                     },
+                    network_id,
                 )
             }
         }
@@ -990,7 +1001,26 @@ async fn main() -> Result<()> {
     }
 }
 
-fn run_node(config_path: &str, rpc_bind: Option<&str>, p2p_bind: Option<&str>) -> Result<()> {
+fn load_network_from_config(path: &str) -> Result<NetworkId> {
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with("id") {
+            if let Some((_, value)) = line.split_once('=') {
+                let val = value.trim().trim_matches('"').trim();
+                return parse_network_id(val);
+            }
+        }
+    }
+    Ok(NetworkId::Mainnet)
+}
+
+fn run_node(
+    config_path: &str,
+    rpc_bind: Option<&str>,
+    p2p_bind: Option<&str>,
+    network: NetworkId,
+) -> Result<()> {
     let p2p_addr = p2p_bind.unwrap_or("0.0.0.0:18444");
     let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332");
 
@@ -1004,32 +1034,34 @@ fn run_node(config_path: &str, rpc_bind: Option<&str>, p2p_bind: Option<&str>) -
     let _engine = ConsensusEngine::new(params, registry);
     let _storage = InMemoryChainStore::new();
 
-    start_p2p_server(p2p_addr)
+    start_p2p_server(p2p_addr, network)
 }
 
-fn start_p2p_server(addr: &str) -> Result<()> {
+fn start_p2p_server(addr: &str, network: NetworkId) -> Result<()> {
     let listener = TcpListener::bind(addr)?;
     listener.set_nonblocking(false)?;
-    println!("P2P server listening at {addr}");
+    println!("P2P server listening at {addr} (network: {:?})", network);
     loop {
         let (stream, peer) = listener.accept()?;
         println!("Incoming connection from {peer}");
         thread::spawn(move || {
-            if let Err(e) = handle_peer(stream) {
+            if let Err(e) = handle_peer(stream, network) {
                 eprintln!("peer error: {e}");
             }
         });
     }
 }
 
-fn handle_peer(stream: TcpStream) -> Result<()> {
+fn handle_peer(stream: TcpStream, network: NetworkId) -> Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
+    let magic = network_magic(network);
+
     // Simple handshake: expect Version -> send VerAck, reply with our Version -> expect optional VerAck
-    let env = read_envelope(&stream)?;
+    let env = read_envelope(&stream, magic)?;
     match env.message {
         Message::Version { .. } => {
-            write_envelope(&stream, &MessageEnvelope::new(Message::VerAck))?;
+            write_envelope(&stream, &MessageEnvelope::new(magic, Message::VerAck))?;
             let version = Message::Version {
                 version: PROTOCOL_VERSION,
                 services: 1,
@@ -1037,16 +1069,19 @@ fn handle_peer(stream: TcpStream) -> Result<()> {
                 user_agent: "BitQuan/0.1.0".into(),
                 start_height: 0,
             };
-            write_envelope(&stream, &MessageEnvelope::new(version))?;
+            write_envelope(&stream, &MessageEnvelope::new(magic, version))?;
         }
         _ => {
             write_envelope(
                 &stream,
-                &MessageEnvelope::new(Message::Reject {
-                    message: "expected version".into(),
-                    code: bitquan_network::protocol::RejectCode::Malformed,
-                    reason: "handshake".into(),
-                }),
+                &MessageEnvelope::new(
+                    magic,
+                    Message::Reject {
+                        message: "expected version".into(),
+                        code: bitquan_network::protocol::RejectCode::Malformed,
+                        reason: "handshake".into(),
+                    },
+                ),
             )?;
             return Ok(());
         }
@@ -1054,14 +1089,15 @@ fn handle_peer(stream: TcpStream) -> Result<()> {
 
     // Minimal message loop: respond to Ping with Pong
     loop {
-        let msg = read_envelope(&stream)?;
+        let msg = read_envelope(&stream, magic)?;
         match msg.message {
-            Message::Ping { nonce } => {
-                write_envelope(&stream, &MessageEnvelope::new(Message::Pong { nonce }))?
-            }
+            Message::Ping { nonce } => write_envelope(
+                &stream,
+                &MessageEnvelope::new(magic, Message::Pong { nonce }),
+            )?,
             Message::GetAddr => write_envelope(
                 &stream,
-                &MessageEnvelope::new(Message::Addr { addrs: vec![] }),
+                &MessageEnvelope::new(magic, Message::Addr { addrs: vec![] }),
             )?,
             _ => {}
         }
@@ -1457,7 +1493,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         println!("\n=== P2P Network Configuration ===");
         println!("Connecting to {} peer(s)...", peers.len());
 
-        let pm = Arc::new(PeerManager::new(peers.len()));
+        let pm = Arc::new(PeerManager::new(peers.len(), network));
 
         // Update peer manager with current chain height
         let current_height = {
@@ -2510,8 +2546,8 @@ fn write_envelope(mut stream: &TcpStream, env: &MessageEnvelope) -> Result<()> {
     send_envelope(&mut stream, env).map_err(|e| Error::Net(e.to_string()))
 }
 
-fn read_envelope(mut stream: &TcpStream) -> Result<MessageEnvelope> {
-    recv_envelope(&mut stream).map_err(|e| Error::Net(e.to_string()))
+fn read_envelope(mut stream: &TcpStream, magic: [u8; 4]) -> Result<MessageEnvelope> {
+    recv_envelope(&mut stream, magic).map_err(|e| Error::Net(e.to_string()))
 }
 
 fn p2p_demo(addr: &str) -> Result<()> {
@@ -2520,18 +2556,22 @@ fn p2p_demo(addr: &str) -> Result<()> {
     let server = thread::spawn(move || -> Result<()> {
         let listener = TcpListener::bind(&addr_str)?;
         listener.set_nonblocking(false)?;
+        let magic = network_magic(NetworkId::Mainnet);
         if let Ok((stream, _peer)) = listener.accept() {
             stream.set_read_timeout(Some(Duration::from_secs(5)))?;
             stream.set_write_timeout(Some(Duration::from_secs(5)))?;
             // Expect Version
-            let env = read_envelope(&stream)?;
+            let env = read_envelope(&stream, magic)?;
             if let Message::Version { .. } = env.message {
                 // Reply VerAck
-                write_envelope(&stream, &MessageEnvelope::new(Message::VerAck))?;
+                write_envelope(&stream, &MessageEnvelope::new(magic, Message::VerAck))?;
                 // Expect Ping then reply Pong
-                let ping = read_envelope(&stream)?;
+                let ping = read_envelope(&stream, magic)?;
                 if let Message::Ping { nonce } = ping.message {
-                    write_envelope(&stream, &MessageEnvelope::new(Message::Pong { nonce }))?;
+                    write_envelope(
+                        &stream,
+                        &MessageEnvelope::new(magic, Message::Pong { nonce }),
+                    )?;
                 }
             }
         }
@@ -2543,6 +2583,7 @@ fn p2p_demo(addr: &str) -> Result<()> {
     let client = TcpStream::connect(addr)?;
     client.set_read_timeout(Some(Duration::from_secs(5)))?;
     client.set_write_timeout(Some(Duration::from_secs(5)))?;
+    let magic = network_magic(NetworkId::Mainnet);
     let version = Message::Version {
         version: PROTOCOL_VERSION,
         services: 1,
@@ -2550,15 +2591,18 @@ fn p2p_demo(addr: &str) -> Result<()> {
         user_agent: "BitQuan/0.1.0".into(),
         start_height: 0,
     };
-    write_envelope(&client, &MessageEnvelope::new(version))?;
-    let verack = read_envelope(&client)?;
+    write_envelope(&client, &MessageEnvelope::new(magic, version))?;
+    let verack = read_envelope(&client, magic)?;
     if !matches!(verack.message, Message::VerAck) {
         println!("Unexpected message from server");
         return Ok(());
     }
     let nonce = 42u64;
-    write_envelope(&client, &MessageEnvelope::new(Message::Ping { nonce }))?;
-    let pong = read_envelope(&client)?;
+    write_envelope(
+        &client,
+        &MessageEnvelope::new(magic, Message::Ping { nonce }),
+    )?;
+    let pong = read_envelope(&client, magic)?;
     if let Message::Pong { nonce: n } = pong.message {
         println!("P2P demo OK (nonce={n})");
     } else {
@@ -2577,6 +2621,7 @@ fn p2p_server(
     max_peers: usize,
     datadir: &str,
     rpc: RpcServerOptions<'_>,
+    network: NetworkId,
 ) -> Result<()> {
     use bitquan_network::{P2PListener, PeerManager};
     #[cfg(feature = "rocksdb-backend")]
@@ -2811,7 +2856,12 @@ fn p2p_server(
     use bitquan_network::RelayManager;
     let relay_manager = Arc::new(RelayManager::new(10000));
 
-    let peer_manager = Arc::new(PeerManager::with_relay(max_peers, relay_manager.clone()));
+    // Create peer manager with relay support
+    let peer_manager = Arc::new(PeerManager::with_relay(
+        max_peers,
+        relay_manager.clone(),
+        network,
+    ));
     peer_manager.update_height(height);
 
     let listener = P2PListener::bind(listen, peer_manager.clone())
@@ -2898,7 +2948,7 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
     println!("Connecting to: {}", peer);
     println!("Our height: {}", height);
 
-    let peer_manager = Arc::new(PeerManager::new(1));
+    let peer_manager = Arc::new(PeerManager::new(1, NetworkId::Mainnet));
     peer_manager.update_height(height);
 
     let addr: SocketAddr = peer

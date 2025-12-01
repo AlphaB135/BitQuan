@@ -214,8 +214,8 @@ impl Default for BlockPropagator {
 }
 
 /// Create a message envelope for network transmission.
-pub fn create_envelope(message: Message) -> MessageEnvelope {
-    MessageEnvelope::new(message)
+pub fn create_envelope(message: Message, magic: [u8; 4]) -> MessageEnvelope {
+    MessageEnvelope::new(magic, message)
 }
 
 /// Broadcast a block to multiple peers.

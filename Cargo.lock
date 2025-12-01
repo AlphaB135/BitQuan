@@ -373,6 +373,7 @@ dependencies = [
  "bitquan-consensus",
  "bitquan-types",
  "hex",
+ "libc",
  "log",
  "rand 0.8.5",
  "serde",

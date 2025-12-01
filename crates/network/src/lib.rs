@@ -76,6 +76,8 @@ pub struct NetworkConfig {
     pub rate_limit_per_peer: usize,
     /// Security configuration
     pub security: SecurityConfig,
+    /// Network ID (Mainnet, Testnet, etc.)
+    pub network: bitquan_types::NetworkId,
 }
 
 /// Re-export SecurityConfig from security_config module
@@ -90,6 +92,7 @@ impl Default for NetworkConfig {
             max_message_size: 10_000_000,
             rate_limit_per_peer: 100,
             security: SecurityConfig::default(),
+            network: bitquan_types::NetworkId::Mainnet,
         }
     }
 }
@@ -258,7 +261,8 @@ impl NetworkService {
         use std::time::Duration;
 
         // Create message envelope
-        let envelope = protocol::MessageEnvelope::new(message.clone());
+        let magic = protocol::network_magic(self.config.network);
+        let envelope = protocol::MessageEnvelope::new(magic, message.clone());
 
         // Serialize message
         let data = envelope

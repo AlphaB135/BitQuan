@@ -154,7 +154,7 @@ fn test_create_block_inv_message() {
 #[test]
 fn test_message_envelope_creation() {
     let msg = Message::Ping { nonce: 12345 };
-    let envelope = create_envelope(msg.clone());
+    let envelope = create_envelope(msg.clone(), bitquan_network::protocol::MAINNET_MAGIC);
 
     assert_eq!(envelope.message, msg);
 }

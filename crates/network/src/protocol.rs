@@ -263,11 +263,8 @@ pub struct MessageEnvelope {
 
 impl MessageEnvelope {
     /// Creates a new message envelope.
-    pub fn new(message: Message) -> Self {
-        Self {
-            magic: MAINNET_MAGIC,
-            message,
-        }
+    pub fn new(magic: [u8; 4], message: Message) -> Self {
+        Self { magic, message }
     }
 
     /// Serializes the message to bytes.
@@ -288,7 +285,7 @@ impl MessageEnvelope {
     }
 
     /// Deserializes a message from bytes.
-    pub fn deserialize(data: &[u8]) -> Result<Self, P2pError> {
+    pub fn deserialize(data: &[u8], expected_magic: [u8; 4]) -> Result<Self, P2pError> {
         if data.len() < 8 {
             return Err(P2pError::InvalidMessage);
         }
@@ -296,7 +293,7 @@ impl MessageEnvelope {
         let mut magic = [0u8; 4];
         magic.copy_from_slice(&data[0..4]);
 
-        if magic != MAINNET_MAGIC {
+        if magic != expected_magic {
             return Err(P2pError::InvalidMessage);
         }
 
@@ -440,11 +437,11 @@ mod tests {
             start_height: 100,
         };
 
-        let envelope = MessageEnvelope::new(msg.clone());
+        let envelope = MessageEnvelope::new(MAINNET_MAGIC, msg.clone());
         let serialized = envelope
             .serialize()
             .expect("Failed to serialize message envelope");
-        let deserialized = MessageEnvelope::deserialize(&serialized)
+        let deserialized = MessageEnvelope::deserialize(&serialized, MAINNET_MAGIC)
             .expect("Failed to deserialize message envelope");
 
         assert_eq!(deserialized.message, msg);
@@ -461,7 +458,7 @@ mod tests {
             reason: "test".to_string(),
         };
 
-        let envelope = MessageEnvelope::new(msg);
+        let envelope = MessageEnvelope::new(MAINNET_MAGIC, msg);
         let result = envelope.serialize();
 
         assert!(matches!(result, Err(P2pError::MessageTooLarge(_))));

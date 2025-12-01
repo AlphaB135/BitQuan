@@ -17,7 +17,10 @@ pub fn send_envelope<W: Write>(w: &mut W, env: &MessageEnvelope) -> Result<(), P
 }
 
 /// Receive a length-prefixed serialized MessageEnvelope.
-pub fn recv_envelope<R: Read>(r: &mut R) -> Result<MessageEnvelope, P2pError> {
+pub fn recv_envelope<R: Read>(
+    r: &mut R,
+    expected_magic: [u8; 4],
+) -> Result<MessageEnvelope, P2pError> {
     let mut len_buf = [0u8; 4];
     r.read_exact(&mut len_buf)
         .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
@@ -31,7 +34,7 @@ pub fn recv_envelope<R: Read>(r: &mut R) -> Result<MessageEnvelope, P2pError> {
     let mut buf = vec![0u8; len];
     r.read_exact(&mut buf)
         .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-    MessageEnvelope::deserialize(&buf)
+    MessageEnvelope::deserialize(&buf, expected_magic)
 }
 
 #[cfg(test)]
@@ -69,7 +72,7 @@ mod tests {
     #[test]
     fn rejects_oversized_length_prefix() {
         let mut reader = LenOnlyReader::new(MAX_MESSAGE_SIZE + 1);
-        let err = recv_envelope(&mut reader).expect_err("should reject oversize");
+        let err = recv_envelope(&mut reader, [0u8; 4]).expect_err("should reject oversize");
         match err {
             P2pError::MessageTooLarge(size) => assert_eq!(size, MAX_MESSAGE_SIZE + 1),
             other => unreachable!("unexpected error: {:?}", other),

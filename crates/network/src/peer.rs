@@ -109,11 +109,13 @@ pub struct Peer {
     pub rate_limit_window: SystemTime,
     /// Ban score for misbehavior (disconnect at 100).
     pub ban_score: u32,
+    /// Network magic bytes.
+    pub magic: [u8; 4],
 }
 
 impl Peer {
     /// Creates a new peer from an accepted connection.
-    pub fn new(stream: TcpStream, addr: SocketAddr) -> Result<Self, P2pError> {
+    pub fn new(stream: TcpStream, addr: SocketAddr, magic: [u8; 4]) -> Result<Self, P2pError> {
         stream
             .set_read_timeout(Some(Duration::from_secs(30)))
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
@@ -132,6 +134,7 @@ impl Peer {
             message_count: 0,
             rate_limit_window: SystemTime::now(),
             ban_score: 0,
+            magic,
         })
     }
 
@@ -148,14 +151,14 @@ impl Peer {
 
     /// Sends a message to the peer.
     pub fn send_message(&mut self, msg: Message) -> Result<(), P2pError> {
-        let envelope = MessageEnvelope::new(msg);
+        let envelope = MessageEnvelope::new(self.magic, msg);
         crate::io::send_envelope(&mut self.stream, &envelope)?;
         Ok(())
     }
 
     /// Receives a message from the peer (blocking).
     pub fn recv_message(&mut self) -> Result<Message, P2pError> {
-        let envelope = crate::io::recv_envelope(&mut self.stream)?;
+        let envelope = crate::io::recv_envelope(&mut self.stream, self.magic)?;
         self.last_seen = SystemTime::now();
 
         // Rate limiting check
@@ -326,28 +329,36 @@ pub struct PeerManager {
     relay_manager: Option<Arc<crate::relay::RelayManager>>,
     /// Eclipse attack mitigation config
     eclipse_config: EclipseConfig,
+    /// Network magic bytes.
+    magic: [u8; 4],
 }
 
 impl PeerManager {
     /// Creates a new peer manager.
-    pub fn new(max_peers: usize) -> Self {
+    pub fn new(max_peers: usize, network: bitquan_types::NetworkId) -> Self {
         PeerManager {
             peers: Arc::new(Mutex::new(Vec::new())),
             max_peers,
             current_height: Arc::new(Mutex::new(0)),
             relay_manager: None,
             eclipse_config: EclipseConfig::default(),
+            magic: crate::protocol::network_magic(network),
         }
     }
 
     /// Creates a new peer manager with relay support.
-    pub fn with_relay(max_peers: usize, relay_manager: Arc<crate::relay::RelayManager>) -> Self {
+    pub fn with_relay(
+        max_peers: usize,
+        relay_manager: Arc<crate::relay::RelayManager>,
+        network: bitquan_types::NetworkId,
+    ) -> Self {
         PeerManager {
             peers: Arc::new(Mutex::new(Vec::new())),
             max_peers,
             current_height: Arc::new(Mutex::new(0)),
             relay_manager: Some(relay_manager),
             eclipse_config: EclipseConfig::default(),
+            magic: crate::protocol::network_magic(network),
         }
     }
 
@@ -356,6 +367,7 @@ impl PeerManager {
         max_peers: usize,
         relay_manager: Option<Arc<crate::relay::RelayManager>>,
         eclipse_config: EclipseConfig,
+        network: bitquan_types::NetworkId,
     ) -> Self {
         PeerManager {
             peers: Arc::new(Mutex::new(Vec::new())),
@@ -363,6 +375,7 @@ impl PeerManager {
             current_height: Arc::new(Mutex::new(0)),
             relay_manager,
             eclipse_config,
+            magic: crate::protocol::network_magic(network),
         }
     }
 
@@ -442,7 +455,7 @@ impl PeerManager {
             }
         }
 
-        let mut peer = Peer::new(stream, addr)?;
+        let mut peer = Peer::new(stream, addr, self.magic)?;
         let height = *self.lock_height()?;
         peer.handshake_inbound(height)?;
 
@@ -461,7 +474,7 @@ impl PeerManager {
         let stream =
             TcpStream::connect(addr).map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
-        let mut peer = Peer::new(stream, addr)?;
+        let mut peer = Peer::new(stream, addr, self.magic)?;
         let height = *self.lock_height()?;
         peer.handshake_outbound(height)?;
 
@@ -650,14 +663,14 @@ mod tests {
 
     #[test]
     fn test_peer_manager_creation() {
-        let pm = PeerManager::new(10);
+        let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet);
         assert_eq!(pm.peer_count(), 0);
         assert_eq!(pm.max_peers, 10);
     }
 
     #[test]
     fn test_peer_manager_height_update() {
-        let pm = PeerManager::new(10);
+        let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet);
         pm.update_height(42);
         assert_eq!(
             *pm.current_height
@@ -689,7 +702,8 @@ mod tests {
         });
 
         let stream = TcpStream::connect(addr).expect("Failed to connect to test server");
-        let mut peer = Peer::new(stream, addr).expect("Failed to create peer");
+        let mut peer =
+            Peer::new(stream, addr, crate::protocol::MAINNET_MAGIC).expect("Failed to create peer");
 
         assert_eq!(peer.ban_score, 0);
         assert!(!peer.should_ban());
