@@ -612,27 +612,33 @@ impl DoSProtection {
         let fd = socket.as_raw_fd();
 
         // Enable TCP_DEFER_ACCEPT (reduces SYN flood impact)
-        unsafe {
-            let defer_accept: libc::c_int = 1;
+        let defer_accept: libc::c_int = 1;
+        let result = unsafe {
             libc::setsockopt(
                 fd,
                 libc::IPPROTO_TCP,
                 libc::TCP_DEFER_ACCEPT,
                 &defer_accept as *const _ as *const libc::c_void,
                 std::mem::size_of_val(&defer_accept) as libc::socklen_t,
-            )?;
+            )
+        };
+        if result != 0 {
+            return Err(std::io::Error::last_os_error());
         }
 
         // Enable TCP_SYNCOOKIES (SYN flood protection)
-        unsafe {
-            let syn_cookies: libc::c_int = 1;
+        let syn_cookies: libc::c_int = 1;
+        let result = unsafe {
             libc::setsockopt(
                 fd,
                 libc::IPPROTO_TCP,
                 libc::TCP_SYNCOOKIES,
                 &syn_cookies as *const _ as *const libc::c_void,
                 std::mem::size_of_val(&syn_cookies) as libc::socklen_t,
-            )?;
+            )
+        };
+        if result != 0 {
+            return Err(std::io::Error::last_os_error());
         }
 
         Ok(())
