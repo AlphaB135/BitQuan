@@ -1061,7 +1061,6 @@ fn handle_peer(stream: TcpStream, network: NetworkId) -> Result<()> {
     let env = read_envelope(&stream, magic)?;
     match env.message {
         Message::Version { .. } => {
-            write_envelope(&stream, &MessageEnvelope::new(magic, Message::VerAck))?;
             let version = Message::Version {
                 version: PROTOCOL_VERSION,
                 services: 1,
@@ -1070,6 +1069,7 @@ fn handle_peer(stream: TcpStream, network: NetworkId) -> Result<()> {
                 start_height: 0,
             };
             write_envelope(&stream, &MessageEnvelope::new(magic, version))?;
+            write_envelope(&stream, &MessageEnvelope::new(magic, Message::VerAck))?;
         }
         _ => {
             write_envelope(
