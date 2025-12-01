@@ -214,11 +214,11 @@ enum Commands {
         /// Path to the node configuration file.
         #[arg(long, default_value = "config/bitquan.toml")]
         config: String,
-        
+
         /// Override RPC bind address (e.g., "0.0.0.0:18332")
         #[arg(long)]
         rpc_bind: Option<String>,
-        
+
         /// Override P2P listen address (e.g., "0.0.0.0:18444")
         #[arg(long)]
         p2p_bind: Option<String>,
@@ -302,6 +302,9 @@ enum Commands {
         #[cfg(feature = "randomx")]
         #[arg(long)]
         randomx_seed: Option<String>,
+        /// Peer addresses to connect to (e.g., 149.56.132.54:18444). Can be specified multiple times.
+        #[arg(long)]
+        peers: Vec<String>,
     },
     /// Generates a post-quantum keypair for wallet
     WalletGen {
@@ -707,7 +710,11 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { config, rpc_bind, p2p_bind } => run_node(&config, rpc_bind.as_deref(), p2p_bind.as_deref()),
+        Commands::Run {
+            config,
+            rpc_bind,
+            p2p_bind,
+        } => run_node(&config, rpc_bind.as_deref(), p2p_bind.as_deref()),
         Commands::MineGenesis { max_tries, output } => mine_genesis(max_tries, &output),
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
@@ -737,6 +744,7 @@ async fn main() -> Result<()> {
                 randomx_mode: _randomx_mode,
             #[cfg(feature = "randomx")]
                 randomx_seed: _randomx_seed,
+            peers,
         } => {
             let network_id = parse_network_id(&network)?;
             let pow_mode = PowMode::parse(&pow)?;
@@ -760,6 +768,7 @@ async fn main() -> Result<()> {
                 network: network_id,
                 pow_mode,
                 hybrid_weights: weights,
+                peers,
             })
         }
         Commands::WalletGen {
@@ -984,7 +993,7 @@ async fn main() -> Result<()> {
 fn run_node(config_path: &str, rpc_bind: Option<&str>, p2p_bind: Option<&str>) -> Result<()> {
     let p2p_addr = p2p_bind.unwrap_or("0.0.0.0:18444");
     let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332");
-    
+
     println!(
         "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}"
     );
@@ -1369,6 +1378,7 @@ struct MiningOptions<'a> {
     network: NetworkId,
     pow_mode: PowMode,
     hybrid_weights: Option<Vec<(bitquan_consensus::pow::PowAlgo, f32)>>,
+    peers: Vec<String>,
 }
 
 struct RpcServerOptions<'a> {
@@ -1416,6 +1426,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         network,
         pow_mode,
         hybrid_weights,
+        peers,
     } = options;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
@@ -1439,6 +1450,64 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
         .map_err(|e| Error::Invalid(format!("invalid payout script hex: {e}")))?;
     let found = Arc::new(AtomicBool::new(false));
     let blocks_mined = Arc::new(AtomicU64::new(0));
+
+    // Initialize PeerManager if peers are specified
+    let peer_manager = if !peers.is_empty() {
+        use bitquan_network::PeerManager;
+        println!("\n=== P2P Network Configuration ===");
+        println!("Connecting to {} peer(s)...", peers.len());
+
+        let pm = Arc::new(PeerManager::new(peers.len()));
+
+        // Update peer manager with current chain height
+        let current_height = {
+            let s = store
+                .lock()
+                .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
+            s.height()
+                .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?
+        };
+        pm.update_height(current_height);
+
+        // Connect to all peers
+        let mut connected_count = 0;
+        for peer_addr in &peers {
+            let addr: SocketAddr = match peer_addr.parse() {
+                Ok(a) => a,
+                Err(e) => {
+                    eprintln!("⚠️  Invalid peer address '{}': {}", peer_addr, e);
+                    continue;
+                }
+            };
+
+            print!("  Connecting to {}... ", peer_addr);
+            match pm.connect_peer(addr) {
+                Ok(()) => {
+                    println!("✅ Connected");
+                    connected_count += 1;
+                }
+                Err(e) => {
+                    eprintln!("❌ Failed: {}", e);
+                }
+            }
+        }
+
+        if connected_count > 0 {
+            println!(
+                "\n✅ Connected to {}/{} peers",
+                connected_count,
+                peers.len()
+            );
+            println!("Ready peers: {}", pm.ready_peer_count());
+            println!("================================\n");
+            Some(pm)
+        } else {
+            eprintln!("⚠️  Warning: Failed to connect to any peers. Mining will continue without network connectivity.\n");
+            None
+        }
+    } else {
+        None
+    };
 
     let mut history: VecDeque<BlockLog> = VecDeque::with_capacity(window + 2);
     let mut last_timestamp: Option<i64> = None;
@@ -1788,8 +1857,29 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             let mut s = store
                 .lock()
                 .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
-            s.insert_block(block)
+            s.insert_block(block.clone())
                 .map_err(|e| Error::Invalid(format!("failed to insert block: {e}")))?;
+        }
+
+        // Broadcast block to connected peers
+        if let Some(ref pm) = peer_manager {
+            let ready_peers = pm.ready_peer_count();
+            if ready_peers > 0 {
+                print!(" | Broadcasting to {} peer(s)...", ready_peers);
+
+                // Create block message for broadcasting
+                let msg = Message::Block {
+                    block: block.clone(),
+                };
+                match pm.broadcast(msg) {
+                    Ok(_count) => {
+                        print!(" ✅");
+                    }
+                    Err(e) => {
+                        print!(" ⚠️  Broadcast warning: {}", e);
+                    }
+                }
+            }
         }
 
         let block_height = height + 1;

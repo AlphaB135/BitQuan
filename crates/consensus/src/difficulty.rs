@@ -32,7 +32,7 @@ pub fn compact_to_target(bits: u32) -> u64 {
 
     // Check for overflow
     if exponent > 31 {
-        return 0; // Overflow
+        return u64::MAX; // Overflow - saturate to max
     }
 
     target
