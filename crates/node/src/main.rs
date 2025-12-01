@@ -214,6 +214,14 @@ enum Commands {
         /// Path to the node configuration file.
         #[arg(long, default_value = "config/bitquan.toml")]
         config: String,
+        
+        /// Override RPC bind address (e.g., "0.0.0.0:18332")
+        #[arg(long)]
+        rpc_bind: Option<String>,
+        
+        /// Override P2P listen address (e.g., "0.0.0.0:18444")
+        #[arg(long)]
+        p2p_bind: Option<String>,
     },
     /// Mine the genesis block for BitQuan blockchain
     MineGenesis {
@@ -699,7 +707,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { config } => run_node(&config),
+        Commands::Run { config, rpc_bind, p2p_bind } => run_node(&config, rpc_bind.as_deref(), p2p_bind.as_deref()),
         Commands::MineGenesis { max_tries, output } => mine_genesis(max_tries, &output),
         Commands::CheckBlock { path } => check_block(&path),
         Commands::Rng { label, length } => rng_demo(&label, length),
@@ -973,9 +981,12 @@ async fn main() -> Result<()> {
     }
 }
 
-fn run_node(config_path: &str) -> Result<()> {
+fn run_node(config_path: &str, rpc_bind: Option<&str>, p2p_bind: Option<&str>) -> Result<()> {
+    let p2p_addr = p2p_bind.unwrap_or("0.0.0.0:18444");
+    let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332");
+    
     println!(
-        "Starting BitQuan node with configuration: {config_path}\nListening on 127.0.0.1:18444 (prototype)."
+        "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}"
     );
 
     // Bootstraps placeholder subsystems to illustrate crate integration.
@@ -984,7 +995,7 @@ fn run_node(config_path: &str) -> Result<()> {
     let _engine = ConsensusEngine::new(params, registry);
     let _storage = InMemoryChainStore::new();
 
-    start_p2p_server("127.0.0.1:18444")
+    start_p2p_server(p2p_addr)
 }
 
 fn start_p2p_server(addr: &str) -> Result<()> {
