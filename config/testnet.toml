@@ -57,7 +57,7 @@ max_tx_size = 100000
 
 [rpc]
 # RPC server bind address
-bind = "127.0.0.1:19443"
+bind = "0.0.0.0:19443"
 
 # Enable RPC authentication
 auth_enabled = true

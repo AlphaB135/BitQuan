@@ -84,7 +84,7 @@ pub use security_config::SecurityConfig;
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            listen_addr: "/ip4/127.0.0.1/tcp/8333".to_owned(),
+            listen_addr: "/ip4/0.0.0.0/tcp/8333".to_owned(),
             max_peers: 125,
             enable_encryption: true,
             max_message_size: 10_000_000,

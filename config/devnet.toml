@@ -49,7 +49,7 @@ max_tx_size = 100000
 
 [rpc]
 # RPC server bind address
-bind = "127.0.0.1:29443"
+bind = "0.0.0.0:29443"
 
 # Enable RPC authentication
 auth_enabled = false  # Disabled for devnet
