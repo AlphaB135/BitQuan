@@ -2814,6 +2814,8 @@ fn p2p_server(
         let tls_config_for_thread = tls_config.clone();
         let jwt_config_owned = jwt_config.map(|s| s.to_string());
         let jwt_secret_owned = jwt_secret.map(|s| s.to_string());
+        let username_owned = username.clone();
+        let password_owned = password_value.clone();
 
         thread::spawn(move || {
             // JWT authentication (required)
@@ -2840,7 +2842,11 @@ fn p2p_server(
                 return;
             };
 
-            let mut server = RpcServer::new(handler, rpc_addr.clone(), jwt_auth, rpc_config);
+            let basic_auth = if let (Some(u), Some(p)) = (username_owned.clone(), password_owned.clone()) {
+                Some((u, p))
+            } else { None };
+
+            let mut server = RpcServer::new(handler, rpc_addr.clone(), jwt_auth, rpc_config, basic_auth);
 
             if let Some(tls_cfg) = tls_config_for_thread {
                 server = server.with_tls_config(tls_cfg);
