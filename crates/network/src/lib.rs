@@ -13,6 +13,7 @@ pub mod discovery;
 pub mod dns_bootstrap;
 pub mod io;
 pub mod peer;
+pub mod peer_async;  // NEW: Async peer implementation with Slowloris protection
 pub mod propagation;
 pub mod protocol;
 pub mod relay;

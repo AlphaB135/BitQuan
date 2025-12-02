@@ -372,6 +372,7 @@ version = "0.1.0"
 dependencies = [
  "bitquan-consensus",
  "bitquan-types",
+ "futures",
  "hex",
  "libc",
  "log",
@@ -379,6 +380,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+ "tokio",
  "toml",
 ]
 
@@ -474,6 +476,7 @@ dependencies = [
 name = "bitquan-types"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "getrandom 0.3.4",
  "hex",
  "http 0.2.12",

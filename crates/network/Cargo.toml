@@ -18,3 +18,7 @@ log = "0.4"
 toml = "0.8"
 hex = "0.4"
 libc = "0.2"
+
+# Async runtime for network layer
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
