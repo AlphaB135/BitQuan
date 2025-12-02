@@ -14,6 +14,7 @@ pub mod dns_bootstrap;
 pub mod io;
 pub mod peer;
 pub mod peer_async;  // NEW: Async peer implementation with Slowloris protection
+pub mod server_async; // NEW: Async P2P server
 pub mod propagation;
 pub mod protocol;
 pub mod relay;
