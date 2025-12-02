@@ -611,6 +611,14 @@ impl DoSProtection {
 
         let fd = socket.as_raw_fd();
 
+        // SECURITY: Validate file descriptor before using in unsafe code
+        if fd < 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid file descriptor",
+            ));
+        }
+
         // Enable TCP_DEFER_ACCEPT (reduces SYN flood impact)
         let defer_accept: libc::c_int = 1;
         let result = unsafe {

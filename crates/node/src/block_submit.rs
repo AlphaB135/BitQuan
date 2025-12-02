@@ -218,7 +218,7 @@ impl BlockSubmitter {
     /// - Note: Full UTXO validation requires blockchain state
     pub fn validate_block_full(&self, block: &Block) -> Result<bool> {
         // Verify merkle root matches transactions
-        let calculated_merkle = block.compute_merkle_root();
+        let calculated_merkle = block.compute_merkle_root()?;
         if calculated_merkle != block.header.merkle_root {
             return Err(bitquan_types::Error::Invalid(
                 "Merkle root mismatch".to_string(),

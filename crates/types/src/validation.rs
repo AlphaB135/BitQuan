@@ -92,6 +92,14 @@ pub enum ValidationError {
     /// Arithmetic overflow in size calculation
     #[error("overflow in {0}")]
     SizeOverflow(&'static str),
+
+    /// Duplicate transaction IDs in merkle tree
+    #[error("duplicate transaction ID detected in merkle tree")]
+    DuplicateTransactionId,
+
+    /// Odd-length merkle tree layer (security vulnerability)
+    #[error("odd-length internal merkle tree layer detected")]
+    OddMerkleTreeLayer,
 }
 
 /// Validates a transaction for structural correctness

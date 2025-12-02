@@ -1334,8 +1334,8 @@ fn mine_once(
     };
 
     // Merkle/witness roots for block (support multi-tx in future)
-    let merkle_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.txid()]);
-    let witness_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.wtxid()]);
+    let merkle_root = bitquan_types::merkle_root_from_txids(&[coinbase.txid()])?;
+    let witness_root = bitquan_types::merkle_root_from_txids(&[coinbase.wtxid()])?;
 
     // Determine prev_block from tip if any
     let mut prev = [0u8; 32];
@@ -1698,8 +1698,9 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
             sig_algo: SigAlgorithm::Dilithium3,
         };
 
-        let merkle_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.txid()]);
-        let witness_root = bitquan_types::compute_merkle_root_from_txids(&[coinbase.wtxid()]);
+        // Merkle/witness roots for block
+        let merkle_root = bitquan_types::merkle_root_from_txids(&[coinbase.txid()])?;
+        let witness_root = bitquan_types::merkle_root_from_txids(&[coinbase.wtxid()])?;
 
         // Determine prev_block
         let mut prev = [0u8; 32];

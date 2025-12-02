@@ -14,6 +14,7 @@ pub mod validation;
 pub mod wire;
 
 pub use block::merkle_root_from_txids as compute_merkle_root_from_txids;
+pub use block::merkle_root_from_txids;
 pub use block::{Block, BlockHeader};
 pub use compact_uint::CompactUint;
 pub use context::TxContext;

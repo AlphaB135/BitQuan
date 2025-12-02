@@ -326,8 +326,20 @@ impl SyncManager {
             match request_blocks_from_peer(current_height, end_height, &peer_id) {
                 Ok(headers) => {
                     if headers.is_empty() {
-                        // No more headers available from this peer
-                        break;
+                        // SECURITY FIX: Don't break - try next peer instead
+                        // A malicious peer returning empty headers should not halt sync
+                        eprintln!(
+                            "Peer {} returned no headers for range {}-{}, trying next peer",
+                            peer_id, current_height, end_height
+                        );
+                        
+                        // Mark peer as unreliable and continue with next peer
+                        if let Ok(mut peer_book) = self.peer_book.lock() {
+                            peer_book.mark_peer_failure(&peer_id);
+                        }
+                        
+                        // Continue to try other peers instead of breaking
+                        continue;
                     }
 
                     process_headers(headers, &self.chain_sync)?;

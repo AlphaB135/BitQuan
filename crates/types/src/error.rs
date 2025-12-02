@@ -45,3 +45,10 @@ pub enum Error {
     #[error("internal: {0}")]
     Internal(String),
 }
+
+impl From<crate::ValidationError> for Error {
+    fn from(err: crate::ValidationError) -> Self {
+        Error::Invalid(err.to_string())
+    }
+}
+
