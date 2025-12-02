@@ -4,6 +4,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use base64::{Engine, engine::general_purpose::STANDARD};
 use bitquan_consensus::header_hash;
 use bitquan_rpc::{
     methods::{
@@ -20,6 +21,62 @@ use hex::FromHex;
 pub struct NodeRpcHandler {
     store: Arc<Mutex<RocksDBStore>>,
     chain_name: String,
+}
+
+/// Authenticated RPC handler that wraps NodeRpcHandler with Basic Authentication.
+pub struct AuthenticatedRpcHandler {
+    inner: NodeRpcHandler,
+    username: String,
+    password: String,
+}
+
+impl AuthenticatedRpcHandler {
+    /// Create a new authenticated RPC handler.
+    pub fn new(handler: NodeRpcHandler, username: String, password: String) -> Self {
+        Self {
+            inner: handler,
+            username,
+            password,
+        }
+    }
+
+    /// Verify the Authorization header contains valid Basic Auth credentials.
+    fn verify_auth(&self, auth_header: Option<&str>) -> Result<(), RpcError> {
+        let auth_str = auth_header.ok_or_else(|| RpcError::Unauthorized("Missing Authorization header".into()))?;
+        
+        // Check if it starts with "Basic "
+        let basic_prefix = "Basic ";
+        if !auth_str.starts_with(basic_prefix) {
+            return Err(RpcError::Unauthorized("Invalid Authorization header format".into()));
+        }
+        
+        // Extract the base64 part
+        let encoded = &auth_str[basic_prefix.len()..];
+        
+        // Decode base64
+        let decoded = STANDARD.decode(encoded)
+            .map_err(|_| RpcError::Unauthorized("Invalid base64 encoding".into()))?;
+        
+        // Convert to string
+        let credentials = String::from_utf8(decoded)
+            .map_err(|_| RpcError::Unauthorized("Invalid UTF-8 encoding".into()))?;
+        
+        // Split username:password
+        let parts: Vec<&str> = credentials.splitn(2, ':').collect();
+        if parts.len() != 2 {
+            return Err(RpcError::Unauthorized("Invalid credentials format".into()));
+        }
+        
+        let provided_username = parts[0];
+        let provided_password = parts[1];
+        
+        // Verify credentials
+        if provided_username == self.username && provided_password == self.password {
+            Ok(())
+        } else {
+            Err(RpcError::Unauthorized("Invalid username or password".into()))
+        }
+    }
 }
 
 impl NodeRpcHandler {
