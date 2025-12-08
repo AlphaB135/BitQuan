@@ -35,6 +35,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 blake3 = "1.8.2"
 
 [dev-dependencies]
-proptest = "1.4"
+proptest = "1.9"
 hex = "0.4"
 tempfile = "3"
