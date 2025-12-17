@@ -5,9 +5,9 @@
 
 use crate::peer_async::AsyncPeerManager;
 use crate::protocol::P2pError;
-use tokio::net::TcpListener;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 
 /// Async P2P listener for accepting incoming peer connections.
 pub struct AsyncP2PListener {
@@ -18,7 +18,8 @@ pub struct AsyncP2PListener {
 impl AsyncP2PListener {
     /// Creates a new async P2P listener bound to the specified address.
     pub async fn bind(addr: &str, peer_manager: Arc<AsyncPeerManager>) -> Result<Self, P2pError> {
-        let listener = TcpListener::bind(addr).await
+        let listener = TcpListener::bind(addr)
+            .await
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
         Ok(AsyncP2PListener {
@@ -29,7 +30,8 @@ impl AsyncP2PListener {
 
     /// Returns the local address the listener is bound to.
     pub fn local_addr(&self) -> Result<SocketAddr, P2pError> {
-        self.listener.local_addr()
+        self.listener
+            .local_addr()
             .map_err(|e| P2pError::ConnectionError(e.to_string()))
     }
 
@@ -37,7 +39,10 @@ impl AsyncP2PListener {
     ///
     /// This method is async and will wait for a connection.
     pub async fn accept_one(&self) -> Result<(), P2pError> {
-        let (stream, addr) = self.listener.accept().await
+        let (stream, addr) = self
+            .listener
+            .accept()
+            .await
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
         self.peer_manager.add_peer_inbound(stream, addr).await?;
@@ -58,7 +63,7 @@ impl AsyncP2PListener {
             match self.listener.accept().await {
                 Ok((stream, addr)) => {
                     let peer_manager = Arc::clone(&self.peer_manager);
-                    
+
                     // Spawn a new task for this peer connection
                     tokio::spawn(async move {
                         if let Err(e) = peer_manager.add_peer_inbound(stream, addr).await {
@@ -82,7 +87,7 @@ impl AsyncP2PListener {
         loop {
             // Check current peer count
             let current_peers = self.peer_manager.peer_count().await;
-            
+
             if current_peers >= max_connections {
                 // Wait a bit before checking again
                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -92,7 +97,7 @@ impl AsyncP2PListener {
             match self.listener.accept().await {
                 Ok((stream, addr)) => {
                     let peer_manager = Arc::clone(&self.peer_manager);
-                    
+
                     tokio::spawn(async move {
                         if let Err(e) = peer_manager.add_peer_inbound(stream, addr).await {
                             log::warn!("Failed to add peer {}: {}", addr, e);
@@ -134,14 +139,14 @@ pub async fn spawn_p2p_server(
     peer_manager: Arc<AsyncPeerManager>,
 ) -> Result<(), P2pError> {
     let listener = Arc::new(AsyncP2PListener::bind(addr, peer_manager).await?);
-    
+
     log::info!("P2P server listening on {}", listener.local_addr()?);
-    
+
     // Spawn the accept loop as a background task
     tokio::spawn(async move {
         listener.run_accept_loop().await;
     });
-    
+
     Ok(())
 }
 
@@ -152,17 +157,17 @@ pub async fn spawn_p2p_server_with_limit(
     max_connections: usize,
 ) -> Result<(), P2pError> {
     let listener = Arc::new(AsyncP2PListener::bind(addr, peer_manager).await?);
-    
+
     log::info!(
         "P2P server listening on {} (max {} connections)",
         listener.local_addr()?,
         max_connections
     );
-    
+
     tokio::spawn(async move {
         listener.run_accept_loop_with_limit(max_connections).await;
     });
-    
+
     Ok(())
 }
 
@@ -181,7 +186,9 @@ mod tests {
     #[tokio::test]
     async fn test_local_addr() {
         let peer_manager = Arc::new(AsyncPeerManager::new(10, NetworkId::Devnet));
-        let listener = AsyncP2PListener::bind("127.0.0.1:0", peer_manager).await.unwrap();
+        let listener = AsyncP2PListener::bind("127.0.0.1:0", peer_manager)
+            .await
+            .unwrap();
         let addr = listener.local_addr().unwrap();
         assert_eq!(addr.ip().to_string(), "127.0.0.1");
     }

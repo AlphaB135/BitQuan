@@ -4,136 +4,97 @@
 
 use std::sync::{Arc, Mutex};
 
-use base64::{Engine, engine::general_purpose::STANDARD};
+use async_trait::async_trait;
+
 use bitquan_consensus::header_hash;
 use bitquan_rpc::{
     methods::{
         BlockTemplate, BlockchainInfo, MinerStatsResponse, MiningInfo, NetworkStatusResponse,
-        PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods, TxInfo, WorkData,
+        PayoutRequest, PayoutResponse, PoolStatsResponse, RpcMethods, SyncResponse, TxInfo,
+        WorkData,
     },
     RpcError,
 };
-use bitquan_storage::{rocksdb_store::RocksDBStore, ChainStore, StorageError};
+use bitquan_storage::{
+    async_store::AsyncChainStore, rocksdb_store::RocksDBStore, ChainStore, StorageError,
+};
 use bitquan_types::{Transaction, GENESIS_BITS};
 use hex::FromHex;
 
-/// Node RPC handler backed by a RocksDB chain store.
+/// Node RPC handler backed by an async chain store.
 pub struct NodeRpcHandler {
-    store: Arc<Mutex<RocksDBStore>>,
+    store: Arc<dyn AsyncChainStore>,
     chain_name: String,
 }
 
-/// Authenticated RPC handler that wraps NodeRpcHandler with Basic Authentication.
-pub struct AuthenticatedRpcHandler {
-    inner: NodeRpcHandler,
-    username: String,
-    password: String,
-}
-
-impl AuthenticatedRpcHandler {
-    /// Create a new authenticated RPC handler.
-    pub fn new(handler: NodeRpcHandler, username: String, password: String) -> Self {
-        Self {
-            inner: handler,
-            username,
-            password,
-        }
-    }
-
-    /// Verify the Authorization header contains valid Basic Auth credentials.
-    fn verify_auth(&self, auth_header: Option<&str>) -> Result<(), RpcError> {
-        let auth_str = auth_header.ok_or_else(|| RpcError::Unauthorized("Missing Authorization header".into()))?;
-        
-        // Check if it starts with "Basic "
-        let basic_prefix = "Basic ";
-        if !auth_str.starts_with(basic_prefix) {
-            return Err(RpcError::Unauthorized("Invalid Authorization header format".into()));
-        }
-        
-        // Extract the base64 part
-        let encoded = &auth_str[basic_prefix.len()..];
-        
-        // Decode base64
-        let decoded = STANDARD.decode(encoded)
-            .map_err(|_| RpcError::Unauthorized("Invalid base64 encoding".into()))?;
-        
-        // Convert to string
-        let credentials = String::from_utf8(decoded)
-            .map_err(|_| RpcError::Unauthorized("Invalid UTF-8 encoding".into()))?;
-        
-        // Split username:password
-        let parts: Vec<&str> = credentials.splitn(2, ':').collect();
-        if parts.len() != 2 {
-            return Err(RpcError::Unauthorized("Invalid credentials format".into()));
-        }
-        
-        let provided_username = parts[0];
-        let provided_password = parts[1];
-        
-        // Verify credentials
-        if provided_username == self.username && provided_password == self.password {
-            Ok(())
-        } else {
-            Err(RpcError::Unauthorized("Invalid username or password".into()))
-        }
-    }
-}
-
 impl NodeRpcHandler {
-    /// Create a new RPC handler using the given store.
-    pub fn new(store: Arc<Mutex<RocksDBStore>>, chain_name: impl Into<String>) -> Self {
+    /// Create a new RPC handler using the given async store.
+    pub fn new(store: Arc<dyn AsyncChainStore>, chain_name: impl Into<String>) -> Self {
         Self {
             store,
             chain_name: chain_name.into(),
         }
     }
 
-    fn with_store<F, R>(&self, f: F) -> Result<R, RpcError>
-    where
-        F: FnOnce(&RocksDBStore) -> Result<R, StorageError>,
-    {
-        let guard = self
-            .store
-            .lock()
-            .map_err(|e| RpcError::InternalError(format!("storage poisoned: {e}")))?;
-        f(&guard).map_err(storage_to_rpc)
+    /// Helper to convert storage errors to RPC errors safely
+    fn storage_error_to_rpc(e: bitquan_storage::async_store::AsyncStoreError) -> RpcError {
+        match e {
+            bitquan_storage::async_store::AsyncStoreError::Storage(se) => {
+                RpcError::InternalError(format!("storage error: {}", se))
+            }
+            bitquan_storage::async_store::AsyncStoreError::TaskSpawn(te) => {
+                RpcError::InternalError(format!("task spawn error: {}", te))
+            }
+            bitquan_storage::async_store::AsyncStoreError::Poisoned(s) => {
+                RpcError::InternalError(format!("mutex poisoned during {}", s))
+            }
+            bitquan_storage::async_store::AsyncStoreError::Cancelled => {
+                RpcError::InternalError("operation cancelled".to_string())
+            }
+        }
     }
 }
 
+#[async_trait]
 impl RpcMethods for NodeRpcHandler {
-    fn getblockcount(&self) -> Result<u64, RpcError> {
-        self.with_store(|store| store.height())
+    async fn getblockcount(&self) -> Result<u64, RpcError> {
+        self.store
+            .height()
+            .await
+            .map_err(Self::storage_error_to_rpc)
     }
 
-    fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError> {
-        self.with_store(|store| {
-            let height = store.height()?;
-            let tip_hash = store.tip()?.map(|header| hex::encode(header_hash(&header)));
-            let difficulty = tip_hash
-                .as_ref()
-                .and_then(|_| store.tip().ok())
-                .flatten()
-                .map(|header| difficulty_from_bits(header.bits))
-                .unwrap_or(1.0);
+    async fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError> {
+        let height = self
+            .store
+            .height()
+            .await
+            .map_err(Self::storage_error_to_rpc)?;
 
-            Ok(BlockchainInfo {
-                chain: self.chain_name.clone(),
-                blocks: height,
-                bestblockhash: tip_hash.unwrap_or_else(|| String::from("0")),
-                difficulty,
-                chainwork: String::from("0"),
-            })
+        let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
+
+        let tip_hash = tip.map(|header| hex::encode(header_hash(&header)));
+
+        let difficulty = tip
+            .map(|header| difficulty_from_bits(header.bits))
+            .unwrap_or(1.0);
+
+        Ok(BlockchainInfo {
+            chain: self.chain_name.clone(),
+            blocks: height,
+            bestblockhash: tip_hash.unwrap_or_else(|| String::from("0")),
+            difficulty,
+            chainwork: String::from("0"),
         })
     }
 
-    fn getmininginfo(&self) -> Result<MiningInfo, RpcError> {
-        let blocks = self.getblockcount()?;
-        let difficulty = self.with_store(|store| {
-            Ok(store
-                .tip()?
-                .map(|header| difficulty_from_bits(header.bits))
-                .unwrap_or(1.0))
-        })?;
+    async fn getmininginfo(&self) -> Result<MiningInfo, RpcError> {
+        let blocks = self.getblockcount().await?;
+        let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
+        let difficulty = tip
+            .map(|header| difficulty_from_bits(header.bits))
+            .unwrap_or(1.0);
+
         Ok(MiningInfo {
             blocks,
             difficulty,
@@ -141,27 +102,27 @@ impl RpcMethods for NodeRpcHandler {
         })
     }
 
-    fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError> {
+    async fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError> {
         Err(RpcError::InternalError(
             "getblocktemplate not implemented".into(),
         ))
     }
 
-    fn getwork(&self) -> Result<WorkData, RpcError> {
+    async fn getwork(&self) -> Result<WorkData, RpcError> {
         Err(RpcError::InternalError("getwork not implemented".into()))
     }
 
-    fn submitblock(&self, _block_hex: String) -> Result<bool, RpcError> {
+    async fn submitblock(&self, _block_hex: String) -> Result<bool, RpcError> {
         Err(RpcError::InternalError(
             "submitblock not implemented".into(),
         ))
     }
 
-    fn submitwork(&self, _data: String) -> Result<bool, RpcError> {
+    async fn submitwork(&self, _data: String) -> Result<bool, RpcError> {
         Err(RpcError::InternalError("submitwork not implemented".into()))
     }
 
-    fn gettransaction(&self, txid: String) -> Result<TxInfo, RpcError> {
+    async fn gettransaction(&self, txid: String) -> Result<TxInfo, RpcError> {
         let bytes = Vec::from_hex(&txid)
             .map_err(|_| RpcError::InvalidParams("txid must be hex-encoded".into()))?;
         if bytes.len() != 32 {
@@ -173,14 +134,17 @@ impl RpcMethods for NodeRpcHandler {
         id.copy_from_slice(&bytes);
 
         let tx = self
-            .with_store(|store| store.get_transaction(&id))?
+            .store
+            .get_transaction(&id)
+            .await
+            .map_err(Self::storage_error_to_rpc)?
             .ok_or_else(|| RpcError::InternalError("transaction not found".into()))?;
 
         let summary = TransactionSummary::from(tx);
         Ok(summary.into())
     }
 
-    fn submittransaction(&self, tx_hex: String) -> Result<String, RpcError> {
+    async fn submittransaction(&self, tx_hex: String) -> Result<String, RpcError> {
         // Decode transaction from hex
         let tx_bytes = Vec::from_hex(&tx_hex)
             .map_err(|_| RpcError::InvalidParams("transaction must be hex-encoded".into()))?;
@@ -203,28 +167,33 @@ impl RpcMethods for NodeRpcHandler {
         Ok(txid)
     }
 
-    fn getbestblockhash(&self) -> Result<String, RpcError> {
-        self.with_store(|store| {
-            let tip = store.tip()?;
-            Ok(tip
-                .map(|header| hex::encode(header_hash(&header)))
-                .unwrap_or_else(|| String::from("0")))
-        })
+    async fn getbestblockhash(&self) -> Result<String, RpcError> {
+        let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
+
+        Ok(tip
+            .map(|header| hex::encode(header_hash(&header)))
+            .unwrap_or_else(|| String::from("0")))
     }
 
-    fn getblockhash(&self, height: u64) -> Result<String, RpcError> {
-        self.with_store(|store| {
-            let block = store
-                .get_block_by_height(height)?
-                .ok_or(StorageError::BlockNotFound)?;
-            Ok(hex::encode(header_hash(&block.header)))
-        })
+    async fn getblockhash(&self, height: u64) -> Result<String, RpcError> {
+        let block = self
+            .store
+            .get_block_by_height(height)
+            .await
+            .map_err(Self::storage_error_to_rpc)?
+            .ok_or_else(|| RpcError::InternalError("block not found".into()))?;
+
+        Ok(hex::encode(header_hash(&block.header)))
     }
 
-    fn getpoolstats(&self) -> Result<PoolStatsResponse, RpcError> {
+    async fn getpoolstats(&self) -> Result<PoolStatsResponse, RpcError> {
         // Pool stats require reward engine integration
         // For now, return placeholder values from chain state
-        let height = self.getblockcount()?;
+        let height = self
+            .store
+            .height()
+            .await
+            .map_err(Self::storage_error_to_rpc)?;
         Ok(PoolStatsResponse {
             height,
             total_rewards: 0,
@@ -234,7 +203,7 @@ impl RpcMethods for NodeRpcHandler {
         })
     }
 
-    fn getminerstats(&self, miner_id: String) -> Result<MinerStatsResponse, RpcError> {
+    async fn getminerstats(&self, miner_id: String) -> Result<MinerStatsResponse, RpcError> {
         // Miner stats require reward engine integration
         // For now, return placeholder
         Ok(MinerStatsResponse {
@@ -245,7 +214,7 @@ impl RpcMethods for NodeRpcHandler {
         })
     }
 
-    fn createpayout(&self, _request: PayoutRequest) -> Result<PayoutResponse, RpcError> {
+    async fn createpayout(&self, _request: PayoutRequest) -> Result<PayoutResponse, RpcError> {
         // Payout creation requires reward engine integration
         // For now, return mock success
         Ok(PayoutResponse {
@@ -254,16 +223,47 @@ impl RpcMethods for NodeRpcHandler {
         })
     }
 
-    fn getnetworkstatus(&self) -> Result<NetworkStatusResponse, RpcError> {
+    async fn getnetworkstatus(&self) -> Result<NetworkStatusResponse, RpcError> {
         // Network status requires network manager integration
         // For now, return placeholder values
+        let local_height = self
+            .store
+            .height()
+            .await
+            .map_err(Self::storage_error_to_rpc)?;
         Ok(NetworkStatusResponse {
             peers_connected: 0,
             blocks_broadcast: 0,
             blocks_received: 0,
             sync_status: "idle".to_string(),
-            local_height: self.getblockcount()?,
-            best_height: self.getblockcount()?,
+            local_height,
+            best_height: local_height,
+        })
+    }
+
+    async fn sync(&self) -> Result<SyncResponse, RpcError> {
+        // Get current chain height safely
+        let local_height = self
+            .store
+            .height()
+            .await
+            .map_err(Self::storage_error_to_rpc)?;
+
+        // For now, return basic status
+        // In a full implementation, this would:
+        // 1. Check if AsyncSyncManager is available
+        // 2. Query actual sync status from the sync manager
+        // 3. Return real-time sync progress
+
+        Ok(SyncResponse {
+            status: "idle".to_string(),
+            local_height,
+            best_height: local_height,
+            blocks_behind: 0,
+            progress: 100.0,
+            syncing: false,
+            last_sync_attempt: 0,
+            sync_errors: 0,
         })
     }
 }

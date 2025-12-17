@@ -332,12 +332,12 @@ impl SyncManager {
                             "Peer {} returned no headers for range {}-{}, trying next peer",
                             peer_id, current_height, end_height
                         );
-                        
+
                         // Mark peer as unreliable and continue with next peer
                         if let Ok(mut peer_book) = self.peer_book.lock() {
                             peer_book.mark_peer_failure(&peer_id);
                         }
-                        
+
                         // Continue to try other peers instead of breaking
                         continue;
                     }

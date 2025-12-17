@@ -196,6 +196,34 @@ impl Mempool {
                     max_script
                 )));
             }
+
+            // Check for dust outputs
+            if output.value < self.policy.dust_threshold {
+                // Allow provably unspendable outputs (e.g. OP_RETURN) to be dust
+                // We need to check script_pubkey for OP_RETURN or other unspendable patterns
+                // For now, we use a simple check if available, or just enforce threshold
+                // Assuming bitquan_types::Script has is_provably_unspendable or similar
+                // If not available on Vec<u8>, we might need to parse it.
+                // Let's assume standard behavior: if it's not OP_RETURN, it must be >= dust.
+
+                // Since we don't have easy access to script parsing here without importing more,
+                // and consensus lib has the logic, we should ideally reuse it.
+                // However, mempool should be self-contained or use consensus types.
+                // Let's check if we can use bitquan_consensus::validate_transaction?
+                // No, that's in consensus crate.
+
+                // We'll implement a basic check: if value < threshold, reject.
+                // TODO: Allow OP_RETURN (starts with 0x6a)
+                let is_op_return =
+                    !output.script_pubkey.is_empty() && output.script_pubkey[0] == 0x6a;
+
+                if !is_op_return {
+                    return Err(Error::Invalid(format!(
+                        "output {} value {} is below dust threshold {}",
+                        idx, output.value, self.policy.dust_threshold
+                    )));
+                }
+            }
         }
 
         let sigops = tx

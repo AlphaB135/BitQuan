@@ -1,0 +1,190 @@
+# Report Agent Configuration
+# This file defines analysis patterns and templates for different report types
+
+version: "1.0.0"
+
+# Global settings
+global:
+  max_file_size: 10485760  # 10MB
+  exclude_patterns:
+    - "target/"
+    - ".git/"
+    - "node_modules/"
+    - "*.swp"
+    - "*.tmp"
+  include_patterns:
+    - "*.rs"
+    - "*.toml"
+    - "*.json"
+    - "*.md"
+    - "*.yaml"
+    - "*.yml"
+
+# Report type configurations
+report_types:
+  migration:
+    description: "Async migration progress and blockers analysis"
+    focus_areas:
+      - async_patterns
+      - blocking_code
+      - tokio_usage
+      - migration_audit
+    search_patterns:
+      async:
+        - "async fn"
+        - ".await"
+        - "async move"
+      blocking:
+        - "std::thread::"
+        - "thread::sleep"
+        - "block_on"
+        - "unwrap()"
+      tokio:
+        - "tokio::"
+        - "#[tokio::"
+
+  performance:
+    description: "Performance bottlenecks and optimization opportunities"
+    focus_areas:
+      - clones
+      - allocations
+      - loops
+      - io_operations
+    search_patterns:
+      clones:
+        - ".clone()"
+        - "to_owned()"
+        - "to_string()"
+      allocations:
+        - "Box::new"
+        - "Vec::new"
+        - "HashMap::new"
+        - "String::new"
+      loops:
+        - "for .* in"
+        - "while "
+        - "loop "
+      io:
+        - "fs::"
+        - "io::"
+        - "File::"
+
+  security:
+    description: "Security vulnerabilities and recommendations"
+    focus_areas:
+      - unsafe_blocks
+      - potential_panics
+      - crypto_usage
+      - input_validation
+    search_patterns:
+      unsafe:
+        - "unsafe "
+        - "transmute"
+        - "raw pointers"
+      panics:
+        - "panic!"
+        - ".unwrap()"
+        - ".expect("
+      crypto:
+        - "hash::"
+        - "sha"
+        - "crypto::"
+        - "digest::"
+      validation:
+        - "parse()"
+        - "from_str"
+        - "unchecked"
+
+  architecture:
+    description: "Design patterns and structural improvements"
+    focus_areas:
+      - module_structure
+      - public_api
+      - dependencies
+      - design_patterns
+    search_patterns:
+      modules:
+        - "^mod "
+        - "pub mod "
+        - "use ::"
+      structs:
+        - "pub struct "
+        - "struct "
+      traits:
+        - "pub trait "
+        - "trait "
+      impls:
+        - "impl "
+        - "for "
+
+  comprehensive:
+    description: "Complete analysis including all aspects"
+    focus_areas:
+      - migration
+      - performance
+      - security
+      - architecture
+
+# Priority levels for recommendations
+priorities:
+  P0:
+    description: "Critical - Fix immediately"
+    examples:
+      - "Security vulnerabilities"
+      - "Data loss potential"
+      - "Blocking async migration"
+
+  P1:
+    description: "High - Fix within 24 hours"
+    examples:
+      - "Performance bottlenecks"
+      - "Memory leaks"
+      - "Missing error handling"
+
+  P2:
+    description: "Medium - Fix within week"
+    examples:
+      - "Code quality issues"
+      - "Missing documentation"
+      - "Test coverage gaps"
+
+  P3:
+    description: "Low - Fix when convenient"
+    examples:
+      - "Style improvements"
+      - "Minor optimizations"
+      - "Nice-to-have features"
+
+# Output templates
+templates:
+  executive_summary:
+    max_findings: 5
+    format: "bullet_points"
+
+  detailed_analysis:
+    include_code_snippets: true
+    max_snippet_lines: 10
+    show_line_numbers: true
+
+  recommendations:
+    include_priority: true
+    include_effort_estimate: true
+    include_dependencies: true
+
+# Analysis depth settings
+depths:
+  quick:
+    file_scan_limit: 100
+    pattern_matches_per_type: 5
+    skip_tests: true
+
+  standard:
+    file_scan_limit: 500
+    pattern_matches_per_type: 20
+    skip_tests: false
+
+  deep:
+    file_scan_limit: null  # No limit
+    pattern_matches_per_type: null  # No limit
+    include_tests: true
+    analyze_dependencies: true

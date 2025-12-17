@@ -7,6 +7,14 @@ repository.workspace = true
 rust-version.workspace = true
 description = "BitQuan reference node entrypoint."
 
+[lib]
+name = "bitquan_node"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bitquan-node"
+path = "src/main.rs"
+
 [dependencies]
 argon2 = "0.5"
 base64 = "0.22"
@@ -28,6 +36,7 @@ clap.workspace = true
 getrandom = "0.2"
 hex.workspace = true
 hmac = "0.12"
+log = "0.4"
 num_cpus = "1.16"
 pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1" }
 rand = "0.8"
@@ -43,6 +52,7 @@ dashmap = "5.5"
 lru = "0.12"
 rusqlite = { version = "0.30", features = ["bundled"] }
 warp = "0.3"
+async-trait = "0.1.89"
 
 [features]
 default = ["rocksdb-backend"]

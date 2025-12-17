@@ -9,15 +9,16 @@ pub mod reputation;
 pub mod security_config;
 pub mod security_manager;
 
+pub mod async_sync;
 pub mod discovery;
 pub mod dns_bootstrap;
 pub mod io;
 pub mod peer;
-pub mod peer_async;  // NEW: Async peer implementation with Slowloris protection
-pub mod server_async; // NEW: Async P2P server
+pub mod peer_async; // NEW: Async peer implementation with Slowloris protection
 pub mod propagation;
 pub mod protocol;
 pub mod relay;
+pub mod server_async; // NEW: Async P2P server
 pub mod sync;
 
 pub use ban_manager::{BanConfig, BanError, BanInfo, BanManager, BanReason, BanStats};

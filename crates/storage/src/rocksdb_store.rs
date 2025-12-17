@@ -16,6 +16,7 @@ const CF_HEIGHT_INDEX: &str = "height_index";
 const CF_TX_INDEX: &str = "tx_index";
 const CF_UTXO: &str = "utxo";
 const CF_META: &str = "meta";
+const CF_UNDO: &str = "undo";
 
 /// Metadata keys
 const KEY_TIP: &[u8] = b"tip";
@@ -342,6 +343,7 @@ impl RocksDBStore {
             CF_TX_INDEX,
             CF_UTXO,
             CF_META,
+            CF_UNDO,
         ];
 
         let db = DB::open_cf(&opts, path, &cfs)
@@ -560,6 +562,7 @@ impl RocksDBStore {
             CF_TX_INDEX,
             CF_UTXO,
             CF_META,
+            CF_UNDO,
         ] {
             if self.db.cf_handle(cf_name).is_none() {
                 return Err(StorageError::DatabaseError(format!(
@@ -721,6 +724,14 @@ impl ChainStore for RocksDBStore {
             .db
             .cf_handle(CF_TX_INDEX)
             .ok_or_else(|| StorageError::DatabaseError("tx_index CF not found".into()))?;
+        let cf_utxo = self
+            .db
+            .cf_handle(CF_UTXO)
+            .ok_or_else(|| StorageError::DatabaseError("utxo CF not found".into()))?;
+        let cf_undo = self
+            .db
+            .cf_handle(CF_UNDO)
+            .ok_or_else(|| StorageError::DatabaseError("undo CF not found".into()))?;
 
         let mut batch = WriteBatch::default();
 
@@ -745,6 +756,53 @@ impl ChainStore for RocksDBStore {
             batch.put_cf(&cf_tx, txid, tx_json);
         }
 
+        // Collect undo data: save spent outputs before they're removed from UTXO set
+        let mut undo_block = crate::undo_block::UndoBlock::new();
+
+        for tx in &block.transactions {
+            // Skip coinbase transactions (they don't spend existing UTXOs)
+            if tx.inputs.len() == 1 && tx.inputs[0].prev_txid == [0u8; 32] {
+                continue;
+            }
+
+            // For each input, retrieve the UTXO being spent and save it to undo data
+            for input in &tx.inputs {
+                let outpoint_key =
+                    [&input.prev_txid[..], &input.prev_vout.to_le_bytes()[..]].concat();
+
+                // Retrieve the UTXO from the database
+                if let Some(utxo_data) = self
+                    .db
+                    .get_cf(&cf_utxo, &outpoint_key)
+                    .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+                {
+                    let output: bitquan_types::TxOut = serde_json::from_slice(&utxo_data)
+                        .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+
+                    undo_block.add_spent_output(output, input.prev_txid, input.prev_vout);
+                }
+
+                // Delete the spent UTXO
+                batch.delete_cf(&cf_utxo, &outpoint_key);
+            }
+        }
+
+        // Add new UTXOs created by this block
+        for tx in &block.transactions {
+            let txid = tx.txid();
+            for (vout, output) in tx.outputs.iter().enumerate() {
+                let outpoint_key = [&txid[..], &(vout as u32).to_le_bytes()[..]].concat();
+                let utxo_data = serde_json::to_vec(output)
+                    .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+                batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
+            }
+        }
+
+        // Save undo data indexed by block hash
+        let undo_json = serde_json::to_vec(&undo_block)
+            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+        batch.put_cf(&cf_undo, block_id, undo_json);
+
         // Update metadata
         let cf_meta = self
             .db
@@ -759,6 +817,89 @@ impl ChainStore for RocksDBStore {
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
 
         Ok(())
+    }
+
+    fn disconnect_block(&mut self, block: &Block) -> Result<(), StorageError> {
+        let block_id = Self::block_id(&block.header);
+        let mut batch = WriteBatch::default();
+
+        let cf_utxo = self
+            .db
+            .cf_handle(CF_UTXO)
+            .ok_or_else(|| StorageError::DatabaseError("utxo CF not found".into()))?;
+        let cf_meta = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+        let cf_undo = self
+            .db
+            .cf_handle(CF_UNDO)
+            .ok_or_else(|| StorageError::DatabaseError("undo CF not found".into()))?;
+
+        // Load undo data for this block
+        let undo_data = self
+            .db
+            .get_cf(&cf_undo, block_id)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+        let undo_block: crate::undo_block::UndoBlock = match undo_data {
+            Some(data) => serde_json::from_slice(&data)
+                .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+            None => {
+                // No undo data found - this might be an old block from before undo was implemented
+                // Fall back to the old method (less efficient but works)
+                return self.disconnect_block_legacy(block);
+            }
+        };
+
+        // Restore spent UTXOs from undo data
+        for spent_output in &undo_block.spent_outputs {
+            let outpoint_key = [
+                &spent_output.prev_txid[..],
+                &spent_output.prev_vout.to_le_bytes()[..],
+            ]
+            .concat();
+
+            let utxo_data = serde_json::to_vec(&spent_output.output)
+                .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+
+            batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
+        }
+
+        // Delete UTXOs created by this block
+        for tx in &block.transactions {
+            let txid = tx.txid();
+            for i in 0..tx.outputs.len() {
+                let outpoint_key = [&txid[..], &(i as u32).to_le_bytes()[..]].concat();
+                batch.delete_cf(&cf_utxo, &outpoint_key);
+            }
+        }
+
+        // Delete undo data (it's no longer needed)
+        batch.delete_cf(&cf_undo, block_id);
+
+        // Update tip and height
+        let new_height = self.height()?.saturating_sub(1);
+        let prev_header_json = match self.get_block(&block.header.prev_block)? {
+            Some(prev_block) => Some(
+                serde_json::to_vec(&prev_block.header)
+                    .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+            ),
+            None => None,
+        };
+
+        if let Some(header_json) = prev_header_json {
+            batch.put_cf(&cf_meta, KEY_TIP, header_json);
+        } else {
+            // Genesis block is being disconnected
+            batch.delete_cf(&cf_meta, KEY_TIP);
+        }
+
+        batch.put_cf(&cf_meta, KEY_HEIGHT, new_height.to_le_bytes());
+
+        self.db
+            .write(batch)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))
     }
 
     fn get_block(&self, id: &[u8; 32]) -> Result<Option<Block>, StorageError> {
@@ -863,6 +1004,124 @@ impl ChainStore for RocksDBStore {
         self.db
             .delete_cf(&cf, outpoint)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))
+    }
+}
+
+impl RocksDBStore {
+    /// Legacy disconnect method for blocks without undo data.
+    /// This is less efficient but provides backwards compatibility.
+    fn disconnect_block_legacy(&mut self, block: &Block) -> Result<(), StorageError> {
+        let mut batch = WriteBatch::default();
+        let cf_utxo = self
+            .db
+            .cf_handle(CF_UTXO)
+            .ok_or_else(|| StorageError::DatabaseError("utxo CF not found".into()))?;
+        let cf_meta = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+
+        // Revert UTXO changes
+        for tx in block.transactions.iter() {
+            // For each input, find the transaction it came from, get the output, and re-add it to the UTXO set
+            if !(tx.inputs.len() == 1 && tx.inputs[0].prev_txid == [0u8; 32]) {
+                for input in &tx.inputs {
+                    let prev_tx = self
+                        .get_transaction(&input.prev_txid)?
+                        .ok_or(StorageError::TxNotFound)?;
+                    let spent_output = prev_tx.outputs.get(input.prev_vout as usize).ok_or(
+                        StorageError::DatabaseError(
+                            "Spent output not found in transaction".to_string(),
+                        ),
+                    )?;
+
+                    let outpoint_key =
+                        [&input.prev_txid[..], &input.prev_vout.to_le_bytes()[..]].concat();
+                    let utxo_data = serde_json::to_vec(spent_output)
+                        .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+
+                    batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
+                }
+            }
+
+            // For each output, delete it from the UTXO set
+            let txid = tx.txid();
+            for i in 0..tx.outputs.len() {
+                let outpoint_key = [&txid[..], &(i as u32).to_le_bytes()[..]].concat();
+                batch.delete_cf(&cf_utxo, &outpoint_key);
+            }
+        }
+
+        // Update tip and height
+        let new_height = self.height()?.saturating_sub(1);
+        let prev_header_json = match self.get_block(&block.header.prev_block)? {
+            Some(prev_block) => Some(
+                serde_json::to_vec(&prev_block.header)
+                    .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+            ),
+            None => None,
+        };
+
+        if let Some(header_json) = prev_header_json {
+            batch.put_cf(&cf_meta, KEY_TIP, header_json);
+        } else {
+            batch.delete_cf(&cf_meta, KEY_TIP);
+        }
+
+        batch.put_cf(&cf_meta, KEY_HEIGHT, new_height.to_le_bytes());
+
+        self.db
+            .write(batch)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))
+    }
+
+    /// Rollback the blockchain to a specific height.
+    /// This disconnects all blocks above the target height.
+    ///
+    /// # Arguments
+    /// * `target_height` - The height to rollback to
+    ///
+    /// # Returns
+    /// The number of blocks disconnected
+    pub fn rollback_to_height(&mut self, target_height: u64) -> Result<u64, StorageError> {
+        let current_height = self.height()?;
+
+        if target_height >= current_height {
+            return Ok(0); // Nothing to rollback
+        }
+
+        eprintln!(
+            "🔄 Rolling back from height {} to {}",
+            current_height, target_height
+        );
+
+        let mut blocks_disconnected = 0u64;
+
+        while self.height()? > target_height {
+            // Get the current tip block
+            let tip_header = self.tip()?.ok_or_else(|| {
+                StorageError::DatabaseError("No tip found during rollback".into())
+            })?;
+
+            let tip_id = Self::block_id(&tip_header);
+            let block = self.get_block(&tip_id)?.ok_or_else(|| {
+                StorageError::DatabaseError("Tip block not found in database".into())
+            })?;
+
+            // Disconnect the block
+            self.disconnect_block(&block)?;
+            blocks_disconnected += 1;
+
+            if blocks_disconnected % 100 == 0 {
+                eprintln!("  Disconnected {} blocks...", blocks_disconnected);
+            }
+        }
+
+        eprintln!(
+            "✅ Rollback complete. Disconnected {} blocks",
+            blocks_disconnected
+        );
+        Ok(blocks_disconnected)
     }
 }
 

@@ -306,3 +306,6 @@ docs/.doctrees/
 
 # Multi-agent workflow kit
 agents/
+
+# Web Landing Page
+bitquan-web/

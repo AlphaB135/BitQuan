@@ -1,6 +1,6 @@
 # CLAUDE.md - Generic AI Assistant Guidelines
 
-## 📚 Table of Contents
+## Table of Contents
 
 1.  [Executive Summary](#executive-summary)
 2.  [Quick Start Guide](#quick-start-guide)
@@ -90,7 +90,7 @@ A brief, high-level description of the project's purpose and goals.
 -   [Feature B]
 -   [Feature C]
 
-## 🔴 Critical Safety Rules
+## Critical Safety Rules
 
 ### Repository Usage
 -   **NEVER create issues/PRs on upstream**
@@ -319,8 +319,8 @@ cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrosp
 - Decision 1: Rationale
 - Decision 2: Rationale
 
-## 📝 AI Diary (REQUIRED - DO NOT SKIP)
-**⚠️ MANDATORY: This section provides crucial context for future sessions**
+## AI Diary (REQUIRED - DO NOT SKIP)
+**MANDATORY: This section provides crucial context for future sessions**
 [Write a detailed first-person narrative of your experience during this session. Include:
 - Initial understanding and assumptions
 - How your approach evolved
@@ -342,8 +342,8 @@ cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrosp
 - **Blocker**: Description
   **Resolution**: How it was solved
 
-## 💭 Honest Feedback (REQUIRED - DO NOT SKIP)
-**⚠️ MANDATORY: This section ensures continuous improvement**
+## Honest Feedback (REQUIRED - DO NOT SKIP)
+**MANDATORY: This section ensures continuous improvement**
 [Provide frank, unfiltered assessment of:
 - Session effectiveness
 - Tool performance and limitations
@@ -368,7 +368,7 @@ cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrosp
 - PR: #XXX
 - Export: [session_YYYY-MM-DD_HH-MM.md](../exports/session_YYYY-MM-DD_HH-MM.md)
 
-## ✅ Retrospective Validation Checklist
+## Retrospective Validation Checklist
 **BEFORE SAVING, VERIFY ALL REQUIRED SECTIONS ARE COMPLETE:**
 - [ ] AI Diary section has detailed narrative (not placeholder)
 - [ ] Honest Feedback section has frank assessment (not placeholder)
@@ -378,7 +378,7 @@ cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrosp
 - [ ] Lessons Learned has actionable insights
 - [ ] Next Steps are specific and achievable
 
-⚠️ **IMPORTANT**: A retrospective without AI Diary and Honest Feedback is incomplete and loses significant value for future reference.
+**IMPORTANT**: A retrospective without AI Diary and Honest Feedback is incomplete and loses significant value for future reference.
 EOF
 ```
 

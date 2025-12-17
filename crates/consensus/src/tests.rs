@@ -752,6 +752,7 @@ fn test_validate_block_weight_overflow() {
         &registry,
         NetworkId::Devnet,
         GENESIS_HASH_BYTES,
+        None,
     );
 
     // Should either detect overflow or weight exceeds limit

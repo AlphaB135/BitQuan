@@ -6,11 +6,11 @@
 use crate::protocol::{Message, MessageEnvelope, P2pError, PROTOCOL_VERSION};
 use bitquan_types::error::{Error, Result as TypesResult};
 use bitquan_types::ext::ResultExt;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use std::net::SocketAddr;
-use std::sync::{Arc};
-use std::time::{Duration, SystemTime, UNIX_EPOCH, Instant};
 use tokio::sync::Mutex;
 
 /// Helper to get current Unix timestamp.
@@ -28,7 +28,7 @@ pub const MAX_MSG_BYTES: usize = 2 * 1024 * 1024;
 pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(1_200);
 
 /// Frame read timeout (Slowloris protection).
-/// 
+///
 /// CRITICAL: This is the TOTAL time allowed for reading an entire message frame.
 /// Unlike sync version, this does NOT reset on partial reads.
 pub const FRAME_READ_TIMEOUT: Duration = Duration::from_secs(30);
@@ -104,7 +104,7 @@ impl AsyncPeer {
         self.stream.write_all(&[0x42]).await?;
         let mut response = [0u8; 1];
         self.stream.read_exact(&mut response).await?;
-        
+
         if response[0] != 0x42 {
             return Err(Error::Invalid("invalid handshake token".to_string()));
         }
@@ -140,7 +140,7 @@ impl AsyncPeer {
         // Read length (4 bytes)
         let mut len_le = [0u8; 4];
         self.stream.read_exact(&mut len_le).await.ctx("read len")?;
-        
+
         let len = u32::from_le_bytes(len_le) as usize;
         if len == 0 {
             return Err(Error::Invalid("empty frame".to_string()));
@@ -152,7 +152,7 @@ impl AsyncPeer {
         // Read payload
         let mut buf = vec![0u8; len];
         self.stream.read_exact(&mut buf).await.ctx("read frame")?;
-        
+
         Ok(buf)
     }
 
@@ -163,25 +163,28 @@ impl AsyncPeer {
     }
 
     async fn send_envelope(&mut self, envelope: &MessageEnvelope) -> Result<(), P2pError> {
-        let data = envelope.serialize()
+        let data = envelope
+            .serialize()
             .map_err(|e| P2pError::SerializationError(e.to_string()))?;
-        
+
         // Timeout for write as well
         tokio::time::timeout(FRAME_READ_TIMEOUT, self.stream.write_all(&data))
             .await
             .map_err(|_| P2pError::ConnectionError("write timeout".to_string()))?
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-        
+
         Ok(())
     }
 
     /// Receives a message from the peer.
     pub async fn recv_message(&mut self) -> Result<Message, P2pError> {
-        let frame = self.read_frame().await
+        let frame = self
+            .read_frame()
+            .await
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-        
+
         let envelope = MessageEnvelope::deserialize(&frame, self.magic)?;
-        
+
         self.last_seen = Instant::now();
 
         // Rate limiting
@@ -353,7 +356,11 @@ impl AsyncPeerManager {
     }
 
     /// Adds an inbound peer.
-    pub async fn add_peer_inbound(&self, stream: TcpStream, addr: SocketAddr) -> Result<(), P2pError> {
+    pub async fn add_peer_inbound(
+        &self,
+        stream: TcpStream,
+        addr: SocketAddr,
+    ) -> Result<(), P2pError> {
         let mut peers = self.peers.lock().await;
 
         if peers.len() >= self.max_peers {
@@ -376,7 +383,8 @@ impl AsyncPeerManager {
             return Err(P2pError::ConnectionError("max peers reached".into()));
         }
 
-        let stream = TcpStream::connect(addr).await
+        let stream = TcpStream::connect(addr)
+            .await
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
         let mut peer = AsyncPeer::new(stream, addr, self.magic);
@@ -416,7 +424,9 @@ impl AsyncPeerManager {
 
     /// Returns ready peer count.
     pub async fn ready_peer_count(&self) -> usize {
-        self.peers.lock().await
+        self.peers
+            .lock()
+            .await
             .iter()
             .filter(|p| p.state == PeerState::Ready)
             .count()

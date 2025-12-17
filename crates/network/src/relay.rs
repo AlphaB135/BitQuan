@@ -64,6 +64,14 @@ impl RelayManager {
             .pending_requests
             .lock()
             .map_err(|e| NetworkError::LockPoisoned(format!("pending_requests: {}", e)))?;
+
+        // Eviction strategy: If full, remove an arbitrary entry to prevent OOM
+        if requests.len() >= self.max_items {
+            if let Some(key) = requests.keys().next().copied() {
+                requests.remove(&key);
+            }
+        }
+
         requests.entry(hash).or_default().insert(peer_id);
         Ok(())
     }
