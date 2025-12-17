@@ -126,10 +126,10 @@ impl AsyncP2PListener {
 /// #[tokio::main]
 /// async fn main() {
 ///     let peer_manager = Arc::new(AsyncPeerManager::new(100, bitquan_types::NetworkId::Mainnet));
-///     
+///
 ///     // Spawn P2P server in background
 ///     spawn_p2p_server("0.0.0.0:8333", peer_manager.clone()).await.unwrap();
-///     
+///
 ///     // Server is now running in background
 ///     // Main task can continue with other work
 /// }
