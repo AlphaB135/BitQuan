@@ -1,8 +1,13 @@
 //! Hardware wallet integration for BitQuan
 
-use crate::{address::Address, psbt::PQPSBT, Result, SDKError};
+use crate::{
+    address::Address,
+    psbt::{PSBTError, PQPSBT},
+    Result, SDKError,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
 use thiserror::Error;
 
 /// Hardware wallet errors
@@ -345,7 +350,9 @@ impl HardwareWallet for USBHardwareWallet {
     }
 
     fn sign_transaction(&self, psbt: &mut PQPSBT) -> Result<()> {
-        let psbt_bytes = psbt.serialize().map_err(|e| SDKError::InvalidPSBT(e.to_string()))?;
+        let psbt_bytes = psbt
+            .serialize()
+            .map_err(|e| SDKError::PSBT(PSBTError::SerializationFailed(e.to_string())))?;
         let response = self.send_command(Command::SignTransaction, &psbt_bytes)?;
 
         // Parse response and update PSBT with signatures
