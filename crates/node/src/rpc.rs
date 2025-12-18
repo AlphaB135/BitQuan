@@ -18,13 +18,15 @@ use bitquan_rpc::{
 use bitquan_storage::{
     async_store::AsyncChainStore, rocksdb_store::RocksDBStore, ChainStore, StorageError,
 };
-use bitquan_types::{Transaction, GENESIS_BITS};
+use bitquan_network::async_sync::AsyncSyncManager;
+use bitquan_types::{Transaction, NetworkId, GENESIS_BITS};
 use hex::FromHex;
 
 /// Node RPC handler backed by an async chain store.
 pub struct NodeRpcHandler {
     store: Arc<dyn AsyncChainStore>,
     chain_name: String,
+    sync_manager: Option<Arc<AsyncSyncManager>>,
 }
 
 impl NodeRpcHandler {
@@ -33,6 +35,20 @@ impl NodeRpcHandler {
         Self {
             store,
             chain_name: chain_name.into(),
+            sync_manager: None,
+        }
+    }
+
+    /// Create a new RPC handler with sync manager.
+    pub fn with_sync_manager(
+        store: Arc<dyn AsyncChainStore>,
+        chain_name: impl Into<String>,
+        sync_manager: Arc<AsyncSyncManager>,
+    ) -> Self {
+        Self {
+            store,
+            chain_name: chain_name.into(),
+            sync_manager: Some(sync_manager),
         }
     }
 
@@ -249,22 +265,37 @@ impl RpcMethods for NodeRpcHandler {
             .await
             .map_err(Self::storage_error_to_rpc)?;
 
-        // For now, return basic status
-        // In a full implementation, this would:
-        // 1. Check if AsyncSyncManager is available
-        // 2. Query actual sync status from the sync manager
-        // 3. Return real-time sync progress
+        // Check if sync manager is available
+        if let Some(sync_manager) = &self.sync_manager {
+            // Get real sync status from sync manager
+            let progress = sync_manager
+                .get_sync_progress()
+                .await
+                .map_err(|e| RpcError::InternalError(format!("sync manager error: {}", e)))?;
 
-        Ok(SyncResponse {
-            status: "idle".to_string(),
-            local_height,
-            best_height: local_height,
-            blocks_behind: 0,
-            progress: 100.0,
-            syncing: false,
-            last_sync_attempt: 0,
-            sync_errors: 0,
-        })
+            Ok(SyncResponse {
+                status: format!("{:?}", progress.status),
+                local_height: progress.local_height,
+                best_height: progress.best_height,
+                blocks_behind: progress.blocks_behind,
+                progress: progress.progress,
+                syncing: progress.syncing,
+                last_sync_attempt: progress.last_sync_attempt,
+                sync_errors: progress.sync_errors,
+            })
+        } else {
+            // Fallback when sync manager is not initialized
+            Ok(SyncResponse {
+                status: "sync_manager_unavailable".to_string(),
+                local_height,
+                best_height: local_height,
+                blocks_behind: 0,
+                progress: 100.0,
+                syncing: false,
+                last_sync_attempt: 0,
+                sync_errors: 0,
+            })
+        }
     }
 }
 

@@ -17,6 +17,7 @@ mod reward_engine;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
 mod stratum_server;
+mod sync_task;
 mod tx_builder;
 mod utxo;
 mod vardiff;
@@ -2735,7 +2736,8 @@ fn p2p_server(
         let store = RocksDBStore::open(datadir)
             .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
         let h = store.height().unwrap_or(0);
-        (h, Some(Arc::new(Mutex::new(store))))
+        let async_store = Arc::new(bitquan_storage::async_store::AsyncStoreWrapper::new(store));
+        (h, Some(async_store))
     };
 
     #[cfg(not(feature = "rocksdb-backend"))]
@@ -2787,7 +2789,15 @@ fn p2p_server(
             return invalid("RPC server requires RocksDB storage backend");
         };
 
-        let handler = NodeRpcHandler::new(store_arc, "mainnet");
+        // Initialize sync manager
+        let local_height = store_arc.height().unwrap_or(0);
+        let (sync_manager, _sync_task) = sync_task::initialize_sync(local_height, network)
+            .await
+            .map_err(|e| {
+                Error::Invalid(format!("Failed to initialize sync manager: {}", e))
+            })?;
+
+        let handler = NodeRpcHandler::with_sync_manager(store_arc, "mainnet", sync_manager);
         let rpc_addr = addr.to_string();
 
         // JWT authentication is required

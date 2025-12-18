@@ -23,7 +23,7 @@ pub enum AsyncStoreError {
 }
 
 /// Result type for async storage operations
-pub type AsyncResult<T> = Result<T, AsyncStoreError>;
+pub type AsyncResult<T> = std::result::Result<T, AsyncStoreError>;
 
 /// Async wrapper around a ChainStore implementation
 /// This safely runs synchronous storage operations in a blocking thread pool
@@ -67,108 +67,129 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncStoreWrapper<T> {
 #[async_trait]
 pub trait AsyncChainStore: Send + Sync {
     /// Get the current height of the chain
-    async fn height(&self) -> AsyncResult<u64>;
+    async fn height(&self) -> std::result::Result<u64, AsyncStoreError>;
 
     /// Get the current tip of the chain
-    async fn tip(&self) -> AsyncResult<Option<BlockHeader>>;
+    async fn tip(&self) -> std::result::Result<Option<BlockHeader>, AsyncStoreError>;
 
     /// Get a block by its hash
-    async fn get_block(&self, hash: &[u8; 32]) -> AsyncResult<Option<Block>>;
+    async fn get_block(
+        &self,
+        hash: &[u8; 32],
+    ) -> std::result::Result<Option<Block>, AsyncStoreError>;
 
     /// Get a block by its height
-    async fn get_block_by_height(&self, height: u64) -> AsyncResult<Option<Block>>;
+    async fn get_block_by_height(
+        &self,
+        height: u64,
+    ) -> std::result::Result<Option<Block>, AsyncStoreError>;
 
     /// Get a transaction by its ID
-    async fn get_transaction(&self, txid: &[u8; 32]) -> AsyncResult<Option<Transaction>>;
+    async fn get_transaction(
+        &self,
+        txid: &[u8; 32],
+    ) -> std::result::Result<Option<Transaction>, AsyncStoreError>;
 
     /// Insert a block into the store
-    async fn insert_block(&mut self, block: Block) -> AsyncResult<()>;
+    async fn insert_block(&mut self, block: Block) -> std::result::Result<(), AsyncStoreError>;
 
     /// Check if a block exists
-    async fn has_block(&self, hash: &[u8; 32]) -> AsyncResult<bool>;
+    async fn has_block(&self, hash: &[u8; 32]) -> std::result::Result<bool, AsyncStoreError>;
 
     /// Get block header by hash
-    async fn get_header(&self, hash: &[u8; 32]) -> AsyncResult<Option<BlockHeader>>;
+    async fn get_header(
+        &self,
+        hash: &[u8; 32],
+    ) -> std::result::Result<Option<BlockHeader>, AsyncStoreError>;
 }
 
 #[async_trait]
 impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrapper<T> {
-    async fn height(&self) -> AsyncResult<u64> {
+    async fn height(&self) -> std::result::Result<u64, AsyncStoreError> {
         self.calculate_height().await
     }
 
-    async fn tip(&self) -> AsyncResult<Option<BlockHeader>> {
+    async fn tip(&self) -> std::result::Result<Option<BlockHeader>, AsyncStoreError> {
         let store = Arc::clone(&self.inner);
 
-        tokio::task::spawn_blocking(move || {
+        Ok(tokio::task::spawn_blocking(move || {
             let guard = store
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("tip operation"))?;
             guard.tip()
         })
         .await
-        .map_err(AsyncStoreError::TaskSpawn)??
+        .map_err(AsyncStoreError::TaskSpawn)??)
     }
 
-    async fn get_block(&self, hash: &[u8; 32]) -> AsyncResult<Option<Block>> {
+    async fn get_block(
+        &self,
+        hash: &[u8; 32],
+    ) -> std::result::Result<Option<Block>, AsyncStoreError> {
         let store = Arc::clone(&self.inner);
         let hash = *hash;
 
-        tokio::task::spawn_blocking(move || {
+        Ok(tokio::task::spawn_blocking(move || {
             let guard = store
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("get_block operation"))?;
             guard.get_block(&hash)
         })
         .await
-        .map_err(AsyncStoreError::TaskSpawn)??
+        .map_err(AsyncStoreError::TaskSpawn)??)
     }
 
-    async fn get_block_by_height(&self, height: u64) -> AsyncResult<Option<Block>> {
+    async fn get_block_by_height(
+        &self,
+        height: u64,
+    ) -> std::result::Result<Option<Block>, AsyncStoreError> {
         let store = Arc::clone(&self.inner);
 
-        tokio::task::spawn_blocking(move || {
+        Ok(tokio::task::spawn_blocking(move || {
             let guard = store
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("get_block_by_height operation"))?;
             guard.get_block_by_height(height)
         })
         .await
-        .map_err(AsyncStoreError::TaskSpawn)??
+        .map_err(AsyncStoreError::TaskSpawn)??)
     }
 
-    async fn get_transaction(&self, txid: &[u8; 32]) -> AsyncResult<Option<Transaction>> {
+    async fn get_transaction(
+        &self,
+        txid: &[u8; 32],
+    ) -> std::result::Result<Option<Transaction>, AsyncStoreError> {
         let store = Arc::clone(&self.inner);
         let txid = *txid;
 
-        tokio::task::spawn_blocking(move || {
+        Ok(tokio::task::spawn_blocking(move || {
             let guard = store
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("get_transaction operation"))?;
             guard.get_transaction(&txid)
         })
         .await
-        .map_err(AsyncStoreError::TaskSpawn)??
+        .map_err(AsyncStoreError::TaskSpawn)??)
     }
 
-    async fn insert_block(&mut self, block: Block) -> AsyncResult<()> {
+    async fn insert_block(&mut self, block: Block) -> std::result::Result<(), AsyncStoreError> {
         let store = Arc::clone(&self.inner);
 
-        tokio::task::spawn_blocking(move || {
+        Ok(tokio::task::spawn_blocking(move || {
             let mut guard = store
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("insert_block operation"))?;
             guard.insert_block(block)
         })
         .await
-        .map_err(AsyncStoreError::TaskSpawn)??
+        .map_err(AsyncStoreError::TaskSpawn)??)
     }
 
-    async fn has_block(&self, hash: &[u8; 32]) -> AsyncResult<bool> {
+    async fn has_block(&self, hash: &[u8; 32]) -> std::result::Result<bool, AsyncStoreError> {
         let store = Arc::clone(&self.inner);
         let hash = *hash;
 
-        tokio::task::spawn_blocking(move || {
+        Ok(tokio::task::spawn_blocking(move || {
             let guard = store
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("has_block operation"))?;
@@ -180,14 +201,17 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
             }
         })
         .await
-        .map_err(AsyncStoreError::TaskSpawn)??
+        .map_err(AsyncStoreError::TaskSpawn)??)
     }
 
-    async fn get_header(&self, hash: &[u8; 32]) -> AsyncResult<Option<BlockHeader>> {
+    async fn get_header(
+        &self,
+        hash: &[u8; 32],
+    ) -> std::result::Result<Option<BlockHeader>, AsyncStoreError> {
         let store = Arc::clone(&self.inner);
         let hash = *hash;
 
-        tokio::task::spawn_blocking(move || {
+        Ok(tokio::task::spawn_blocking(move || {
             let guard = store
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("get_header operation"))?;
@@ -199,7 +223,7 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
             }
         })
         .await
-        .map_err(AsyncStoreError::TaskSpawn)??
+        .map_err(AsyncStoreError::TaskSpawn)??)
     }
 }
 
