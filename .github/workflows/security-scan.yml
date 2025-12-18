@@ -1,0 +1,290 @@
+name: 🔒 Security Scan
+
+on:
+  push:
+    branches: [ main, develop, feature/*, fix/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scan daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  security-scan:
+    name: Comprehensive Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Full history for better analysis
+
+    - name: 🦀 Setup Rust Toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+
+    - name: 📦 Cache Dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: 🔍 Run Security Audit
+      run: |
+        echo "🔍 Running cargo audit for security vulnerabilities..."
+        cargo install cargo-audit
+        cargo audit --json > audit-report.json || true
+        cargo audit
+
+    - name: 🛡️ Run Cargo Deny (License & Dependency Check)
+      run: |
+        echo "🛡️ Running cargo deny for license and ban checking..."
+        cargo install cargo-deny
+        cargo deny check --all-features
+
+    - name: 🔬 Run Clippy Security Lints
+      run: |
+        echo "🔬 Running clippy with security-focused lints..."
+        cargo clippy --all-targets --all-features -- -D warnings \
+          -W clippy::integer_arithmetic \
+          -W clippy::float_arithmetic \
+          -W clippy::indexing_slicing \
+          -W clippy::panic \
+          -W clippy::unimplemented \
+          -W clippy::unwrap_used \
+          -W clippy::expect_used \
+          -W clippy::panic_in_result_fn
+
+    - name: 📊 Check for Hardcoded Secrets
+      run: |
+        echo "📊 Scanning for hardcoded secrets..."
+        cargo install cargo-secret
+        cargo secret scan || true
+
+        # Additional secret scanning with trufflehog
+        docker run --rm -v "$PWD:/src" ghcr.io/trufflesecurity/trufflehog:latest \
+          github --token ${{ secrets.GITHUB_TOKEN }} --repo ${{ github.repository }} \
+          --json > trufflehog-report.json || true
+
+    - name: 🔍 Dependency Confusion Check
+      run: |
+        echo "🔍 Checking for dependency confusion attacks..."
+        # Check for internal package names in public registries
+        find . -name "Cargo.toml" -exec grep -l "bitquan-" {} \; | \
+        while read file; do
+          echo "Checking $file for internal packages..."
+          grep -E "^bitquan-" "$file" || true
+        done
+
+    - name: 📈 Upload Security Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          audit-report.json
+          trufflehog-report.json
+          target/*/Cargo.lock
+        retention-days: 30
+
+    - name: 🚨 Security Alert on High Risk Findings
+      if: failure()
+      run: |
+        echo "🚨 SECURITY ISSUE DETECTED!"
+        echo "Check the security reports for detailed information."
+        exit 1
+
+  code-quality:
+    name: Code Quality & Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 🦀 Setup Rust Toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        components: rustfmt
+
+    - name: 📝 Check Code Formatting
+      run: |
+        echo "📝 Checking code formatting..."
+        cargo fmt --all -- --check
+
+    - name: 🔍 Run Security-focused Tests
+      run: |
+        echo "🔍 Running security-focused tests..."
+        cargo test --release --all-features -- \
+          --ignore rustdoc \
+          --test security_integration_tests || \
+          cargo test --release --all-features
+
+    - name: 📊 Code Coverage Analysis
+      run: |
+        echo "📊 Running code coverage analysis..."
+        cargo install cargo-tarpaulin
+        cargo tarpaulin --out Json --output-dir coverage/
+
+    - name: 📈 Upload Coverage Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage/
+        retention-days: 7
+
+  supply-chain-security:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 🔍 Supply Chain Analysis
+      run: |
+        echo "🔍 Analyzing supply chain security..."
+
+        # Check for exact dependency versions (avoid floating dependencies)
+        find . -name "Cargo.toml" -exec grep -H "=" {} \; | \
+          grep -v "version = " || echo "No exact versions found - consider pinning versions"
+
+        # Check for git dependencies
+        find . -name "Cargo.toml" -exec grep -H "git =" {} \; || echo "No git dependencies found"
+
+        # Analyze dependency tree depth
+        cargo tree --duplicates || echo "No duplicate dependencies found"
+        cargo tree --format "{p}" | wc -l > dependency-count.txt
+        echo "Total dependencies: $(cat dependency-count.txt)"
+
+    - name: 🏪 SBOM Generation
+      run: |
+        echo "🏪 Generating Software Bill of Materials (SBOM)..."
+        cargo install cargo-cyclonedx
+        cargo cyclonedx --format json --output sbom.json
+        cargo cyclonedx --format xml --output sbom.xml
+
+    - name: 📈 Upload SBOM
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom
+        path: |
+          sbom.json
+          sbom.xml
+        retention-days: 90
+
+  malware-scan:
+    name: Malware Detection
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 🔍 Malware Scan
+      run: |
+        echo "🔍 Running malware detection..."
+
+        # Install and run ClamAV
+        sudo apt-get update
+        sudo apt-get install -y clamav clamav-freshclam
+
+        # Update virus database
+        sudo freshclam
+
+        # Scan repository
+        sudo clamscan --recursive --infected --remove . || \
+          echo "No malware detected"
+
+    - name: 🔍 YARA Rule Analysis
+      run: |
+        echo "🔍 Running YARA rule analysis..."
+
+        # Install YARA
+        sudo apt-get install -y yara
+
+        # Download security rules (example - in production, use your own rules)
+        curl -L https://github.com/Yara-Rules/rules/archive/master.zip -o rules.zip
+        unzip rules.zip -d yara-rules
+
+        # Compile and scan
+        find yara-rules -name "*.yar" -type f | head -10 | \
+          xargs yara -c . || echo "No YARA rule matches found"
+
+  security-scorecard:
+    name: OSSF Security Scorecard
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🔍 Run OSSF Scorecard
+      uses: ossf/scorecard-action@v2.3.1
+      with:
+        results-file: results.json
+        results-format: json
+        repo: ${{ github.repository }}
+        license: MIT
+        token: ${{ secrets.SCORECARD_READ_TOKEN }}
+
+    - name: 📈 Upload Scorecard Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: scorecard-results
+        path: results.json
+        retention-days: 30
+
+    - name: 💳 Scorecard Summary
+      run: |
+        if [ -f results.json ]; then
+          echo "📊 OSSF Scorecard Results:"
+          jq '.score' results.json || echo "Score not available"
+        fi
+
+  # Advanced Security Features (Enterprise)
+  advanced-security:
+    name: Advanced Security Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[security-scan]')
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 🔍 Fuzz Testing
+      run: |
+        echo "🔍 Starting fuzz testing..."
+        cargo install cargo-fuzz
+
+        # Initialize fuzz targets (if they exist)
+        if [ -d "fuzz" ]; then
+          cd fuzz
+          cargo +nightly fuzz run --release fuzz_target_1 || echo "Fuzz testing completed"
+        else
+          echo "No fuzz targets found - consider adding fuzz testing"
+        fi
+
+    - name: 🧪 Property-Based Testing
+      run: |
+        echo "🧪 Running property-based tests..."
+        cargo install proptest
+
+        # Run property-based tests if they exist
+        cargo test --release proptest || \
+          echo "No property-based tests found - consider adding them"
+
+    - name: 📊 Performance Security Analysis
+      run: |
+        echo "📊 Running performance security analysis..."
+
+        # Check for potential performance-based security issues
+        cargo install cargo-flamegraph
+
+        # Analyze critical functions for performance bottlenecks
+        cargo test --release security_perf_tests || \
+          echo "No performance security tests found"

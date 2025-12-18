@@ -12,6 +12,7 @@ pub mod rocksdb_store;
 #[cfg(feature = "rocksdb-backend")]
 pub use rocksdb_store::{DatabaseStats, RecoveryOptions, RocksDBStore};
 
+/// Undo block functionality for rolling back blockchain state
 pub mod undo_block;
 pub use undo_block::{SpentOutput, UndoBlock};
 

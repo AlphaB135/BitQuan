@@ -1,0 +1,62 @@
+# Traefik static configuration
+api:
+  dashboard: true
+  insecure: false  # Disable dashboard on insecure port
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      middlewares:
+        - security-headers@file
+      tls:
+        minVersion: "VersionTLS12"
+        cipherSuites:
+          - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+          - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+          - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        options: "modern"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: traefik
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+  bufferingSize: 100
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "admin@bitquan.local"
+      storage: /etc/ssl/certs/acme.json
+      httpChallenge:
+        entryPoint: web
+
+  local:
+    acme:
+      email: "admin@bitquan.local"
+      storage: /etc/ssl/certs/acme.json
+      tlsChallenge: {}
+
+ping: true
+healthCheck:
+  interval: "30s"

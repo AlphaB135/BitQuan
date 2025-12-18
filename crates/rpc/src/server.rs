@@ -1,6 +1,9 @@
 //! HTTP server for handling JSON-RPC requests
 
-use crate::{error_codes, methods, tls::TlsConfig, JsonRpcRequest, JsonRpcResponse, RpcConfig};
+use crate::{
+    error_codes, methods, tls::TlsConfig, validation::InputValidator, JsonRpcRequest,
+    JsonRpcResponse, RpcConfig,
+};
 use base64::Engine;
 use http::StatusCode;
 use once_cell::sync::Lazy;
@@ -15,6 +18,140 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWrite
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tokio_rustls::server::TlsStream;
+use tracing::{debug, error, info, trace, warn};
+
+/// Security event types
+#[derive(Debug, Clone)]
+pub enum SecurityEventType {
+    /// Rate limit exceeded
+    RateLimitExceeded,
+    /// Authentication failed
+    AuthenticationFailed,
+    /// Input validation failed
+    InputValidationFailed,
+    /// Suspicious request detected
+    SuspiciousRequest,
+    /// Connection established
+    ConnectionEstablished,
+    /// Connection terminated
+    ConnectionTerminated,
+    /// Request processed successfully
+    RequestProcessed,
+    /// Slowloris attack detected
+    SlowlorisAttackDetected,
+    /// Repeated authentication failures
+    RepeatedAuthFailures,
+    /// Injection attempt detected
+    InjectionAttempt,
+}
+
+/// Security severity levels
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SecuritySeverity {
+    /// Informational only
+    Info,
+    /// Potentially suspicious
+    Low,
+    /// Definitely suspicious
+    Medium,
+    /// Dangerous activity
+    High,
+    /// Critical security threat
+    Critical,
+}
+
+/// Security event for logging and monitoring
+#[derive(Debug, Clone)]
+pub struct SecurityEvent {
+    /// Event timestamp (UTC)
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    /// Client IP address
+    pub client_ip: String,
+    /// Event type
+    pub event_type: SecurityEventType,
+    /// Event severity
+    pub severity: SecuritySeverity,
+    /// Event details
+    pub details: serde_json::Value,
+    /// Request ID (if available)
+    pub request_id: Option<String>,
+}
+
+impl SecurityEvent {
+    /// Create a new security event
+    pub fn new(
+        client_ip: String,
+        event_type: SecurityEventType,
+        severity: SecuritySeverity,
+        details: serde_json::Value,
+    ) -> Self {
+        Self {
+            timestamp: chrono::Utc::now(),
+            client_ip,
+            event_type,
+            severity,
+            details,
+            request_id: None,
+        }
+    }
+
+    /// Convert to JSON for logging
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "timestamp": self.timestamp.to_rfc3339(),
+            "client_ip": self.client_ip,
+            "event_type": format!("{:?}", self.event_type),
+            "severity": format!("{:?}", self.severity),
+            "details": self.details,
+            "request_id": self.request_id
+        })
+    }
+
+    /// Check if event should trigger an alert
+    pub fn should_alert(&self) -> bool {
+        matches!(
+            self.severity,
+            SecuritySeverity::High | SecuritySeverity::Critical
+        )
+    }
+
+    /// Log the event using tracing
+    pub fn log(&self) {
+        let message = format!(
+            "Security event from {}: {:?} - {:?}",
+            self.client_ip, self.event_type, self.severity
+        );
+
+        match self.severity {
+            SecuritySeverity::Info => info!(message = %message, event = ?self.to_json()),
+            SecuritySeverity::Low => warn!(message = %message, event = ?self.to_json()),
+            SecuritySeverity::Medium => warn!(message = %message, event = ?self.to_json()),
+            SecuritySeverity::High => error!(message = %message, event = ?self.to_json()),
+            SecuritySeverity::Critical => error!(message = %message, event = ?self.to_json()),
+        }
+
+        // Trigger alert if needed
+        if self.should_alert() {
+            self.trigger_alert();
+        }
+    }
+
+    /// Trigger alert for high-priority security events
+    fn trigger_alert(&self) {
+        // In production, this could integrate with:
+        // - PagerDuty, OpsGenie, or other alerting systems
+        // - Slack/Teams notifications
+        // - Email alerts
+        // - SIEM systems
+
+        error!(
+            "🚨 SECURITY ALERT: {:?} from {} - {}",
+            self.event_type,
+            self.client_ip,
+            serde_json::to_string_pretty(&self.details).unwrap_or_default()
+        );
+    }
+}
 
 /// Authentication for RPC server (JWT only)
 pub type AuthMethod = Arc<crate::jwt::JwtAuth>;
@@ -30,6 +167,7 @@ pub struct RpcServer<T> {
     tls: Option<Arc<TlsConfig>>,
     force_tls: bool,
     basic_auth: Option<(String, String)>,
+    validator: Arc<InputValidator>,
 }
 
 impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
@@ -51,6 +189,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             tls: None,
             force_tls: require_tls,
             basic_auth,
+            validator: Arc::new(InputValidator::default()),
         }
     }
 
@@ -97,6 +236,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
         let tls = self.tls.clone();
         let force_tls = self.force_tls;
         let basic_auth = self.basic_auth.clone();
+        let validator = Arc::clone(&self.validator);
 
         tokio::spawn(async move {
             let peer_ip = peer
@@ -109,6 +249,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
                 tls: tls.as_ref(),
                 force_tls,
                 basic_auth,
+                validator: &validator,
             };
             if let Err(e) =
                 handle_connection(stream, peer_ip, handler.as_ref(), auth.as_ref(), options).await
@@ -130,6 +271,7 @@ struct ConnectionOptions<'a> {
     tls: Option<&'a Arc<TlsConfig>>,
     force_tls: bool,
     basic_auth: Option<(String, String)>,
+    validator: &'a Arc<InputValidator>,
 }
 
 enum RpcStream {
@@ -191,7 +333,7 @@ async fn upgrade_to_tls(stream: TcpStream, tls_config: &TlsConfig) -> std::io::R
 }
 
 async fn handle_connection<T: methods::RpcMethods>(
-    stream: TcpStream,
+    mut stream: TcpStream,
     peer_ip: IpAddr,
     handler: &T,
     auth: Option<&AuthMethod>,
@@ -199,6 +341,108 @@ async fn handle_connection<T: methods::RpcMethods>(
 ) -> std::io::Result<()> {
     let start = Instant::now();
     let config = options.config;
+
+    // Log connection established
+    let connection_event = SecurityEvent::new(
+        peer_ip.to_string(),
+        SecurityEventType::ConnectionEstablished,
+        SecuritySeverity::Info,
+        json!({
+            "action": "connection_established",
+            "tls_required": options.force_tls,
+            "has_tls_config": options.tls.is_some(),
+        }),
+    );
+    connection_event.log();
+
+    // Apply rate limiting before processing
+    if !check_rate_limit(peer_ip, options.limiter, config).await {
+        // Log rate limit exceeded event
+        let rate_limit_event = SecurityEvent::new(
+            peer_ip.to_string(),
+            SecurityEventType::RateLimitExceeded,
+            SecuritySeverity::Medium,
+            json!({
+                "action": "connection_blocked",
+                "reason": "rate_limit_exceeded",
+                "cooldown_seconds": config.cooldown_duration.as_secs()
+            }),
+        );
+        rate_limit_event.log();
+
+        let cooldown = apply_cooldown(peer_ip, options.limiter, config).await;
+
+        // Send rate limit error response
+        let response = json!({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32603,
+                "message": "Rate limit exceeded",
+                "data": format!("Retry after {} seconds", cooldown.as_secs())
+            },
+            "id": null
+        });
+
+        let response_json = serde_json::to_string(&response).unwrap();
+        let response_str = format!(
+            "HTTP/1.1 429 Too Many Requests\r\n\
+             Content-Type: application/json\r\n\
+             Content-Length: {}\r\n\
+             Retry-After: {}\r\n\
+             \r\n\
+             {}",
+            response_json.len(),
+            cooldown.as_secs(),
+            response_json
+        );
+
+        return stream.write_all(response_str.as_bytes()).await;
+    }
+
+    // Check authentication backoff
+    if apply_auth_backoff(peer_ip, options.auth_backoff).await {
+        let mut backoff_map = options.auth_backoff.lock().await;
+
+        // Log authentication backoff event
+        let auth_backoff_event = SecurityEvent::new(
+            peer_ip.to_string(),
+            SecurityEventType::RepeatedAuthFailures,
+            SecuritySeverity::High,
+            json!({
+                "action": "authentication_blocked",
+                "reason": "repeated_failures",
+                "failure_count": backoff_map.get(&peer_ip).map(|s| s.failed_attempts).unwrap_or(0),
+                "locked_until": backoff_map.get(&peer_ip).and_then(|s| s.locked_until).map(|_| "locked".to_string())
+            }),
+        );
+        auth_backoff_event.log();
+        if let Some(state) = backoff_map.get(&peer_ip) {
+            if let Some(remaining_time) = state.remaining_lock_time() {
+                let response = json!({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": "Too many authentication attempts",
+                        "data": format!("Account locked. Try again in {} seconds", remaining_time.as_secs())
+                    },
+                    "id": null
+                });
+
+                let response_json = serde_json::to_string(&response).unwrap();
+                let response_str = format!(
+                    "HTTP/1.1 403 Forbidden\r\n\
+                     Content-Type: application/json\r\n\
+                     Content-Length: {}\r\n\
+                     \r\n\
+                     {}",
+                    response_json.len(),
+                    response_json
+                );
+
+                return stream.write_all(response_str.as_bytes()).await;
+            }
+        }
+    }
 
     let mut channel = match (options.tls, options.force_tls) {
         (Some(tls_config), _) => upgrade_to_tls(stream, tls_config.as_ref()).await?,
@@ -275,6 +519,22 @@ async fn handle_connection<T: methods::RpcMethods>(
         };
 
         if !authorized {
+            // Log authentication failure
+            let auth_event = SecurityEvent::new(
+                peer_ip.to_string(),
+                SecurityEventType::AuthenticationFailed,
+                SecuritySeverity::Medium,
+                json!({
+                    "action": "authentication_failed",
+                    "auth_type": "basic_auth",
+                    "has_auth_header": auth_header.is_some(),
+                    "user_agent": req.headers.iter()
+                        .find(|h| h.name.eq_ignore_ascii_case("user-agent"))
+                        .and_then(|h| std::str::from_utf8(h.value).ok())
+                }),
+            );
+            auth_event.log();
+
             let response = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"BitQuan RPC\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
             let mut stream_inner = buf_reader.into_inner();
             stream_inner.write_all(response.as_bytes()).await?;
@@ -300,7 +560,56 @@ async fn handle_connection<T: methods::RpcMethods>(
 
     let stream = buf_reader.into_inner();
 
-    let json_request = match serde_json::from_slice::<JsonRpcRequest>(&body) {
+    // Validate input before parsing
+    let request_value = match serde_json::from_slice::<serde_json::Value>(&body) {
+        Ok(value) => value,
+        Err(e) => {
+            let validation_event = SecurityEvent::new(
+                peer_ip.to_string(),
+                SecurityEventType::InputValidationFailed,
+                SecuritySeverity::Medium,
+                json!({
+                    "action": "json_parse_failed",
+                    "reason": "invalid_json_format",
+                    "error": e.to_string(),
+                    "body_size": body.len()
+                }),
+            );
+            validation_event.log();
+
+            let err_resp = JsonRpcResponse::error(
+                serde_json::Value::Null,
+                error_codes::PARSE_ERROR,
+                format!("Parse error: {e}"),
+            );
+            return respond_json(stream, &err_resp, config).await;
+        }
+    };
+
+    // Validate using InputValidator
+    if let Err(e) = options.validator.validate_request(&request_value) {
+        let validation_event = SecurityEvent::new(
+            peer_ip.to_string(),
+            SecurityEventType::InputValidationFailed,
+            SecuritySeverity::Medium,
+            json!({
+                "action": "request_validation_failed",
+                "reason": "input_validation_error",
+                "error": e.to_string(),
+                "request": request_value
+            }),
+        );
+        validation_event.log();
+
+        let err_resp = JsonRpcResponse::error(
+            serde_json::Value::Null,
+            error_codes::INVALID_PARAMS,
+            format!("Invalid request: {e}"),
+        );
+        return respond_json(stream, &err_resp, config).await;
+    }
+
+    let json_request: JsonRpcRequest = match serde_json::from_value(request_value) {
         Ok(req) => req,
         Err(e) => {
             let err_resp = JsonRpcResponse::error(
@@ -313,22 +622,67 @@ async fn handle_connection<T: methods::RpcMethods>(
     };
 
     let json_response = if json_request.jsonrpc != "2.0" {
+        // Log invalid JSON-RPC version
+        let version_event = SecurityEvent::new(
+            peer_ip.to_string(),
+            SecurityEventType::InputValidationFailed,
+            SecuritySeverity::Medium,
+            json!({
+                "action": "invalid_jsonrpc_version",
+                "method": json_request.method,
+                "expected_version": "2.0",
+                "actual_version": json_request.jsonrpc
+            }),
+        );
+        version_event.log();
+
         JsonRpcResponse::error(
             json_request.id,
             error_codes::INVALID_REQUEST,
             "Invalid JSON-RPC version".to_string(),
         )
     } else {
-        methods::dispatch_call(
+        let response = methods::dispatch_call(
             handler,
             &json_request.method,
             json_request.params,
             json_request.id,
         )
-        .await
+        .await;
+
+        // Log successful request processing
+        let success_event = SecurityEvent::new(
+            peer_ip.to_string(),
+            SecurityEventType::RequestProcessed,
+            SecuritySeverity::Info,
+            json!({
+                "action": "request_processed_successfully",
+                "method": json_request.method,
+                "has_error": response.error.is_some(),
+                "processing_time_ms": start.elapsed().as_millis()
+            }),
+        );
+        success_event.log();
+
+        response
     };
 
-    respond_json(stream, &json_response, config).await
+    let result = respond_json(stream, &json_response, config).await;
+
+    // Log connection termination
+    let termination_event = SecurityEvent::new(
+        peer_ip.to_string(),
+        SecurityEventType::ConnectionTerminated,
+        SecuritySeverity::Info,
+        json!({
+            "action": "connection_terminated",
+            "duration_ms": start.elapsed().as_millis(),
+            "success": result.is_ok()
+        }),
+    );
+    termination_event.log();
+
+    result
 }
 
 async fn respond_json(
@@ -388,22 +742,224 @@ async fn send_upgrade_required(
     Ok(())
 }
 
-fn build_security_headers(_config: &RpcConfig) -> String {
-    "".to_string()
+fn build_security_headers(config: &RpcConfig) -> String {
+    let mut headers = Vec::new();
+
+    // Security headers
+    headers.push("X-Content-Type-Options: nosniff".to_string());
+    headers.push("X-Frame-Options: DENY".to_string());
+    headers.push("X-XSS-Protection: 1; mode=block".to_string());
+    headers.push("Referrer-Policy: strict-origin-when-cross-origin".to_string());
+    headers.push(
+        "Content-Security-Policy: default-src 'none'; script-src 'none'; object-src 'none';"
+            .to_string(),
+    );
+
+    // HSTS if HTTPS is enabled
+    if config.require_tls && config.enable_hsts {
+        let max_age = config.hsts_max_age;
+        let include_subdomains = if config.hsts_include_subdomains {
+            "; includeSubDomains"
+        } else {
+            ""
+        };
+        let hsts_header = format!(
+            "Strict-Transport-Security: max-age={}{}",
+            max_age, include_subdomains
+        );
+        headers.push(hsts_header);
+    }
+
+    // Remove server signature
+    headers.push("Server: BitQuan".to_string());
+
+    headers.join("\r\n")
 }
 
 // Dummy structs and functions for compilation
-struct TokenBucket;
-struct BackoffState;
+/// Rate limiting token bucket for IP addresses
+#[derive(Debug, Clone)]
+struct TokenBucket {
+    tokens: u32,
+    max_tokens: u32,
+    refill_rate: u32,
+    last_refill: Instant,
+}
+
+impl TokenBucket {
+    fn new(max_tokens: u32, refill_rate: u32) -> Self {
+        Self {
+            tokens: max_tokens,
+            max_tokens,
+            refill_rate,
+            last_refill: Instant::now(),
+        }
+    }
+
+    fn consume(&mut self, tokens: u32) -> bool {
+        self.refill();
+        if self.tokens >= tokens {
+            self.tokens -= tokens;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn refill(&mut self) {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_refill);
+        let tokens_to_add = (elapsed.as_secs() as u32 * self.refill_rate) / 60;
+
+        if tokens_to_add > 0 {
+            self.tokens = (self.tokens + tokens_to_add).min(self.max_tokens);
+            self.last_refill = now;
+        }
+    }
+
+    fn reset(&mut self) {
+        self.tokens = self.max_tokens;
+        self.last_refill = Instant::now();
+    }
+}
+
+/// Authentication backoff state for failed attempts
+#[derive(Debug, Clone)]
+struct BackoffState {
+    failed_attempts: u32,
+    locked_until: Option<Instant>,
+    max_attempts: u32,
+    lockout_duration: Duration,
+}
+
+impl BackoffState {
+    fn new(max_attempts: u32, lockout_duration: Duration) -> Self {
+        Self {
+            failed_attempts: 0,
+            locked_until: None,
+            max_attempts,
+            lockout_duration,
+        }
+    }
+
+    fn record_failure(&mut self) -> bool {
+        self.failed_attempts += 1;
+
+        if self.failed_attempts >= self.max_attempts {
+            self.locked_until = Some(Instant::now() + self.lockout_duration);
+            true // Should apply backoff
+        } else {
+            false
+        }
+    }
+
+    fn record_success(&mut self) {
+        self.failed_attempts = 0;
+        self.locked_until = None;
+    }
+
+    fn is_locked(&self) -> bool {
+        if let Some(locked_until) = self.locked_until {
+            Instant::now() < locked_until
+        } else {
+            false
+        }
+    }
+
+    fn remaining_lock_time(&self) -> Option<Duration> {
+        if let Some(locked_until) = self.locked_until {
+            let now = Instant::now();
+            if now < locked_until {
+                Some(locked_until - now)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+}
 
 // These are no longer used in the async version but are kept to avoid breaking other parts of the code if they are used elsewhere.
 // In a real scenario, these would be removed or refactored.
-fn apply_cooldown(_config: &RpcConfig) {}
-fn resolve_client_ip(peer_ip: IpAddr, _headers: &[String], _config: &RpcConfig) -> IpAddr {
+/// Apply connection cooldown for rate limit violations
+async fn apply_cooldown(
+    ip: IpAddr,
+    limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    config: &RpcConfig,
+) -> Duration {
+    let mut limiter_map = limiter.lock().await;
+
+    if let Some(bucket) = limiter_map.get_mut(&ip) {
+        // Reset bucket and apply longer cooldown
+        bucket.reset();
+    }
+
+    config.cooldown_duration
+}
+/// Resolve client IP considering proxy headers
+fn resolve_client_ip(peer_ip: IpAddr, headers: &[String], config: &RpcConfig) -> IpAddr {
+    if !config.trust_proxy {
+        return peer_ip;
+    }
+
+    // Check for X-Forwarded-For header
+    for header in headers {
+        if header.to_lowercase().starts_with("x-forwarded-for:") {
+            if let Some(ip_str) = header.split(':').nth(1).map(|s| s.trim()) {
+                if let Ok(ip) = ip_str.parse::<IpAddr>() {
+                    // Take the first IP in the chain (original client)
+                    return ip;
+                }
+            }
+        }
+    }
+
     peer_ip
 }
-fn apply_auth_backoff(_ip: IpAddr, _backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {}
-fn reset_auth_backoff(_ip: IpAddr, _backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {}
+/// Apply authentication backoff for failed attempts
+async fn apply_auth_backoff(
+    ip: IpAddr,
+    backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
+) -> bool {
+    let mut backoff_map = backoff.lock().await;
+
+    let state = backoff_map.entry(ip).or_insert_with(|| {
+        BackoffState::new(
+            5,                        // Max 5 failed attempts
+            Duration::from_secs(900), // 15 minute lockout
+        )
+    });
+
+    if state.is_locked() {
+        return true; // Already locked
+    }
+
+    state.record_failure()
+}
+/// Reset authentication backoff after successful authentication
+async fn reset_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
+    let mut backoff_map = backoff.lock().await;
+
+    if let Some(state) = backoff_map.get_mut(&ip) {
+        state.record_success();
+    }
+}
+
+/// Apply rate limiting based on client IP and configuration
+async fn check_rate_limit(
+    ip: IpAddr,
+    limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    config: &RpcConfig,
+) -> bool {
+    let mut limiter_map = limiter.lock().await;
+
+    let bucket = limiter_map
+        .entry(ip)
+        .or_insert_with(|| TokenBucket::new(config.rate_limit_requests, config.rate_limit_window));
+
+    bucket.consume(1) // Each request consumes 1 token
+}
 static METRICS: Lazy<RpcMetrics> = Lazy::new(RpcMetrics::default);
 struct RpcMetrics {
     // ... fields

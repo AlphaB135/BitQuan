@@ -9,15 +9,19 @@ use tokio::task::JoinError;
 /// Error type for async storage operations
 #[derive(Debug, thiserror::Error)]
 pub enum AsyncStoreError {
+    /// Underlying storage operation failed
     #[error("Storage operation failed: {0}")]
     Storage(#[from] StorageError),
 
+    /// Task spawning failed in async runtime
     #[error("Task spawn failed: {0}")]
     TaskSpawn(#[from] JoinError),
 
+    /// Mutex was poisoned due to panic
     #[error("Mutex poisoned: {0}")]
     Poisoned(&'static str),
 
+    /// Operation was cancelled
     #[error("Operation cancelled")]
     Cancelled,
 }
@@ -64,6 +68,10 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncStoreWrapper<T> {
     }
 }
 
+/// Async interface for blockchain storage operations
+///
+/// This trait provides async versions of all ChainStore operations,
+/// safely running synchronous storage operations in a blocking thread pool.
 #[async_trait]
 pub trait AsyncChainStore: Send + Sync {
     /// Get the current height of the chain

@@ -1,0 +1,164 @@
+name: Secure Production Deployment
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - testnet
+          - mainnet
+      manual_approval:
+        description: 'Manual approval required for production'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # Build-only job - no secrets access
+  build:
+    name: Build Binary
+    runs-on: ubuntu-latest
+    outputs:
+      binary-path: ${{ steps.build.outputs.binary-path }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+          curl -L https://sh.rustup.rs | sh -s -- -y
+
+      - name: Cache Rust
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binary
+        run: |
+          cargo build --release --target x86_64-unknown-linux-gnu
+          mkdir -p deploy-package
+          cp target/x86_64-unknown-linux-gnu/release/bitquan-node deploy-package/
+          sha256sum deploy-package/bitquan-node > deploy-package/bitquan-node.sha256
+          echo "binary-path=deploy-package/bitquan-node" >> $GITHUB_OUTPUT
+
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitquan-linux-x86_64
+          path: deploy-package/
+
+  # Deployment job - protected environments
+  deploy:
+    name: Deploy to Environment
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      # Only use deploy keys in protected environments
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_HOSTS: ${{ secrets.DEPLOY_HOSTS }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER || 'bitquan' }}
+    steps:
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: bitquan-linux-x86_64
+          path: deploy-package
+
+      - name: Verify binary integrity
+        run: |
+          sha256sum -c deploy-package/bitquan-node.sha256 || exit 1
+          echo "✅ Binary integrity verified"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "✅ SSH key configured"
+
+      - name: Manual Approval Check
+        if: ${{ github.event.inputs.manual_approval == 'true' }}
+        run: |
+          echo "⏸️ Manual approval required for deployment to ${{ github.event.inputs.environment }}"
+          echo "Please approve the deployment in the Actions tab."
+          echo "This is a security requirement for production deployments."
+
+      - name: Deploy to infrastructure
+        if: github.event.inputs.manual_approval != 'true'
+        run: |
+          echo "🚀 Deploying to ${{ github.event.inputs.environment }} environment..."
+
+          # Parse hosts (comma-separated)
+          IFS=',' read -ra HOSTS <<< "$DEPLOY_HOSTS"
+
+          # Deploy to each host
+          for host in "${HOSTS[@]}"; do
+            echo "Deploying to $host..."
+
+            # Copy and verify
+            scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+              deploy-package/* ${{ env.DEPLOY_USER }}@$host:/tmp/bitquan-deploy/
+
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+              ${{ env.DEPLOY_USER }}@$host << 'ENDSSH'
+                set -e
+                cd /tmp/bitquan-deploy
+
+                # Verify checksum
+                sha256sum -c bitquan-node.sha256 || exit 1
+
+                # Stop service gracefully
+                sudo systemctl stop bitquan-node || true
+                sleep 5
+
+                # Install binary
+                sudo cp bitquan-node /usr/local/bin/
+                sudo chmod +x /usr/local/bin/bitquan-node
+
+                # Restart service
+                sudo systemctl start bitquan-node
+                sudo systemctl status bitquan-node
+
+                echo "✅ Deployment completed on $host"
+              ENDSSH
+          done
+
+          echo "✅ All deployments completed"
+
+  # Verification job - no secrets access
+  verify:
+    name: Verify Deployment
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.environment == 'mainnet' }}
+    steps:
+      - name: Verify mainnet deployment
+        run: |
+          echo "🔒 Verifying mainnet deployment..."
+          echo "Run health checks against mainnet nodes:"
+          echo "- Check node synchronization status"
+          echo "- Verify peer connections"
+          echo "- Validate blockchain integrity"
+          echo "✅ Mainnet verification instructions provided"
+
+      - name: Verify testnet deployment
+        if: ${{ github.event.inputs.environment == 'testnet' }}
+        run: |
+          echo "🧪 Verifying testnet deployment..."
+          echo "Run basic connectivity tests:"
+          echo "- Test RPC endpoints"
+          echo "- Verify block propagation"
+          echo "✅ Testnet verification instructions provided"

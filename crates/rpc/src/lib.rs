@@ -4,6 +4,7 @@
 #![warn(clippy::expect_used)]
 
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use thiserror::Error;
 
 pub use ipnetwork::IpNetwork;
@@ -13,6 +14,7 @@ pub mod methods;
 pub mod metrics;
 pub mod server;
 pub mod tls;
+pub mod validation;
 
 /// Runtime configuration options for the RPC server.
 #[derive(Clone, Debug)]
@@ -51,6 +53,12 @@ pub struct RpcConfig {
     pub allowed_origins: Vec<String>,
     /// Enforce Host header validation
     pub enforce_host_validation: bool,
+    /// Rate limit: maximum requests per window
+    pub rate_limit_requests: u32,
+    /// Rate limit: window duration in minutes
+    pub rate_limit_window: u32,
+    /// Connection cooldown duration for rate limit violations
+    pub cooldown_duration: Duration,
 }
 
 impl Default for RpcConfig {
@@ -73,6 +81,9 @@ impl Default for RpcConfig {
             allowed_hosts: vec!["localhost".to_string(), "127.0.0.1".to_string()],
             allowed_origins: vec![],
             enforce_host_validation: true,
+            rate_limit_requests: 100, // 100 requests per window
+            rate_limit_window: 1,     // 1 minute window
+            cooldown_duration: Duration::from_secs(5), // 5 second cooldown
         }
     }
 }

@@ -1,4 +1,4 @@
-//! Async wrapper for sync operations with safe error handling
+//! Async wrapper for sync operations with safe error handling and migration safety
 
 use crate::{
     discovery::PeerBook,
@@ -7,6 +7,7 @@ use crate::{
 };
 use bitquan_types::{BlockHeader, NetworkId};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -31,6 +32,240 @@ pub enum AsyncSyncError {
 
 /// Result type for async sync operations
 pub type AsyncSyncResult<T> = std::result::Result<T, AsyncSyncError>;
+
+/// Migration state for tracking async/sync transitions
+#[derive(Debug, Clone, PartialEq)]
+pub enum MigrationState {
+    /// Not started migration
+    NotStarted,
+    /// Preparing for migration
+    Preparing,
+    /// Migration in progress
+    InProgress,
+    /// Migration completed successfully
+    Completed,
+    /// Migration failed
+    Failed(String),
+    /// Rollback in progress
+    RollingBack,
+    /// Rollback completed
+    RolledBack,
+}
+
+/// Safety gate configuration for migration operations
+#[derive(Debug, Clone)]
+pub struct MigrationSafetyConfig {
+    /// Maximum time to wait for migration completion
+    pub timeout: Duration,
+    /// Number of retries allowed
+    pub max_retries: u32,
+    /// Minimum time between state checks
+    pub check_interval: Duration,
+    /// Whether automatic rollback is enabled
+    pub auto_rollback: bool,
+    /// Maximum rollback time
+    pub rollback_timeout: Duration,
+}
+
+impl Default for MigrationSafetyConfig {
+    fn default() -> Self {
+        Self {
+            timeout: Duration::from_secs(300), // 5 minutes
+            max_retries: 3,
+            check_interval: Duration::from_secs(1),
+            auto_rollback: true,
+            rollback_timeout: Duration::from_secs(60), // 1 minute
+        }
+    }
+}
+
+/// Migration safety gates for async operations
+pub struct MigrationSafetyGates {
+    state: Arc<Mutex<MigrationState>>,
+    config: MigrationSafetyConfig,
+    start_time: Arc<Mutex<Option<Instant>>>,
+    retry_count: Arc<Mutex<u32>>,
+}
+
+impl MigrationSafetyGates {
+    /// Create new migration safety gates
+    pub fn new(config: MigrationSafetyConfig) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(MigrationState::NotStarted)),
+            config,
+            start_time: Arc::new(Mutex::new(None)),
+            retry_count: Arc::new(Mutex::new(0)),
+        }
+    }
+
+    /// Start migration with safety checks
+    pub fn start_migration(&self) -> AsyncSyncResult<()> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+
+        // Check if already in progress
+        if *state != MigrationState::NotStarted {
+            return Err(AsyncSyncError::Sync(bitquan_types::Error::Invalid(
+                "Migration already in progress".to_string(),
+            )));
+        }
+
+        // Reset retry count and start time
+        if let Ok(mut start_time) = self.start_time.lock() {
+            *start_time = Some(Instant::now());
+        }
+        if let Ok(mut retry_count) = self.retry_count.lock() {
+            *retry_count = 0;
+        }
+
+        *state = MigrationState::Preparing;
+        log::info!("Migration safety gates: Starting migration preparation");
+        Ok(())
+    }
+
+    /// Transition to in-progress state
+    pub fn set_in_progress(&self) -> AsyncSyncResult<()> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+
+        match *state {
+            MigrationState::Preparing => {
+                *state = MigrationState::InProgress;
+                log::info!("Migration safety gates: Migration in progress");
+                Ok(())
+            }
+            _ => Err(AsyncSyncError::Sync(bitquan_types::Error::Invalid(
+                "Cannot set in-progress from current state".to_string(),
+            ))),
+        }
+    }
+
+    /// Mark migration as completed
+    pub fn mark_completed(&self) -> AsyncSyncResult<()> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+
+        if *state != MigrationState::InProgress {
+            return Err(AsyncSyncError::Sync(bitquan_types::Error::Invalid(
+                "Cannot complete migration from current state".to_string(),
+            )));
+        }
+
+        *state = MigrationState::Completed;
+        log::info!("Migration safety gates: Migration completed successfully");
+        Ok(())
+    }
+
+    /// Mark migration as failed and optionally rollback
+    pub fn mark_failed(&self, error: String) -> AsyncSyncResult<()> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+
+        if *state == MigrationState::Completed {
+            return Err(AsyncSyncError::Sync(bitquan_types::Error::Invalid(
+                "Cannot rollback completed migration".to_string(),
+            )));
+        }
+
+        *state = MigrationState::Failed(error.clone());
+        log::error!("Migration safety gates: Migration failed: {}", error);
+
+        if self.config.auto_rollback {
+            log::info!("Migration safety gates: Starting automatic rollback");
+            *state = MigrationState::RollingBack;
+            // In a real implementation, this would spawn a rollback task
+        }
+
+        Ok(())
+    }
+
+    /// Get current migration state
+    pub fn get_state(&self) -> AsyncSyncResult<MigrationState> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+        Ok(state.clone())
+    }
+
+    /// Check if migration has timed out
+    pub fn check_timeout(&self) -> AsyncSyncResult<bool> {
+        let state = self.get_state()?;
+        let start_time = self
+            .start_time
+            .lock()
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+
+        match (state, *start_time) {
+            (MigrationState::InProgress | MigrationState::Preparing, Some(start)) => {
+                Ok(start.elapsed() > self.config.timeout)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// Increment retry count and check if max retries exceeded
+    pub fn increment_retry(&self) -> AsyncSyncResult<bool> {
+        let mut retry_count = self
+            .retry_count
+            .lock()
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+
+        *retry_count += 1;
+        let exceeded = *retry_count > self.config.max_retries;
+
+        if exceeded {
+            log::warn!(
+                "Migration safety gates: Max retries ({}) exceeded",
+                self.config.max_retries
+            );
+        }
+
+        Ok(exceeded)
+    }
+
+    /// Reset safety gates for new migration
+    pub fn reset(&self) -> AsyncSyncResult<()> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+
+        *state = MigrationState::NotStarted;
+
+        if let Ok(mut start_time) = self.start_time.lock() {
+            *start_time = None;
+        }
+        if let Ok(mut retry_count) = self.retry_count.lock() {
+            *retry_count = 0;
+        }
+
+        log::info!("Migration safety gates: Reset for new migration");
+        Ok(())
+    }
+
+    /// Check if operation is safe to proceed
+    pub fn can_proceed(&self) -> AsyncSyncResult<bool> {
+        let state = self.get_state()?;
+        let timed_out = self.check_timeout()?;
+
+        match state {
+            MigrationState::NotStarted | MigrationState::Completed => Ok(true),
+            MigrationState::InProgress | MigrationState::Preparing => Ok(!timed_out),
+            MigrationState::Failed(_)
+            | MigrationState::RollingBack
+            | MigrationState::RolledBack => Ok(false),
+        }
+    }
+}
 
 /// Async wrapper for ChainSync operations
 pub struct AsyncChainSync {
@@ -86,6 +321,7 @@ pub struct AsyncSyncManager {
     peer_manager: Arc<PeerManager>,
     peer_book: Arc<Mutex<PeerBook>>,
     network_id: NetworkId,
+    safety_gates: Arc<MigrationSafetyGates>,
 }
 
 impl AsyncSyncManager {
@@ -94,12 +330,14 @@ impl AsyncSyncManager {
         // Create mock components for testing
         let peer_manager = Arc::new(PeerManager::new(125, bitquan_types::NetworkId::Testnet));
         let peer_book = Arc::new(Mutex::new(PeerBook::new()));
+        let safety_config = MigrationSafetyConfig::default();
 
         Self {
             chain_sync: Arc::new(AsyncChainSync::new(local_height)),
             peer_manager,
             peer_book,
             network_id: bitquan_types::NetworkId::Testnet,
+            safety_gates: Arc::new(MigrationSafetyGates::new(safety_config)),
         }
     }
 
@@ -110,11 +348,31 @@ impl AsyncSyncManager {
         peer_book: Arc<Mutex<PeerBook>>,
         network_id: NetworkId,
     ) -> Self {
+        let safety_config = MigrationSafetyConfig::default();
+
         Self {
             chain_sync: Arc::new(AsyncChainSync::new(local_height)),
             peer_manager,
             peer_book,
             network_id,
+            safety_gates: Arc::new(MigrationSafetyGates::new(safety_config)),
+        }
+    }
+
+    /// Create a new async sync manager with custom safety configuration
+    pub fn new_with_safety_config(
+        local_height: u64,
+        peer_manager: Arc<PeerManager>,
+        peer_book: Arc<Mutex<PeerBook>>,
+        network_id: NetworkId,
+        safety_config: MigrationSafetyConfig,
+    ) -> Self {
+        Self {
+            chain_sync: Arc::new(AsyncChainSync::new(local_height)),
+            peer_manager,
+            peer_book,
+            network_id,
+            safety_gates: Arc::new(MigrationSafetyGates::new(safety_config)),
         }
     }
 
@@ -168,17 +426,31 @@ impl AsyncSyncManager {
         Ok(best_height)
     }
 
-    /// Start sync if needed (non-blocking)
+    /// Start sync if needed (non-blocking) with migration safety checks
     pub async fn start_sync_if_needed(&self) -> std::result::Result<bool, AsyncSyncError> {
+        // Check if migration allows proceeding
+        if !self.safety_gates.can_proceed()? {
+            let state = self.safety_gates.get_state()?;
+            return Err(AsyncSyncError::Sync(bitquan_types::Error::Invalid(
+                format!("Migration in progress: {:?}", state),
+            )));
+        }
+
         if !self.needs_sync().await? {
             return Ok(false);
         }
+
+        // Start migration for safety tracking
+        self.safety_gates.start_migration()?;
+        self.safety_gates.set_in_progress()?;
 
         // Try to start sync
         let sync = self.chain_sync.inner();
         let started = sync.start_sync();
 
         if !started {
+            self.safety_gates
+                .mark_failed("Sync already in progress".to_string())?;
             return Ok(false); // Already syncing
         }
 
@@ -196,11 +468,26 @@ impl AsyncSyncManager {
             tokio::spawn(async move {
                 if let Err(e) = sync_manager.sync_headers_background().await {
                     log::error!("Background sync failed: {}", e);
+                    // Mark migration as failed
+                    let _ = sync_manager.safety_gates.mark_failed(e.to_string());
                 }
             });
+        } else {
+            // Mark migration as completed if no sync needed
+            self.safety_gates.mark_completed()?;
         }
 
         Ok(true)
+    }
+
+    /// Get current migration state
+    pub fn get_migration_state(&self) -> AsyncSyncResult<MigrationState> {
+        self.safety_gates.get_state()
+    }
+
+    /// Reset migration safety gates
+    pub fn reset_migration(&self) -> AsyncSyncResult<()> {
+        self.safety_gates.reset()
     }
 
     /// Background sync headers task
@@ -282,6 +569,8 @@ impl AsyncSyncManager {
         // Update final status
         if sync.local_height() >= sync.best_height() {
             sync.complete_sync();
+            // Mark migration as completed successfully
+            let _ = self.safety_gates.mark_completed();
         } else {
             sync.set_status(crate::sync::SyncStatus::DownloadingBlocks);
         }
@@ -343,6 +632,7 @@ impl Clone for AsyncSyncManager {
             peer_manager: Arc::clone(&self.peer_manager),
             peer_book: Arc::clone(&self.peer_book),
             network_id: self.network_id,
+            safety_gates: Arc::clone(&self.safety_gates),
         }
     }
 }
@@ -369,11 +659,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_sync_manager() {
-        let peer_manager = Arc::new(PeerManager::new());
+        let peer_manager = Arc::new(PeerManager::new(10, NetworkId::Regtest));
         let peer_book = Arc::new(Mutex::new(PeerBook::new()));
         let network_id = NetworkId::Regtest;
 
-        let sync_manager = AsyncSyncManager::new(100, peer_manager, peer_book, network_id);
+        let sync_manager =
+            AsyncSyncManager::new_with_components(100, peer_manager, peer_book, network_id);
 
         let progress = sync_manager.get_sync_progress().await.unwrap();
         assert_eq!(progress.local_height, 100);

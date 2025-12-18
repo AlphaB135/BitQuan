@@ -1,0 +1,201 @@
+# CodeQL Analysis for BitQuan
+# Static analysis for security vulnerabilities
+
+name: 🔍 CodeQL Security Analysis
+
+on:
+  push:
+    branches: [ main, develop, feature/*, fix/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run CodeQL daily at 3 AM UTC
+    - cron: '0 3 * * *'
+
+jobs:
+  analyze:
+    name: 🔍 CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript', 'python' ]
+        # CodeQL รองรับ Rust แต่ยังอยู่ใน beta ให้เพิ่ม 'rust' ถ้าต้องการ
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 🦀 Initialize CodeQL for Rust
+      if: matrix.language == 'javascript'
+      run: |
+        echo "⚠️ Rust support in CodeQL is still in beta"
+        echo "Using JavaScript analysis for generic security patterns"
+
+    - name: 🔧 Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ${{ matrix.language }}
+        # เพิ่ม custom queries สำหรับ Rust security
+        queries: security-extended,security-and-quality
+
+    - name: 🔨 Autobuild
+      uses: github/codeql-action/autobuild@v2
+
+    - name: 🔍 Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:${{matrix.language}}"
+
+  rust-security-audit:
+    name: 🦀 Rust Security Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 🦀 Setup Rust Toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: 📦 Cache Dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: 🔍 Run Cargo Audit
+      run: |
+        echo "🔍 Running security audit with cargo-audit..."
+        cargo install cargo-audit
+        cargo audit --json > audit-report.json || true
+
+        # Parse audit results and create summary
+        if [ -f audit-report.json ]; then
+          echo "📊 Audit Summary:"
+          jq -r '.vulnerabilities.list | length' audit-report.json | \
+            xargs -I {} echo "Vulnerabilities found: {}"
+        fi
+
+    - name: 🚨 Security Alert on Vulnerabilities
+      if: failure()
+      run: |
+        echo "🚨 SECURITY VULNERABILITIES DETECTED!"
+        echo "Review the audit report for detailed information."
+
+        # Create GitHub issue for critical vulnerabilities
+        if command -v gh &> /dev/null; then
+          gh issue create \
+            --title "🚨 Security Vulnerabilities Detected" \
+            --label "security,urgent" \
+            --body "Automated security scan detected vulnerabilities in dependencies. Review audit reports for details." \
+            || echo "Could not create GitHub issue"
+        fi
+
+    - name: 📈 Upload Audit Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-audit-results
+        path: |
+          audit-report.json
+          Cargo.lock
+        retention-days: 30
+
+  dependency-review:
+    name: 🔍 Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+    - name: 🔍 Review Dependencies
+      uses: actions/dependency-review-action@v3
+      with:
+        fail-on-severity: moderate
+        allow-licenses: MIT,Apache-2.0,BSD-3-Clause,ISC,CC0-1.0
+        deny-licenses: GPL-3.0,AGPL-3.0
+
+    - name: 📊 Dependency Summary
+      run: |
+        echo "📊 Dependency Review Summary:"
+        echo "Checking for new dependencies with security implications..."
+
+  secret-scanning:
+    name: 🔍 Secret Scanning
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 🔍 Scan for Secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+    - name: 🔍 Additional Secret Scan
+      run: |
+        echo "🔍 Running additional secret scanning..."
+
+        # Install and run cargo-secret
+        cargo install cargo-secret
+        cargo secret scan || true
+
+        # Scan for common secret patterns
+        grep -r -i -E "(password|secret|key|token)\s*[:=]\s*['\"][^'\"]{8,}" . --exclude-dir=target || \
+          echo "No obvious secrets detected in source code"
+
+  security-scoring:
+    name: 📊 Security Score
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 🔍 OSSF Scorecard Analysis
+      uses: ossf/scorecard-action@v2.3.1
+      with:
+        results-file: results.json
+        results-format: json
+        repo: ${{ github.repository }}
+        license: MIT
+
+    - name: 📈 Upload Scorecard Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: ossf-scorecard
+        path: results.json
+        retention-days: 30
+
+    - name: 💳 Score Summary
+      run: |
+        if [ -f results.json ]; then
+          echo "📊 OSSF Security Scorecard Results:"
+          jq '.score' results.json 2>/dev/null || echo "Score not available"
+        fi

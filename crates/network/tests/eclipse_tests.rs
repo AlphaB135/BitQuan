@@ -1,6 +1,7 @@
 //! Tests for eclipse attack mitigation
 
 use bitquan_network::{EclipseConfig, PeerManager};
+use bitquan_types::NetworkId;
 use std::net::SocketAddr;
 
 #[test]
@@ -11,7 +12,7 @@ fn test_subnet_diversity_enforcement() {
         enforce_subnet_diversity: true,
     };
 
-    let pm = PeerManager::with_eclipse_config(10, None, config);
+    let pm = PeerManager::with_eclipse_config(10, None, config, NetworkId::Regtest);
 
     // Try to connect multiple peers from same subnet
     // Note: This is a simplified test - real implementation would need actual connections
@@ -30,7 +31,7 @@ fn test_anchor_peers_config() {
         enforce_subnet_diversity: true,
     };
 
-    let pm = PeerManager::with_eclipse_config(10, None, config);
+    let pm = PeerManager::with_eclipse_config(10, None, config, NetworkId::Regtest);
 
     let anchors = pm.get_anchors();
     assert_eq!(anchors.len(), 1);
@@ -39,14 +40,14 @@ fn test_anchor_peers_config() {
 
 #[test]
 fn test_subnet_stats_empty() {
-    let pm = PeerManager::new(10);
+    let pm = PeerManager::new(10, NetworkId::Regtest);
     let stats = pm.get_subnet_stats();
     assert!(stats.is_empty());
 }
 
 #[test]
 fn test_evict_no_peers() {
-    let pm = PeerManager::new(10);
+    let pm = PeerManager::new(10, NetworkId::Regtest);
     let result = pm.evict_lowest_reputation_peer();
     assert!(result.is_none());
 }
