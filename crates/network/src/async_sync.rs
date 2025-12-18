@@ -19,11 +19,8 @@ pub enum AsyncSyncError {
     #[error("Task spawn failed: {0}")]
     TaskSpawn(#[from] JoinError),
 
-    #[error("Peer manager lock poisoned")]
-    PeerManagerPoisoned,
-
-    #[error("Peer book lock poisoned")]
-    PeerBookPoisoned,
+    #[error("Mutex lock failed: {0}")]
+    MutexLock(String),
 
     #[error("No peers available for sync")]
     NoPeersAvailable,
@@ -92,8 +89,22 @@ pub struct AsyncSyncManager {
 }
 
 impl AsyncSyncManager {
-    /// Create a new async sync manager
-    pub fn new(
+    /// Create a new async sync manager with minimal setup
+    pub fn new(local_height: u64) -> Self {
+        // Create mock components for testing
+        let peer_manager = Arc::new(PeerManager::new(125, bitquan_types::NetworkId::Testnet));
+        let peer_book = Arc::new(Mutex::new(PeerBook::new()));
+
+        Self {
+            chain_sync: Arc::new(AsyncChainSync::new(local_height)),
+            peer_manager,
+            peer_book,
+            network_id: bitquan_types::NetworkId::Testnet,
+        }
+    }
+
+    /// Create a new async sync manager with full components
+    pub fn new_with_components(
         local_height: u64,
         peer_manager: Arc<PeerManager>,
         peer_book: Arc<Mutex<PeerBook>>,
@@ -123,7 +134,7 @@ impl AsyncSyncManager {
         let peer_book = self
             .peer_book
             .lock()
-            .map_err(|_| AsyncSyncError::PeerBookPoisoned)?;
+            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
 
         let best_peers = peer_book.best_peers(5);
 
@@ -210,7 +221,7 @@ impl AsyncSyncManager {
                 let peer_book = self
                     .peer_book
                     .lock()
-                    .map_err(|_| AsyncSyncError::PeerBookPoisoned)?;
+                    .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
                 peer_book.best_peers(3)
             };
 

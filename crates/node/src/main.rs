@@ -1004,7 +1004,7 @@ async fn main() -> Result<()> {
                         jwt_secret: jwt_secret.as_deref(),
                     },
                     network_id,
-                )
+                ).await
             }
             #[cfg(not(feature = "rocksdb-backend"))]
             {
@@ -1020,7 +1020,7 @@ async fn main() -> Result<()> {
                         password: None,
                     },
                     network_id,
-                )
+                ).await
             }
         }
         Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
@@ -2684,7 +2684,7 @@ fn p2p_demo(addr: &str) -> Result<()> {
 
 /// P2P Server that accepts incoming connections
 #[allow(unused_variables)]
-fn p2p_server(
+async fn p2p_server(
     listen: &str,
     max_peers: usize,
     datadir: &str,
@@ -2695,7 +2695,7 @@ fn p2p_server(
     #[cfg(feature = "rocksdb-backend")]
     use std::path::Path;
     use std::sync::Arc;
-    use std::sync::Mutex;
+    use bitquan_storage::AsyncChainStore;
 
     println!("BitQuan P2P Server");
     println!("Listen: {}", listen);
@@ -2790,7 +2790,7 @@ fn p2p_server(
         };
 
         // Initialize sync manager
-        let local_height = store_arc.height().unwrap_or(0);
+        let local_height = store_arc.height().await.unwrap_or(0);
         let (sync_manager, _sync_task) = sync_task::initialize_sync(local_height, network)
             .await
             .map_err(|e| {
@@ -2943,23 +2943,12 @@ fn p2p_server(
     println!("  - Press Ctrl+C to stop");
     println!("  - Peers will sync blockchain automatically");
 
-    // Broadcast tip block when we have storage
-    if let Some(s) = &store {
-        if height > 0 {
-            use bitquan_consensus::header_hash;
-            let store_locked = s
-                .lock()
-                .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
-            if let Ok(Some(tip)) = store_locked.tip() {
-                let tip_hash = header_hash(&tip);
-                drop(store_locked);
-
-                println!();
-                println!("Tip: Use 'mine' command to mine blocks");
-                println!("Current tip: {}", hex_encode(tip_hash));
-                println!("New blocks will be broadcast to peers");
-            }
-        }
+    // Show tip info when we have storage
+    if height > 0 {
+        println!();
+        println!("Tip: Use 'mine' command to mine blocks");
+        println!("Current height: {}", height);
+        println!("New blocks will be broadcast to peers");
     }
 
     loop {
@@ -2969,29 +2958,7 @@ fn p2p_server(
                 let ready = peer_manager.ready_peer_count();
                 println!("Peer connected! Total: {}, Ready: {}", count, ready);
 
-                // Send inv for our tip block to new peer
-                if let Some(s) = &store {
-                    if height > 0 {
-                        use bitquan_consensus::header_hash;
-
-                        let store_locked = s
-                            .lock()
-                            .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
-                        if let Ok(Some(tip)) = store_locked.tip() {
-                            let tip_hash = header_hash(&tip);
-                            drop(store_locked);
-
-                            let inv = bitquan_network::protocol::InvVector {
-                                inv_type: bitquan_network::protocol::InvType::Block,
-                                hash: tip_hash,
-                            };
-
-                            if let Ok(sent) = peer_manager.broadcast_inv(inv) {
-                                println!("Announced tip block to {} peers", sent);
-                            }
-                        }
-                    }
-                }
+                // TODO: Send inv for tip block to new peer (requires async handling)
             }
             Err(e) => {
                 eprintln!("Accept error: {}", e);

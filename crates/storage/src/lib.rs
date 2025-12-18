@@ -35,6 +35,17 @@ pub enum StorageError {
     SerializationError(String),
 }
 
+impl From<crate::async_store::AsyncStoreError> for StorageError {
+    fn from(err: crate::async_store::AsyncStoreError) -> Self {
+        match err {
+            crate::async_store::AsyncStoreError::Storage(s) => s,
+            crate::async_store::AsyncStoreError::TaskSpawn(_) => StorageError::DatabaseError("Task spawn failed".to_string()),
+            crate::async_store::AsyncStoreError::Poisoned(s) => StorageError::DatabaseError(format!("Poisoned mutex: {}", s)),
+            crate::async_store::AsyncStoreError::Cancelled => StorageError::DatabaseError("Operation cancelled".to_string()),
+        }
+    }
+}
+
 /// Interface describing basic blockchain storage operations.
 pub trait ChainStore {
     /// Inserts a fully validated block.

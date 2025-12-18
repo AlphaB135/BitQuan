@@ -16,7 +16,7 @@ use bitquan_rpc::{
     RpcError,
 };
 use bitquan_storage::{
-    async_store::AsyncChainStore, rocksdb_store::RocksDBStore, ChainStore, StorageError,
+    async_store::AsyncChainStore, rocksdb_store::RocksDBStore, StorageError,
 };
 use bitquan_network::async_sync::AsyncSyncManager;
 use bitquan_types::{Transaction, NetworkId, GENESIS_BITS};
@@ -89,9 +89,10 @@ impl RpcMethods for NodeRpcHandler {
 
         let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
 
-        let tip_hash = tip.map(|header| hex::encode(header_hash(&header)));
+        let tip_hash = tip.as_ref().map(|header| hex::encode(header_hash(&header)));
 
         let difficulty = tip
+            .as_ref()
             .map(|header| difficulty_from_bits(header.bits))
             .unwrap_or(1.0);
 
@@ -273,13 +274,20 @@ impl RpcMethods for NodeRpcHandler {
                 .await
                 .map_err(|e| RpcError::InternalError(format!("sync manager error: {}", e)))?;
 
+            // Determine if syncing is active based on status
+            let is_syncing = matches!(progress.status,
+            bitquan_network::sync::SyncStatus::Discovering |
+            bitquan_network::sync::SyncStatus::DownloadingHeaders |
+            bitquan_network::sync::SyncStatus::DownloadingBlocks
+        );
+
             Ok(SyncResponse {
                 status: format!("{:?}", progress.status),
                 local_height: progress.local_height,
                 best_height: progress.best_height,
                 blocks_behind: progress.blocks_behind,
                 progress: progress.progress,
-                syncing: progress.syncing,
+                syncing: is_syncing,
                 last_sync_attempt: progress.last_sync_attempt,
                 sync_errors: progress.sync_errors,
             })
