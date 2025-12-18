@@ -1,7 +1,7 @@
 # 🚀 Async Network Migration Plan
 
-**Date:** 2025-12-02  
-**Branch:** `feature/async-network-migration`  
+**Date:** 2025-12-02
+**Branch:** `feature/async-network-migration`
 **Reason:** Fix Slowloris attack (cannot be fixed with sync I/O)
 
 ---
@@ -9,8 +9,8 @@
 ## 🎯 Migration Strategy: GRADUAL (3 Phases)
 
 ### Phase 1: Core Async Infrastructure (This PR)
-**Goal:** Add tokio, create async versions alongside sync  
-**Risk:** Low (no breaking changes)  
+**Goal:** Add tokio, create async versions alongside sync
+**Risk:** Low (no breaking changes)
 **Timeline:** 1 day
 
 **Changes:**
@@ -28,8 +28,8 @@
 ---
 
 ### Phase 2: Async Integration (Next PR)
-**Goal:** Switch main.rs to use async network  
-**Risk:** Medium (changes main entry point)  
+**Goal:** Switch main.rs to use async network
+**Risk:** Medium (changes main entry point)
 **Timeline:** 1-2 days
 
 **Changes:**
@@ -42,8 +42,8 @@
 ---
 
 ### Phase 3: Cleanup & Optimization (Final PR)
-**Goal:** Remove sync code, optimize performance  
-**Risk:** Low (cleanup only)  
+**Goal:** Remove sync code, optimize performance
+**Risk:** Low (cleanup only)
 **Timeline:** 0.5 days
 
 **Changes:**
@@ -156,13 +156,13 @@ def slow_attack(host, port, connections=1000):
         s = socket.socket()
         s.connect((host, port))
         sockets.append(s)
-    
+
     # Send 1 byte every 29 seconds (should timeout at 30s)
     for round in range(10):
         for s in sockets:
             s.send(b'X')
         time.sleep(29)
-    
+
     # Check: All connections should be closed by node
     alive = sum(1 for s in sockets if s.fileno() != -1)
     print(f"Alive connections: {alive} / {connections}")
@@ -242,8 +242,8 @@ Expected results:
 
 ## 📞 Contact
 
-**Migration Lead:** Senior Rust Async Specialist  
-**Status:** Phase 1 in progress  
+**Migration Lead:** Senior Rust Async Specialist
+**Status:** Phase 1 in progress
 **Branch:** `feature/async-network-migration`
 
 ---

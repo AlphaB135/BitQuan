@@ -1,7 +1,7 @@
 # 🧹 Phase 3: Cleanup & Testing Prompt
 
-**TO:** AI Assistant (Phase 3)  
-**CONTEXT:** After main.rs async migration is complete  
+**TO:** AI Assistant (Phase 3)
+**CONTEXT:** After main.rs async migration is complete
 **PREREQUISITE:** Phase 1, Phase 2 Part 1, and Phase 2 Part 2 all done
 
 ---
@@ -24,19 +24,19 @@ use tokio::time::{sleep, Duration};
 #[tokio::test]
 async fn test_async_p2p_server_startup() {
     let peer_manager = Arc::new(AsyncPeerManager::new(10, NetworkId::Devnet));
-    
+
     // Start server on random port
     let result = spawn_p2p_server_with_limit(
         "127.0.0.1:0",
         peer_manager.clone(),
         10
     ).await;
-    
+
     assert!(result.is_ok());
-    
+
     // Give it time to start
     sleep(Duration::from_millis(100)).await;
-    
+
     // Check peer count
     assert_eq!(peer_manager.peer_count().await, 0);
 }
@@ -53,13 +53,13 @@ async fn test_slowloris_protection() {
 #[tokio::test]
 async fn test_connection_limit() {
     let peer_manager = Arc::new(AsyncPeerManager::new(5, NetworkId::Devnet));
-    
+
     spawn_p2p_server_with_limit(
         "127.0.0.1:0",
         peer_manager.clone(),
         5
     ).await.unwrap();
-    
+
     // Try to connect 10 peers (should accept only 5)
     // TODO: Implement connection limit test
 }
@@ -134,7 +134,7 @@ Add:
 
 ### Slowloris Attack Protection
 
-**Vulnerability:** Attackers send data very slowly (1 byte every 29 minutes) 
+**Vulnerability:** Attackers send data very slowly (1 byte every 29 minutes)
 to exhaust server resources.
 
 **Our Protection:**
@@ -186,9 +186,9 @@ def slowloris_attack(host, port, connections=100, send_interval=29):
     print(f"  Target: {host}:{port}")
     print(f"  Connections: {connections}")
     print(f"  Send interval: {send_interval}s")
-    
+
     sockets = []
-    
+
     # Open connections
     print(f"\n[*] Opening {connections} connections...")
     for i in range(connections):
@@ -200,30 +200,30 @@ def slowloris_attack(host, port, connections=100, send_interval=29):
                 print(f"    Opened {i + 1}/{connections}")
         except Exception as e:
             print(f"    Failed to open connection {i}: {e}")
-    
+
     print(f"[+] Successfully opened {len(sockets)} connections")
-    
+
     # Send slow data
     print(f"\n[*] Sending 1 byte every {send_interval}s...")
     for round in range(5):  # 5 rounds = 145 seconds total
         alive_before = len([s for s in sockets if s.fileno() != -1])
         print(f"\n  Round {round + 1}/5 - Alive: {alive_before}")
-        
+
         for s in sockets:
             try:
                 s.send(b'X')  # Send 1 byte
             except:
                 pass  # Socket already closed
-        
+
         time.sleep(send_interval)
-        
+
         alive_after = len([s for s in sockets if s.fileno() != -1])
         print(f"    After {send_interval}s - Alive: {alive_after}")
-        
+
         if alive_after == 0:
             print("\n[+] SUCCESS! Server closed all connections (Slowloris protection working)")
             return True
-    
+
     alive_final = len([s for s in sockets if s.fileno() != -1])
     print(f"\n[!] FAILURE! {alive_final} connections still alive after {send_interval * 5}s")
     print("    Slowloris protection NOT working!")
@@ -235,9 +235,9 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=18444, help='Target port')
     parser.add_argument('--connections', type=int, default=100, help='Number of connections')
     parser.add_argument('--interval', type=int, default=29, help='Send interval (seconds)')
-    
+
     args = parser.parse_args()
-    
+
     success = slowloris_attack(args.host, args.port, args.connections, args.interval)
     exit(0 if success else 1)
 ```
@@ -333,7 +333,7 @@ Expected: Node handles all connections, memory < 100MB
 # Join testnet
 cargo run --release --bin bitquan-node -- run --network testnet
 ```
-Expected: 
+Expected:
 - Accepts peers successfully
 - Mining works concurrently
 - No blocking warnings

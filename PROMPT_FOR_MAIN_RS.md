@@ -1,9 +1,9 @@
 # 🔥 CRITICAL: main.rs Async Migration Prompt
 
-**TO:** Another AI Assistant  
-**FROM:** Senior Rust Async Architect  
-**CONTEXT:** BitQuan blockchain - Phase 2 Part 2 of async network migration  
-**BRANCH:** `feature/async-network-migration`  
+**TO:** Another AI Assistant
+**FROM:** Senior Rust Async Architect
+**CONTEXT:** BitQuan blockchain - Phase 2 Part 2 of async network migration
+**BRANCH:** `feature/async-network-migration`
 **STATUS:** Infrastructure ready, needs main.rs integration
 
 ---
@@ -20,11 +20,11 @@ Now we need to integrate these into `crates/node/src/main.rs`.
 
 ### Critical Information
 
-**File:** `crates/node/src/main.rs` (~2800 lines)  
-**Main function:** Already has `#[tokio::main] async fn main()` ✅  
+**File:** `crates/node/src/main.rs` (~2800 lines)
+**Main function:** Already has `#[tokio::main] async fn main()` ✅
 **Key functions to update:**
 - `run_node()` (line ~1018)
-- `start_p2p_server()` (line ~1040)  
+- `start_p2p_server()` (line ~1040)
 - `mine_continuous()` calls (line ~767)
 
 ---
@@ -114,10 +114,10 @@ async fn start_p2p_server_async(addr: &str, network: NetworkId) -> Result<()> {
     // Keep running (server is in background task)
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-        
+
         // Cleanup dead peers every minute
         peer_manager.cleanup_peers().await;
-        
+
         let peer_count = peer_manager.ready_peer_count().await;
         log::info!("Active peers: {}", peer_count);
     }
@@ -181,7 +181,7 @@ mining_handle.await.map_err(|e| Error::Invalid(e.to_string()))??
 
 **Key changes:**
 - Clone borrowed data (datadir, payout_script_hex)
-- Wrap in `tokio::task::spawn_blocking()` 
+- Wrap in `tokio::task::spawn_blocking()`
 - This runs mining in dedicated thread pool
 - Doesn't block the async runtime
 - Network layer continues working while mining!
@@ -361,7 +361,7 @@ Your changes are correct if:
 Please provide:
 
 1. **Complete updated functions:**
-   - `run_node()` 
+   - `run_node()`
    - `start_p2p_server_async()` (new)
    - Updated `Commands::Run` handler
    - Updated `Commands::Mine` handler
@@ -384,7 +384,7 @@ Please provide:
 **Issue:** "borrowed data cannot be moved"
 **Fix:** Clone the data before moving into spawn_blocking
 
-**Issue:** "cannot find function `spawn_p2p_server_with_limit`"  
+**Issue:** "cannot find function `spawn_p2p_server_with_limit`"
 **Fix:** Add import: `use bitquan_network::server_async::spawn_p2p_server_with_limit;`
 
 **Issue:** "await is only allowed inside async functions"
