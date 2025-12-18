@@ -1004,7 +1004,8 @@ async fn main() -> Result<()> {
                         jwt_secret: jwt_secret.as_deref(),
                     },
                     network_id,
-                ).await
+                )
+                .await
             }
             #[cfg(not(feature = "rocksdb-backend"))]
             {
@@ -1020,7 +1021,8 @@ async fn main() -> Result<()> {
                         password: None,
                     },
                     network_id,
-                ).await
+                )
+                .await
             }
         }
         Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
@@ -2692,10 +2694,10 @@ async fn p2p_server(
     network: NetworkId,
 ) -> Result<()> {
     use bitquan_network::{P2PListener, PeerManager};
+    use bitquan_storage::AsyncChainStore;
     #[cfg(feature = "rocksdb-backend")]
     use std::path::Path;
     use std::sync::Arc;
-    use bitquan_storage::AsyncChainStore;
 
     println!("BitQuan P2P Server");
     println!("Listen: {}", listen);
@@ -2793,9 +2795,7 @@ async fn p2p_server(
         let local_height = store_arc.height().await.unwrap_or(0);
         let (sync_manager, _sync_task) = sync_task::initialize_sync(local_height, network)
             .await
-            .map_err(|e| {
-                Error::Invalid(format!("Failed to initialize sync manager: {}", e))
-            })?;
+            .map_err(|e| Error::Invalid(format!("Failed to initialize sync manager: {}", e)))?;
 
         let handler = NodeRpcHandler::with_sync_manager(store_arc, "mainnet", sync_manager);
         let rpc_addr = addr.to_string();

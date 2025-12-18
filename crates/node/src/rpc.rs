@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 
 use bitquan_consensus::header_hash;
+use bitquan_network::async_sync::AsyncSyncManager;
 use bitquan_rpc::{
     methods::{
         BlockTemplate, BlockchainInfo, MinerStatsResponse, MiningInfo, NetworkStatusResponse,
@@ -15,11 +16,8 @@ use bitquan_rpc::{
     },
     RpcError,
 };
-use bitquan_storage::{
-    async_store::AsyncChainStore, rocksdb_store::RocksDBStore, StorageError,
-};
-use bitquan_network::async_sync::AsyncSyncManager;
-use bitquan_types::{Transaction, NetworkId, GENESIS_BITS};
+use bitquan_storage::{async_store::AsyncChainStore, rocksdb_store::RocksDBStore, StorageError};
+use bitquan_types::{NetworkId, Transaction, GENESIS_BITS};
 use hex::FromHex;
 
 /// Node RPC handler backed by an async chain store.
@@ -275,11 +273,12 @@ impl RpcMethods for NodeRpcHandler {
                 .map_err(|e| RpcError::InternalError(format!("sync manager error: {}", e)))?;
 
             // Determine if syncing is active based on status
-            let is_syncing = matches!(progress.status,
-            bitquan_network::sync::SyncStatus::Discovering |
-            bitquan_network::sync::SyncStatus::DownloadingHeaders |
-            bitquan_network::sync::SyncStatus::DownloadingBlocks
-        );
+            let is_syncing = matches!(
+                progress.status,
+                bitquan_network::sync::SyncStatus::Discovering
+                    | bitquan_network::sync::SyncStatus::DownloadingHeaders
+                    | bitquan_network::sync::SyncStatus::DownloadingBlocks
+            );
 
             Ok(SyncResponse {
                 status: format!("{:?}", progress.status),
