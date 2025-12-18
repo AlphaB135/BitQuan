@@ -459,6 +459,7 @@ pub(crate) fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: 
 }
 
 /// Validates a block against the supplied consensus parameters (BQIP-0002).
+#[allow(clippy::too_many_arguments)]
 pub fn validate_block(
     block: &Block,
     height: u64,

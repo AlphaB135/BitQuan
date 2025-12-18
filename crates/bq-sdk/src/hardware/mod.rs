@@ -35,6 +35,10 @@ pub enum HardwareError {
     /// Firmware version too old
     #[error("Firmware version too old: {0}")]
     FirmwareTooOld(String),
+
+    /// Operation failed
+    #[error("Operation failed: {0}")]
+    OperationFailed(String),
 }
 
 /// Device capabilities
@@ -102,6 +106,21 @@ pub enum ResponseStatus {
     NotSupported = 0x05,
     /// Busy
     Busy = 0x06,
+}
+
+impl From<u8> for ResponseStatus {
+    fn from(byte: u8) -> Self {
+        match byte {
+            0x00 => ResponseStatus::Success,
+            0x01 => ResponseStatus::InvalidParameter,
+            0x02 => ResponseStatus::OperationFailed,
+            0x03 => ResponseStatus::UserCancelled,
+            0x04 => ResponseStatus::DeviceLocked,
+            0x05 => ResponseStatus::NotSupported,
+            0x06 => ResponseStatus::Busy,
+            _ => ResponseStatus::OperationFailed,
+        }
+    }
 }
 
 /// Hardware wallet interface
@@ -199,7 +218,7 @@ impl USBHardwareWallet {
         let mut devices = vec![];
 
         for device_info in api.device_list() {
-            if let Some(device) = api.open_device_info(device_info) {
+            if let Ok(device) = device_info.open_device(&api) {
                 if let Ok(info) = Self::get_device_info(&device) {
                     devices.push(info);
                 }
@@ -255,27 +274,29 @@ impl USBHardwareWallet {
     /// Get device info from device
     fn get_device_info(device: &hidapi::HidDevice) -> Result<DeviceInfo> {
         // Send GetInfo command
+        let mut buffer = [0u8; 64];
+        buffer[0] = Command::GetInfo as u8;
         let response = device
-            .get_feature_report(&[Command::GetInfo as u8])
+            .get_feature_report(&mut buffer)
             .map_err(|e| SDKError::Hardware(HardwareError::CommunicationError(e.to_string())))?;
 
-        if response.len() < 10 {
+        if response < 10 {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
                 "Too short response".to_string(),
             )));
         }
 
         // Parse response (simplified)
-        let vendor_id = u16::from_le_bytes([response[1], response[2]]);
-        let product_id = u16::from_le_bytes([response[3], response[4]]);
+        let vendor_id = u16::from_le_bytes([buffer[1], buffer[2]]);
+        let product_id = u16::from_le_bytes([buffer[3], buffer[4]]);
 
         let capabilities = DeviceCapabilities {
-            supports_dilithium: response[5] & 0x01 != 0,
-            supports_ecdsa: response[5] & 0x02 != 0,
-            has_display: response[5] & 0x04 != 0,
-            has_buttons: response[5] & 0x08 != 0,
-            max_message_size: u16::from_le_bytes([response[6], response[7]]) as usize,
-            firmware_version: format!("{}.{}.{}", response[8], response[9], response[10]),
+            supports_dilithium: buffer[5] & 0x01 != 0,
+            supports_ecdsa: buffer[5] & 0x02 != 0,
+            has_display: buffer[5] & 0x04 != 0,
+            has_buttons: buffer[5] & 0x08 != 0,
+            max_message_size: u16::from_le_bytes([buffer[6], buffer[7]]) as usize,
+            firmware_version: format!("{}.{}.{}", buffer[8], buffer[9], buffer[10]),
             device_model: "BitQuan Hardware".to_string(),
             serial_number: "Unknown".to_string(),
         };
@@ -324,7 +345,7 @@ impl HardwareWallet for USBHardwareWallet {
     }
 
     fn sign_transaction(&self, psbt: &mut PQPSBT) -> Result<()> {
-        let psbt_bytes = psbt.serialize()?;
+        let psbt_bytes = psbt.serialize().map_err(|e| SDKError::InvalidPSBT(e.to_string()))?;
         let response = self.send_command(Command::SignTransaction, &psbt_bytes)?;
 
         // Parse response and update PSBT with signatures
