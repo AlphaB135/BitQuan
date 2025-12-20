@@ -22,10 +22,8 @@ where
     T: crate::methods::RpcMethods + Send + Sync + 'static,
 {
     let listener = tokio::task::block_in_place(|| {
-      tokio::runtime::Handle::current().block_on(async {
-          TcpListener::bind("127.0.0.1:0").await
-      })
-  })?;
+        tokio::runtime::Handle::current().block_on(async { TcpListener::bind("127.0.0.1:0").await })
+    })?;
     let addr = listener.local_addr()?;
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
