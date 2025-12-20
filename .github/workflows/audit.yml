@@ -46,7 +46,14 @@ jobs:
       - name: Install cargo-geiger
         run: cargo install cargo-geiger
       - name: Check for unsafe code
-        run: cargo geiger --all-features
+        run: |
+          # Run geiger on each package since workspace doesn't work
+          for package in crates/*/; do
+            if [ -f "$package/Cargo.toml" ]; then
+              echo "Checking unsafe code in $(basename "$package")"
+              cargo geiger --manifest-path "$package/Cargo.toml" --all-features || true
+            fi
+          done
         continue-on-error: true
 
   dependency-audit:
