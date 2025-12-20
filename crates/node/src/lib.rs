@@ -8,6 +8,14 @@ use bitquan_storage::InMemoryChainStore;
 use bq_crypto::CryptoRegistry;
 use tokio::time::sleep;
 
+// Re-export all public types for tests and external usage
+pub use block_submit::{BlockSubmitter, SubmitResult};
+pub use reward_engine::{RewardEngine, PoolDatabase};
+pub mod stratum_server;
+pub use stratum_server::*;
+pub use sync_task::ChainState;
+pub use wallet::WalletKeypair;
+
 pub async fn run_node(
     config_path: &str,
     rpc_bind: Option<&str>,

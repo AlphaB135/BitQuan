@@ -114,7 +114,7 @@ fn bench_async_message_handling(c: &mut Criterion) {
 
                         // Wait for all messages to be processed
                         for handle in handles {
-                            let _: () = handle.await.unwrap();
+                            handle.await.unwrap();
                             black_box(());
                         }
                     });
@@ -185,7 +185,7 @@ fn bench_memory_usage_async(c: &mut Criterion) {
                         }
 
                         for handle in handles {
-                            let _: () = handle.await.unwrap();
+                            handle.await.unwrap();
                             black_box(());
                         }
                     });

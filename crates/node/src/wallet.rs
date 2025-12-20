@@ -206,7 +206,7 @@ impl WalletKeypair {
     }
 
     /// Decrypts an encrypted secret key.
-    fn decrypt_secret_key(encrypted_secret: &str) -> Result<Vec<u8>> {
+    fn decrypt_secret_key(_encrypted_secret: &str) -> Result<Vec<u8>> {
         // For now, return error to indicate this needs proper implementation
         // In production, use AES-GCM with proper key derivation
         log::warn!("Secret key encryption not properly implemented yet.");
@@ -438,9 +438,9 @@ mod tests {
             WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         // With session-based storage, we don't check exact sizes
         assert!(!keypair.public_key.is_empty());
-        assert!(!keypair.secret_key.is_empty());
+        assert!(!keypair.secret_key.expose_secret().is_empty());
         assert!(keypair.public_key.iter().any(|&b| b != 0));
-        assert!(keypair.secret_key.iter().any(|&b| b != 0));
+        assert!(keypair.secret_key.expose_secret().iter().any(|&b| b != 0));
     }
 
     #[test]

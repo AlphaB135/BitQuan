@@ -372,7 +372,7 @@ mod tests {
         // All derivations should produce identical keys
         assert_eq!(kp1.public_key, kp2.public_key);
         assert_eq!(kp2.public_key, kp3.public_key);
-        assert_eq!(kp1.secret_key, kp2.secret_key);
-        assert_eq!(kp2.secret_key, kp3.secret_key);
+        assert_eq!(kp1.secret_key.expose_secret(), kp2.secret_key.expose_secret());
+        assert_eq!(kp2.secret_key.expose_secret(), kp3.secret_key.expose_secret());
     }
 }
