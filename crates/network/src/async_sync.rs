@@ -14,18 +14,23 @@ use tokio::task::JoinError;
 /// Error type for async sync operations
 #[derive(Debug, Error)]
 pub enum AsyncSyncError {
+    /// Underlying sync operation failed
     #[error("Sync operation failed: {0}")]
     Sync(#[from] bitquan_types::Error),
 
+    /// Async task spawn failed
     #[error("Task spawn failed: {0}")]
     TaskSpawn(#[from] JoinError),
 
+    /// Mutex lock acquisition failed
     #[error("Mutex lock failed: {0}")]
     MutexLock(String),
 
+    /// No peers available for sync operation
     #[error("No peers available for sync")]
     NoPeersAvailable,
 
+    /// Operation timed out
     #[error("Operation timed out")]
     Timeout,
 }
