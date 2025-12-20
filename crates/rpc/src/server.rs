@@ -10,12 +10,11 @@ use once_cell::sync::Lazy;
 use serde_json::json;
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::{Arc, mpsc};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
-use tokio::select;
 use tokio_rustls::server::TlsStream;
 use tracing::{error, info, warn};
 
@@ -220,7 +219,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
     pub fn serve_with_listener_and_shutdown(
         self,
         listener: TcpListener,
-        shutdown_signal: Option<mpsc::Receiver<()>>,
+        shutdown_signal: Option<tokio::sync::mpsc::Receiver<()>>,
     ) -> std::io::Result<()> {
         if self.force_tls && self.tls.is_none() {
             return Err(std::io::Error::other(

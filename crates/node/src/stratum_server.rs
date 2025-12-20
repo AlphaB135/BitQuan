@@ -20,7 +20,6 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
-
 use crate::block_submit::{BlockSubmitter, SubmitResult as BlockSubmitResult};
 use crate::pool_template::{BlockTemplate, PoolTemplateManager};
 use crate::vardiff::VarDiff;

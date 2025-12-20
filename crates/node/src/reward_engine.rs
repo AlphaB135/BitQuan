@@ -2,7 +2,7 @@
 //!
 //! Implements Bitcoin-like halving schedule and miner reward tracking.
 
-use bitquan_types::{Block, Result, Error};
+use bitquan_types::{Block, Error, Result};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
