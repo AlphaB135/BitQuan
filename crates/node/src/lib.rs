@@ -8,12 +8,22 @@ use bitquan_storage::InMemoryChainStore;
 use bq_crypto::CryptoRegistry;
 use tokio::time::sleep;
 
+// Declare all modules
+pub mod block_submit;
+pub mod pool_template;
+pub mod reward_engine;
+pub mod stratum_server;
+pub mod sync_task;
+pub mod vardiff;
+pub mod wallet;
+
 // Re-export all public types for tests and external usage
 pub use block_submit::{BlockSubmitter, SubmitResult};
+pub use pool_template::{BlockTemplate, PoolTemplateManager};
 pub use reward_engine::{RewardEngine, PoolDatabase};
-pub mod stratum_server;
 pub use stratum_server::*;
 pub use sync_task::ChainState;
+pub use vardiff::VarDiff;
 pub use wallet::WalletKeypair;
 
 pub async fn run_node(
