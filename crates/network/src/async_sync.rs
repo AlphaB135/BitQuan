@@ -410,8 +410,8 @@ impl AsyncSyncManager {
         let mut best_height = current_progress.local_height;
 
         // Query peers asynchronously with timeout
-        let peer_heights = futures::future::join_all(best_peers.iter().map(|peer_addr| {
-            let peer_addr = peer_addr.clone();
+        let peer_heights = futures::future::join_all(best_peers.iter().map(|_peer_addr| {
+            let peer_addr = _peer_addr.clone();
             async move {
                 // In a real implementation, this would query the peer
                 // For now, simulate with a delay and increment
@@ -463,7 +463,7 @@ impl AsyncSyncManager {
         sync.set_status(crate::sync::SyncStatus::Discovering);
 
         // Discover best height
-        let best_height = self.discover_best_height().await?;
+        let _best_height = self.discover_best_height().await?;
 
         if sync.needs_sync() {
             sync.set_status(crate::sync::SyncStatus::DownloadingHeaders);
