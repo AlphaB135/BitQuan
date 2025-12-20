@@ -3,7 +3,7 @@ use pqc_dilithium_seeded::{verify, Keypair};
 
 fn bench_keypair_generation(c: &mut Criterion) {
     c.bench_function("generate_dilithium_keypair", |b| {
-        b.iter(|| Keypair::generate());
+        b.iter(Keypair::generate);
     });
 }
 

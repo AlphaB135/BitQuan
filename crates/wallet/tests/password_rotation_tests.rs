@@ -14,13 +14,13 @@ fn test_password_rotation_roundtrip() {
     let keystore = encrypt_keystore(plaintext, old_password, None, 8192, 1, 1);
 
     // Verify old password works
-    let decrypted = decrypt_keystore(&keystore.as_ref().unwrap(), old_password)
+    let decrypted = decrypt_keystore(keystore.as_ref().unwrap(), old_password)
         .expect("decrypt with old password should succeed");
     assert_eq!(decrypted, plaintext);
 
     // Rotate to new password
     let rotated = rotate_keystore(
-        &keystore.as_ref().unwrap(),
+        keystore.as_ref().unwrap(),
         old_password,
         new_password,
         8192,

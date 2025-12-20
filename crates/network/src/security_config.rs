@@ -289,7 +289,6 @@ impl SecurityConfig {
 // pub fn import_toml(toml_str: &str) -> Result<Self, toml::de::Error> {
 //     toml::from_str(toml_str)
 // }
-
 #[cfg(test)]
 mod tests {
     use super::*;

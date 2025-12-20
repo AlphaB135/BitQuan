@@ -66,7 +66,7 @@ async fn test_slowloris_protection() {
 
     // For now, just test that we can establish connections
     // Full Slowloris testing would require more complex setup with timeout configuration
-    assert!(true, "Basic connection test passed");
+    // Basic connection test passed - no assertion needed
 }
 
 #[tokio::test]
@@ -96,7 +96,7 @@ async fn test_connection_limit() {
 
     // For now, just test basic connection establishment
     // Full connection limit testing would require more complex setup
-    assert!(true, "Connection limit test basic setup passed");
+    // Connection limit test basic setup passed - no assertion needed
 }
 
 #[tokio::test]
@@ -182,6 +182,7 @@ async fn test_async_network_error_handling() {
 }
 
 // Helper function to write to stream
+#[allow(dead_code)]
 async fn write_all_with_timeout(
     stream: &mut TcpStream,
     data: &[u8],
@@ -192,6 +193,7 @@ async fn write_all_with_timeout(
 }
 
 // Helper function to read from stream
+#[allow(dead_code)]
 async fn read_u8_with_timeout(
     stream: &mut TcpStream,
     timeout: Duration,
