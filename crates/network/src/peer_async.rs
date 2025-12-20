@@ -401,10 +401,8 @@ impl AsyncPeerManager {
         let mut sent_count = 0;
 
         for peer in peers.iter_mut() {
-            if peer.state == PeerState::Ready {
-                if peer.send_message(msg.clone()).await.is_ok() {
-                    sent_count += 1;
-                }
+            if peer.state == PeerState::Ready && peer.send_message(msg.clone()).await.is_ok() {
+                sent_count += 1;
             }
         }
 

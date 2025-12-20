@@ -394,16 +394,19 @@ impl AsyncSyncManager {
 
     /// Discover best height from peers asynchronously
     pub async fn discover_best_height(&self) -> std::result::Result<u64, AsyncSyncError> {
-        let peer_book = self
-            .peer_book
-            .lock()
-            .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
+        // Collect peer addresses before any await to avoid holding lock across await
+        let best_peers = {
+            let peer_book = self
+                .peer_book
+                .lock()
+                .map_err(|e| AsyncSyncError::MutexLock(e.to_string()))?;
 
-        let best_peers = peer_book.best_peers(5);
-
-        if best_peers.is_empty() {
-            return Err(AsyncSyncError::NoPeersAvailable);
-        }
+            let peers = peer_book.best_peers(5);
+            if peers.is_empty() {
+                return Err(AsyncSyncError::NoPeersAvailable);
+            }
+            peers
+        };
 
         // Get current height as fallback
         let current_progress = self.get_sync_progress().await?;
@@ -411,7 +414,6 @@ impl AsyncSyncManager {
 
         // Query peers asynchronously with timeout
         let peer_heights = futures::future::join_all(best_peers.iter().map(|_peer_addr| {
-            let peer_addr = _peer_addr.clone();
             async move {
                 // In a real implementation, this would query the peer
                 // For now, simulate with a delay and increment
@@ -421,10 +423,8 @@ impl AsyncSyncManager {
         }))
         .await;
 
-        for height_result in peer_heights {
-            if let Ok(height) = height_result {
-                best_height = best_height.max(height);
-            }
+        for height in peer_heights.into_iter().flatten() {
+            best_height = best_height.max(height);
         }
 
         self.chain_sync.set_best_height(best_height).await?;
@@ -646,7 +646,6 @@ impl Clone for AsyncSyncManager {
 mod tests {
     use super::*;
     use crate::discovery::PeerBook;
-    use std::net::SocketAddr;
 
     #[tokio::test]
     async fn test_async_chain_sync() {

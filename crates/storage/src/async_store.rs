@@ -239,7 +239,6 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
 mod tests {
     use super::*;
     use crate::rocksdb_store::RocksDBStore;
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
     async fn test_async_store<T: AsyncChainStore>(store: &T) -> AsyncResult<()> {

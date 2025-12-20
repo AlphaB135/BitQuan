@@ -612,7 +612,6 @@ pub struct PeerSecurityStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::IpAddr;
 
     #[test]
     fn test_security_manager_integration() {
@@ -680,7 +679,7 @@ mod tests {
     #[test]
     fn test_security_statistics() {
         let config = SecurityConfig::for_security_level(SecurityLevel::Standard);
-        let mut security = SecurityManager::new(config);
+        let security = SecurityManager::new(config);
 
         let stats = security.get_statistics();
         assert!(stats.security_score > 0.0);

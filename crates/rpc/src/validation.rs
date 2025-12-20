@@ -8,6 +8,7 @@ use std::collections::HashSet;
 /// Input validation rules for RPC requests
 pub struct InputValidator {
     /// Maximum request size in bytes
+    #[allow(dead_code)]
     max_request_size: usize,
     /// Maximum number of parameters per request
     max_parameters: usize,
@@ -20,6 +21,7 @@ pub struct InputValidator {
     /// Allowed JSON-RPC methods
     allowed_methods: HashSet<String>,
     /// Regex patterns for validating strings
+    #[allow(dead_code)]
     string_patterns: Vec<Regex>,
     /// Blocked patterns for preventing injection attacks
     blocked_patterns: Vec<Regex>,
@@ -505,12 +507,16 @@ static mut GLOBAL_VALIDATOR: Option<InputValidator> = None;
 static VALIDATOR_INITIALIZED: std::sync::Once = std::sync::Once::new();
 
 /// Get the global input validator
+#[allow(clippy::expect_used)]
+#[allow(static_mut_refs)]
 pub fn get_validator() -> &'static InputValidator {
     unsafe {
         VALIDATOR_INITIALIZED.call_once(|| {
             GLOBAL_VALIDATOR = Some(InputValidator::default());
         });
-        GLOBAL_VALIDATOR.as_ref().unwrap()
+        GLOBAL_VALIDATOR
+            .as_ref()
+            .expect("Global validator not initialized")
     }
 }
 

@@ -753,6 +753,7 @@ fn test_validate_block_weight_overflow() {
         NetworkId::Devnet,
         GENESIS_HASH_BYTES,
         None,
+        0, // median_time_past
     );
 
     // Should either detect overflow or weight exceeds limit

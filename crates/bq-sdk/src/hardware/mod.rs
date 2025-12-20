@@ -1,14 +1,14 @@
 //! Hardware wallet integration for BitQuan
 
-use crate::{
-    address::Address,
-    psbt::{PSBTError, PQPSBT},
-    Result, SDKError,
-};
+use crate::{address::Address, psbt::PQPSBT, Result, SDKError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::str::FromStr;
 use thiserror::Error;
+
+#[cfg(feature = "hardware")]
+use crate::psbt::PSBTError;
+#[cfg(feature = "hardware")]
+use std::str::FromStr;
 
 /// Hardware wallet errors
 #[derive(Debug, Error)]
@@ -326,7 +326,7 @@ impl HardwareWallet for USBHardwareWallet {
 
     fn get_public_key(&self, derivation_path: &str) -> Result<Vec<u8>> {
         let path_bytes = derivation_path.as_bytes();
-        let response = self.send_command(Command::GetPublicKey, &path_bytes)?;
+        let response = self.send_command(Command::GetPublicKey, path_bytes)?;
 
         if response.len() < 1952 {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
@@ -350,9 +350,8 @@ impl HardwareWallet for USBHardwareWallet {
     }
 
     fn sign_transaction(&self, psbt: &mut PQPSBT) -> Result<()> {
-        let psbt_bytes = psbt
-            .serialize()
-            .map_err(|e| SDKError::PSBT(PSBTError::SerializationFailed(e.to_string())))?;
+        let psbt_bytes = <PQPSBT>::serialize(psbt)
+            .map_err(|e| SDKError::PSBT(PSBTError::Serialization(e.to_string())))?;
         let response = self.send_command(Command::SignTransaction, &psbt_bytes)?;
 
         // Parse response and update PSBT with signatures
@@ -453,11 +452,11 @@ impl HardwareWalletManager {
             // Connect to new devices
             for device_info in &devices {
                 let key = format!("{}:{}", device_info.vendor_id, device_info.product_id);
-                if !self.devices.contains_key(&key) {
+                if let std::collections::hash_map::Entry::Vacant(e) = self.devices.entry(key) {
                     if let Ok(wallet) =
                         USBHardwareWallet::new(device_info.vendor_id, device_info.product_id)
                     {
-                        self.devices.insert(key, Box::new(wallet));
+                        e.insert(Box::new(wallet));
                     }
                 }
             }

@@ -9,16 +9,14 @@ use http::StatusCode;
 use once_cell::sync::Lazy;
 use serde_json::json;
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tokio_rustls::server::TlsStream;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{error, info, warn};
 
 /// Security event types
 #[derive(Debug, Clone)]
@@ -171,6 +169,7 @@ pub struct RpcServer<T> {
 }
 
 impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
+    /// Create a new RPC server with the given handler and configuration
     pub fn new(
         handler: T,
         addr: String,
@@ -193,16 +192,19 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
         }
     }
 
+    /// Set TLS configuration for the server
     pub fn with_tls_config(mut self, tls: TlsConfig) -> Self {
         self.tls = Some(Arc::new(tls));
         self
     }
 
+    /// Set whether TLS is required for connections
     pub fn require_tls(mut self, required: bool) -> Self {
         self.force_tls = required;
         self
     }
 
+    /// Start the RPC server and begin accepting connections
     pub async fn serve(&self) -> std::io::Result<()> {
         if self.force_tls && self.tls.is_none() {
             return Err(std::io::Error::other(
@@ -336,7 +338,7 @@ async fn handle_connection<T: methods::RpcMethods>(
     mut stream: TcpStream,
     peer_ip: IpAddr,
     handler: &T,
-    auth: Option<&AuthMethod>,
+    _auth: Option<&AuthMethod>,
     options: ConnectionOptions<'_>,
 ) -> std::io::Result<()> {
     let start = Instant::now();
@@ -383,7 +385,12 @@ async fn handle_connection<T: methods::RpcMethods>(
             "id": null
         });
 
-        let response_json = serde_json::to_string(&response).unwrap();
+        let response_json = serde_json::to_string(&response).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Failed to serialize response",
+            )
+        })?;
         let response_str = format!(
             "HTTP/1.1 429 Too Many Requests\r\n\
              Content-Type: application/json\r\n\
@@ -401,7 +408,7 @@ async fn handle_connection<T: methods::RpcMethods>(
 
     // Check authentication backoff
     if apply_auth_backoff(peer_ip, options.auth_backoff).await {
-        let mut backoff_map = options.auth_backoff.lock().await;
+        let backoff_map = options.auth_backoff.lock().await;
 
         // Log authentication backoff event
         let auth_backoff_event = SecurityEvent::new(
@@ -428,7 +435,12 @@ async fn handle_connection<T: methods::RpcMethods>(
                     "id": null
                 });
 
-                let response_json = serde_json::to_string(&response).unwrap();
+                let response_json = serde_json::to_string(&response).map_err(|_| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Failed to serialize response",
+                    )
+                })?;
                 let response_str = format!(
                     "HTTP/1.1 403 Forbidden\r\n\
                      Content-Type: application/json\r\n\
@@ -536,7 +548,7 @@ async fn handle_connection<T: methods::RpcMethods>(
             auth_event.log();
 
             let response = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"BitQuan RPC\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
-            let mut stream_inner = buf_reader.into_inner();
+            let stream_inner = buf_reader.into_inner();
             stream_inner.write_all(response.as_bytes()).await?;
             stream_inner.flush().await?;
             stream_inner.shutdown().await?;
@@ -743,17 +755,15 @@ async fn send_upgrade_required(
 }
 
 fn build_security_headers(config: &RpcConfig) -> String {
-    let mut headers = Vec::new();
-
-    // Security headers
-    headers.push("X-Content-Type-Options: nosniff".to_string());
-    headers.push("X-Frame-Options: DENY".to_string());
-    headers.push("X-XSS-Protection: 1; mode=block".to_string());
-    headers.push("Referrer-Policy: strict-origin-when-cross-origin".to_string());
-    headers.push(
+    let mut headers = vec![
+        // Security headers
+        "X-Content-Type-Options: nosniff".to_string(),
+        "X-Frame-Options: DENY".to_string(),
+        "X-XSS-Protection: 1; mode=block".to_string(),
+        "Referrer-Policy: strict-origin-when-cross-origin".to_string(),
         "Content-Security-Policy: default-src 'none'; script-src 'none'; object-src 'none';"
             .to_string(),
-    );
+    ];
 
     // HSTS if HTTPS is enabled
     if config.require_tls && config.enable_hsts {
@@ -853,6 +863,7 @@ impl BackoffState {
         }
     }
 
+    #[allow(dead_code)]
     fn record_success(&mut self) {
         self.failed_attempts = 0;
         self.locked_until = None;
@@ -898,6 +909,7 @@ async fn apply_cooldown(
     config.cooldown_duration
 }
 /// Resolve client IP considering proxy headers
+#[allow(dead_code)]
 fn resolve_client_ip(peer_ip: IpAddr, headers: &[String], config: &RpcConfig) -> IpAddr {
     if !config.trust_proxy {
         return peer_ip;
@@ -938,6 +950,7 @@ async fn apply_auth_backoff(
     state.record_failure()
 }
 /// Reset authentication backoff after successful authentication
+#[allow(dead_code)]
 async fn reset_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
     let mut backoff_map = backoff.lock().await;
 
@@ -960,11 +973,15 @@ async fn check_rate_limit(
 
     bucket.consume(1) // Each request consumes 1 token
 }
+#[allow(dead_code)]
 static METRICS: Lazy<RpcMetrics> = Lazy::new(RpcMetrics::default);
+#[derive(Default)]
 struct RpcMetrics {
     // ... fields
 }
 impl RpcMetrics {
+    #[allow(dead_code)]
+    #[allow(clippy::too_many_arguments)]
     fn record(
         &self,
         _status: StatusCode,
@@ -975,10 +992,5 @@ impl RpcMetrics {
         _header_limit: bool,
         _body_timeout: bool,
     ) {
-    }
-}
-impl Default for RpcMetrics {
-    fn default() -> Self {
-        Self {}
     }
 }

@@ -475,10 +475,32 @@ Closes #[issue-number]
 -   **Pattern**: Ask "what's the minimum viable first step?" before comprehensive implementation
 -   **Pattern**: 1-hour implementation chunks are optimal for maintaining focus and seeing progress
 
+### Security & Dependency Management Patterns (2025-12-20)
+-   **Pattern**: Security advisory resolution requires immediate, decisive action - Zero tolerance for vulnerabilities
+-   **Pattern**: Fully qualified syntax `<Type>::method()` resolves trait conflicts elegantly without breaking APIs
+-   **Pattern**: Scoped blocks `{ let data = lock()?; data }` for async lock management prevents deadlocks
+-   **Pattern**: Workspace-wide dependency upgrades are powerful but require careful coordination
+-   **Discovery**: rustls-pki-types is significantly safer and more modern than rustls-pemfile (RUSTSEC-2025-0134)
+
+### CI/CD Quality Patterns (2025-12-20)
+-   **Anti-Pattern**: Underestimating time needed for comprehensive clippy fixes - 30+ warnings require deep architectural understanding
+-   **Pattern**: Prioritize blocking vs non-blocking clippy warnings to achieve CI success faster
+-   **Pattern**: Security advisories block CI completely and must be resolved first
+-   **Pattern**: Cargo Deny PASS status is prerequisite for CI success
+-   **Discovery**: Pre-commit hooks with clippy become bottlenecks for iterative development
+
+### Async Rust Patterns (2025-12-20)
+-   **Pattern**: Collect peer data in scoped blocks before async operations to avoid await-holding-lock
+-   **Pattern**: Use `flatten()` instead of manual if-let patterns for cleaner iterator handling
+-   **Pattern**: Collapsible-if patterns improve code readability and satisfy clippy lints
+-   **Pattern**: MutexGuard must be dropped before await points to prevent deadlocks
+
 ### Common Mistakes to Avoid
 -   **Creating overly comprehensive initial plans** - Break complex projects into 1-hour phases instead
 -   **Trying to implement everything at once** - Start with minimum viable implementation, test, then expand
 -   **Skipping AI Diary and Honest Feedback in retrospectives** - These sections provide crucial context and self-reflection that technical documentation alone cannot capture
+-   **Ignoring security advisories** - RUSTSEC warnings require immediate migration to newer APIs
+-   **Holding MutexGuard across await points** - Causes clippy warnings and potential deadlocks
 -   *Example: Forgetting to update a lockfile after changing dependencies.*
 -   *Example: Not checking build logs for warnings that could become errors.*
 -   *Example: Making assumptions about API responses instead of checking the spec.*
@@ -487,19 +509,27 @@ Closes #[issue-number]
 -   **Parallel agents for analysis** - Using multiple agents to analyze different aspects speeds up planning significantly
 -   **ccc → nnn workflow** - Context capture followed by focused planning creates better structured issues
 -   **Phase markers in issues** - Using "Phase 1:", "Phase 2:" helps track incremental progress
+-   **Trait conflict resolution** - Use `<Type>::method()` syntax when method names conflict with traits
+-   **Modern TLS API migration** - rustls-pki-types provides safer PEM parsing with better error handling
 -   *Example: Using a specific library feature to simplify complex state.*
 -   *Example: A shell command alias that speeds up a common task.*
 -   *Example: A design pattern that solved a recurring problem in the codebase.*
 
 ### Project-Specific Patterns
+-   **BitQuan Security Stack**: rustls-pki-types + thiserror 2.0 + comprehensive dependency auditing
+-   **Async Network Architecture**: Scoped lock management → peer data collection → async operations
+-   **Hardware Wallet Integration**: Fully qualified method calls to resolve serde trait conflicts
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
 
 ### User Preferences (Observed)
+-   **Zero tolerance for CI failures** - "ไม่ยอมให้ผ่าน แก้" (Don't allow passing, fix it) - demands 100% success
+-   **Escalating demands for perfection** - "100 เลย เวลาไม่ต้องรีบ" (100% all the way, no need to rush)
 -   **Prefers manageable scope** - "i love this - Can be completed in under 1 hour" shows preference for achievable tasks
 -   **Values phased approaches** - Recognizes when plans are "too huge" and appreciates splitting work
 -   **Appreciates workflow patterns** - Likes using established patterns like "ccc nnn gh flow"
+-   **Language preferences** - Responds to Thai commands and requests ("ภาษาไทย", "ต่อ", "เช็ค")
 -   *Example: Prefers simple, direct solutions over complex abstractions.*
 -   *Example: Values quick iteration and seeing visual progress.*
 -   *Example: Appreciates clear, actionable feedback and well-defined tasks.*
