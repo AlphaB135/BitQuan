@@ -2,11 +2,9 @@
 //!
 //! Implements Bitcoin-like halving schedule and miner reward tracking.
 
-use bitquan_types::Block;
+use bitquan_types::{Block, Result, Error};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-
-use bitquan_types::Result;
 
 #[cfg(feature = "pool")]
 use crate::pool_db::{BlockRecord, PayoutRecord, PoolDatabase};
@@ -140,10 +138,10 @@ impl RewardEngine {
     }
 
     /// Credit reward to miner account.
-    pub fn credit_miner(&mut self, _miner_id: &str, amount: u64) -> Result<()> {
+    pub fn credit_miner(&mut self, miner_id: &str, amount: u64) -> Result<()> {
         #[cfg(feature = "pool")]
         self.db
-            .update_miner_reward(_miner_id, amount)
+            .update_miner_reward(miner_id, amount)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
 
         self.total_distributed.fetch_add(amount, Ordering::Relaxed);
@@ -162,7 +160,7 @@ impl RewardEngine {
         let reward = self.calculate_reward(block, height);
 
         // Create block record
-        let _record = BlockRecord {
+        let record = BlockRecord {
             hash: hex::encode(block_hash),
             height,
             miner_id: miner_id.to_string(),
@@ -195,7 +193,7 @@ impl RewardEngine {
         }
 
         // Calculate mature height (current - maturity)
-        let _mature_height = current_height - self.maturity;
+        let mature_height = current_height - self.maturity;
 
         // Get blocks at mature height
         #[cfg(feature = "pool")]
@@ -233,7 +231,7 @@ impl RewardEngine {
     }
 
     /// Get miner's total balance (all rewards).
-    pub fn get_total_balance(&self, _miner_id: &str) -> Result<u64> {
+    pub fn get_total_balance(&self, miner_id: &str) -> Result<u64> {
         #[cfg(feature = "pool")]
         return self
             .db
@@ -245,11 +243,11 @@ impl RewardEngine {
     }
 
     /// Get miner's spendable balance (only mature rewards).
-    pub fn get_spendable_balance(&self, _miner_id: &str) -> Result<u64> {
+    pub fn get_spendable_balance(&self, miner_id: &str) -> Result<u64> {
         #[cfg(feature = "pool")]
         return self
             .db
-            .get_spendable_rewards(_miner_id)
+            .get_spendable_rewards(miner_id)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)));
 
         #[cfg(not(feature = "pool"))]
@@ -257,11 +255,11 @@ impl RewardEngine {
     }
 
     /// Get miner's pending balance (immature rewards).
-    pub fn get_pending_balance(&self, _miner_id: &str) -> Result<u64> {
+    pub fn get_pending_balance(&self, miner_id: &str) -> Result<u64> {
         #[cfg(feature = "pool")]
         return self
             .db
-            .get_pending_rewards(_miner_id)
+            .get_pending_rewards(miner_id)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)));
 
         #[cfg(not(feature = "pool"))]
@@ -313,7 +311,7 @@ impl RewardEngine {
     }
 
     /// Get miner's total reward.
-    pub fn get_miner_reward(&self, _miner_id: &str) -> Result<u64> {
+    pub fn get_miner_reward(&self, miner_id: &str) -> Result<u64> {
         #[cfg(feature = "pool")]
         return self
             .db

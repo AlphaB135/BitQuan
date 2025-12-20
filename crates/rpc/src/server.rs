@@ -10,11 +10,12 @@ use once_cell::sync::Lazy;
 use serde_json::json;
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
+use tokio::select;
 use tokio_rustls::server::TlsStream;
 use tracing::{error, info, warn};
 
@@ -213,6 +214,52 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
         }
         let listener = TcpListener::bind(&self.addr).await?;
         self.accept_loop(listener).await
+    }
+
+    /// Start the RPC server with a specific listener and shutdown signal
+    pub fn serve_with_listener_and_shutdown(
+        self,
+        listener: TcpListener,
+        shutdown_signal: Option<mpsc::Receiver<()>>,
+    ) -> std::io::Result<()> {
+        if self.force_tls && self.tls.is_none() {
+            return Err(std::io::Error::other(
+                "TLS is required but no TLS configuration was provided",
+            ));
+        }
+
+        let bound_addr = listener.local_addr()?;
+        println!("RPC server listening on {}", bound_addr);
+
+        // Create runtime for async operations
+        let rt = tokio::runtime::Runtime::new()?;
+
+        rt.block_on(async {
+            let shutdown_signal = async {
+                if let Some(mut rx) = shutdown_signal {
+                    let _ = rx.recv().await;
+                }
+            };
+
+            tokio::select! {
+                result = self.accept_loop_async(listener) => result,
+                _ = shutdown_signal => {
+                    println!("RPC server shutting down...");
+                    Ok(())
+                }
+            }
+        })
+    }
+
+    async fn accept_loop_async(&self, listener: TcpListener) -> std::io::Result<()> {
+        loop {
+            match listener.accept().await {
+                Ok((stream, peer_addr)) => {
+                    self.spawn_worker(stream, Some(peer_addr.ip()));
+                }
+                Err(e) => eprintln!("Connection error: {}", e),
+            }
+        }
     }
 
     async fn accept_loop(&self, listener: TcpListener) -> std::io::Result<()> {
