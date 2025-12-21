@@ -1,16 +1,22 @@
 //! Background sync task for maintaining chain synchronization
 
-use crate::rpc::NodeRpcHandler;
-use bitquan_network::async_sync::{AsyncSyncError, AsyncSyncManager};
-use bitquan_network::{discovery::PeerBook, peer::PeerManager};
-use log::{error, info, warn};
+// use crate::rpc::NodeRpcHandler; // TODO: Implement rpc module
+
+// Temporary placeholder to fix compilation
+#[allow(dead_code)]
+pub struct NodeRpcHandler {
+    // Placeholder implementation
+}
+use bitquan_network::async_sync::AsyncSyncManager;
+use log::{error, info};
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 /// Spawns a background task that periodically runs sync maintenance
+#[allow(dead_code)]
 pub async fn spawn_sync_maintenance(
     sync_manager: Arc<AsyncSyncManager>,
-    rpc_handler: Arc<NodeRpcHandler>,
+    _rpc_handler: Arc<NodeRpcHandler>, // TODO: Use when rpc module is implemented
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         // Periodic sync maintenance loop
@@ -44,7 +50,7 @@ pub async fn spawn_sync_maintenance(
 /// Initialize sync manager and background task
 pub async fn initialize_sync(
     local_height: u64,
-    network_id: bitquan_types::NetworkId,
+    _network_id: bitquan_types::NetworkId, // TODO: Use when implementing proper sync
 ) -> Result<
     (Arc<AsyncSyncManager>, tokio::task::JoinHandle<()>),
     Box<dyn std::error::Error + Send + Sync>,

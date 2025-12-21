@@ -123,10 +123,10 @@ impl WalletKeypair {
 
     /// Converts to serializable format with encrypted secret key.
     pub fn to_serializable(&self) -> SerializableKeypair {
-        use crate::address;
+        use crate::wallet::address;
 
         let pubkey_hash = self.public_key_hash();
-        let address_str = address::encode_bech32m(&pubkey_hash);
+        let address_str = address::encode(&pubkey_hash);
         let pubkey_hex = hex::encode(&self.public_key);
         // Encrypt secret key before serialization
         let secret_hex = self.encrypt_secret_key().unwrap_or_else(|_| {
@@ -235,10 +235,11 @@ impl WalletKeypair {
         // Create a new empty secret to replace the current one
         // This will zeroize the old secret when dropped
         let empty_secret = Secret::new(vec![]);
-        std::mem::replace(&mut self.secret_key, empty_secret);
+        let _ = std::mem::replace(&mut self.secret_key, empty_secret);
     }
 
     /// Creates a new secure keypair that automatically wipes on drop.
+    #[allow(dead_code)]
     pub fn generate_secure() -> Result<Self> {
         Self::generate_dilithium3()
     }

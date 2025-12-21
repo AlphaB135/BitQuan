@@ -441,8 +441,10 @@ mod tests {
 
     #[test]
     fn test_reputation_decay() {
-        let mut config = ReputationConfig::default();
-        config.decay_rate = 10; // Higher decay rate for testing
+        let config = ReputationConfig {
+            decay_rate: 10,
+            ..Default::default()
+        }; // Higher decay rate for testing
         let mut manager = ReputationManager::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
 
