@@ -1,7 +1,9 @@
 #![no_main]
 
+use bitquan_types::{
+    genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut,
+};
 use libfuzzer_sys::fuzz_target;
-use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
 
 fuzz_target!(|data: &[u8]| {
     // Try to parse as individual components

@@ -1,7 +1,7 @@
 #![no_main]
 
+use bitquan_types::{NetworkId, SigAlgorithm, Transaction};
 use libfuzzer_sys::fuzz_target;
-use bitquan_types::{Transaction, NetworkId, SigAlgorithm};
 use serde_json;
 
 fuzz_target!(|data: &[u8]| {
@@ -16,7 +16,12 @@ fuzz_target!(|data: &[u8]| {
         // Test version parsing
         let version_bytes = &data[..4.min(data.len())];
         if version_bytes.len() == 4 {
-            let version = i32::from_le_bytes([version_bytes[0], version_bytes[1], version_bytes[2], version_bytes[3]]);
+            let version = i32::from_le_bytes([
+                version_bytes[0],
+                version_bytes[1],
+                version_bytes[2],
+                version_bytes[3],
+            ]);
             // Test that version doesn't cause issues in validation
             if version >= 0 && version <= 1000 {
                 // Create minimal transaction with this version
@@ -51,7 +56,7 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test malformed JSON that might come from RPC endpoints
-    if data.len() >= 2 && data[0] == b'{' && data[data.len()-1] == b'}' {
+    if data.len() >= 2 && data[0] == b'{' && data[data.len() - 1] == b'}' {
         let _result: Result<Transaction, _> = serde_json::from_slice(data);
     }
 
@@ -72,8 +77,7 @@ fuzz_target!(|data: &[u8]| {
             0xFF => {
                 if data.len() >= 9 {
                     let _value = u64::from_le_bytes([
-                        data[1], data[2], data[3], data[4],
-                        data[5], data[6], data[7], data[8]
+                        data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8],
                     ]);
                 }
             }

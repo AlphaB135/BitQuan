@@ -745,6 +745,7 @@ mod tests {
 
         let hdr = dummy_header();
         let sha_hash_result = sha_engine.pow_hash(&hdr);
+        let rx_hash_result = rx_engine.pow_hash(&hdr);
         assert!(
             sha_hash_result.is_ok(),
             "SHA256d pow_hash failed: {:?}",

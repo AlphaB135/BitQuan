@@ -1,8 +1,8 @@
 #![no_main]
 
-use libfuzzer_sys::fuzz_target;
 use bitquan_consensus::script::ScriptInterpreter;
 use bq_crypto::CryptoRegistry;
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Fuzz script execution with arbitrary bytecode

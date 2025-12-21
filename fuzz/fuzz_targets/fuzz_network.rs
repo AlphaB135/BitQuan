@@ -1,7 +1,7 @@
 #![no_main]
 
+use bitquan_network::protocol::{Message, MessageEnvelope};
 use libfuzzer_sys::fuzz_target;
-use bitquan_network::protocol::{MessageEnvelope, Message};
 
 fuzz_target!(|data: &[u8]| {
     // Fuzz network message envelope deserialization
@@ -16,7 +16,7 @@ fuzz_target!(|data: &[u8]| {
     // Fuzz message creation
     if data.len() >= 8 {
         let nonce = u64::from_le_bytes([
-            data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]
+            data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
         ]);
         // Test message creation doesn't panic
         let _ = Message::Ping { nonce };

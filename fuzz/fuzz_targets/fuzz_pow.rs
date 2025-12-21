@@ -1,8 +1,10 @@
 #![no_main]
 
-use libfuzzer_sys::fuzz_target;
-use bitquan_consensus::pow::{PowEngine, RandomXEngine, EthashEngine, Sha256dEngine, RandomXConfig, EthashConfig, RandomXMode};
+use bitquan_consensus::pow::{
+    EthashConfig, EthashEngine, PowEngine, RandomXConfig, RandomXEngine, RandomXMode, Sha256dEngine,
+};
 use bitquan_types::BlockHeader;
+use libfuzzer_sys::fuzz_target;
 
 // Fuzz PoW engines for VM caching, DoS protection, and algorithm switching
 fuzz_target!(|data: &[u8]| {
@@ -18,7 +20,10 @@ fuzz_target!(|data: &[u8]| {
 
     // Parse header fields safely
     let version = i32::from_le_bytes([
-        header_bytes[0], header_bytes[1], header_bytes[2], header_bytes[3]
+        header_bytes[0],
+        header_bytes[1],
+        header_bytes[2],
+        header_bytes[3],
     ]);
     let mut prev_block = [0u8; 32];
     prev_block.copy_from_slice(&header_bytes[4..36]);
@@ -27,14 +32,26 @@ fuzz_target!(|data: &[u8]| {
     let mut pqc_agg_hint = [0u8; 32];
     pqc_agg_hint.copy_from_slice(&header_bytes[68..100]);
     let time = u32::from_le_bytes([
-        header_bytes[100], header_bytes[101], header_bytes[102], header_bytes[103]
+        header_bytes[100],
+        header_bytes[101],
+        header_bytes[102],
+        header_bytes[103],
     ]);
     let bits = u32::from_le_bytes([
-        header_bytes[104], header_bytes[105], header_bytes[106], header_bytes[107]
+        header_bytes[104],
+        header_bytes[105],
+        header_bytes[106],
+        header_bytes[107],
     ]);
     let nonce = u64::from_le_bytes([
-        header_bytes[108], header_bytes[109], header_bytes[110], header_bytes[111],
-        header_bytes[112], header_bytes[113], header_bytes[114], header_bytes[115]
+        header_bytes[108],
+        header_bytes[109],
+        header_bytes[110],
+        header_bytes[111],
+        header_bytes[112],
+        header_bytes[113],
+        header_bytes[114],
+        header_bytes[115],
     ]);
     let algo_id = header_bytes[116];
 
@@ -126,18 +143,20 @@ fuzz_target!(|data: &[u8]| {
         let header_arc = Arc::new(header);
         let rx_config_arc = Arc::new(randomx_config.clone());
 
-        let handles: Vec<_> = (0..3).map(|_| {
-            let header_clone = Arc::clone(&header_arc);
-            let config_clone = Arc::clone(&rx_config_arc);
+        let handles: Vec<_> = (0..3)
+            .map(|_| {
+                let header_clone = Arc::clone(&header_arc);
+                let config_clone = Arc::clone(&rx_config_arc);
 
-            thread::spawn(move || {
-                let engine = RandomXEngine::new((*config_clone).clone());
-                for _ in 0..2 {
-                    let _ = engine.verify(&*header_clone);
-                    let _ = engine.pow_hash(&*header_clone);
-                }
+                thread::spawn(move || {
+                    let engine = RandomXEngine::new((*config_clone).clone());
+                    for _ in 0..2 {
+                        let _ = engine.verify(&*header_clone);
+                        let _ = engine.pow_hash(&*header_clone);
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all threads to complete
         for handle in handles {
