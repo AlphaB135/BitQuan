@@ -4,7 +4,7 @@ use libfuzzer_sys::fuzz_target;
 use bitquan_consensus::{ForkChoice, ForkError};
 use bitquan_types::BlockHeader;
 use bitquan_consensus::difficulty::compact_to_target;
-use bitquan_consensus::chain_work::U256;
+use bitquan_types::U256;
 
 // Fuzz fork choice logic for U256 chain work and reorg handling
 fuzz_target!(|data: &[u8]| {
@@ -106,7 +106,8 @@ fuzz_target!(|data: &[u8]| {
         }
 
         // Test U256 chain work calculations directly
-        if let Ok(target_bytes) = compact_to_target(header.bits) {
+        let target_bytes = compact_to_target(header.bits);
+        if let Ok(target_bytes) = target_bytes {
             let target = U256::from_big_endian(&target_bytes);
 
             // Test extreme target values
