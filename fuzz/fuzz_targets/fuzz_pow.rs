@@ -131,7 +131,7 @@ fuzz_target!(|data: &[u8]| {
             let config_clone = Arc::clone(&rx_config_arc);
 
             thread::spawn(move || {
-                let mut engine = RandomXEngine::new((*config_clone).clone());
+                let engine = RandomXEngine::new((*config_clone).clone());
                 for _ in 0..2 {
                     let _ = engine.verify(&*header_clone);
                     let _ = engine.pow_hash(&*header_clone);

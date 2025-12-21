@@ -9,7 +9,7 @@ use bq_crypto::{CryptoError, CryptoRegistry};
 use thiserror::Error;
 
 mod asert;
-mod difficulty;
+pub mod difficulty;
 mod economic;
 pub mod fork;
 mod monitoring;
