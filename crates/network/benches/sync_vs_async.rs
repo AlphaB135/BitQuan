@@ -19,7 +19,7 @@ fn bench_sync_peer_creation(c: &mut Criterion) {
                     black_box({
                         // Would be: Peer::new(...) in real implementation
                         std::thread::sleep(Duration::from_nanos(100))
-                    });
+                    })
                 }
             });
         });
@@ -77,7 +77,7 @@ fn bench_sync_message_handling(c: &mut Criterion) {
                             // Would be: peer.handle_message(msg) in real implementation
                             let _msg = format!("message_{}", i);
                             std::thread::sleep(Duration::from_nanos(50))
-                        });
+                        })
                     }
                 });
             },

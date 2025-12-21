@@ -443,8 +443,10 @@ mod tests {
 
     #[test]
     fn test_connection_manager_basic_operations() {
-        let mut config = ConnectionConfig::default();
-        config.max_connections_per_ip = 1; // Set to 1 for testing
+        let config = ConnectionConfig {
+            max_connections_per_ip: 1, // Set to 1 for testing
+            ..Default::default()
+        };
         let mut manager = ConnectionManager::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
         let ip = "127.0.0.1".parse().unwrap();
@@ -463,8 +465,10 @@ mod tests {
 
     #[test]
     fn test_connection_limits() {
-        let mut config = ConnectionConfig::default();
-        config.max_total_connections = 2;
+        let config = ConnectionConfig {
+            max_total_connections: 2,
+            ..Default::default()
+        };
         let mut manager = ConnectionManager::new(config);
 
         let peer1 = format!("test_peer_{}", rand::random::<u64>());
@@ -499,8 +503,10 @@ mod tests {
 
     #[test]
     fn test_connection_cleanup() {
-        let mut config = ConnectionConfig::default();
-        config.idle_timeout = Duration::from_millis(100);
+        let config = ConnectionConfig {
+            idle_timeout: Duration::from_millis(100),
+            ..Default::default()
+        };
         let mut manager = ConnectionManager::new(config);
 
         let peer = format!("test_peer_{}", rand::random::<u64>());
