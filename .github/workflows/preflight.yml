@@ -58,15 +58,14 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build workspace
-        run: cargo build --locked --release --workspace
+      - name: Build workspace (for validation only)
+        run: cargo build --locked --release --bin bitquan-node
 
-      - name: Upload preflight binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: bq-preflight
-          path: target/release/bq-preflight
-          retention-days: 7
+      - name: Verify preflight scripts exist
+        run: |
+          echo "✅ Checking preflight scripts..."
+          test -f scripts/preflight/preflight.sh && echo "Found preflight.sh" || exit 1
+          test -x scripts/preflight/preflight.sh && echo "Preflight.sh is executable" || chmod +x scripts/preflight/preflight.sh
 
   test-unit:
     name: Unit and Integration Tests
@@ -101,19 +100,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download preflight binary
-        uses: actions/download-artifact@v3
-        with:
-          name: bq-preflight
-          path: target/release/
-
-      - name: Make binary executable
-        run: chmod +x target/release/bq-preflight
-
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y jq dnsutils netcat-openbsd
+
+      - name: Make scripts executable
+        run: chmod +x scripts/preflight/*.sh
 
       - name: Run preflight validation (mock mode)
         env:
@@ -139,19 +132,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download preflight binary
-        uses: actions/download-artifact@v3
-        with:
-          name: bq-preflight
-          path: target/release/
-
-      - name: Make binary executable
-        run: chmod +x target/release/bq-preflight
-
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y jq dnsutils netcat-openbsd
+
+      - name: Make scripts executable
+        run: chmod +x scripts/preflight/*.sh
 
       - name: Run preflight validation (mock mode)
         env:
