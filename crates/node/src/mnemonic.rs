@@ -166,6 +166,7 @@ impl MnemonicHelper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secrecy::ExposeSecret;
 
     #[test]
     fn test_generate_mnemonic_12_words() {
@@ -253,7 +254,10 @@ mod tests {
 
         // Should produce identical keypairs
         assert_eq!(kp1.public_key, kp2.public_key);
-        assert_eq!(kp1.secret_key, kp2.secret_key);
+        assert_eq!(
+            kp1.secret_key.expose_secret(),
+            kp2.secret_key.expose_secret()
+        );
     }
 
     #[test]
@@ -298,9 +302,18 @@ mod tests {
         assert_ne!(kp1.public_key, kp2.public_key);
         assert_ne!(kp0.public_key, kp2.public_key);
 
-        assert_ne!(kp0.secret_key, kp1.secret_key);
-        assert_ne!(kp1.secret_key, kp2.secret_key);
-        assert_ne!(kp0.secret_key, kp2.secret_key);
+        assert_ne!(
+            kp0.secret_key.expose_secret(),
+            kp1.secret_key.expose_secret()
+        );
+        assert_ne!(
+            kp1.secret_key.expose_secret(),
+            kp2.secret_key.expose_secret()
+        );
+        assert_ne!(
+            kp0.secret_key.expose_secret(),
+            kp2.secret_key.expose_secret()
+        );
     }
 
     #[test]
@@ -318,8 +331,14 @@ mod tests {
         // All should be identical
         assert_eq!(kp1.public_key, kp2.public_key);
         assert_eq!(kp2.public_key, kp3.public_key);
-        assert_eq!(kp1.secret_key, kp2.secret_key);
-        assert_eq!(kp2.secret_key, kp3.secret_key);
+        assert_eq!(
+            kp1.secret_key.expose_secret(),
+            kp2.secret_key.expose_secret()
+        );
+        assert_eq!(
+            kp2.secret_key.expose_secret(),
+            kp3.secret_key.expose_secret()
+        );
     }
 
     #[test]
@@ -342,7 +361,10 @@ mod tests {
 
         // Keys should be completely different
         assert_ne!(kp1.public_key, kp2.public_key);
-        assert_ne!(kp1.secret_key, kp2.secret_key);
+        assert_ne!(
+            kp1.secret_key.expose_secret(),
+            kp2.secret_key.expose_secret()
+        );
     }
 
     #[test]

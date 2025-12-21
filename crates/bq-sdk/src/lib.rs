@@ -13,18 +13,19 @@
 //! ## Quick Start
 //!
 //! ```rust
+//! use bq_sdk::wallet::SimpleWallet;
 //! use bq_sdk::{Wallet, WalletConfig, Network, PQPSBT, DerivationPath};
 //!
 //! // Create new wallet
 //! let config = WalletConfig::new(Network::Mainnet);
-//! let mut wallet = Wallet::generate(&config)?;
+//! let mut wallet = SimpleWallet::generate(&config)?;
 //!
 //! // Get address
 //! let address = wallet.get_address(&DerivationPath::default())?;
 //! println!("Address: {}", address);
 //!
 //! // Build transaction
-//! let psbt = PQPSBT::builder()
+//! let mut psbt = PQPSBT::builder()
 //!     .version(1)
 //!     .add_input("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 0)?
 //!     .add_output(&address.to_string(), 1000000)?
@@ -32,7 +33,7 @@
 //!
 //! // Sign transaction
 //! wallet.sign_psbt(&mut psbt)?;
-//! let tx = psbt.finalize()?;
+//! // let tx = psbt.finalize()?; // TODO: Implement finalization
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 

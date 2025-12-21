@@ -574,7 +574,8 @@ mod tests {
             WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
         let serializable = keypair.to_serializable();
         assert_eq!(serializable.public_key.len(), PUBLICKEYBYTES * 2);
-        assert_eq!(serializable.secret_key.len(), SECRETKEYBYTES * 2);
+        // Secret key is now encrypted with Argon2id, so length varies and it's not hex
+        assert!(serializable.secret_key.starts_with("$argon2"));
     }
 
     #[test]

@@ -226,7 +226,7 @@ impl Mnemonic {
         }
 
         // Convert to words (simplified BIP39 implementation)
-        let word_count = (entropy_bits + 10).div_ceil(11); // 11 bits per word
+        let word_count = entropy_bits.div_ceil(11); // 11 bits per word
         let mut words = Vec::with_capacity(word_count);
 
         for i in 0..word_count {

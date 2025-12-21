@@ -706,6 +706,7 @@ enum Commands {
     },
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_rpc_server(
     handler: crate::rpc::NodeRpcHandler,
     addr: String,
@@ -720,7 +721,10 @@ fn run_rpc_server(
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .expect("failed to build RPC runtime");
+        .unwrap_or_else(|e| {
+            eprintln!("failed to build RPC runtime: {}", e);
+            std::process::exit(1);
+        });
 
     rt.block_on(async move {
         // JWT authentication (required)
@@ -2888,16 +2892,8 @@ async fn p2p_server(
         }
 
         let tls_config_for_thread = tls_config.clone();
-        let jwt_config_owned = if let Some(s) = jwt_config {
-            Some(s.to_string())
-        } else {
-            None
-        };
-        let jwt_secret_owned = if let Some(s) = jwt_secret {
-            Some(s.to_string())
-        } else {
-            None
-        };
+        let jwt_config_owned = jwt_config.map(|s| s.to_string());
+        let jwt_secret_owned = jwt_secret.map(|s| s.to_string());
         let username_owned = username.to_string();
         let password_owned = password_value.clone();
 

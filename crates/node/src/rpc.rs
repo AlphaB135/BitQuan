@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 
@@ -16,8 +16,8 @@ use bitquan_rpc::{
     },
     RpcError,
 };
-use bitquan_storage::{async_store::AsyncChainStore, rocksdb_store::RocksDBStore, StorageError};
-use bitquan_types::{NetworkId, Transaction, GENESIS_BITS};
+use bitquan_storage::{async_store::AsyncChainStore, StorageError};
+use bitquan_types::{Transaction, GENESIS_BITS};
 use hex::FromHex;
 
 /// Node RPC handler backed by an async chain store.
@@ -87,7 +87,7 @@ impl RpcMethods for NodeRpcHandler {
 
         let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
 
-        let tip_hash = tip.as_ref().map(|header| hex::encode(header_hash(&header)));
+        let tip_hash = tip.as_ref().map(|header| hex::encode(header_hash(header)));
 
         let difficulty = tip
             .as_ref()
