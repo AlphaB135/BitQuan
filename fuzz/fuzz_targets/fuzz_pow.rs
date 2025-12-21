@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use bitquan_consensus::{PowEngine, RandomXEngine, EthashEngine, Sha256dEngine, RandomXConfig, EthashConfig};
+use bitquan_consensus::pow::{PowEngine, RandomXEngine, EthashEngine, Sha256dEngine, RandomXConfig, EthashConfig, RandomXMode};
 use bitquan_types::BlockHeader;
 
 // Fuzz PoW engines for VM caching, DoS protection, and algorithm switching
@@ -56,7 +56,7 @@ fuzz_target!(|data: &[u8]| {
 
     // Test RandomX engine with caching
     let randomx_config = RandomXConfig {
-        mode: bitquan_consensus::RandomXMode::Fast,
+        mode: RandomXMode::Fast,
         seed: [0u8; 32], // Use fixed seed for reproducible caching
     };
     let mut randomx_engine = RandomXEngine::new(randomx_config);
@@ -89,9 +89,9 @@ fuzz_target!(|data: &[u8]| {
 
             let rx_config = RandomXConfig {
                 mode: if i % 2 == 0 {
-                    bitquan_consensus::RandomXMode::Fast
+                    RandomXMode::Fast
                 } else {
-                    bitquan_consensus::RandomXMode::Full
+                    RandomXMode::Full
                 },
                 seed,
             };
