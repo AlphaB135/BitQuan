@@ -33,7 +33,7 @@ where
 
     tokio::spawn(async move {
         let _ = shutdown_rx.await;
-        let _ = signal_tx.send(());
+        std::mem::drop(signal_tx.send(()));
     });
 
     let handle = tokio::task::spawn_blocking(move || {

@@ -163,8 +163,9 @@ mod tests {
         let address = encode_bech32m(&hash);
         assert!(address.starts_with("bq1"));
 
-        let decoded = decode_bech32m(&address).expect("Failed to decode bech32m address");
-        assert_eq!(decoded, hash);
+        let decoded_result = decode_bech32m(&address);
+        assert!(decoded_result.is_ok(), "Failed to decode bech32m address: {:?}", decoded_result.err());
+        assert_eq!(decoded_result.unwrap(), hash);
     }
 
     #[test]
