@@ -20,7 +20,7 @@ fn create_test_block(height: u64, miner_id: &str, reward: u64) -> BlockRecord {
 #[test]
 fn test_reward_becomes_spendable_after_100_blocks() {
     // Create in-memory database
-    let db = PoolDatabase::memory().expect("Failed to create database");
+    let _db = PoolDatabase::memory().expect("Failed to create database");
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Mine block at height 0
@@ -60,7 +60,7 @@ fn test_reward_becomes_spendable_after_100_blocks() {
 
 #[test]
 fn test_balance_tracking_total_spendable_pending() {
-    let db = PoolDatabase::memory().expect("Failed to create database");
+    let _db = PoolDatabase::memory().expect("Failed to create database");
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Mine 10 blocks for miner1
@@ -100,7 +100,7 @@ fn test_balance_tracking_total_spendable_pending() {
 
 #[test]
 fn test_multiple_miners_independent_balances() {
-    let db = PoolDatabase::memory().expect("Failed to create database");
+    let _db = PoolDatabase::memory().expect("Failed to create database");
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Miner1 mines blocks 0-4
@@ -141,7 +141,7 @@ fn test_multiple_miners_independent_balances() {
 
 #[test]
 fn test_settlement_at_exact_maturity_height() {
-    let db = PoolDatabase::memory().expect("Failed to create database");
+    let _db = PoolDatabase::memory().expect("Failed to create database");
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Mine block at height 50
@@ -172,7 +172,7 @@ fn test_settlement_at_exact_maturity_height() {
 
 #[test]
 fn test_edge_case_height_zero() {
-    let db = PoolDatabase::memory().expect("Failed to create database");
+    let _db = PoolDatabase::memory().expect("Failed to create database");
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Genesis block at height 0
@@ -199,7 +199,7 @@ fn test_edge_case_height_zero() {
 
 #[test]
 fn test_progressive_settlement() {
-    let db = PoolDatabase::memory().expect("Failed to create database");
+    let _db = PoolDatabase::memory().expect("Failed to create database");
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Mine blocks 0-9
@@ -233,7 +233,7 @@ fn test_progressive_settlement() {
 
 #[test]
 fn test_no_rewards_for_unknown_miner() {
-    let db = PoolDatabase::memory().expect("Failed to create database");
+    let _db = PoolDatabase::memory().expect("Failed to create database");
     let engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     let balance = engine
@@ -247,7 +247,7 @@ fn test_no_rewards_for_unknown_miner() {
 
 #[test]
 fn test_settlement_idempotent() {
-    let db = PoolDatabase::memory().expect("Failed to create database");
+    let _db = PoolDatabase::memory().expect("Failed to create database");
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     let block = create_test_block(0, "miner1", 50_0000_0000);
