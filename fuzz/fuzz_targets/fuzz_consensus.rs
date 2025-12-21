@@ -2,8 +2,9 @@
 
 use libfuzzer_sys::fuzz_target;
 use bitquan_consensus::{ForkChoice, ForkError};
-use bitquan_types::{BlockHeader, compact_to_target};
-use primitive_types::U256;
+use bitquan_types::BlockHeader;
+use bitquan_consensus::difficulty::compact_to_target;
+use bitquan_consensus::chain_work::U256;
 
 // Fuzz fork choice logic for U256 chain work and reorg handling
 fuzz_target!(|data: &[u8]| {

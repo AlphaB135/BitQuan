@@ -16,10 +16,11 @@ fn bench_sync_peer_creation(c: &mut Criterion) {
             b.iter(|| {
                 // Simulate sync peer creation overhead
                 for _ in 0..size {
-                    black_box({
+                    let result = {
                         // Would be: Peer::new(...) in real implementation
                         std::thread::sleep(Duration::from_nanos(100))
-                    })
+                    };
+                    black_box(result)
                 }
             });
         });
@@ -73,11 +74,12 @@ fn bench_sync_message_handling(c: &mut Criterion) {
                 b.iter(|| {
                     // Simulate sync message processing
                     for i in 0..messages {
-                        black_box({
+                        let result = {
                             // Would be: peer.handle_message(msg) in real implementation
                             let _msg = format!("message_{}", i);
                             std::thread::sleep(Duration::from_nanos(50))
-                        })
+                        };
+                        black_box(result)
                     }
                 });
             },

@@ -70,6 +70,7 @@ fuzz_target!(|data: &[u8]| {
     // Test Ethash engine with caching
     let ethash_config = EthashConfig {
         cache_size: 1024, // Fixed size for reproducible caching
+        dag_size: 2048,   // Add DAG size for Ethash
     };
     let mut ethash_engine = EthashEngine::new(ethash_config);
 

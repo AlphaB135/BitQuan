@@ -597,7 +597,7 @@ mod tests {
     #[test]
     fn test_reward_halving_logic() {
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
-        let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
+        let engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
         // Fee estimation: 1 tx * 1000 satoshis
         const FEE: u64 = 1000;
