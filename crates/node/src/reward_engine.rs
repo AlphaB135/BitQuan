@@ -493,8 +493,8 @@ mod tests {
 
     #[test]
     fn test_reward_halving_logic() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
-        let engine = RewardEngine::new(db);
+        let _db = PoolDatabase::memory().expect("Failed to create memory database");
+        let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
         // Fee estimation: 1 tx * 1000 satoshis
         const FEE: u64 = 1000;
@@ -517,7 +517,7 @@ mod tests {
 
     #[test]
     fn test_credit_and_settle_rewards() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
+        let _db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
         engine
@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     fn test_record_block() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
+        let _db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
         let block = dummy_block(100);
@@ -556,7 +556,7 @@ mod tests {
 
     #[test]
     fn test_pool_balance_metrics() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
+        let _db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
         let block = dummy_block(0);
@@ -574,7 +574,7 @@ mod tests {
 
     #[test]
     fn test_record_payout() {
-        let db = PoolDatabase::memory().expect("Failed to create memory database");
+        let _db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
         let payout_id = engine
