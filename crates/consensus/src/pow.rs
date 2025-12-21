@@ -750,14 +750,12 @@ mod tests {
             "SHA256d pow_hash failed: {:?}",
             sha_hash_result.err()
         );
-        let sha_hash = sha_hash_result.unwrap();
-
-        let rx_hash_result = rx_engine.pow_hash(&hdr);
         assert!(
             rx_hash_result.is_ok(),
             "RandomX pow_hash failed: {:?}",
             rx_hash_result.err()
         );
+        let sha_hash = sha_hash_result.unwrap();
         let rx_hash = rx_hash_result.unwrap();
 
         // Different algorithms should produce different hashes
