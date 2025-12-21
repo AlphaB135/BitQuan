@@ -23,8 +23,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
+      # RUSTC_WRAPPER: sccache # Temporary disabled due to GitHub Actions infrastructure issue
+      # SCCACHE_GHA_ENABLED: "true"
       CARGO_TERM_COLOR: always
       BITQUAN_SKIP_PQC_TESTS: "1"
 
@@ -32,11 +32,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: mozilla-actions/sccache-action@v0.0.4
-      - uses: Swatinem/rust-cache@v2
-        with:
-          # main/nightly cache key กว้างขึ้นได้ถ้าต้องการ
-          shared-key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      # - uses: mozilla-actions/sccache-action@v0.0.4 # Temporarily disabled
+      # - uses: Swatinem/rust-cache@v2 # Temporarily disabled
+      #   with:
+      #     # main/nightly cache key กว้างขึ้นได้ถ้าต้องการ
+      #     shared-key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install nextest + llvm-cov
         run: cargo install cargo-nextest cargo-llvm-cov --locked
 
@@ -77,7 +77,7 @@ jobs:
           set -e
           # Actual targets from fuzz_targets/
           for t in fuzz_block fuzz_crypto fuzz_mempool fuzz_network fuzz_script fuzz_transaction fuzz_wire; do
-            cargo fuzz run "$t" -- -max_total_time=600
+            cargo +nightly fuzz run "$t" -- -max_total_time=600
           done
 
   audit:
