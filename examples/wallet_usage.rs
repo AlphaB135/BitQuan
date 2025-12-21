@@ -22,7 +22,7 @@ fn basic_usage_example() -> Result<(), Box<dyn std::error::Error>> {
 
     // Decrypt it back
     let start = std::time::Instant::now();
-    let decrypted = decrypt_keystore(&keystore.as_ref().unwrap(), password)?;
+    let decrypted = decrypt_keystore(keystore.as_ref().unwrap(), password)?;
     let first_time = start.elapsed();
 
     println!("✅ First decryption: {:?} (cold cache)", first_time);
@@ -30,7 +30,7 @@ fn basic_usage_example() -> Result<(), Box<dyn std::error::Error>> {
 
     // Decrypt again (should be much faster)
     let start = std::time::Instant::now();
-    let decrypted2 = decrypt_keystore(&keystore.as_ref().unwrap(), password)?;
+    let decrypted2 = decrypt_keystore(keystore.as_ref().unwrap(), password)?;
     let second_time = start.elapsed();
 
     println!("✅ Second decryption: {:?} (hot cache)", second_time);
@@ -60,7 +60,7 @@ fn server_security_example() -> Result<(), Box<dyn std::error::Error>> {
     // Decrypt (always performs full KDF, no caching)
     let start = std::time::Instant::now();
     let decrypted =
-        decrypt_keystore_with_config(&keystore.as_ref().unwrap(), server_password, &server_config)?;
+        decrypt_keystore_with_config(keystore.as_ref().unwrap(), server_password, &server_config)?;
     let duration = start.elapsed();
 
     println!("✅ Decrypted in {:?} (no cache for security)", duration);

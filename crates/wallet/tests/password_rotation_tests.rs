@@ -87,7 +87,7 @@ fn test_password_rotation_wrong_old_password() {
 
     // Attempt rotation with wrong old password should fail
     let result = rotate_keystore(
-        &keystore.as_ref().unwrap(),
+        keystore.as_ref().unwrap(),
         wrong_password,
         new_password,
         8192,
