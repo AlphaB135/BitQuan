@@ -44,6 +44,11 @@ jobs:
         # เพิ่ม custom queries สำหรับ Rust security
         queries: security-extended,security-and-quality
 
+    - name: 🔨 Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev pkg-config
+
     - name: 🔨 Autobuild
       uses: github/codeql-action/autobuild@v2
 
@@ -68,6 +73,11 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
+
+    - name: 📦 Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev pkg-config
 
     - name: 📦 Cache Dependencies
       uses: actions/cache@v4
@@ -129,8 +139,8 @@ jobs:
       uses: actions/dependency-review-action@v3
       with:
         fail-on-severity: moderate
+        # Only use allow-licenses, remove conflicting deny-licenses
         allow-licenses: MIT,Apache-2.0,BSD-3-Clause,ISC,CC0-1.0
-        deny-licenses: GPL-3.0,AGPL-3.0
 
     - name: 📊 Dependency Summary
       run: |
@@ -161,13 +171,20 @@ jobs:
       run: |
         echo "🔍 Running additional secret scanning..."
 
-        # Install and run cargo-secret
-        cargo install cargo-secret
-        cargo secret scan || true
+        # cargo-secret doesn't exist, use alternative secret scanning
+        echo "Scanning for hardcoded secrets in source code..."
 
         # Scan for common secret patterns
         grep -r -i -E "(password|secret|key|token)\s*[:=]\s*['\"][^'\"]{8,}" . --exclude-dir=target || \
           echo "No obvious secrets detected in source code"
+
+        # Scan for AWS keys
+        grep -r -E "AKIA[0-9A-Z]{16}" . --exclude-dir=target || \
+          echo "No AWS access keys detected"
+
+        # Scan for JWT tokens
+        grep -r -E "eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*" . --exclude-dir=target || \
+          echo "No JWT tokens detected"
 
   security-scoring:
     name: 📊 Security Score
@@ -181,9 +198,9 @@ jobs:
     - name: 🔍 OSSF Scorecard Analysis
       uses: ossf/scorecard-action@v2.3.1
       with:
-        results-file: results.json
-        results-format: json
-        repo: ${{ github.repository }}
+        results_file: results.json
+        results_format: json
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         license: MIT
 
     - name: 📈 Upload Scorecard Results
