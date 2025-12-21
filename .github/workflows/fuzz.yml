@@ -38,7 +38,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
+        toolchain: nightly
 
     - name: Install cargo-fuzz
       run: cargo install cargo-fuzz
