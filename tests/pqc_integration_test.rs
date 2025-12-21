@@ -285,7 +285,7 @@ fn test_cache_timeout_and_cleanup() -> Result<(), Box<dyn std::error::Error>> {
     // First decryption (should populate cache)
     println!("  🔄 First decryption (populating cache)...");
     let start1 = Instant::now();
-    let decrypted =
+    let _decrypted =
         decrypt_keystore_with_config(&keystore.as_ref().unwrap(), password, &short_timeout_config)?;
     let time1 = start1.elapsed();
 
