@@ -660,11 +660,24 @@ mod tests {
         // Larger exponent -> larger target (easier)
         let t1 = compact_to_target_bytes(0x1d00ffff);
         let t2 = compact_to_target_bytes(0x1f00ffff);
-        assert!(t1.is_ok(), "Failed to convert bits 0x1d00ffff to target bytes: {:?}", t1.err());
-        assert!(t2.is_ok(), "Failed to convert bits 0x1f00ffff to target bytes: {:?}", t2.err());
+        assert!(
+            t1.is_ok(),
+            "Failed to convert bits 0x1d00ffff to target bytes: {:?}",
+            t1.err()
+        );
+        assert!(
+            t2.is_ok(),
+            "Failed to convert bits 0x1f00ffff to target bytes: {:?}",
+            t2.err()
+        );
         let t1_val = t1.unwrap();
         let t2_val = t2.unwrap();
-        assert!(t1_val < t2_val, "Expected t1 < t2, but got t1={:?}, t2={:?}", t1_val, t2_val);
+        assert!(
+            t1_val < t2_val,
+            "Expected t1 < t2, but got t1={:?}, t2={:?}",
+            t1_val,
+            t2_val
+        );
     }
 
     #[test]
@@ -698,7 +711,11 @@ mod tests {
 
         let hdr = dummy_header();
         let hash_result = engine.pow_hash(&hdr);
-        assert!(hash_result.is_ok(), "SHA256d pow_hash failed: {:?}", hash_result.err());
+        assert!(
+            hash_result.is_ok(),
+            "SHA256d pow_hash failed: {:?}",
+            hash_result.err()
+        );
         let hash = hash_result.unwrap();
         assert_eq!(hash.len(), 32);
     }
@@ -712,7 +729,11 @@ mod tests {
 
         let hdr = dummy_header();
         let hash_result = engine.pow_hash(&hdr);
-        assert!(hash_result.is_ok(), "RandomX pow_hash failed: {:?}", hash_result.err());
+        assert!(
+            hash_result.is_ok(),
+            "RandomX pow_hash failed: {:?}",
+            hash_result.err()
+        );
         let hash = hash_result.unwrap();
         assert_eq!(hash.len(), 32);
     }
@@ -724,11 +745,19 @@ mod tests {
 
         let hdr = dummy_header();
         let sha_hash_result = sha_engine.pow_hash(&hdr);
-        assert!(sha_hash_result.is_ok(), "SHA256d pow_hash failed: {:?}", sha_hash_result.err());
+        assert!(
+            sha_hash_result.is_ok(),
+            "SHA256d pow_hash failed: {:?}",
+            sha_hash_result.err()
+        );
         let sha_hash = sha_hash_result.unwrap();
 
         let rx_hash_result = rx_engine.pow_hash(&hdr);
-        assert!(rx_hash_result.is_ok(), "RandomX pow_hash failed: {:?}", rx_hash_result.err());
+        assert!(
+            rx_hash_result.is_ok(),
+            "RandomX pow_hash failed: {:?}",
+            rx_hash_result.err()
+        );
         let rx_hash = rx_hash_result.unwrap();
 
         // Different algorithms should produce different hashes
