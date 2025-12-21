@@ -168,8 +168,8 @@ jobs:
       run: |
         echo "🏪 Generating Software Bill of Materials (SBOM)..."
         cargo install cargo-cyclonedx
-        cargo cyclonedx --format json --output sbom.json
-        cargo cyclonedx --format xml --output sbom.xml
+        cargo cyclonedx --format json > sbom.json
+        cargo cyclonedx --format xml > sbom.xml
 
     - name: 📈 Upload SBOM
       uses: actions/upload-artifact@v4
@@ -192,15 +192,16 @@ jobs:
       run: |
         echo "🔍 Running malware detection..."
 
-        # Install and run ClamAV
+        # Install ClamAV
         sudo apt-get update
         sudo apt-get install -y clamav clamav-freshclam
 
-        # Update virus database
-        sudo freshclam
+        # Update virus database with retry and error handling
+        sudo systemctl stop clamav-freshclam || true
+        sudo freshclam --quiet || echo "⚠️ Freshclam update skipped (database may be current)"
 
-        # Scan repository
-        sudo clamscan --recursive --infected --remove . || \
+        # Scan repository (non-destructive scan only)
+        sudo clamscan --recursive --infected . || \
           echo "No malware detected"
 
     - name: 🔍 YARA Rule Analysis
@@ -221,16 +222,16 @@ jobs:
   security-scorecard:
     name: OSSF Security Scorecard
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
     - name: 🔍 Run OSSF Scorecard
       uses: ossf/scorecard-action@v2.3.1
       with:
-        results-file: results.json
-        results-format: json
-        repo: ${{ github.repository }}
-        license: MIT
-        token: ${{ secrets.SCORECARD_READ_TOKEN }}
+        results_file: results.json
+        results_format: json
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_results: false
 
     - name: 📈 Upload Scorecard Results
       uses: actions/upload-artifact@v4

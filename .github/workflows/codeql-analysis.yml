@@ -129,7 +129,7 @@ jobs:
   dependency-review:
     name: 🔍 Dependency Review
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: false  # Disabled: requires GitHub Advanced Security for private repos
     permissions:
       contents: read
       pull-requests: write
@@ -139,7 +139,6 @@ jobs:
       uses: actions/dependency-review-action@v3
       with:
         fail-on-severity: moderate
-        # Only use allow-licenses, remove conflicting deny-licenses
         allow-licenses: MIT,Apache-2.0,BSD-3-Clause,ISC,CC0-1.0
 
     - name: 📊 Dependency Summary
@@ -201,7 +200,7 @@ jobs:
         results_file: results.json
         results_format: json
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        license: MIT
+        publish_results: false
 
     - name: 📈 Upload Scorecard Results
       uses: actions/upload-artifact@v4
