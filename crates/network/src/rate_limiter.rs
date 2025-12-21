@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_bans_after_violations() {
         let config = RateLimitConfig {
-            violation_threshold: 2, // Lower for testing
+            violation_threshold: 2,       // Lower for testing
             max_messages_per_window: 100, // High enough to not interfere
             ..Default::default()
         };
