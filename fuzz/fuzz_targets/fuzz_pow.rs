@@ -59,7 +59,7 @@ fuzz_target!(|data: &[u8]| {
         mode: RandomXMode::Fast,
         seed: [0u8; 32], // Use fixed seed for reproducible caching
     };
-    let mut randomx_engine = RandomXEngine::new(randomx_config);
+    let randomx_engine = RandomXEngine::new(randomx_config.clone());
 
     // Test multiple calls to exercise caching
     for _ in 0..3 {
@@ -72,7 +72,7 @@ fuzz_target!(|data: &[u8]| {
         cache_size: 1024, // Fixed size for reproducible caching
         dag_size: 2048,   // Add DAG size for Ethash
     };
-    let mut ethash_engine = EthashEngine::new(ethash_config);
+    let ethash_engine = EthashEngine::new(ethash_config.clone());
 
     // Test multiple calls to exercise caching
     for _ in 0..3 {
@@ -97,7 +97,7 @@ fuzz_target!(|data: &[u8]| {
                 seed,
             };
 
-            let mut rx_engine = RandomXEngine::new(rx_config);
+            let rx_engine = RandomXEngine::new(rx_config);
             let _ = rx_engine.verify(&header);
             let _ = rx_engine.pow_hash(&header);
         }
@@ -109,11 +109,11 @@ fuzz_target!(|data: &[u8]| {
         let mut extreme_header = header.clone();
         extreme_header.nonce = u64::MAX;
 
-        let mut rx_engine = RandomXEngine::new(randomx_config);
+        let rx_engine = RandomXEngine::new(randomx_config.clone());
         let _ = rx_engine.verify(&extreme_header);
         let _ = rx_engine.pow_hash(&extreme_header);
 
-        let mut ethash_engine = EthashEngine::new(ethash_config);
+        let ethash_engine = EthashEngine::new(ethash_config.clone());
         let _ = ethash_engine.verify(&extreme_header);
         let _ = ethash_engine.pow_hash(&extreme_header);
     }
@@ -124,7 +124,7 @@ fuzz_target!(|data: &[u8]| {
         use std::thread;
 
         let header_arc = Arc::new(header);
-        let rx_config_arc = Arc::new(randomx_config);
+        let rx_config_arc = Arc::new(randomx_config.clone());
 
         let handles: Vec<_> = (0..3).map(|_| {
             let header_clone = Arc::clone(&header_arc);
