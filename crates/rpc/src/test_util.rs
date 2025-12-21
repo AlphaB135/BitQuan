@@ -5,6 +5,8 @@
 //! an instance on an ephemeral port, wait for readiness, and shut it down
 //! cleanly without relying on `sleep` heuristics.
 
+#![allow(dead_code)]
+
 use crate::server::RpcServer;
 use bitquan_types::error::{Error, Result};
 use tokio::net::TcpListener;

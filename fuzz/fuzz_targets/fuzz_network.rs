@@ -7,10 +7,10 @@ fuzz_target!(|data: &[u8]| {
     // Fuzz network message envelope deserialization
     if !data.is_empty() && data.len() <= 10_000_000 {
         // Test deserialization doesn't panic
-        let _ = MessageEnvelope::deserialize(data);
+        let _ = MessageEnvelope::deserialize(data, [0u8; 4]);
 
         // Test creating envelope from message
-        let _ = MessageEnvelope::new(Message::VerAck);
+        let _ = MessageEnvelope::new([0u8; 4], Message::VerAck);
     }
 
     // Fuzz message creation
@@ -26,7 +26,7 @@ fuzz_target!(|data: &[u8]| {
     // Fuzz oversized messages (DoS protection)
     if data.len() > 10_000_000 {
         // Should handle oversized messages gracefully
-        let _ = MessageEnvelope::deserialize(&data[..10_000_000.min(data.len())]);
+        let _ = MessageEnvelope::deserialize(&data[..10_000_000.min(data.len())], [0u8; 4]);
     }
 
     // Fuzz malformed JSON payloads

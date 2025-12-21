@@ -56,8 +56,8 @@ fuzz_target!(|data: &[u8]| {
         height_delta,
         time_delta,
         &params,
-        Some(bitquan_consensus::asert::GuardContext {
-            state: &mut bitquan_consensus::asert::BurstGuardState::default(),
+        Some(bitquan_consensus::GuardContext {
+            state: &mut bitquan_consensus::BurstGuardState::default(),
             current_height: height_delta.max(0) as u64,
             activation_height: 0,
         }),
