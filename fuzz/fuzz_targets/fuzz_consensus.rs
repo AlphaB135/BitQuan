@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use bitquan_consensus::{ForkChoice, BlockNode, ForkError};
+use bitquan_consensus::{ForkChoice, ForkError};
 use bitquan_types::{BlockHeader, compact_to_target};
 use primitive_types::U256;
 

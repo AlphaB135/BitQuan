@@ -113,8 +113,6 @@ async fn test_peer_manager_concurrent_access() {
             for _ in 0..10 {
                 let count = pm.peer_count().await;
                 let ready_count = pm.ready_peer_count().await;
-                assert!(count >= 0, "Peer count should be non-negative");
-                assert!(ready_count >= 0, "Ready peer count should be non-negative");
                 assert!(
                     ready_count <= count,
                     "Ready peers should not exceed total peers"

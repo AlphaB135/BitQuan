@@ -17,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
@@ -27,6 +31,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
@@ -42,6 +50,11 @@ jobs:
       BITQUAN_SKIP_PQC_TESTS: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
@@ -59,6 +72,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
@@ -73,6 +90,10 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
@@ -86,6 +107,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
@@ -109,6 +134,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt

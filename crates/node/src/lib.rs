@@ -20,7 +20,7 @@ pub mod wallet;
 // Re-export all public types for tests and external usage
 pub use block_submit::{BlockSubmitter, SubmitResult};
 pub use pool_template::{BlockTemplate, PoolTemplateManager};
-pub use reward_engine::{RewardEngine, PoolDatabase};
+pub use reward_engine::{PoolDatabase, RewardEngine};
 pub use stratum_server::*;
 pub use sync_task::ChainState;
 pub use vardiff::VarDiff;
