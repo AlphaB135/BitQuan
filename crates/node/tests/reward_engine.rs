@@ -60,7 +60,7 @@ fn test_reward_halving_logic() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     // Fee is 1000 satoshis per transaction
     const FEE: u64 = 1000;
@@ -129,7 +129,7 @@ fn test_credit_and_settle_rewards() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     // Credit multiple rewards to same miner
     engine
@@ -168,7 +168,7 @@ fn test_pool_balance_metrics() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     let block = dummy_block(0);
     let hash = [1u8; 32];
@@ -193,7 +193,7 @@ fn test_miner_reward_accumulation() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     // Fee is 1000 satoshis per transaction
     const FEE: u64 = 1000;
@@ -231,7 +231,7 @@ fn test_multiple_miners() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     // Mine blocks with different miners
     engine
@@ -269,7 +269,7 @@ fn test_payout_recording() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     // Record a payout
     let payout_id = engine
@@ -290,7 +290,7 @@ fn test_database_persistence() {
     // Use a temporary file for this test (cross-platform)
     let temp_dir = std::env::temp_dir();
     let temp_path = temp_dir.join(format!("bitquan_test_{}.db", std::process::id()));
-    let temp_path_str = temp_path.to_str().expect("Failed to convert path");
+    let _temp_path_str = temp_path.to_str().expect("Failed to convert path");
 
     // Create and populate database (In-Memory)
     // Replaced PoolDatabase::open with memory() as open() is not implemented
@@ -298,7 +298,7 @@ fn test_database_persistence() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     engine
         .record_block(&dummy_block(0), [1u8; 32], 0, "miner1")
@@ -335,7 +335,7 @@ fn test_metrics_integration() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     let metrics = MiningMetrics::new(&[PowAlgo::Sha256d]);
 
@@ -367,7 +367,7 @@ fn test_edge_cases() {
     #[cfg(feature = "pool")]
     let mut engine = RewardEngine::new(_db);
     #[cfg(not(feature = "pool"))]
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     // Test with empty miner ID
     let result = engine.credit_miner("", 1000);
