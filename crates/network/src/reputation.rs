@@ -457,7 +457,8 @@ mod tests {
         // Attempt 1: Try going back 1 hour
         // Attempt 2: If failed (uptime < 1hr), try going back 5 mins
         // Attempt 3: If still failed (uptime < 5mins), use NOW (0 decay)
-        let past_instant = Instant::now().checked_sub(Duration::from_secs(3601))
+        let past_instant = Instant::now()
+            .checked_sub(Duration::from_secs(3601))
             .or_else(|| Instant::now().checked_sub(Duration::from_secs(300)))
             .unwrap_or(Instant::now());
 
