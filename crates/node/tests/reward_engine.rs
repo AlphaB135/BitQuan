@@ -57,10 +57,7 @@ impl ChainState {
 #[test]
 fn test_reward_halving_logic() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     // Fee is 1000 satoshis per transaction
     const FEE: u64 = 1000;
@@ -126,10 +123,7 @@ fn test_block_persistence_and_height_increment() {
 #[test]
 fn test_credit_and_settle_rewards() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     // Credit multiple rewards to same miner
     engine
@@ -165,10 +159,7 @@ fn test_credit_and_settle_rewards() {
 #[test]
 fn test_pool_balance_metrics() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     let block = dummy_block(0);
     let hash = [1u8; 32];
@@ -190,10 +181,7 @@ fn test_pool_balance_metrics() {
 #[test]
 fn test_miner_reward_accumulation() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     // Fee is 1000 satoshis per transaction
     const FEE: u64 = 1000;
@@ -228,10 +216,7 @@ fn test_miner_reward_accumulation() {
 #[test]
 fn test_multiple_miners() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     // Mine blocks with different miners
     engine
@@ -266,10 +251,7 @@ fn test_multiple_miners() {
 #[test]
 fn test_payout_recording() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     // Record a payout
     let payout_id = engine
@@ -295,10 +277,7 @@ fn test_database_persistence() {
     // Create and populate database (In-Memory)
     // Replaced PoolDatabase::open with memory() as open() is not implemented
     let _db = PoolDatabase::memory().expect("Failed to open database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     engine
         .record_block(&dummy_block(0), [1u8; 32], 0, "miner1")
@@ -332,10 +311,7 @@ fn test_database_persistence() {
 #[test]
 fn test_metrics_integration() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     let metrics = MiningMetrics::new(&[PowAlgo::Sha256d]);
 
@@ -364,10 +340,7 @@ fn test_metrics_integration() {
 #[test]
 fn test_edge_cases() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    #[cfg(feature = "pool")]
-    let mut engine = RewardEngine::new(_db);
-    #[cfg(not(feature = "pool"))]
-    let engine = RewardEngine::new();
+    let mut engine = RewardEngine::new();
 
     // Test with empty miner ID
     let result = engine.credit_miner("", 1000);
