@@ -454,8 +454,15 @@ mod tests {
         assert_eq!(score, Some(0)); // 50 - 50
 
         // Manually set last_updated to simulate time passing
+        // Attempt 1: Try going back 1 hour
+        // Attempt 2: If failed (uptime < 1hr), try going back 5 mins
+        // Attempt 3: If still failed (uptime < 5mins), use NOW (0 decay)
+        let past_instant = Instant::now().checked_sub(Duration::from_secs(3601))
+            .or_else(|| Instant::now().checked_sub(Duration::from_secs(300)))
+            .unwrap_or(Instant::now());
+
         if let Some(rep) = manager.reputations.get_mut(&peer) {
-            rep.last_updated = Instant::now() - Duration::from_secs(3601); // More than 1 hour ago
+            rep.last_updated = past_instant;
         }
 
         manager.apply_decay();
