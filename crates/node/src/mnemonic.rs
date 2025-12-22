@@ -113,7 +113,7 @@ pub fn seed_to_keypair_with_index(
     dilithium_seed.copy_from_slice(&derived_seed[..32]);
 
     // Generate Dilithium keypair deterministically from seed
-    crate::wallet::WalletKeypair::from_seed_dilithium3(&dilithium_seed)
+    crate::wallet::WalletKeypair::from_seed_dilithium5(&dilithium_seed)
 }
 
 /// Mnemonic helper that wraps phrase generation and seed derivation.

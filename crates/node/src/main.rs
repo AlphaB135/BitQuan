@@ -309,8 +309,8 @@ enum Commands {
     },
     /// Generates a post-quantum keypair for wallet
     WalletGen {
-        /// Algorithm (dilithium3, falcon512, sphincs)
-        #[arg(long, default_value = "dilithium3")]
+        /// Algorithm (dilithium5, falcon512, sphincs)
+        #[arg(long, default_value = "dilithium5")]
         algo: String,
         /// Network to target (mainnet|testnet|devnet|regtest)
         #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
@@ -2132,12 +2132,12 @@ fn wallet_gen(
     println!("Algorithm: {}", algo);
     println!("Network: {}", network);
 
-    if algo != "dilithium3" {
-        return invalid("Only 'dilithium3' is supported currently");
+    if algo != "dilithium5" {
+        return invalid("Only 'dilithium5' is supported currently");
     }
 
     println!("\n⏳ Generating keypair...");
-    let keypair = WalletKeypair::generate_dilithium3()?;
+    let keypair = WalletKeypair::generate_dilithium5()?;
 
     let pubkey_hash = keypair.public_key_hash();
     let address_str = address::encode(&pubkey_hash);
@@ -2363,7 +2363,7 @@ fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Re
     println!("Signature: {} bytes", signature.len());
 
     let public_key = WalletPublicKey {
-        algorithm: WalletAlgorithm::Dilithium3,
+        algorithm: WalletAlgorithm::Dilithium5,
         public_key: pubkey_bytes,
     };
 

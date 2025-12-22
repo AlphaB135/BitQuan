@@ -99,7 +99,7 @@ impl Default for CryptoRegistry {
     }
 }
 
-/// Dilithium3 signature scheme implementation with constant-time verification.
+/// Dilithium5 signature scheme implementation with constant-time verification.
 #[derive(Default)]
 pub struct DilithiumProvider;
 
@@ -201,7 +201,7 @@ mod tests {
     fn test_provider_lookup() {
         let registry = CryptoRegistry::with_default_providers();
 
-        // Dilithium3 should be available
+        // Dilithium5 should be available
         assert!(registry.provider_for(SigAlgorithm::Dilithium5).is_some());
     }
 

@@ -118,8 +118,8 @@ fn test_mainnet_pqc_signature_present() {
 
     assert_eq!(
         pqc_sig["algorithm"].as_str().expect("algorithm must be a string"),
-        "dilithium3",
-        "Must use Dilithium3 for genesis signing"
+        "dilithium5",
+        "Must use Dilithium5 for genesis signing"
     );
 }
 
