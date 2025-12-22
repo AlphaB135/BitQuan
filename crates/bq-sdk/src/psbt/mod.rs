@@ -461,9 +461,12 @@ impl PQPSBT {
 
     /// Finalize PSBT and extract transaction
     pub fn finalize(self) -> Result<Transaction> {
+        // TODO: Implement PSBT finalization
         // This would build the final transaction from PSBT data
         // Implementation depends on Transaction structure
-        todo!("Implement PSBT finalization")
+        Err(SDKError::PSBT(PSBTError::InvalidFormat(
+            "PSBT finalization not yet implemented".to_string()
+        )))
     }
 
     // Helper methods for serialization

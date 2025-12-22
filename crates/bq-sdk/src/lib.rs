@@ -4,7 +4,7 @@
 //!
 //! ## Features
 //!
-//! - **Post-Quantum Security**: Dilithium3 signatures for quantum resistance
+//! - **Post-Quantum Security**: Dilithium5 signatures for quantum resistance
 //! - **PQ-PSBT**: Post-Quantum Partially Signed Bitcoin Transactions
 //! - **Address Management**: Bech32m address encoding/decoding
 //! - **HD Wallets**: BIP32/BIP39 with quantum-resistant enhancements

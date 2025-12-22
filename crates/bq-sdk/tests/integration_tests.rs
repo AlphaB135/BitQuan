@@ -200,7 +200,7 @@ fn test_wallet_psbt_signing() {
 
 #[test]
 fn test_signature_algorithms() {
-    assert!(SignatureAlgorithm::Dilithium3.is_post_quantum());
+    assert!(SignatureAlgorithm::Dilithium5.is_post_quantum());
     assert!(SignatureAlgorithm::Hybrid.is_post_quantum());
     assert!(!SignatureAlgorithm::ECDSA.is_post_quantum());
 }

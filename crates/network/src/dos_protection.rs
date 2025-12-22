@@ -575,7 +575,8 @@ impl DoSProtection {
 
     /// Clear old attacks
     pub fn cleanup(&mut self) {
-        let cutoff = Instant::now() - Duration::from_secs(3600); // Keep 1 hour
+        let cutoff = Instant::now().checked_sub(Duration::from_secs(3600))
+            .unwrap_or_else(Instant::now); // Keep 1 hour, safe on low uptime
         self.detected_attacks
             .retain(|attack| attack.detected_at > cutoff);
     }

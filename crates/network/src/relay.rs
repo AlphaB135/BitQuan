@@ -41,7 +41,8 @@ impl RelayManager {
 
         // Cleanup old entries if needed
         if announced.len() >= self.max_items {
-            let cutoff = Instant::now() - Duration::from_secs(600); // 10 minutes
+            let cutoff = Instant::now().checked_sub(Duration::from_secs(600))
+                .unwrap_or_else(Instant::now); // 10 minutes, safe on low uptime
             announced.retain(|_, time| *time > cutoff);
         }
 
@@ -125,7 +126,8 @@ impl RelayManager {
 
     /// Cleans up old data
     pub fn cleanup(&self) -> Result<()> {
-        let cutoff = Instant::now() - Duration::from_secs(600);
+        let cutoff = Instant::now().checked_sub(Duration::from_secs(600))
+            .unwrap_or_else(Instant::now); // Safe on low uptime
 
         let mut announced = self
             .announced
