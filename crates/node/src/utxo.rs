@@ -233,7 +233,7 @@ mod tests {
             lock_time: 0,
             inputs,
             outputs,
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         }
     }

@@ -588,7 +588,7 @@ mod tests {
                     value: 5000000000,
                     script_pubkey: vec![],
                 }],
-                sig_algo: SigAlgorithm::Dilithium3,
+                sig_algo: SigAlgorithm::Dilithium5,
                 witnesses: vec![],
             }],
         }

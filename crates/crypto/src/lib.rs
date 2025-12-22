@@ -105,7 +105,7 @@ pub struct DilithiumProvider;
 
 impl SignatureScheme for DilithiumProvider {
     fn algorithm(&self) -> SigAlgorithm {
-        SigAlgorithm::Dilithium3
+        SigAlgorithm::Dilithium5
     }
 
     fn verify(&self, payload: &SignaturePayload, message: &[u8]) -> Result<(), CryptoError> {
@@ -159,7 +159,7 @@ mod tests {
                 value: 1000,
                 script_pubkey: vec![0x51],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         }
     }
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn test_registry_creation() {
         let registry = CryptoRegistry::with_default_providers();
-        assert!(registry.provider_for(SigAlgorithm::Dilithium3).is_some());
+        assert!(registry.provider_for(SigAlgorithm::Dilithium5).is_some());
     }
 
     #[test]
@@ -202,7 +202,7 @@ mod tests {
         let registry = CryptoRegistry::with_default_providers();
 
         // Dilithium3 should be available
-        assert!(registry.provider_for(SigAlgorithm::Dilithium3).is_some());
+        assert!(registry.provider_for(SigAlgorithm::Dilithium5).is_some());
     }
 
     #[test]
@@ -210,6 +210,6 @@ mod tests {
         let registry = CryptoRegistry::new();
 
         // No providers registered
-        assert!(registry.provider_for(SigAlgorithm::Dilithium3).is_none());
+        assert!(registry.provider_for(SigAlgorithm::Dilithium5).is_none());
     }
 }

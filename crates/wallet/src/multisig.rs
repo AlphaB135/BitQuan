@@ -345,7 +345,7 @@ impl MultisigWallet {
         // PERFORMANCE FIX: Use cached registry instead of creating new one
         let provider = self
             .crypto_registry
-            .provider_for(SigAlgorithm::Dilithium3)
+            .provider_for(SigAlgorithm::Dilithium5)
             .ok_or(MultisigError::InvalidSignature)?;
 
         // Verify signature

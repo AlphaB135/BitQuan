@@ -112,7 +112,7 @@ impl TransactionBuilder {
             lock_time: self.lock_time,
             inputs: self.inputs,
             outputs: self.outputs,
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: Vec::new(),
         })
     }

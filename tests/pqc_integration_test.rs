@@ -45,7 +45,7 @@ fn create_test_transaction() -> (Transaction, TxContext) {
         lock_time: 0,
         inputs: tx_in,
         outputs: tx_out,
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 

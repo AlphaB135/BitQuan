@@ -9,7 +9,7 @@ fn create_test_transaction(nonce: u8) -> Transaction {
         version: 1,
         network: NetworkId::Devnet,
         genesis_hash: GENESIS_HASH_BYTES,
-        sig_algo: bitquan_types::SigAlgorithm::Dilithium3,
+        sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
         inputs: vec![TxIn {
             prev_txid: GENESIS_HASH_BYTES,
             prev_vout: nonce as u32,

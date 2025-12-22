@@ -92,7 +92,7 @@ mod tests {
             lock_time: 0,
             inputs: vec![tx_in],
             outputs: vec![tx_out],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![witness],
         }
     }
@@ -140,7 +140,7 @@ mod tests {
                 value: 1000,
                 script_pubkey: vec![0x51],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
 
@@ -179,7 +179,7 @@ mod tests {
                 value: 1000,
                 script_pubkey: vec![0x51],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses,
         };
 

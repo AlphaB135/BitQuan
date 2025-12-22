@@ -283,7 +283,7 @@ mod tests {
             lock_time: 0,
             inputs: vec![],
             outputs: vec![],
-            sig_algo: bitquan_types::SigAlgorithm::Dilithium3,
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
 

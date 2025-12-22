@@ -1402,7 +1402,7 @@ fn mine_once(
             value: subsidy,
             script_pubkey: payout_script,
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 
@@ -1768,7 +1768,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                 script_pubkey: payout_script.clone(),
             }],
             witnesses: vec![],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
         };
 
         // Merkle/witness roots for block
@@ -2492,7 +2492,7 @@ async fn wallet_send(
             lock_time: 0,
             inputs: vec![input],
             outputs,
-            sig_algo: bitquan_types::SigAlgorithm::Dilithium3,
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
 
@@ -2607,7 +2607,7 @@ fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str
         lock_time: 0,
         inputs: vec![input],
         outputs: vec![output],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 

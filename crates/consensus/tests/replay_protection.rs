@@ -7,7 +7,7 @@ fn create_test_tx(network: NetworkId) -> Transaction {
         version: 1,
         network,
         genesis_hash: genesis::GENESIS_HASH_BYTES,
-        sig_algo: bitquan_types::SigAlgorithm::Dilithium3,
+        sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
         lock_time: 0,
         inputs: vec![],
         outputs: vec![],

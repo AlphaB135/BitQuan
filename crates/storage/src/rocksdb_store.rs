@@ -1154,7 +1154,7 @@ mod tests {
             }],
             lock_time: 0,
             witnesses: vec![],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
         };
 
         let header = BlockHeader {

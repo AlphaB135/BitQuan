@@ -288,7 +288,7 @@ impl ScriptInterpreter {
         // Get provider from registry
         let provider = self
             .registry
-            .provider_for(bitquan_types::SigAlgorithm::Dilithium3)
+            .provider_for(bitquan_types::SigAlgorithm::Dilithium5)
             .ok_or(ScriptError::InvalidSignature)?;
 
         // Verify

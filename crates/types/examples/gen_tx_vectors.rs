@@ -27,7 +27,7 @@ fn main() {
         lock_time: 0,
         inputs: vec![tx_in],
         outputs: vec![tx_out],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![witness],
     };
 
