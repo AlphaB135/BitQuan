@@ -330,6 +330,7 @@ pub fn select_coins(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use bitquan_types::error::Error;
@@ -516,6 +517,7 @@ mod tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod overflow_tests {
     use super::*;
 

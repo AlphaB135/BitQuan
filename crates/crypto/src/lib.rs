@@ -109,15 +109,15 @@ impl SignatureScheme for DilithiumProvider {
     }
 
     fn verify(&self, payload: &SignaturePayload, message: &[u8]) -> Result<(), CryptoError> {
-        // Dilithium signature sizes (level 3)
-        const DILITHIUM3_SIG_SIZE: usize = 3293;
-        const DILITHIUM3_PK_SIZE: usize = 1952;
+        // Dilithium signature sizes (level 5)
+        const DILITHIUM5_SIG_SIZE: usize = 4595;
+        const DILITHIUM5_PK_SIZE: usize = 2592;
 
         // Validate sizes
-        if payload.signature.len() != DILITHIUM3_SIG_SIZE {
+        if payload.signature.len() != DILITHIUM5_SIG_SIZE {
             return Err(CryptoError::Malformed("invalid signature length"));
         }
-        if payload.public_key.len() != DILITHIUM3_PK_SIZE {
+        if payload.public_key.len() != DILITHIUM5_PK_SIZE {
             return Err(CryptoError::Malformed("invalid public key length"));
         }
 
@@ -127,8 +127,8 @@ impl SignatureScheme for DilithiumProvider {
         }
 
         // Convert to fixed arrays
-        let mut sig_bytes = [0u8; DILITHIUM3_SIG_SIZE];
-        let mut pk_bytes = [0u8; DILITHIUM3_PK_SIZE];
+        let mut sig_bytes = [0u8; DILITHIUM5_SIG_SIZE];
+        let mut pk_bytes = [0u8; DILITHIUM5_PK_SIZE];
         sig_bytes.copy_from_slice(&payload.signature);
         pk_bytes.copy_from_slice(&payload.public_key);
 

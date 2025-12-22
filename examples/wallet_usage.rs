@@ -85,7 +85,7 @@ fn mobile_optimization_example() -> Result<(), Box<dyn std::error::Error>> {
 
     // Decrypt with mobile config
     let decrypted =
-        decrypt_keystore_with_config(&keystore.as_ref().unwrap(), user_password, &mobile_config)?;
+        decrypt_keystore_with_config(keystore.as_ref().unwrap(), user_password, &mobile_config)?;
     assert_eq!(decrypted, mobile_data);
 
     println!("✅ Mobile decryption successful");
@@ -141,13 +141,13 @@ fn error_handling_example() {
     let keystore = encrypt_keystore_adaptive(b"secret", "correct_password", None);
 
     // Try wrong password
-    match decrypt_keystore(&keystore.as_ref().unwrap(), "wrong_password") {
+    match decrypt_keystore(keystore.as_ref().unwrap(), "wrong_password") {
         Ok(_) => println!("❌ This should not happen!"),
         Err(e) => println!("✅ Wrong password correctly rejected: {}", e),
     }
 
     // Correct password
-    match decrypt_keystore(&keystore.as_ref().unwrap(), "correct_password") {
+    match decrypt_keystore(keystore.as_ref().unwrap(), "correct_password") {
         Ok(data) => println!("✅ Correct password accepted: {} bytes", data.len()),
         Err(e) => println!("❌ Unexpected error: {}", e),
     }

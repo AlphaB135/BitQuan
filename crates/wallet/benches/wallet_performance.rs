@@ -46,8 +46,8 @@ fn bench_encryption_decryption(c: &mut Criterion) {
 
         group.bench_function("decrypt", |b| {
             b.iter(|| {
-                let pt = decrypt_keystore(black_box(&ks.as_ref().unwrap()), black_box(password))
-                    .unwrap();
+                let pt =
+                    decrypt_keystore(black_box(ks.as_ref().unwrap()), black_box(password)).unwrap();
                 black_box(pt)
             })
         });
@@ -84,8 +84,8 @@ fn bench_kdf_profiles(c: &mut Criterion) {
                     time_cost,
                     parallelism,
                 );
-                let pt = decrypt_keystore(black_box(&ks.as_ref().unwrap()), black_box(password))
-                    .unwrap();
+                let pt =
+                    decrypt_keystore(black_box(ks.as_ref().unwrap()), black_box(password)).unwrap();
                 black_box(pt)
             })
         });
@@ -115,8 +115,8 @@ fn bench_optimal_parallelism(c: &mut Criterion) {
                     DEFAULT_TIME_COST,
                     parallelism,
                 );
-                let pt = decrypt_keystore(black_box(&ks.as_ref().unwrap()), black_box(password))
-                    .unwrap();
+                let pt =
+                    decrypt_keystore(black_box(ks.as_ref().unwrap()), black_box(password)).unwrap();
                 black_box(pt)
             })
         });
@@ -230,8 +230,8 @@ fn bench_hardware_profiles(c: &mut Criterion) {
                     time_cost,
                     parallelism,
                 );
-                let pt = decrypt_keystore(black_box(&ks.as_ref().unwrap()), black_box(password))
-                    .unwrap();
+                let pt =
+                    decrypt_keystore(black_box(ks.as_ref().unwrap()), black_box(password)).unwrap();
                 black_box(pt)
             })
         });
@@ -255,7 +255,9 @@ fn bench_key_caching(c: &mut Criterion) {
     group.bench_function("cold_decryption", |b| {
         b.iter(|| {
             clear_key_cache(); // Clear cache for each iteration
-            let pt = decrypt_keystore_no_cache(black_box(&ks), black_box(password)).unwrap();
+            let pt =
+                decrypt_keystore_no_cache(black_box(ks.as_ref().unwrap()), black_box(password))
+                    .unwrap();
             black_box(pt)
         })
     });
@@ -263,11 +265,11 @@ fn bench_key_caching(c: &mut Criterion) {
     // Benchmark hot decryption (with cache)
     group.bench_function("hot_decryption", |b| {
         // Warm up cache
-        let _ = decrypt_keystore(&ks, password).unwrap();
+        let _ = decrypt_keystore(ks.as_ref().unwrap(), password).unwrap();
 
         b.iter(|| {
             let pt =
-                decrypt_keystore(black_box(&ks.as_ref().unwrap()), black_box(password)).unwrap();
+                decrypt_keystore(black_box(ks.as_ref().unwrap()), black_box(password)).unwrap();
             black_box(pt)
         })
     });
@@ -280,8 +282,8 @@ fn bench_key_caching(c: &mut Criterion) {
 
             // Simulate multiple transaction signing in a session
             for _ in 0..10 {
-                let pt = decrypt_keystore(black_box(&ks.as_ref().unwrap()), black_box(password))
-                    .unwrap();
+                let pt =
+                    decrypt_keystore(black_box(ks.as_ref().unwrap()), black_box(password)).unwrap();
                 results.push(pt);
             }
             black_box(results)

@@ -17,7 +17,18 @@
 
 ## Executive Summary
 
-This document provides comprehensive guidelines for an AI assistant working on any software development project. It establishes safe, efficient, and well-documented workflows to ensure high-quality contributions.
+This document provides comprehensive guidelines for an AI assistant working on the BitQuan cryptocurrency project. It establishes safe, efficient, and well-documented workflows to ensure high-quality contributions with zero tolerance for errors.
+
+## Communication Guidelines (User Preferences)
+
+### Language & Tone
+-   **Language**: **Thai (ภาษาไทย)** is the primary language for all explanations and conversation. Use English only for technical terms, code comments, and commit messages.
+-   **Tone**: Direct, Professional but Relaxed (Senior Engineer to Peer). No fluff, get straight to the point.
+-   **Style**: "เพื่อนคุยกับเพื่อน" (Buddy style) is acceptable if the user initiates it. Focus on technical accuracy over politeness.
+
+### Quality Standards
+-   **Zero Tolerance**: DO NOT mark a task as complete if there is even a single Lint warning or Test failure.
+-   **Perfectionist**: The user prefers "100% completion" over speed. Take time to refactor and optimize. "ช้าแต่ชัวร์" (Slow but sure).
 
 ### Key Responsibilities
 -   Code development and implementation
@@ -32,9 +43,17 @@ This document provides comprehensive guidelines for an AI assistant working on a
 -   `nnn` - Smart planning: Auto-runs `ccc` if no recent context → Create a detailed implementation plan.
 -   `gogogo` - Execute the most recent plan issue step-by-step.
 -   `lll` - List project status (issues, PRs, commits) ✅
+-   `ck` - Pre-Commit Check (The "100%" Check): Run before marking any task as done.
 
 #### Project Management
 -   `rrr` - Create a detailed session retrospective.
+
+#### `ck` - Pre-Commit Check (The "100%" Check)
+**Purpose**: Run before marking any task as done to ensure perfection.
+1.  Run `cargo fmt --all -- --check`
+2.  Run `cargo clippy --all-targets --all-features -- -D warnings`
+3.  Run `cargo test --all-features`
+4.  **Rule**: If ANY of these fail, do not ask for review. Fix it immediately.
 
 
 ## Quick Start Guide
@@ -74,21 +93,30 @@ cp .env.example .env
 
 ## Project Context
 
-*(This section should be filled out for each specific project)*
-
 ### Project Overview
-A brief, high-level description of the project's purpose and goals.
+BitQuan - A high-performance, secure cryptocurrency implementation with post-quantum cryptography support. Built from scratch in Rust for maximum security and performance.
 
 ### Architecture
--   **Backend**: [Framework, Language, Database]
--   **Frontend**: [Framework, Language, Libraries]
--   **Infrastructure**: [Hosting, CI/CD, etc.]
--   **Key Libraries**: [List of major dependencies]
+-   **Language**: Rust (Edition 2021+)
+-   **Core Stack**: Async Rust (Tokio), Serde, ThisError, Tracing
+-   **Security**: Dilithium5 post-quantum cryptography, rustls-pki-types, rigid dependency auditing
+-   **Build System**: Cargo with strict clippy linting
+-   **Crypto Stack**: pqc-dilithium-seeded, SHA-256, Blake3
+-   **P2P Network**: Custom async networking with TLS support
 
 ### Current Features
--   [Feature A]
--   [Feature B]
--   [Feature C]
+-   **Post-Quantum Security**: Full Dilithium5 implementation (2592/4595 byte keys)
+-   **Async Networking**: High-performance peer-to-peer protocol
+-   **Mining**: PoW consensus with SHA-256d and RandomX support
+-   **Wallet**: Hierarchical deterministic (HD) wallets with secure key management
+-   **PSBT Support**: Post-quantum Partially Signed Bitcoin Transactions
+-   **Hardware Wallet**: Integration with USB hardware wallets
+
+### Key Constraints
+-   **Async Rules**: Must handle MutexGuard correctly across await points.
+-   **Crypto**: Use fully qualified syntax to avoid trait conflicts.
+-   **CI/CD**: Strict adherence to `cargo deny` and `cargo clippy -- -D warnings`.
+-   **Memory Security**: Zeroization of sensitive cryptographic material.
 
 ## Critical Safety Rules
 
@@ -221,6 +249,17 @@ gh pr create --title "Same as commit" --body "Fixes #issue_number"
 # WAIT for explicit user instruction to merge
 # The user will review and merge when ready
 ```
+## Communication Guidelines (User Preferences)
+
+### Language & Tone
+-   **Language**: **Thai (ภาษาไทย)** is the primary language for all explanations and conversation. Use English only for technical terms, code comments, and commit messages.
+-   **Tone**: Direct, Professional but Relaxed (Senior Engineer to Peer). No fluff, get straight to the point.
+-   **Style**: "เพื่อนคุยกับเพื่อน" (Buddy style) is acceptable if the user initiates it. Focus on technical accuracy over politeness.
+
+### Quality Standards
+-   **Zero Tolerance**: DO NOT mark a task as complete if there is even a single Lint warning or Test failure.
+-   **Perfectionist**: The user prefers "100% completion" over speed. Take time to refactor and optimize. "ช้าแต่ชัวร์" (Slow but sure).
+
 
 ## Context Management & Short Codes
 
@@ -440,6 +479,13 @@ fd "[pattern]"
 
 ## Development Practices
 
+### Rust & Security Best Practices
+-   **Strict Clippy**: Treat all warnings as errors. Code is not done until `cargo clippy` is silent.
+-   **Lock Management**: Always drop MutexGuards before `.await`. Use scoped blocks `{ let lock = ...; }` to enforce this.
+-   **Dependency Updates**: Check for security advisories (RUSTSEC) before starting work. Immediate priority if found.
+-   **Trait Disambiguation**: Use `<Type>::method()` syntax instead of method chaining if traits might conflict.
+-   **Memory Zeroization**: Always zeroize cryptographic keys and sensitive data after use.
+
 ### Code Standards
 -   Follow the established style guide for the language/framework.
 -   Enable strict mode and linting where possible.
@@ -469,31 +515,34 @@ Closes #[issue-number]
 *(This section should be continuously updated with project-specific findings)*
 
 
-### Planning & Architecture Patterns (2025-08-26)
--   **Pattern**: Use parallel agents for analyzing different aspects of complex systems
--   **Anti-Pattern**: Creating monolithic plans that try to implement everything at once
--   **Pattern**: Ask "what's the minimum viable first step?" before comprehensive implementation
+### Permanent Architecture Rules
+-   **Rule**: Use parallel agents for analyzing different aspects of complex systems
+-   **Rule**: Never create monolithic plans - always ask "what's the minimum viable first step?"
+-   **Rule**: Break complex projects into 1-hour implementation chunks for focus and progress tracking
+
+### Permanent Security Rules
+-   **Rule**: Zero tolerance for RUSTSEC advisories - resolve immediately
+-   **Rule**: Always use fully qualified syntax `<Type>::method()` to resolve trait conflicts
+-   **Rule**: Use scoped blocks `{ let data = lock()?; data }` for async lock management
+-   **Rule**: Always zeroize cryptographic keys and sensitive data after use
+
+### Permanent CI/CD Rules
+-   **Rule**: Clippy warnings must be resolved before CI can pass
+-   **Rule**: Security advisories block CI completely - highest priority
+-   **Rule**: Cargo Deny PASS is mandatory for CI success
+-   **Rule**: Pre-commit checks (`ck`) must pass before any task is marked complete
+
+### Permanent Async Rust Rules
+-   **Rule**: MutexGuard must be dropped before all await points
+-   **Rule**: Collect data in scoped blocks, then perform async operations
+-   **Rule**: Use `flatten()` for cleaner iterator handling
+-   **Rule**: Collapsible-if patterns satisfy clippy and improve readability
+
+### Planning & Architecture Patterns (Historical)
 -   **Pattern**: 1-hour implementation chunks are optimal for maintaining focus and seeing progress
-
-### Security & Dependency Management Patterns (2025-12-20)
--   **Pattern**: Security advisory resolution requires immediate, decisive action - Zero tolerance for vulnerabilities
--   **Pattern**: Fully qualified syntax `<Type>::method()` resolves trait conflicts elegantly without breaking APIs
--   **Pattern**: Scoped blocks `{ let data = lock()?; data }` for async lock management prevents deadlocks
--   **Pattern**: Workspace-wide dependency upgrades are powerful but require careful coordination
--   **Discovery**: rustls-pki-types is significantly safer and more modern than rustls-pemfile (RUSTSEC-2025-0134)
-
-### CI/CD Quality Patterns (2025-12-20)
--   **Anti-Pattern**: Underestimating time needed for comprehensive clippy fixes - 30+ warnings require deep architectural understanding
--   **Pattern**: Prioritize blocking vs non-blocking clippy warnings to achieve CI success faster
--   **Pattern**: Security advisories block CI completely and must be resolved first
--   **Pattern**: Cargo Deny PASS status is prerequisite for CI success
+-   **Pattern**: Workspace-wide dependency upgrades require careful coordination
+-   **Discovery**: rustls-pki-types is significantly safer than rustls-pemfile (RUSTSEC-2025-0134)
 -   **Discovery**: Pre-commit hooks with clippy become bottlenecks for iterative development
-
-### Async Rust Patterns (2025-12-20)
--   **Pattern**: Collect peer data in scoped blocks before async operations to avoid await-holding-lock
--   **Pattern**: Use `flatten()` instead of manual if-let patterns for cleaner iterator handling
--   **Pattern**: Collapsible-if patterns improve code readability and satisfy clippy lints
--   **Pattern**: MutexGuard must be dropped before await points to prevent deadlocks
 
 ### Common Mistakes to Avoid
 -   **Creating overly comprehensive initial plans** - Break complex projects into 1-hour phases instead
@@ -523,17 +572,15 @@ Closes #[issue-number]
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
 
-### User Preferences (Observed)
--   **Zero tolerance for CI failures** - "ไม่ยอมให้ผ่าน แก้" (Don't allow passing, fix it) - demands 100% success
--   **Escalating demands for perfection** - "100 เลย เวลาไม่ต้องรีบ" (100% all the way, no need to rush)
--   **Prefers manageable scope** - "i love this - Can be completed in under 1 hour" shows preference for achievable tasks
--   **Values phased approaches** - Recognizes when plans are "too huge" and appreciates splitting work
--   **Appreciates workflow patterns** - Likes using established patterns like "ccc nnn gh flow"
--   **Language preferences** - Responds to Thai commands and requests ("ภาษาไทย", "ต่อ", "เช็ค")
--   *Example: Prefers simple, direct solutions over complex abstractions.*
--   *Example: Values quick iteration and seeing visual progress.*
--   *Example: Appreciates clear, actionable feedback and well-defined tasks.*
--   **Time zone preference: GMT+7 (Bangkok/Asia)**
+### User Preferences (Absolute Requirements)
+-   **Language**: Thai is primary for communication. English only for code/commits.
+-   **Zero tolerance for CI failures** - "ไม่ยอมให้ผ่าน แก้" (Don't allow passing, fix it)
+-   **Perfection over speed** - "100 เลย เวลาไม่ต้องรีบ" (100% all the way, no need to rush)
+-   **Task scope**: Prefers <1 hour tasks. "i love this - Can be completed in under 1 hour"
+-   **Workflow**: Loves established patterns - "ccc nnn gh flow", "ck check"
+-   **Direct style**: No fluff, straight to technical solutions
+-   **Critical feedback**: Will be called out for lazy error messages like "should not be Err"
+-   **Time zone**: GMT+7 (Bangkok) - always show this time first
 
 ## Troubleshooting
 

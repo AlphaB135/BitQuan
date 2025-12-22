@@ -154,6 +154,8 @@ pub fn encode_bech32m_with_prefix(pubkey_hash: &[u8], prefix: &str) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -169,7 +171,7 @@ mod tests {
             "Failed to decode bech32m address: {:?}",
             decoded_result.err()
         );
-        assert_eq!(decoded_result.unwrap(), hash);
+        assert_eq!(decoded_result.expect("Failed to decode address"), hash);
     }
 
     #[test]

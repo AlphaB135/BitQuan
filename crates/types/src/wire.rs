@@ -656,8 +656,8 @@ mod tests {
             witnesses: vec![Witness {
                 signatures: vec![crate::SignaturePayload {
                     signer_index: 0,
-                    signature: vec![0xde; 2420],
-                    public_key: vec![0xab; 1952],
+                    signature: vec![0xde; 4595],
+                    public_key: vec![0xab; 2592],
                     aux: None,
                 }],
             }],

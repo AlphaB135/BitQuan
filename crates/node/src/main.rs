@@ -4009,6 +4009,7 @@ fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod overflow_tests {
     #[test]
     fn test_balance_overflow_protection() {

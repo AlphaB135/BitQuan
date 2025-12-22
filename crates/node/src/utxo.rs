@@ -201,6 +201,7 @@ impl Default for UtxoSet {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, TxIn};

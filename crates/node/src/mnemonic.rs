@@ -164,6 +164,7 @@ impl MnemonicHelper {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use secrecy::ExposeSecret;
