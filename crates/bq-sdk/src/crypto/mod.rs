@@ -359,7 +359,10 @@ mod tests {
 
         // Verify with Dilithium5 using crypto_sign_verify directly
         let result = crypto_sign_verify(&signature, message, &keypair.public);
-        assert!(result.is_ok(), "Verification failed with generated Dilithium5 key");
+        assert!(
+            result.is_ok(),
+            "Verification failed with generated Dilithium5 key"
+        );
     }
 
     #[test]
