@@ -349,12 +349,17 @@ mod tests {
 
     #[test]
     fn test_dilithium_keypair() {
-        let keypair = DilithiumKeyPair::generate().unwrap();
+        // Generate a fresh, valid Dilithium5 keypair using mode5
+        let keypair = DilithiumKeypair::generate();
 
-        let message = b"Hello, BitQuan!";
-        let signature = keypair.sign(message).unwrap();
+        let message = b"Hello BitQuan Quantum World";
 
-        assert!(keypair.verify(message, &signature).unwrap());
+        // Sign with Dilithium5
+        let signature = keypair.sign(message);
+
+        // Verify with Dilithium5 using crypto_sign_verify directly
+        let result = crypto_sign_verify(&signature, message, &keypair.public);
+        assert!(result.is_ok(), "Verification failed with generated Dilithium5 key");
     }
 
     #[test]
