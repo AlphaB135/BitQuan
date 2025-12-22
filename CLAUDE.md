@@ -550,6 +550,8 @@ Closes #[issue-number]
 -   **Skipping AI Diary and Honest Feedback in retrospectives** - These sections provide crucial context and self-reflection that technical documentation alone cannot capture
 -   **Ignoring security advisories** - RUSTSEC warnings require immediate migration to newer APIs
 -   **Holding MutexGuard across await points** - Causes clippy warnings and potential deadlocks
+-   **Copy-Paste Roulette migrations** - Updating references without verifying the source of truth (enum definitions)
+-   **Trust without verification** - Assuming previous migrations were complete without systematic verification
 -   *Example: Forgetting to update a lockfile after changing dependencies.*
 -   *Example: Not checking build logs for warnings that could become errors.*
 -   *Example: Making assumptions about API responses instead of checking the spec.*
@@ -560,6 +562,8 @@ Closes #[issue-number]
 -   **Phase markers in issues** - Using "Phase 1:", "Phase 2:" helps track incremental progress
 -   **Trait conflict resolution** - Use `<Type>::method()` syntax when method names conflict with traits
 -   **Modern TLS API migration** - rustls-pki-types provides safer PEM parsing with better error handling
+-   **checked_sub() for CI safety** - Prevents underflow panics in time arithmetic on low-uptime systems
+-   **Systematic grep for migrations** - `rg "old_value" --type rust` finds all references that need updating
 -   *Example: Using a specific library feature to simplify complex state.*
 -   *Example: A shell command alias that speeds up a common task.*
 -   *Example: A design pattern that solved a recurring problem in the codebase.*
@@ -568,6 +572,8 @@ Closes #[issue-number]
 -   **BitQuan Security Stack**: rustls-pki-types + thiserror 2.0 + comprehensive dependency auditing
 -   **Async Network Architecture**: Scoped lock management → peer data collection → async operations
 -   **Hardware Wallet Integration**: Fully qualified method calls to resolve serde trait conflicts
+-   **PQC Migration Pattern**: Update enum definition first → systematic grep for all references → verify cross-language bindings
+-   **CI Safety Pattern**: Use checked arithmetic for all time-based operations to prevent panics on low-uptime systems
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
@@ -632,5 +638,5 @@ Ctrl+b, d              # Detach from session
 -   [ ] Environment variables set
 -   [ ] Git configured
 
-**Last Updated**: [Date]
+**Last Updated**: 2025-12-22
 **Version**: 1.0.0
