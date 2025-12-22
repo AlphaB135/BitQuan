@@ -55,7 +55,7 @@ fuzz_target!(|data: &[u8]| {
                 script_pubkey: vec![],
             }],
             lock_time: 0,
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
 

@@ -19,7 +19,7 @@ fuzz_target!(|data: &[u8]| {
             inputs: vec![],
             outputs: vec![],
             lock_time,
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
 
@@ -55,7 +55,7 @@ fuzz_target!(|data: &[u8]| {
             inputs,
             outputs,
             lock_time: 0,
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
 
