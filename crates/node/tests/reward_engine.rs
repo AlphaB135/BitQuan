@@ -57,7 +57,7 @@ impl ChainState {
 #[test]
 fn test_reward_halving_logic() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    let mut engine = RewardEngine::new();
+    let engine = RewardEngine::new();
 
     // Fee is 1000 satoshis per transaction
     const FEE: u64 = 1000;
