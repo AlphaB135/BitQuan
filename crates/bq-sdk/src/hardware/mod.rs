@@ -328,13 +328,13 @@ impl HardwareWallet for USBHardwareWallet {
         let path_bytes = derivation_path.as_bytes();
         let response = self.send_command(Command::GetPublicKey, path_bytes)?;
 
-        if response.len() < 1952 {
+        if response.len() < 2592 {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
                 "Invalid public key length".to_string(),
             )));
         }
 
-        Ok(response[..1952].to_vec())
+        Ok(response[..2592].to_vec())
     }
 
     fn get_address(&self, derivation_path: &str, display: bool) -> Result<Address> {
@@ -359,10 +359,10 @@ impl HardwareWallet for USBHardwareWallet {
         for (i, input) in psbt.inputs.iter_mut().enumerate() {
             if input.get_dilithium_signature().is_none() {
                 // Extract signature from response (simplified)
-                let sig_start = i * 3293;
-                if sig_start + 3293 <= response.len() {
-                    let mut signature = [0u8; 3293];
-                    signature.copy_from_slice(&response[sig_start..sig_start + 3293]);
+                let sig_start = i * 4595;
+                if sig_start + 4595 <= response.len() {
+                    let mut signature = [0u8; 4595];
+                    signature.copy_from_slice(&response[sig_start..sig_start + 4595]);
                     input.set_dilithium_signature(signature);
                 }
             }
@@ -379,13 +379,13 @@ impl HardwareWallet for USBHardwareWallet {
 
         let response = self.send_command(Command::SignMessage, &data)?;
 
-        if response.len() < 3293 {
+        if response.len() < 4595 {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
                 "Invalid signature length".to_string(),
             )));
         }
 
-        Ok(response[..3293].to_vec())
+        Ok(response[..4595].to_vec())
     }
 
     fn backup_wallet(&self) -> Result<Vec<u8>> {

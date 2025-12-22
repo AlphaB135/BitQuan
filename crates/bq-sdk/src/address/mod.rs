@@ -160,7 +160,7 @@ impl Address {
     }
 
     /// Create a post-quantum P2PKH address from Dilithium public key
-    pub fn pq_p2pkh(network: Network, dilithium_pubkey: &[u8; 1952]) -> Result<Self> {
+    pub fn pq_p2pkh(network: Network, dilithium_pubkey: &[u8; 2592]) -> Result<Self> {
         // Hash the Dilithium public key
         use sha2::{Digest, Sha256};
         let hash = Sha256::digest(dilithium_pubkey);
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_address_pq_p2pkh() {
-        let pubkey = [0x42; 1952];
+        let pubkey = [0x42; 2592];
         let address = Address::pq_p2pkh(Network::Mainnet, &pubkey).unwrap();
 
         assert_eq!(address.network, Network::Mainnet);
