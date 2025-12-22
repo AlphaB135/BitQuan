@@ -349,6 +349,13 @@ mod tests {
 
     #[test]
     fn test_dilithium_keypair() {
+        // Verify we're using Dilithium5 (Mode 5) parameters
+        // Public key: 2592 bytes, Signature: 4595 bytes
+        use pqc_dilithium_seeded::{PUBLICKEYBYTES, SIGNBYTES};
+
+        assert_eq!(PUBLICKEYBYTES, 2592, "Mode5 public key size mismatch");
+        assert_eq!(SIGNBYTES, 4595, "Mode5 signature size mismatch");
+
         // Generate a fresh, valid Dilithium5 keypair using mode5
         let keypair = DilithiumKeypair::generate();
 
@@ -356,6 +363,10 @@ mod tests {
 
         // Sign with Dilithium5
         let signature = keypair.sign(message);
+
+        // Verify signature size is correct for Mode5
+        assert_eq!(signature.len(), 4595, "Mode5 signature size mismatch");
+        assert_eq!(keypair.public.len(), 2592, "Mode5 public key size mismatch");
 
         // Verify with Dilithium5 using crypto_sign_verify directly
         let result = crypto_sign_verify(&signature, message, &keypair.public);
