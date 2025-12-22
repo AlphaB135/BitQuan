@@ -36,10 +36,10 @@ pub enum CryptoError {
 /// Dilithium keypair wrapper
 #[derive(Debug, Clone)]
 pub struct DilithiumKeyPair {
-    /// Public key (1952 bytes)
-    pub public_key: [u8; 1952],
+    /// Public key (2592 bytes)
+    pub public_key: [u8; 2592],
     /// Private key (kept secure)
-    private_key: [u8; 4000], // Dilithium3 private key size
+    private_key: [u8; 4864], // Dilithium5 private key size
 }
 
 impl DilithiumKeyPair {
@@ -47,10 +47,10 @@ impl DilithiumKeyPair {
     pub fn generate() -> Result<Self> {
         let keypair = DilithiumKeypair::generate();
 
-        let mut public_key = [0u8; 1952];
+        let mut public_key = [0u8; 2592];
         public_key.copy_from_slice(&keypair.public);
 
-        let mut private_key = [0u8; 4000];
+        let mut private_key = [0u8; 4864];
         private_key.copy_from_slice(keypair.expose_secret());
 
         Ok(Self {
@@ -76,10 +76,10 @@ impl DilithiumKeyPair {
         // Generate keypair using entropy (simplified)
         let keypair = DilithiumKeypair::generate();
 
-        let mut public_key = [0u8; 1952];
+        let mut public_key = [0u8; 2592];
         public_key.copy_from_slice(&keypair.public);
 
-        let mut private_key = [0u8; 4000];
+        let mut private_key = [0u8; 4864];
         private_key.copy_from_slice(keypair.expose_secret());
 
         Ok(Self {
@@ -89,8 +89,8 @@ impl DilithiumKeyPair {
     }
 
     /// Sign message
-    pub fn sign(&self, message: &[u8]) -> Result<[u8; 3293]> {
-        let mut signature = [0u8; 3293];
+    pub fn sign(&self, message: &[u8]) -> Result<[u8; 4595]> {
+        let mut signature = [0u8; 4595];
 
         crypto_sign_signature(&mut signature, message, &self.private_key);
         // The function doesn't return a result, so we assume success if no panic
@@ -100,11 +100,11 @@ impl DilithiumKeyPair {
 
     /// Verify signature
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<bool> {
-        if signature.len() != 3293 {
+        if signature.len() != 4595 {
             return Err(SDKError::Crypto("Invalid signature length".to_string()));
         }
 
-        let mut sig_array = [0u8; 3293];
+        let mut sig_array = [0u8; 4595];
         sig_array.copy_from_slice(signature);
 
         crypto_sign_verify(&sig_array, message, &self.public_key)
@@ -113,12 +113,12 @@ impl DilithiumKeyPair {
     }
 
     /// Get public key bytes
-    pub fn public_key_bytes(&self) -> &[u8; 1952] {
+    pub fn public_key_bytes(&self) -> &[u8; 2592] {
         &self.public_key
     }
 
     /// Get private key bytes (use with caution)
-    pub fn private_key_bytes(&self) -> &[u8; 4000] {
+    pub fn private_key_bytes(&self) -> &[u8; 4864] {
         &self.private_key
     }
 }
