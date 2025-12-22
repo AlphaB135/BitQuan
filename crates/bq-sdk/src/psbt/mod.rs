@@ -465,7 +465,7 @@ impl PQPSBT {
         // This would build the final transaction from PSBT data
         // Implementation depends on Transaction structure
         Err(SDKError::PSBT(PSBTError::InvalidFormat(
-            "PSBT finalization not yet implemented".to_string()
+            "PSBT finalization not yet implemented".to_string(),
         )))
     }
 
