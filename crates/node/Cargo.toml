@@ -10,9 +10,9 @@ description = "BitQuan reference node entrypoint."
 [dependencies]
 argon2 = "0.5"
 base64 = "0.22"
-base64ct = { version = "1.6.0", features = ["alloc"] }
-bech32 = "0.11.0"
-bip39 = "2.2.0"
+base64ct = { version = "1.8.1", features = ["alloc"] }
+bech32 = "0.11.1"
+bip39 = "2.2.2"
 bitquan-consensus = { path = "../consensus", version = "0.1.0" }
 bitquan-mempool = { path = "../mempool", version = "0.1.0" }
 bitquan-network = { path = "../network", version = "0.1.0" }
@@ -38,7 +38,7 @@ sha2.workspace = true
 zeroize.workspace = true
 tokio = { version = "1.35", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
-uuid = { version = "1.6", features = ["v4", "serde"] }
+uuid = { version = "1.19", features = ["v4", "serde"] }
 dashmap = "5.5"
 lru = "0.12"
 rusqlite = { version = "0.30", features = ["bundled"] }
