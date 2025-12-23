@@ -50,7 +50,7 @@ tokio = { version = "1.35", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
 uuid = { version = "1.6", features = ["v4", "serde"] }
 dashmap = "5.5"
-lru = "0.12"
+lru = "0.16"
 rusqlite = { version = "0.30", features = ["bundled"] }
 warp = "0.3"
 async-trait = "0.1.89"
