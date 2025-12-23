@@ -110,7 +110,7 @@ impl SignatureScheme for DilithiumProvider {
 
     fn verify(&self, payload: &SignaturePayload, message: &[u8]) -> Result<(), CryptoError> {
         // Use library constants for Dilithium5 (Mode 5)
-        use dilithium::{SIGNBYTES, PUBLICKEYBYTES};
+        use dilithium::{PUBLICKEYBYTES, SIGNBYTES};
 
         // Validate sizes using library constants
         if payload.signature.len() != SIGNBYTES {
