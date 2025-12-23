@@ -1,6 +1,9 @@
 //! Hardware wallet integration for BitQuan
 
 use crate::{address::Address, psbt::PQPSBT, Result, SDKError};
+
+#[cfg(feature = "hardware")]
+use pqc_dilithium_seeded::{PUBLICKEYBYTES, SIGNBYTES};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -328,13 +331,13 @@ impl HardwareWallet for USBHardwareWallet {
         let path_bytes = derivation_path.as_bytes();
         let response = self.send_command(Command::GetPublicKey, path_bytes)?;
 
-        if response.len() < 2592 {
+        if response.len() < PUBLICKEYBYTES {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
                 "Invalid public key length".to_string(),
             )));
         }
 
-        Ok(response[..2592].to_vec())
+        Ok(response[..PUBLICKEYBYTES].to_vec())
     }
 
     fn get_address(&self, derivation_path: &str, display: bool) -> Result<Address> {
@@ -359,10 +362,10 @@ impl HardwareWallet for USBHardwareWallet {
         for (i, input) in psbt.inputs.iter_mut().enumerate() {
             if input.get_dilithium_signature().is_none() {
                 // Extract signature from response (simplified)
-                let sig_start = i * 4595;
-                if sig_start + 4595 <= response.len() {
-                    let mut signature = [0u8; 4595];
-                    signature.copy_from_slice(&response[sig_start..sig_start + 4595]);
+                let sig_start = i * SIGNBYTES;
+                if sig_start + SIGNBYTES <= response.len() {
+                    let mut signature = [0u8; SIGNBYTES];
+                    signature.copy_from_slice(&response[sig_start..sig_start + SIGNBYTES]);
                     input.set_dilithium_signature(signature);
                 }
             }
@@ -379,13 +382,13 @@ impl HardwareWallet for USBHardwareWallet {
 
         let response = self.send_command(Command::SignMessage, &data)?;
 
-        if response.len() < 4595 {
+        if response.len() < SIGNBYTES {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
                 "Invalid signature length".to_string(),
             )));
         }
 
-        Ok(response[..4595].to_vec())
+        Ok(response[..SIGNBYTES].to_vec())
     }
 
     fn backup_wallet(&self) -> Result<Vec<u8>> {
