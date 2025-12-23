@@ -33,7 +33,7 @@ hmac = "0.12"
 sha2 = "0.10"
 rand = "0.8"
 argon2 = "0.5"
-toml = "0.8"
+toml = "0.9"
 subtle = "2"
 regex = "1.10"
 tracing = "0.1"
@@ -44,4 +44,4 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 futures = "0.3"
-toml = "0.8"
+toml = "0.9"
