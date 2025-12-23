@@ -241,6 +241,10 @@ audit_package/
 fuzz/results/
 fuzz/*/build/
 fuzz/**/build/
+fuzz/*/deps/
+fuzz/**/deps/
+fuzz/*/incremental/
+fuzz/**/incremental/
 
 # macOS metadata files (EXFAT filesystem)
 ._*
