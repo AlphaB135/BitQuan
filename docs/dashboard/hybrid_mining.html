@@ -472,23 +472,55 @@
             miners.forEach(miner => {
                 const row = document.createElement('tr');
 
-                const algoClass = `algo-${miner.algo}`;
+                const algoClass = `algo-${String(miner.algo).replace(/[^a-zA-Z0-9-]/g, '')}`;
                 const efficiencyWidth = Math.min(100, Math.max(0, miner.efficiency));
 
-                row.innerHTML = `
-                    <td>${miner.address.substring(0, 20)}...</td>
-                    <td><span class="algo-badge ${algoClass}">${miner.algo}</span></td>
-                    <td>${formatHashrate(miner.hashrate)}</td>
-                    <td>${miner.difficulty.toFixed(2)}</td>
-                    <td>
-                        <div class="efficiency-bar">
-                            <div class="efficiency-fill" style="width: ${efficiencyWidth}%"></div>
-                        </div>
-                        <small>${miner.efficiency.toFixed(1)}%</small>
-                    </td>
-                    <td>${formatUptime(miner.uptime)}</td>
-                    <td>${miner.shares_ok.toLocaleString()}</td>
-                `;
+                // Address (escape for safety)
+                const addressCell = document.createElement('td');
+                addressCell.textContent = String(miner.address).substring(0, 20) + '...';
+                row.appendChild(addressCell);
+
+                // Algorithm badge
+                const algoCell = document.createElement('td');
+                const algoSpan = document.createElement('span');
+                algoSpan.className = `algo-badge ${algoClass}`;
+                algoSpan.textContent = String(miner.algo);
+                algoCell.appendChild(algoSpan);
+                row.appendChild(algoCell);
+
+                // Hashrate
+                const hashrateCell = document.createElement('td');
+                hashrateCell.textContent = formatHashrate(miner.hashrate);
+                row.appendChild(hashrateCell);
+
+                // Difficulty
+                const diffCell = document.createElement('td');
+                diffCell.textContent = Number(miner.difficulty).toFixed(2);
+                row.appendChild(diffCell);
+
+                // Efficiency
+                const effCell = document.createElement('td');
+                const barDiv = document.createElement('div');
+                barDiv.className = 'efficiency-bar';
+                const fillDiv = document.createElement('div');
+                fillDiv.className = 'efficiency-fill';
+                fillDiv.style.width = `${efficiencyWidth}%`;
+                barDiv.appendChild(fillDiv);
+                const smallText = document.createElement('small');
+                smallText.textContent = Number(miner.efficiency).toFixed(1) + '%';
+                effCell.appendChild(barDiv);
+                effCell.appendChild(smallText);
+                row.appendChild(effCell);
+
+                // Uptime
+                const uptimeCell = document.createElement('td');
+                uptimeCell.textContent = formatUptime(miner.uptime);
+                row.appendChild(uptimeCell);
+
+                // Shares
+                const sharesCell = document.createElement('td');
+                sharesCell.textContent = Number(miner.shares_ok).toLocaleString();
+                row.appendChild(sharesCell);
 
                 tbody.appendChild(row);
             });
