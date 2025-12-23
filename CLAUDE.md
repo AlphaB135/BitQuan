@@ -552,6 +552,7 @@ Closes #[issue-number]
 -   **Holding MutexGuard across await points** - Causes clippy warnings and potential deadlocks
 -   **Copy-Paste Roulette migrations** - Updating references without verifying the source of truth (enum definitions)
 -   **Trust without verification** - Assuming previous migrations were complete without systematic verification
+-   **Following user hypothesis without verification** - User guessed "hardcoded 3293" but code was already using constants; should have verified runtime values first
 -   *Example: Forgetting to update a lockfile after changing dependencies.*
 -   *Example: Not checking build logs for warnings that could become errors.*
 -   *Example: Making assumptions about API responses instead of checking the spec.*
@@ -564,6 +565,8 @@ Closes #[issue-number]
 -   **Modern TLS API migration** - rustls-pki-types provides safer PEM parsing with better error handling
 -   **checked_sub() for CI safety** - Prevents underflow panics in time arithmetic on low-uptime systems
 -   **Systematic grep for migrations** - `rg "old_value" --type rust` finds all references that need updating
+-   **Debug forensics with println!** - Adding EXPECTED vs ACTUAL debug output reveals runtime state that static analysis cannot; crucial for debugging constant calculation bugs
+-   **Cargo Feature Priority Pattern** - Use `cfg!(all(feature = "mode2", not(feature = "mode5")))` for proper feature priority in constant calculations
 -   *Example: Using a specific library feature to simplify complex state.*
 -   *Example: A shell command alias that speeds up a common task.*
 -   *Example: A design pattern that solved a recurring problem in the codebase.*
@@ -574,6 +577,8 @@ Closes #[issue-number]
 -   **Hardware Wallet Integration**: Fully qualified method calls to resolve serde trait conflicts
 -   **PQC Migration Pattern**: Update enum definition first → systematic grep for all references → verify cross-language bindings
 -   **CI Safety Pattern**: Use checked arithmetic for all time-based operations to prevent panics on low-uptime systems
+-   **Dilithium5 Constants**: SIGNBYTES=4595, PUBLICKEYBYTES=2592, SECRETKEYBYTES=4864 (includes hint bits in signatures)
+-   **Cargo Feature Unification Trap**: When `--all-features` is used, ALL features are enabled simultaneously; must use `cfg!(all(feature = "X", not(feature = "Y")))` for proper priority in BOTH `#[cfg]` attributes AND `cfg!` macro
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
@@ -638,5 +643,5 @@ Ctrl+b, d              # Detach from session
 -   [ ] Environment variables set
 -   [ ] Git configured
 
-**Last Updated**: 2025-12-22
-**Version**: 1.0.0
+**Last Updated**: 2025-12-23
+**Version**: 1.0.1
