@@ -46,8 +46,8 @@ export class Address {
    * Create post-quantum P2PKH address from Dilithium public key
    */
   static pqP2pkh(network: Network, dilithiumPubkey: Buffer): Address {
-    if (dilithiumPubkey.length !== 1952) {
-      throw new AddressError(`Invalid Dilithium public key length: ${dilithiumPubkey.length.length}`);
+    if (dilithiumPubkey.length !== 2592) {
+      throw new AddressError(`Invalid Dilithium public key length: ${dilithiumPubkey.length}`);
     }
 
     // Hash Dilithium public key

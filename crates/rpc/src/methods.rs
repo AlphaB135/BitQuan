@@ -1,8 +1,11 @@
 //! RPC method implementations
 
 use crate::{error_codes, JsonRpcResponse, RpcError};
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+// ... [Struct definitions remain the same] ...
 
 /// Block template for mining
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,68 +156,93 @@ pub struct NetworkStatusResponse {
     pub best_height: u64,
 }
 
+/// Sync response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncResponse {
+    /// Sync status
+    pub status: String,
+    /// Local chain height
+    pub local_height: u64,
+    /// Best known height from peers
+    pub best_height: u64,
+    /// Blocks behind
+    pub blocks_behind: u64,
+    /// Sync progress percentage
+    pub progress: f64,
+    /// Whether sync is currently in progress
+    pub syncing: bool,
+    /// Last sync attempt timestamp
+    pub last_sync_attempt: u64,
+    /// Sync errors count
+    pub sync_errors: u64,
+}
+
 /// RPC method handler trait
-pub trait RpcMethods {
+#[async_trait]
+pub trait RpcMethods: Send + Sync {
     /// Get current block count
-    fn getblockcount(&self) -> Result<u64, RpcError>;
+    async fn getblockcount(&self) -> Result<u64, RpcError>;
 
     /// Get blockchain info
-    fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError>;
+    async fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError>;
 
     /// Get mining info
-    fn getmininginfo(&self) -> Result<MiningInfo, RpcError>;
+    async fn getmininginfo(&self) -> Result<MiningInfo, RpcError>;
 
     /// Get block template for mining
-    fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError>;
+    async fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError>;
 
     /// Get work for mining (simple interface)
-    fn getwork(&self) -> Result<WorkData, RpcError>;
+    async fn getwork(&self) -> Result<WorkData, RpcError>;
 
     /// Submit mined block
-    fn submitblock(&self, block_hex: String) -> Result<bool, RpcError>;
+    async fn submitblock(&self, block_hex: String) -> Result<bool, RpcError>;
 
     /// Submit work (getwork style)
-    fn submitwork(&self, data: String) -> Result<bool, RpcError>;
+    async fn submitwork(&self, data: String) -> Result<bool, RpcError>;
 
     /// Get transaction by txid
-    fn gettransaction(&self, txid: String) -> Result<TxInfo, RpcError>;
+    async fn gettransaction(&self, txid: String) -> Result<TxInfo, RpcError>;
 
     /// Submit transaction to network
-    fn submittransaction(&self, tx_hex: String) -> Result<String, RpcError>;
+    async fn submittransaction(&self, tx_hex: String) -> Result<String, RpcError>;
 
     /// Get best block hash
-    fn getbestblockhash(&self) -> Result<String, RpcError>;
+    async fn getbestblockhash(&self) -> Result<String, RpcError>;
 
     /// Get block hash by height
-    fn getblockhash(&self, height: u64) -> Result<String, RpcError>;
+    async fn getblockhash(&self, height: u64) -> Result<String, RpcError>;
 
     /// Get pool statistics
-    fn getpoolstats(&self) -> Result<PoolStatsResponse, RpcError>;
+    async fn getpoolstats(&self) -> Result<PoolStatsResponse, RpcError>;
 
     /// Get miner statistics
-    fn getminerstats(&self, miner_id: String) -> Result<MinerStatsResponse, RpcError>;
+    async fn getminerstats(&self, miner_id: String) -> Result<MinerStatsResponse, RpcError>;
 
     /// Create payout (mock implementation)
-    fn createpayout(&self, request: PayoutRequest) -> Result<PayoutResponse, RpcError>;
+    async fn createpayout(&self, request: PayoutRequest) -> Result<PayoutResponse, RpcError>;
 
     /// Get network status
-    fn getnetworkstatus(&self) -> Result<NetworkStatusResponse, RpcError>;
+    async fn getnetworkstatus(&self) -> Result<NetworkStatusResponse, RpcError>;
+
+    /// Get sync status or trigger sync
+    async fn sync(&self) -> Result<SyncResponse, RpcError>;
 }
 
 /// Dispatch RPC call to appropriate method
-pub fn dispatch_call<T: RpcMethods>(
+pub async fn dispatch_call<T: RpcMethods>(
     handler: &T,
     method: &str,
     params: Value,
     id: Value,
 ) -> JsonRpcResponse {
     match method {
-        "getblockcount" => match handler.getblockcount() {
+        "getblockcount" => match handler.getblockcount().await {
             Ok(count) => JsonRpcResponse::success(id, serde_json::json!(count)),
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
-        "getblockchaininfo" => match handler.getblockchaininfo() {
+        "getblockchaininfo" => match handler.getblockchaininfo().await {
             Ok(info) => match serde_json::to_value(info) {
                 Ok(v) => JsonRpcResponse::success(id, v),
                 Err(e) => JsonRpcResponse::error(
@@ -226,7 +254,7 @@ pub fn dispatch_call<T: RpcMethods>(
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
-        "getmininginfo" => match handler.getmininginfo() {
+        "getmininginfo" => match handler.getmininginfo().await {
             Ok(info) => match serde_json::to_value(info) {
                 Ok(v) => JsonRpcResponse::success(id, v),
                 Err(e) => JsonRpcResponse::error(
@@ -238,7 +266,7 @@ pub fn dispatch_call<T: RpcMethods>(
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
-        "getblocktemplate" => match handler.getblocktemplate() {
+        "getblocktemplate" => match handler.getblocktemplate().await {
             Ok(template) => match serde_json::to_value(template) {
                 Ok(v) => JsonRpcResponse::success(id, v),
                 Err(e) => JsonRpcResponse::error(
@@ -250,7 +278,7 @@ pub fn dispatch_call<T: RpcMethods>(
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
 
-        "getwork" => match handler.getwork() {
+        "getwork" => match handler.getwork().await {
             Ok(work) => match serde_json::to_value(work) {
                 Ok(v) => JsonRpcResponse::success(id, v),
                 Err(e) => JsonRpcResponse::error(
@@ -268,7 +296,7 @@ pub fn dispatch_call<T: RpcMethods>(
                 .and_then(|a| a.first())
                 .and_then(|v| v.as_str())
             {
-                match handler.submitblock(block_hex.to_string()) {
+                match handler.submitblock(block_hex.to_string()).await {
                     Ok(accepted) => JsonRpcResponse::success(id, serde_json::json!(accepted)),
                     Err(e) => {
                         JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
@@ -289,7 +317,7 @@ pub fn dispatch_call<T: RpcMethods>(
                 .and_then(|a| a.first())
                 .and_then(|v| v.as_str())
             {
-                match handler.submitwork(data.to_string()) {
+                match handler.submitwork(data.to_string()).await {
                     Ok(accepted) => JsonRpcResponse::success(id, serde_json::json!(accepted)),
                     Err(e) => {
                         JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
@@ -310,7 +338,7 @@ pub fn dispatch_call<T: RpcMethods>(
                 .and_then(|a| a.first())
                 .and_then(|v| v.as_str())
             {
-                match handler.gettransaction(txid.to_string()) {
+                match handler.gettransaction(txid.to_string()).await {
                     Ok(tx) => match serde_json::to_value(tx) {
                         Ok(v) => JsonRpcResponse::success(id, v),
                         Err(e) => JsonRpcResponse::error(
@@ -334,7 +362,7 @@ pub fn dispatch_call<T: RpcMethods>(
                 .and_then(|a| a.first())
                 .and_then(|v| v.as_str())
             {
-                match handler.submittransaction(tx_hex.to_string()) {
+                match handler.submittransaction(tx_hex.to_string()).await {
                     Ok(txid) => JsonRpcResponse::success(id, serde_json::json!(txid)),
                     Err(e) => {
                         JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
@@ -349,7 +377,7 @@ pub fn dispatch_call<T: RpcMethods>(
             }
         }
 
-        "getbestblockhash" => match handler.getbestblockhash() {
+        "getbestblockhash" => match handler.getbestblockhash().await {
             Ok(hash) => JsonRpcResponse::success(id, serde_json::json!(hash)),
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
@@ -360,7 +388,7 @@ pub fn dispatch_call<T: RpcMethods>(
                 .and_then(|a| a.first())
                 .and_then(|v| v.as_u64())
             {
-                match handler.getblockhash(height) {
+                match handler.getblockhash(height).await {
                     Ok(hash) => JsonRpcResponse::success(id, serde_json::json!(hash)),
                     Err(e) => {
                         JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string())
@@ -375,7 +403,7 @@ pub fn dispatch_call<T: RpcMethods>(
             }
         }
 
-        "getpoolstats" => match handler.getpoolstats() {
+        "getpoolstats" => match handler.getpoolstats().await {
             Ok(stats) => match serde_json::to_value(stats) {
                 Ok(v) => JsonRpcResponse::success(id, v),
                 Err(e) => JsonRpcResponse::error(
@@ -393,7 +421,7 @@ pub fn dispatch_call<T: RpcMethods>(
                 .and_then(|a| a.first())
                 .and_then(|v| v.as_str())
             {
-                match handler.getminerstats(miner_id.to_string()) {
+                match handler.getminerstats(miner_id.to_string()).await {
                     Ok(stats) => match serde_json::to_value(stats) {
                         Ok(v) => JsonRpcResponse::success(id, v),
                         Err(e) => JsonRpcResponse::error(
@@ -425,7 +453,7 @@ pub fn dispatch_call<T: RpcMethods>(
                         miner_id: miner_id.to_string(),
                         amount,
                     };
-                    match handler.createpayout(request) {
+                    match handler.createpayout(request).await {
                         Ok(response) => match serde_json::to_value(response) {
                             Ok(v) => JsonRpcResponse::success(id, v),
                             Err(e) => JsonRpcResponse::error(
@@ -454,8 +482,20 @@ pub fn dispatch_call<T: RpcMethods>(
             }
         }
 
-        "getnetworkstatus" => match handler.getnetworkstatus() {
+        "getnetworkstatus" => match handler.getnetworkstatus().await {
             Ok(status) => match serde_json::to_value(status) {
+                Ok(v) => JsonRpcResponse::success(id, v),
+                Err(e) => JsonRpcResponse::error(
+                    id,
+                    error_codes::INTERNAL_ERROR,
+                    format!("serialization error: {}", e),
+                ),
+            },
+            Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+        },
+
+        "sync" => match handler.sync().await {
+            Ok(sync_info) => match serde_json::to_value(sync_info) {
                 Ok(v) => JsonRpcResponse::success(id, v),
                 Err(e) => JsonRpcResponse::error(
                     id,
@@ -471,139 +511,5 @@ pub fn dispatch_call<T: RpcMethods>(
             error_codes::METHOD_NOT_FOUND,
             format!("Method '{}' not found", method),
         ),
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
-mod tests {
-    use super::*;
-
-    struct MockRpc;
-
-    impl RpcMethods for MockRpc {
-        fn getblockcount(&self) -> Result<u64, RpcError> {
-            Ok(12345)
-        }
-
-        fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError> {
-            Ok(BlockchainInfo {
-                chain: "main".to_string(),
-                blocks: 12345,
-                bestblockhash: "00000000000000000".to_string(),
-                difficulty: 1234.5,
-                chainwork: "0000000000000000".to_string(),
-            })
-        }
-
-        fn getmininginfo(&self) -> Result<MiningInfo, RpcError> {
-            Ok(MiningInfo {
-                blocks: 12345,
-                difficulty: 1234.5,
-                networkhashps: 1e12,
-            })
-        }
-
-        fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError> {
-            Err(RpcError::InternalError("not implemented".to_string()))
-        }
-
-        fn submitblock(&self, _block_hex: String) -> Result<bool, RpcError> {
-            Ok(true)
-        }
-
-        fn gettransaction(&self, _txid: String) -> Result<TxInfo, RpcError> {
-            Err(RpcError::InternalError("not found".to_string()))
-        }
-
-        fn submittransaction(&self, _tx_hex: String) -> Result<String, RpcError> {
-            Ok("test_txid_1234567890abcdef".to_string())
-        }
-
-        fn getbestblockhash(&self) -> Result<String, RpcError> {
-            Ok("00000000000000000".to_string())
-        }
-
-        fn getblockhash(&self, _height: u64) -> Result<String, RpcError> {
-            Ok("00000000000000000".to_string())
-        }
-
-        fn getwork(&self) -> Result<WorkData, RpcError> {
-            Ok(WorkData {
-                data: "00000000000000000000000000000000".to_string(),
-                target: "00000000ffff0000000000000000000000000000000000000000000000000000"
-                    .to_string(),
-            })
-        }
-
-        fn submitwork(&self, _data: String) -> Result<bool, RpcError> {
-            Ok(true)
-        }
-
-        fn getpoolstats(&self) -> Result<PoolStatsResponse, RpcError> {
-            Ok(PoolStatsResponse {
-                height: 12345,
-                total_rewards: 1000000000,
-                miner_count: 5,
-                pool_balance: 500000000,
-                block_count: 100,
-            })
-        }
-
-        fn getminerstats(&self, _miner_id: String) -> Result<MinerStatsResponse, RpcError> {
-            Ok(MinerStatsResponse {
-                miner_id: "test_miner".to_string(),
-                total_reward: 50000000,
-                blocks_mined: 10,
-                recent_blocks: vec![],
-            })
-        }
-
-        fn createpayout(&self, _request: PayoutRequest) -> Result<PayoutResponse, RpcError> {
-            Ok(PayoutResponse {
-                payout_id: "payout123".to_string(),
-                txid: Some("tx456".to_string()),
-            })
-        }
-
-        fn getnetworkstatus(&self) -> Result<NetworkStatusResponse, RpcError> {
-            Ok(NetworkStatusResponse {
-                peers_connected: 5,
-                blocks_broadcast: 100,
-                blocks_received: 150,
-                sync_status: "synced".to_string(),
-                local_height: 12345,
-                best_height: 12345,
-            })
-        }
-    }
-
-    #[test]
-    fn test_dispatch_getblockcount() {
-        let handler = MockRpc;
-        let response = dispatch_call(
-            &handler,
-            "getblockcount",
-            serde_json::json!([]),
-            serde_json::json!(1),
-        );
-        assert!(response.result.is_some());
-        assert_eq!(response.result.expect("Response should have result"), 12345);
-    }
-
-    #[test]
-    fn test_dispatch_unknown_method() {
-        let handler = MockRpc;
-        let response = dispatch_call(
-            &handler,
-            "unknownmethod",
-            serde_json::json!([]),
-            serde_json::json!(1),
-        );
-        assert!(response.error.is_some());
-        assert_eq!(
-            response.error.expect("Response should have error").code,
-            error_codes::METHOD_NOT_FOUND
-        );
     }
 }

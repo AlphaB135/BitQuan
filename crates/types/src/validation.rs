@@ -259,7 +259,7 @@ mod tests {
                 value: 100,
                 script_pubkey: vec![0x51],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
         assert!(matches!(
@@ -282,7 +282,7 @@ mod tests {
                 script_sig: vec![],
             }],
             outputs: vec![],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
         assert!(matches!(
@@ -316,7 +316,7 @@ mod tests {
                 value: 100,
                 script_pubkey: vec![0x51],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
         assert!(matches!(

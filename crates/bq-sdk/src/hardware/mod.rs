@@ -1,9 +1,17 @@
 //! Hardware wallet integration for BitQuan
 
 use crate::{address::Address, psbt::PQPSBT, Result, SDKError};
+
+#[cfg(feature = "hardware")]
+use pqc_dilithium_seeded::{PUBLICKEYBYTES, SIGNBYTES};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
+
+#[cfg(feature = "hardware")]
+use crate::psbt::PSBTError;
+#[cfg(feature = "hardware")]
+use std::str::FromStr;
 
 /// Hardware wallet errors
 #[derive(Debug, Error)]
@@ -35,6 +43,10 @@ pub enum HardwareError {
     /// Firmware version too old
     #[error("Firmware version too old: {0}")]
     FirmwareTooOld(String),
+
+    /// Operation failed
+    #[error("Operation failed: {0}")]
+    OperationFailed(String),
 }
 
 /// Device capabilities
@@ -102,6 +114,21 @@ pub enum ResponseStatus {
     NotSupported = 0x05,
     /// Busy
     Busy = 0x06,
+}
+
+impl From<u8> for ResponseStatus {
+    fn from(byte: u8) -> Self {
+        match byte {
+            0x00 => ResponseStatus::Success,
+            0x01 => ResponseStatus::InvalidParameter,
+            0x02 => ResponseStatus::OperationFailed,
+            0x03 => ResponseStatus::UserCancelled,
+            0x04 => ResponseStatus::DeviceLocked,
+            0x05 => ResponseStatus::NotSupported,
+            0x06 => ResponseStatus::Busy,
+            _ => ResponseStatus::OperationFailed,
+        }
+    }
 }
 
 /// Hardware wallet interface
@@ -199,7 +226,7 @@ impl USBHardwareWallet {
         let mut devices = vec![];
 
         for device_info in api.device_list() {
-            if let Some(device) = api.open_device_info(device_info) {
+            if let Ok(device) = device_info.open_device(&api) {
                 if let Ok(info) = Self::get_device_info(&device) {
                     devices.push(info);
                 }
@@ -255,27 +282,29 @@ impl USBHardwareWallet {
     /// Get device info from device
     fn get_device_info(device: &hidapi::HidDevice) -> Result<DeviceInfo> {
         // Send GetInfo command
+        let mut buffer = [0u8; 64];
+        buffer[0] = Command::GetInfo as u8;
         let response = device
-            .get_feature_report(&[Command::GetInfo as u8])
+            .get_feature_report(&mut buffer)
             .map_err(|e| SDKError::Hardware(HardwareError::CommunicationError(e.to_string())))?;
 
-        if response.len() < 10 {
+        if response < 10 {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
                 "Too short response".to_string(),
             )));
         }
 
         // Parse response (simplified)
-        let vendor_id = u16::from_le_bytes([response[1], response[2]]);
-        let product_id = u16::from_le_bytes([response[3], response[4]]);
+        let vendor_id = u16::from_le_bytes([buffer[1], buffer[2]]);
+        let product_id = u16::from_le_bytes([buffer[3], buffer[4]]);
 
         let capabilities = DeviceCapabilities {
-            supports_dilithium: response[5] & 0x01 != 0,
-            supports_ecdsa: response[5] & 0x02 != 0,
-            has_display: response[5] & 0x04 != 0,
-            has_buttons: response[5] & 0x08 != 0,
-            max_message_size: u16::from_le_bytes([response[6], response[7]]) as usize,
-            firmware_version: format!("{}.{}.{}", response[8], response[9], response[10]),
+            supports_dilithium: buffer[5] & 0x01 != 0,
+            supports_ecdsa: buffer[5] & 0x02 != 0,
+            has_display: buffer[5] & 0x04 != 0,
+            has_buttons: buffer[5] & 0x08 != 0,
+            max_message_size: u16::from_le_bytes([buffer[6], buffer[7]]) as usize,
+            firmware_version: format!("{}.{}.{}", buffer[8], buffer[9], buffer[10]),
             device_model: "BitQuan Hardware".to_string(),
             serial_number: "Unknown".to_string(),
         };
@@ -300,15 +329,15 @@ impl HardwareWallet for USBHardwareWallet {
 
     fn get_public_key(&self, derivation_path: &str) -> Result<Vec<u8>> {
         let path_bytes = derivation_path.as_bytes();
-        let response = self.send_command(Command::GetPublicKey, &path_bytes)?;
+        let response = self.send_command(Command::GetPublicKey, path_bytes)?;
 
-        if response.len() < 1952 {
+        if response.len() < PUBLICKEYBYTES {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
                 "Invalid public key length".to_string(),
             )));
         }
 
-        Ok(response[..1952].to_vec())
+        Ok(response[..PUBLICKEYBYTES].to_vec())
     }
 
     fn get_address(&self, derivation_path: &str, display: bool) -> Result<Address> {
@@ -324,7 +353,8 @@ impl HardwareWallet for USBHardwareWallet {
     }
 
     fn sign_transaction(&self, psbt: &mut PQPSBT) -> Result<()> {
-        let psbt_bytes = psbt.serialize()?;
+        let psbt_bytes = <PQPSBT>::serialize(psbt)
+            .map_err(|e| SDKError::PSBT(PSBTError::Serialization(e.to_string())))?;
         let response = self.send_command(Command::SignTransaction, &psbt_bytes)?;
 
         // Parse response and update PSBT with signatures
@@ -332,10 +362,10 @@ impl HardwareWallet for USBHardwareWallet {
         for (i, input) in psbt.inputs.iter_mut().enumerate() {
             if input.get_dilithium_signature().is_none() {
                 // Extract signature from response (simplified)
-                let sig_start = i * 3293;
-                if sig_start + 3293 <= response.len() {
-                    let mut signature = [0u8; 3293];
-                    signature.copy_from_slice(&response[sig_start..sig_start + 3293]);
+                let sig_start = i * SIGNBYTES;
+                if sig_start + SIGNBYTES <= response.len() {
+                    let mut signature = [0u8; SIGNBYTES];
+                    signature.copy_from_slice(&response[sig_start..sig_start + SIGNBYTES]);
                     input.set_dilithium_signature(signature);
                 }
             }
@@ -352,13 +382,13 @@ impl HardwareWallet for USBHardwareWallet {
 
         let response = self.send_command(Command::SignMessage, &data)?;
 
-        if response.len() < 3293 {
+        if response.len() < SIGNBYTES {
             return Err(SDKError::Hardware(HardwareError::InvalidResponse(
                 "Invalid signature length".to_string(),
             )));
         }
 
-        Ok(response[..3293].to_vec())
+        Ok(response[..SIGNBYTES].to_vec())
     }
 
     fn backup_wallet(&self) -> Result<Vec<u8>> {
@@ -425,11 +455,11 @@ impl HardwareWalletManager {
             // Connect to new devices
             for device_info in &devices {
                 let key = format!("{}:{}", device_info.vendor_id, device_info.product_id);
-                if !self.devices.contains_key(&key) {
+                if let std::collections::hash_map::Entry::Vacant(e) = self.devices.entry(key) {
                     if let Ok(wallet) =
                         USBHardwareWallet::new(device_info.vendor_id, device_info.product_id)
                     {
-                        self.devices.insert(key, Box::new(wallet));
+                        e.insert(Box::new(wallet));
                     }
                 }
             }

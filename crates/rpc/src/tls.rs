@@ -1,7 +1,5 @@
 //! TLS configuration helpers for the BitQuan RPC server.
 
-use std::fs::File;
-use std::io::{BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -10,7 +8,8 @@ use rcgen::{generate_simple_self_signed, CertifiedKey};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer};
 use rustls::version::TLS13;
 use rustls::ServerConfig;
-use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
+// Use rustls-pki-types PEM parsing API (rustls-pemfile is unmaintained)
+use rustls::pki_types::pem::PemObject;
 use thiserror::Error;
 
 /// Errors that can occur while working with TLS configuration.
@@ -120,9 +119,8 @@ pub fn generate_self_signed_cert(output_dir: &Path) -> Result<(), TlsError> {
 }
 
 fn load_certs(path: &Path) -> Result<Vec<CertificateDer<'static>>, TlsError> {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
-    let certs = certs(&mut reader)
+    let certs = CertificateDer::pem_file_iter(path)
+        .map_err(|err| TlsError::Pem(err.to_string()))?
         .collect::<Result<Vec<CertificateDer<'static>>, _>>()
         .map_err(|err| TlsError::Pem(err.to_string()))?;
 
@@ -134,19 +132,18 @@ fn load_certs(path: &Path) -> Result<Vec<CertificateDer<'static>>, TlsError> {
 }
 
 fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, TlsError> {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
-
-    if let Some(key) = pkcs8_private_keys(&mut reader).next() {
-        let key: PrivatePkcs8KeyDer<'static> = key.map_err(|err| TlsError::Pem(err.to_string()))?;
-        return Ok(PrivateKeyDer::from(key));
+    // Try PKCS#8 keys first
+    if let Ok(keys) = PrivatePkcs8KeyDer::pem_file_iter(path) {
+        if let Some(key) = keys.flatten().next() {
+            return Ok(PrivateKeyDer::from(key));
+        }
     }
 
-    reader.seek(SeekFrom::Start(0))?;
-
-    if let Some(key) = rsa_private_keys(&mut reader).next() {
-        let key: PrivatePkcs1KeyDer<'static> = key.map_err(|err| TlsError::Pem(err.to_string()))?;
-        return Ok(PrivateKeyDer::from(key));
+    // Fall back to PKCS#1 RSA keys
+    if let Ok(keys) = PrivatePkcs1KeyDer::pem_file_iter(path) {
+        if let Some(key) = keys.flatten().next() {
+            return Ok(PrivateKeyDer::from(key));
+        }
     }
 
     Err(TlsError::NoPrivateKey(path.to_path_buf()))

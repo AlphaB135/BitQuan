@@ -1,8 +1,8 @@
 #![no_main]
 
-use libfuzzer_sys::fuzz_target;
-use bq_crypto::CryptoRegistry;
 use bitquan_types::{SigAlgorithm, SignaturePayload};
+use bq_crypto::CryptoRegistry;
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Fuzz Dilithium signature verification
@@ -11,11 +11,11 @@ fuzz_target!(|data: &[u8]| {
 
         // Split data into signature, message, and public key
         if data.len() >= 100 {
-            let sig_len = 3293; // Dilithium3 signature size
-            let pk_len = 1952; // Dilithium3 public key size
+            let sig_len = 4595; // Dilithium5 signature size
+            let pk_len = 2592; // Dilithium5 public key size
 
-            let mut signature = [0u8; 3293];
-            let mut public_key = [0u8; 1952];
+            let mut signature = [0u8; 4595];
+            let mut public_key = [0u8; 2592];
             let mut message = Vec::new();
 
             // Fill with fuzz data
@@ -33,7 +33,7 @@ fuzz_target!(|data: &[u8]| {
             }
 
             // Test verification doesn't panic
-            if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium3) {
+            if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium5) {
                 let payload = SignaturePayload {
                     signer_index: 0,
                     signature: signature.to_vec(),
@@ -56,11 +56,11 @@ fuzz_target!(|data: &[u8]| {
         }
 
         let registry = CryptoRegistry::new();
-        let public_key = [0u8; 1952];
+        let public_key = [0u8; 2592];
         let message = b"test message";
 
         // Should handle malformed signatures gracefully
-        if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium3) {
+        if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium5) {
             let payload = SignaturePayload {
                 signer_index: 0,
                 signature: malformed_sig[..actual_len].to_vec(),
@@ -74,11 +74,11 @@ fuzz_target!(|data: &[u8]| {
     // Fuzz oversized messages
     if data.len() > 1_000_000 {
         let registry = CryptoRegistry::new();
-        let signature = [0u8; 3293];
-        let public_key = [0u8; 1952];
+        let signature = [0u8; 4595];
+        let public_key = [0u8; 2592];
 
         // Should handle oversized messages
-        if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium3) {
+        if let Some(provider) = registry.provider_for(SigAlgorithm::Dilithium5) {
             let payload = SignaturePayload {
                 signer_index: 0,
                 signature: signature.to_vec(),

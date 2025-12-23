@@ -345,9 +345,11 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_bans_after_violations() {
-        let mut config = RateLimitConfig::default();
-        config.violation_threshold = 2; // Lower for testing
-        config.max_messages_per_window = 100; // High enough to not interfere
+        let config = RateLimitConfig {
+            violation_threshold: 2,       // Lower for testing
+            max_messages_per_window: 100, // High enough to not interfere
+            ..Default::default()
+        };
         let mut limiter = RateLimiter::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
 

@@ -575,7 +575,9 @@ impl DoSProtection {
 
     /// Clear old attacks
     pub fn cleanup(&mut self) {
-        let cutoff = Instant::now() - Duration::from_secs(3600); // Keep 1 hour
+        let cutoff = Instant::now()
+            .checked_sub(Duration::from_secs(3600))
+            .unwrap_or_else(Instant::now); // Keep 1 hour, safe on low uptime
         self.detected_attacks
             .retain(|attack| attack.detected_at > cutoff);
     }
@@ -662,8 +664,10 @@ mod tests {
 
     #[test]
     fn test_syn_flood_detection() {
-        let mut config = DoSConfig::default();
-        config.max_half_open_per_ip = 3;
+        let config = DoSConfig {
+            max_half_open_per_ip: 3,
+            ..Default::default()
+        };
         let mut protection = DoSProtection::new(config);
         let ip = "192.168.1.100".parse().unwrap();
 
@@ -693,8 +697,10 @@ mod tests {
 
     #[test]
     fn test_connection_flood_detection() {
-        let mut config = DoSConfig::default();
-        config.connection_flood_threshold = 5;
+        let config = DoSConfig {
+            connection_flood_threshold: 5,
+            ..Default::default()
+        };
         let mut protection = DoSProtection::new(config);
         let ip = "192.168.1.100".parse().unwrap();
         let peer = format!("test_peer_{}", rand::random::<u64>());
@@ -711,8 +717,10 @@ mod tests {
 
     #[test]
     fn test_bandwidth_tracking() {
-        let mut config = DoSConfig::default();
-        config.max_bandwidth_per_peer = 1000;
+        let config = DoSConfig {
+            max_bandwidth_per_peer: 1000,
+            ..Default::default()
+        };
         let mut protection = DoSProtection::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
 
@@ -726,8 +734,10 @@ mod tests {
 
     #[test]
     fn test_pattern_analysis() {
-        let mut config = DoSConfig::default();
-        config.suspicious_pattern_threshold = 0.7;
+        let config = DoSConfig {
+            suspicious_pattern_threshold: 0.7,
+            ..Default::default()
+        };
         let mut protection = DoSProtection::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
 

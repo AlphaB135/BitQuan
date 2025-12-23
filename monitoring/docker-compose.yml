@@ -1,12 +1,11 @@
 version: '3.8'
 
 services:
-  # Prometheus for metrics collection
+  # Prometheus for metrics collection (internal only)
   prometheus:
     image: prom/prometheus:latest
     container_name: bitquan-prometheus
-    ports:
-      - "9090:9090"
+    # No port exposure to host - internal only
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - ./bitquan_alerts.yml:/etc/prometheus/bitquan_alerts.yml
@@ -18,58 +17,124 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
     restart: unless-stopped
     networks:
       - monitoring
+      - traefik  # Connect to reverse proxy network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-auth"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
-  # Grafana for visualization
+  # Grafana for visualization with authentication
   grafana:
     image: grafana/grafana:latest
     container_name: bitquan-grafana
-    ports:
-      - "3000:3000"
+    # No direct port exposure - use reverse proxy
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana-dashboard.json:/etc/grafana/provisioning/dashboards/bitquan-dashboard.json
+      - ./grafana/provisioning:/etc/grafana/provisioning
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      # Use environment variables instead of hardcoded passwords
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_COOKIE_SAMESITE=strict
+      - GF_SECURITY_CONTENT_TYPE_PROTECTION=true
+      - GF_SECURITY_X_CONTENT_TYPE_OPTIONS=nosniff
+      - GF_SECURITY_X_XSS_PROTECTION=true
+      # Enable anonymous access with viewer role for dashboards
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
     restart: unless-stopped
     networks:
       - monitoring
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.middlewares=grafana-auth"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
-  # AlertManager for alert routing
+  # AlertManager for alert routing (internal only)
   alertmanager:
     image: prom/alertmanager:latest
     container_name: bitquan-alertmanager
-    ports:
-      - "9093:9093"
+    # No port exposure to host - internal only
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
       - alertmanager_data:/alertmanager
     restart: unless-stopped
     networks:
       - monitoring
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alerts.localhost`)"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.middlewares=alertmanager-auth"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
 
-  # Node Exporter for system metrics
+  # Node Exporter for system metrics (internal only)
   node-exporter:
     image: prom/node-exporter:latest
     container_name: bitquan-node-exporter
-    ports:
-      - "9100:9100"
+    # No port exposure to host - internal only
     command:
       - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     volumes:
       - '/:/host:ro,rslave'
     restart: unless-stopped
     networks:
       - monitoring
+    # No Traefik labels - only accessible within monitoring network
+
+  # Reverse proxy with authentication
+  traefik:
+    image: traefik:v2.10
+    container_name: bitquan-traefik
+    ports:
+      - "80:80"      # HTTP (redirect to HTTPS)
+      - "443:443"    # HTTPS
+      - "8080:8080"  # Traefik dashboard (internal)
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - ./traefik/dynamic:/etc/traefik/dynamic
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/etc/ssl/certs
+    environment:
+      - TRAEFIK_DASHBOARD_USERNAME=${TRAEFIK_USERNAME:-admin}
+      - TRAEFIK_DASHBOARD_PASSWORD=${TRAEFIK_PASSWORD}
+    restart: unless-stopped
+    networks:
+      - monitoring
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.middlewares=dashboard-auth"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
 
 volumes:
   prometheus_data:
+    driver: local
   grafana_data:
+    driver: local
   alertmanager_data:
+    driver: local
 
 networks:
   monitoring:
+    driver: bridge
+    internal: true  # No external access
+  traefik:
     driver: bridge

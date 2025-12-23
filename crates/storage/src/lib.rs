@@ -12,6 +12,13 @@ pub mod rocksdb_store;
 #[cfg(feature = "rocksdb-backend")]
 pub use rocksdb_store::{DatabaseStats, RecoveryOptions, RocksDBStore};
 
+/// Undo block functionality for rolling back blockchain state
+pub mod undo_block;
+pub use undo_block::{SpentOutput, UndoBlock};
+
+pub mod async_store;
+pub use async_store::{AsyncChainStore, AsyncResult, AsyncStoreError, AsyncStoreWrapper};
+
 /// Errors produced by chain storage backends.
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -29,10 +36,29 @@ pub enum StorageError {
     SerializationError(String),
 }
 
+impl From<crate::async_store::AsyncStoreError> for StorageError {
+    fn from(err: crate::async_store::AsyncStoreError) -> Self {
+        match err {
+            crate::async_store::AsyncStoreError::Storage(s) => s,
+            crate::async_store::AsyncStoreError::TaskSpawn(_) => {
+                StorageError::DatabaseError("Task spawn failed".to_string())
+            }
+            crate::async_store::AsyncStoreError::Poisoned(s) => {
+                StorageError::DatabaseError(format!("Poisoned mutex: {}", s))
+            }
+            crate::async_store::AsyncStoreError::Cancelled => {
+                StorageError::DatabaseError("Operation cancelled".to_string())
+            }
+        }
+    }
+}
+
 /// Interface describing basic blockchain storage operations.
 pub trait ChainStore {
     /// Inserts a fully validated block.
     fn insert_block(&mut self, block: Block) -> Result<(), StorageError>;
+    /// Disconnects a block, rolling back its changes.
+    fn disconnect_block(&mut self, block: &Block) -> Result<(), StorageError>;
     /// Fetches a block by its header hash.
     fn get_block(&self, id: &[u8; 32]) -> Result<Option<Block>, StorageError>;
     /// Returns the latest known block header.
@@ -86,6 +112,13 @@ impl ChainStore for InMemoryChainStore {
         self.tip = Some(block.header.clone());
         self.blocks.insert(id, block);
         Ok(())
+    }
+
+    fn disconnect_block(&mut self, _block: &Block) -> Result<(), StorageError> {
+        // Not implemented for in-memory store, but required for trait
+        Err(StorageError::DatabaseError(
+            "disconnect_block is not supported in InMemoryChainStore".into(),
+        ))
     }
 
     fn get_block(&self, id: &[u8; 32]) -> Result<Option<Block>, StorageError> {

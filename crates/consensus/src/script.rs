@@ -62,7 +62,7 @@ pub enum ScriptError {
 pub enum OpCode {
     /// Push 1 byte of data.
     Push1 = 0x01,
-    /// Push 2 bytes (Dilithium3 signature ~3293 bytes, encoded as push opcodes).
+    /// Push 2 bytes (Dilithium5 signature ~4595 bytes, encoded as push opcodes).
     PushData1 = 0x4c,
     /// Push 4 bytes.
     PushData2 = 0x4d,
@@ -288,7 +288,7 @@ impl ScriptInterpreter {
         // Get provider from registry
         let provider = self
             .registry
-            .provider_for(bitquan_types::SigAlgorithm::Dilithium3)
+            .provider_for(bitquan_types::SigAlgorithm::Dilithium5)
             .ok_or(ScriptError::InvalidSignature)?;
 
         // Verify

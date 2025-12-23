@@ -53,8 +53,8 @@ pub struct AuxiliarySignatureData {
 /// Supported signature algorithms for BitQuan transactions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SigAlgorithm {
-    /// CRYSTALS-Dilithium level 3.
-    Dilithium3,
+    /// CRYSTALS-Dilithium level 5.
+    Dilithium5,
     /// Falcon-512 lattice signature scheme.
     Falcon512,
     /// SPHINCS+ stateless hash-based signature.
@@ -67,7 +67,7 @@ impl SigAlgorithm {
     /// Returns the protocol code associated with the algorithm.
     pub const fn code(self) -> u8 {
         match self {
-            SigAlgorithm::Dilithium3 => 0x01,
+            SigAlgorithm::Dilithium5 => 0x01,
             SigAlgorithm::Falcon512 => 0x02,
             SigAlgorithm::SphincsPlus => 0x03,
             SigAlgorithm::Reserved(value) => value,
@@ -77,7 +77,7 @@ impl SigAlgorithm {
     /// Constructs an algorithm variant from the assigned protocol code.
     pub const fn from_code(code: u8) -> Self {
         match code {
-            0x01 => SigAlgorithm::Dilithium3,
+            0x01 => SigAlgorithm::Dilithium5,
             0x02 => SigAlgorithm::Falcon512,
             0x03 => SigAlgorithm::SphincsPlus,
             other => SigAlgorithm::Reserved(other),

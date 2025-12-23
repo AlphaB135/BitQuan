@@ -16,7 +16,7 @@ fn test_address_generation() {
 
 #[test]
 fn test_post_quantum_address() {
-    let pubkey = [0x42; 1952];
+    let pubkey = [0x42; 2592];
     let address = Address::pq_p2pkh(Network::Mainnet, &pubkey).unwrap();
 
     assert_eq!(address.network, Network::Mainnet);
@@ -200,7 +200,7 @@ fn test_wallet_psbt_signing() {
 
 #[test]
 fn test_signature_algorithms() {
-    assert!(SignatureAlgorithm::Dilithium3.is_post_quantum());
+    assert!(SignatureAlgorithm::Dilithium5.is_post_quantum());
     assert!(SignatureAlgorithm::Hybrid.is_post_quantum());
     assert!(!SignatureAlgorithm::ECDSA.is_post_quantum());
 }

@@ -1,9 +1,9 @@
-use bq_crypto::dilithium::Keypair;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use pqc_dilithium_seeded::{verify, Keypair};
 
 fn bench_keypair_generation(c: &mut Criterion) {
     c.bench_function("generate_dilithium_keypair", |b| {
-        b.iter(|| Keypair::generate());
+        b.iter(Keypair::generate);
     });
 }
 
@@ -22,7 +22,7 @@ fn bench_verify_signature(c: &mut Criterion) {
     let signature = keypair.sign(message);
 
     c.bench_function("verify_signature", |b| {
-        b.iter(|| keypair.verify(black_box(message), black_box(&signature)));
+        b.iter(|| verify(black_box(&signature), black_box(message), &keypair.public));
     });
 }
 

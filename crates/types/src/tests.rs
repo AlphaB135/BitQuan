@@ -30,7 +30,7 @@ fn sample_tx() -> Transaction {
         lock_time: 0,
         inputs: vec![tx_in],
         outputs: vec![tx_out],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![witness],
     }
 }
@@ -98,7 +98,7 @@ fn test_tx_size_overflow_protection() {
             value: 1000,
             script_pubkey: vec![0x51],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 
@@ -145,7 +145,7 @@ fn test_witness_size_overflow_protection() {
             value: 1000,
             script_pubkey: vec![0x51],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses,
     };
 
@@ -188,7 +188,7 @@ fn test_signature_count_overflow() {
             value: 1000,
             script_pubkey: vec![0x51],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses,
     };
 

@@ -107,7 +107,7 @@ fn test_calculate_tx_weight_bqip0002() {
                 script_pubkey: vec![0x76, 0xa9],
             },
         ],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![Witness {
             signatures: vec![SignaturePayload {
                 signer_index: 0,
@@ -153,7 +153,7 @@ fn test_block_weight_calculation() {
             value: params.reward_schedule.subsidy_at_height(0),
             script_pubkey: vec![0x76, 0xa9],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 
@@ -209,7 +209,7 @@ fn test_block_weight_exceeds_limit() {
                 value: 1000,
                 script_pubkey: vec![0x76, 0xa9],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![Witness {
                 signatures: vec![SignaturePayload {
                     signer_index: 0,
@@ -267,7 +267,7 @@ fn test_transaction_and_block_hash_determinism() {
             value: 42_000,
             script_pubkey: vec![0x51, 0x20, 0x99],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![Witness {
             signatures: vec![SignaturePayload {
                 signer_index: 0,
@@ -335,7 +335,7 @@ fn test_signature_weight_scaling() {
             value: 1000,
             script_pubkey: vec![0x76, 0xa9],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![Witness {
             signatures: vec![SignaturePayload {
                 signer_index: 0,
@@ -362,7 +362,7 @@ fn test_signature_weight_scaling() {
             value: 1000,
             script_pubkey: vec![0x76, 0xa9],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![Witness {
             signatures: vec![
                 SignaturePayload {
@@ -427,7 +427,7 @@ mod property_tests {
                     value: 1000 * (i as u64 + 1),
                     script_pubkey: vec![0x76, 0xa9],
                 }).collect(),
-                sig_algo: SigAlgorithm::Dilithium3,
+                sig_algo: SigAlgorithm::Dilithium5,
                 witnesses: vec![],
             };
 
@@ -461,7 +461,7 @@ mod property_tests {
                     value: 1000,
                     script_pubkey: vec![0x76, 0xa9],
                 }],
-                sig_algo: SigAlgorithm::Dilithium3,
+                sig_algo: SigAlgorithm::Dilithium5,
                 witnesses: vec![Witness {
                     signatures: (0..sig_count).map(|i| SignaturePayload {
                         signer_index: i as u16,
@@ -500,7 +500,7 @@ mod property_tests {
                     value: 1000,
                     script_pubkey: vec![0x76, 0xa9],
                 }],
-                sig_algo: SigAlgorithm::Dilithium3,
+                sig_algo: SigAlgorithm::Dilithium5,
                 witnesses: vec![],
             }).collect();
 
@@ -563,7 +563,7 @@ fn test_tx_weight_overflow_protection() {
             value: 1000,
             script_pubkey: vec![0x76, 0xa9],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses,
     };
 
@@ -605,7 +605,7 @@ fn test_block_weight_overflow_protection() {
                 value: 1000,
                 script_pubkey: vec![0x76; 50],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         });
     }
@@ -675,7 +675,7 @@ fn test_signature_count_overflow() {
             value: 1000,
             script_pubkey: vec![0x76],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses,
     };
 
@@ -726,7 +726,7 @@ fn test_validate_block_weight_overflow() {
                 value: 1000,
                 script_pubkey: vec![0x76; 100],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         });
     }
@@ -752,6 +752,8 @@ fn test_validate_block_weight_overflow() {
         &registry,
         NetworkId::Devnet,
         GENESIS_HASH_BYTES,
+        None,
+        0, // median_time_past
     );
 
     // Should either detect overflow or weight exceeds limit
@@ -799,7 +801,7 @@ fn test_validate_transaction_signatures_with_valid_context() {
             value: 1000,
             script_pubkey: vec![0x51],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 
@@ -831,7 +833,7 @@ fn test_validate_transaction_signatures_network_mismatch() {
             value: 1000,
             script_pubkey: vec![0x51],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 
@@ -869,7 +871,7 @@ fn test_validate_transaction_signatures_genesis_mismatch() {
             value: 1000,
             script_pubkey: vec![0x51],
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 

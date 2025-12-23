@@ -1,8 +1,10 @@
 #![no_main]
 
-use libfuzzer_sys::fuzz_target;
 use bitquan_mempool::Mempool;
-use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
+use bitquan_types::{
+    genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut,
+};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 10 {
@@ -23,8 +25,14 @@ fuzz_target!(|data: &[u8]| {
 
         let offset = i * 10;
         let value = u64::from_le_bytes([
-            data[offset], data[offset+1], data[offset+2], data[offset+3],
-            data[offset+4], data[offset+5], data[offset+6], data[offset+7]
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
         ]);
 
         let tx = Transaction {
@@ -34,7 +42,7 @@ fuzz_target!(|data: &[u8]| {
             inputs: vec![TxIn {
                 prev_txid: {
                     let mut txid = [0u8; 32];
-                    txid[0] = data[offset+8];
+                    txid[0] = data[offset + 8];
                     txid[1] = i as u8;
                     txid
                 },
@@ -47,11 +55,11 @@ fuzz_target!(|data: &[u8]| {
                 script_pubkey: vec![],
             }],
             lock_time: 0,
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
 
-        let fee = (data[offset+9] as u64) * 1000;
+        let fee = (data[offset + 9] as u64) * 1000;
 
         // Test adding transaction doesn't panic
         let _ = mempool.insert(tx, fee);

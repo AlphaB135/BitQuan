@@ -385,7 +385,7 @@ mod tests {
                     script_pubkey: vec![0x51],
                 })
                 .collect(),
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         }
     }

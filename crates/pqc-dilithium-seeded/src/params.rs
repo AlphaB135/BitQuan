@@ -1,13 +1,18 @@
 #[cfg(all(feature = "mode2", not(feature = "mode5")))]
 mod mode_2;
-#[cfg(not(any(feature = "mode2", feature = "mode5")))]
-mod mode_3;
 #[cfg(feature = "mode5")]
 mod mode_5;
+// Only use mode3 as EXPLICIT opt-in, never as fallback
+#[cfg(all(feature = "mode3", not(feature = "mode5")))]
+mod mode_3;
 
 #[cfg(all(not(feature = "mode5"), feature = "mode2"))]
 use mode_2 as active_mode;
-#[cfg(all(not(feature = "mode5"), not(feature = "mode2")))]
+#[cfg(all(
+  feature = "mode3",
+  not(feature = "mode5"),
+  not(feature = "mode2")
+))]
 use mode_3 as active_mode;
 #[cfg(feature = "mode5")]
 use mode_5 as active_mode;
@@ -27,9 +32,17 @@ pub const POLYT0_PACKEDBYTES: usize = 416;
 pub const POLYVECH_PACKEDBYTES: usize = mode_params::OMEGA + mode_params::K;
 
 pub const POLYZ_PACKEDBYTES: usize =
-  if cfg!(feature = "mode2") { 576 } else { 640 };
+  if cfg!(all(feature = "mode2", not(feature = "mode5"))) {
+    576
+  } else {
+    640
+  };
 pub const POLYW1_PACKEDBYTES: usize =
-  if cfg!(feature = "mode2") { 192 } else { 128 };
+  if cfg!(all(feature = "mode2", not(feature = "mode5"))) {
+    192
+  } else {
+    128
+  };
 
 pub const POLYETA_PACKEDBYTES: usize =
   if cfg!(not(any(feature = "mode2", feature = "mode5"))) {

@@ -17,6 +17,7 @@ mod reward_engine;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
 mod stratum_server;
+mod sync_task;
 mod tx_builder;
 mod utxo;
 mod vardiff;
@@ -30,7 +31,7 @@ use bitquan_consensus::{
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{network_magic, Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
-use bitquan_rpc::{server::RpcServer, tls::TlsConfig, IpNetwork, RpcConfig};
+use bitquan_rpc::{tls::TlsConfig, IpNetwork};
 #[cfg(feature = "rocksdb-backend")]
 use bitquan_storage::rocksdb_store::RocksDBStore;
 use bitquan_storage::{ChainStore, InMemoryChainStore};
@@ -308,8 +309,8 @@ enum Commands {
     },
     /// Generates a post-quantum keypair for wallet
     WalletGen {
-        /// Algorithm (dilithium3, falcon512, sphincs)
-        #[arg(long, default_value = "dilithium3")]
+        /// Algorithm (dilithium5, falcon512, sphincs)
+        #[arg(long, default_value = "dilithium5")]
         algo: String,
         /// Network to target (mainnet|testnet|devnet|regtest)
         #[arg(long, value_name = "NETWORK", default_value = "mainnet")]
@@ -705,6 +706,71 @@ enum Commands {
     },
 }
 
+#[allow(clippy::too_many_arguments)]
+fn run_rpc_server(
+    handler: crate::rpc::NodeRpcHandler,
+    addr: String,
+    jwt_config: Option<String>,
+    jwt_secret: Option<String>,
+    rpc_config: bitquan_rpc::RpcConfig,
+    tls_config: Option<bitquan_rpc::tls::TlsConfig>,
+    username: String,
+    password: String,
+    require_tls: bool,
+) {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap_or_else(|e| {
+            eprintln!("failed to build RPC runtime: {}", e);
+            std::process::exit(1);
+        });
+
+    rt.block_on(async move {
+        // JWT authentication (required)
+        let jwt_auth = if let Some(config_path) = jwt_config {
+            println!("Loading JWT config from: {}", config_path);
+            match bitquan_rpc::jwt::JwtConfig::from_file(&config_path) {
+                Ok(config) => match bitquan_rpc::jwt::JwtAuth::from_config(&config) {
+                    Ok(auth) => auth,
+                    Err(e) => {
+                        eprintln!("Failed to create JWT auth from config: {}", e);
+                        return;
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Failed to load JWT config: {}", e);
+                    return;
+                }
+            }
+        } else if let Some(secret) = jwt_secret {
+            println!("Using JWT with provided secret");
+            bitquan_rpc::jwt::JwtAuth::new(&secret)
+        } else {
+            eprintln!("JWT authentication required but no config or secret provided");
+            return;
+        };
+
+        let basic_auth = Some((username, password));
+
+        let mut server = bitquan_rpc::server::RpcServer::new(
+            handler,
+            addr.clone(),
+            jwt_auth,
+            rpc_config,
+            basic_auth,
+        );
+
+        if let Some(tls_cfg) = tls_config {
+            server = server.with_tls_config(tls_cfg);
+        }
+        server = server.require_tls(require_tls);
+        if let Err(e) = server.serve().await {
+            eprintln!("RPC server error ({}): {}", addr, e);
+        }
+    });
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Install panic hook for better crash reporting
@@ -764,18 +830,23 @@ async fn main() -> Result<()> {
                 None
             };
 
-            mine_continuous(MiningOptions {
-                datadir: &datadir,
-                payout_script_hex: &payout_script_hex,
-                bits_override: bits,
-                max_nonce,
-                threads,
-                limit_blocks,
-                network: network_id,
-                pow_mode,
-                hybrid_weights: weights,
-                peers,
-            })
+            let mining_handle = tokio::task::spawn_blocking(move || {
+                mine_continuous(MiningOptions {
+                    datadir,
+                    payout_script_hex,
+                    bits_override: bits,
+                    max_nonce,
+                    threads,
+                    limit_blocks,
+                    network: network_id,
+                    pow_mode,
+                    hybrid_weights: weights,
+                    peers,
+                })
+            });
+            mining_handle
+                .await
+                .map_err(|e| Error::Invalid(format!("mining task failed: {e}")))?
         }
         Commands::WalletGen {
             algo,
@@ -938,6 +1009,7 @@ async fn main() -> Result<()> {
                     },
                     network_id,
                 )
+                .await
             }
             #[cfg(not(feature = "rocksdb-backend"))]
             {
@@ -954,6 +1026,7 @@ async fn main() -> Result<()> {
                     },
                     network_id,
                 )
+                .await
             }
         }
         Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
@@ -1209,15 +1282,15 @@ fn check_block(path: &str) -> Result<()> {
     let mut engine = ConsensusEngine::new(params, registry);
     let block = load_block_placeholder()?;
 
-    match engine.validate_block(&block, 0) {
+    match engine.validate_block(&block, 0, 0) {
         Ok(report) => {
-            println!(
-                "Block validated successfully. weight={}, signatures={}, subsidy={}",
-                report.block_weight, report.signature_count, report.block_subsidy
-            );
+            println!("✅ Block validation successful!");
+            println!("   Weight: {} WU", report.block_weight);
+            println!("   Signatures: {}", report.signature_count);
+            println!("   Subsidy: {} qbits", report.block_subsidy);
         }
-        Err(err) => {
-            println!("Block validation failed: {err}");
+        Err(e) => {
+            return invalid(format!("Block validation failed: {}", e));
         }
     }
 
@@ -1329,7 +1402,7 @@ fn mine_once(
             value: subsidy,
             script_pubkey: payout_script,
         }],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 
@@ -1404,9 +1477,9 @@ fn mine_once(
     Ok(())
 }
 
-struct MiningOptions<'a> {
-    datadir: &'a str,
-    payout_script_hex: &'a str,
+struct MiningOptions {
+    datadir: String,
+    payout_script_hex: String,
     bits_override: u32,
     max_nonce: u64,
     threads: usize,
@@ -1451,7 +1524,7 @@ struct RpcServerOptions<'a> {
 
 /// Continuous mining with persistent RocksDB storage
 #[cfg(feature = "rocksdb-backend")]
-fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
+fn mine_continuous(options: MiningOptions) -> Result<()> {
     let MiningOptions {
         datadir,
         payout_script_hex,
@@ -1478,7 +1551,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
     let window = params.difficulty.burst_guard_window as usize;
 
     // Open or create RocksDB store
-    let store = RocksDBStore::open(datadir)
+    let store = RocksDBStore::open(&datadir)
         .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
     let store = Arc::new(Mutex::new(store));
 
@@ -1695,7 +1768,7 @@ fn mine_continuous(options: MiningOptions<'_>) -> Result<()> {
                 script_pubkey: payout_script.clone(),
             }],
             witnesses: vec![],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
         };
 
         // Merkle/witness roots for block
@@ -2039,7 +2112,7 @@ fn print_session_summary(interval_count: u64, total_intervals: f64, guard_total:
 }
 
 #[cfg(not(feature = "rocksdb-backend"))]
-fn mine_continuous(_options: MiningOptions<'_>) -> Result<()> {
+fn mine_continuous(_options: MiningOptions) -> Result<()> {
     eprintln!("ERROR: Continuous mining requires 'rocksdb-backend' feature");
     eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
@@ -2059,12 +2132,12 @@ fn wallet_gen(
     println!("Algorithm: {}", algo);
     println!("Network: {}", network);
 
-    if algo != "dilithium3" {
-        return invalid("Only 'dilithium3' is supported currently");
+    if algo != "dilithium5" {
+        return invalid("Only 'dilithium5' is supported currently");
     }
 
     println!("\n⏳ Generating keypair...");
-    let keypair = WalletKeypair::generate_dilithium3()?;
+    let keypair = WalletKeypair::generate_dilithium5()?;
 
     let pubkey_hash = keypair.public_key_hash();
     let address_str = address::encode(&pubkey_hash);
@@ -2290,7 +2363,7 @@ fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -> Re
     println!("Signature: {} bytes", signature.len());
 
     let public_key = WalletPublicKey {
-        algorithm: WalletAlgorithm::Dilithium3,
+        algorithm: WalletAlgorithm::Dilithium5,
         public_key: pubkey_bytes,
     };
 
@@ -2419,7 +2492,7 @@ async fn wallet_send(
             lock_time: 0,
             inputs: vec![input],
             outputs,
-            sig_algo: bitquan_types::SigAlgorithm::Dilithium3,
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
             witnesses: vec![],
         };
 
@@ -2534,7 +2607,7 @@ fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str
         lock_time: 0,
         inputs: vec![input],
         outputs: vec![output],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 
@@ -2617,7 +2690,7 @@ fn p2p_demo(addr: &str) -> Result<()> {
 
 /// P2P Server that accepts incoming connections
 #[allow(unused_variables)]
-fn p2p_server(
+async fn p2p_server(
     listen: &str,
     max_peers: usize,
     datadir: &str,
@@ -2625,10 +2698,10 @@ fn p2p_server(
     network: NetworkId,
 ) -> Result<()> {
     use bitquan_network::{P2PListener, PeerManager};
+    use bitquan_storage::AsyncChainStore;
     #[cfg(feature = "rocksdb-backend")]
     use std::path::Path;
     use std::sync::Arc;
-    use std::sync::Mutex;
 
     println!("BitQuan P2P Server");
     println!("Listen: {}", listen);
@@ -2669,7 +2742,8 @@ fn p2p_server(
         let store = RocksDBStore::open(datadir)
             .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
         let h = store.height().unwrap_or(0);
-        (h, Some(Arc::new(Mutex::new(store))))
+        let async_store = Arc::new(bitquan_storage::async_store::AsyncStoreWrapper::new(store));
+        (h, Some(async_store))
     };
 
     #[cfg(not(feature = "rocksdb-backend"))]
@@ -2721,11 +2795,17 @@ fn p2p_server(
             return invalid("RPC server requires RocksDB storage backend");
         };
 
-        let handler = NodeRpcHandler::new(store_arc, "mainnet");
+        // Initialize sync manager
+        let local_height = store_arc.height().await.unwrap_or(0);
+        let (sync_manager, _sync_task) = sync_task::initialize_sync(local_height, network)
+            .await
+            .map_err(|e| Error::Invalid(format!("Failed to initialize sync manager: {}", e)))?;
+
+        let handler = NodeRpcHandler::with_sync_manager(store_arc, "mainnet", sync_manager);
         let rpc_addr = addr.to_string();
 
         // JWT authentication is required
-        use bitquan_rpc::jwt::{JwtAuth, JwtConfig};
+        use bitquan_rpc::RpcConfig;
 
         if jwt_config.is_none() && jwt_secret.is_none() {
             return invalid(
@@ -2814,41 +2894,23 @@ fn p2p_server(
         let tls_config_for_thread = tls_config.clone();
         let jwt_config_owned = jwt_config.map(|s| s.to_string());
         let jwt_secret_owned = jwt_secret.map(|s| s.to_string());
+        let username_owned = username.to_string();
+        let password_owned = password_value.clone();
+
+        let rpc_config_owned = rpc_config.clone();
 
         thread::spawn(move || {
-            // JWT authentication (required)
-            let jwt_auth = if let Some(config_path) = jwt_config_owned {
-                println!("Loading JWT config from: {}", config_path);
-                match JwtConfig::from_file(&config_path) {
-                    Ok(config) => match JwtAuth::from_config(&config) {
-                        Ok(auth) => auth,
-                        Err(e) => {
-                            eprintln!("Failed to create JWT auth from config: {}", e);
-                            return;
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("Failed to load JWT config: {}", e);
-                        return;
-                    }
-                }
-            } else if let Some(secret) = jwt_secret_owned {
-                println!("Using JWT with provided secret");
-                JwtAuth::new(&secret)
-            } else {
-                eprintln!("JWT authentication required but no config or secret provided");
-                return;
-            };
-
-            let mut server = RpcServer::new(handler, rpc_addr.clone(), jwt_auth, rpc_config);
-
-            if let Some(tls_cfg) = tls_config_for_thread {
-                server = server.with_tls_config(tls_cfg);
-            }
-            server = server.require_tls(require_tls);
-            if let Err(e) = server.serve() {
-                eprintln!("RPC server error ({}): {}", rpc_addr, e);
-            }
+            run_rpc_server(
+                handler,
+                rpc_addr,
+                jwt_config_owned,
+                jwt_secret_owned,
+                rpc_config_owned,
+                tls_config_for_thread,
+                username_owned,
+                password_owned,
+                require_tls,
+            );
         });
         println!("RPC server listening on {}", addr);
     }
@@ -2877,23 +2939,12 @@ fn p2p_server(
     println!("  - Press Ctrl+C to stop");
     println!("  - Peers will sync blockchain automatically");
 
-    // Broadcast tip block when we have storage
-    if let Some(s) = &store {
-        if height > 0 {
-            use bitquan_consensus::header_hash;
-            let store_locked = s
-                .lock()
-                .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
-            if let Ok(Some(tip)) = store_locked.tip() {
-                let tip_hash = header_hash(&tip);
-                drop(store_locked);
-
-                println!();
-                println!("Tip: Use 'mine' command to mine blocks");
-                println!("Current tip: {}", hex_encode(tip_hash));
-                println!("New blocks will be broadcast to peers");
-            }
-        }
+    // Show tip info when we have storage
+    if height > 0 {
+        println!();
+        println!("Tip: Use 'mine' command to mine blocks");
+        println!("Current height: {}", height);
+        println!("New blocks will be broadcast to peers");
     }
 
     loop {
@@ -2903,29 +2954,7 @@ fn p2p_server(
                 let ready = peer_manager.ready_peer_count();
                 println!("Peer connected! Total: {}, Ready: {}", count, ready);
 
-                // Send inv for our tip block to new peer
-                if let Some(s) = &store {
-                    if height > 0 {
-                        use bitquan_consensus::header_hash;
-
-                        let store_locked = s
-                            .lock()
-                            .map_err(|e| Error::Invalid(format!("store lock poisoned: {e}")))?;
-                        if let Ok(Some(tip)) = store_locked.tip() {
-                            let tip_hash = header_hash(&tip);
-                            drop(store_locked);
-
-                            let inv = bitquan_network::protocol::InvVector {
-                                inv_type: bitquan_network::protocol::InvType::Block,
-                                hash: tip_hash,
-                            };
-
-                            if let Ok(sent) = peer_manager.broadcast_inv(inv) {
-                                println!("Announced tip block to {} peers", sent);
-                            }
-                        }
-                    }
-                }
+                // TODO: Send inv for tip block to new peer (requires async handling)
             }
             Err(e) => {
                 eprintln!("Accept error: {}", e);
@@ -3980,6 +4009,7 @@ fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod overflow_tests {
     #[test]
     fn test_balance_overflow_protection() {

@@ -47,7 +47,7 @@ export class BitQuanSDK {
   static createWallet(config?: Partial<WalletConfig>): Wallet {
     return new HDWallet({
       network: Network.Mainnet,
-      signatureAlgorithms: [SignatureAlgorithm.Dilithium3],
+      signatureAlgorithms: [SignatureAlgorithm.Dilithium5],
       ...config
     });
   }

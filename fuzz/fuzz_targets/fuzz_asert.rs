@@ -1,7 +1,9 @@
 #![no_main]
 
+use bitquan_consensus::{
+    asert_next_target, ConsensusParams, DifficultyParams, PowSetParams, RewardSchedule,
+};
 use libfuzzer_sys::fuzz_target;
-use bitquan_consensus::{asert_next_target, ConsensusParams, DifficultyParams, RewardSchedule, PowSetParams};
 
 // Fuzz ASERT integer math for edge cases and overflow conditions
 fuzz_target!(|data: &[u8]| {
@@ -16,18 +18,15 @@ fuzz_target!(|data: &[u8]| {
 
     // Parse parameters with safe defaults
     let anchor_target = u64::from_le_bytes([
-        bytes[0], bytes[1], bytes[2], bytes[3],
-        bytes[4], bytes[5], bytes[6], bytes[7],
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
     ]);
 
     let height_delta = i64::from_le_bytes([
-        bytes[8], bytes[9], bytes[10], bytes[11],
-        bytes[12], bytes[13], bytes[14], bytes[15],
+        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
     ]);
 
     let time_delta = i64::from_le_bytes([
-        bytes[16], bytes[17], bytes[18], bytes[19],
-        bytes[20], bytes[21], bytes[22], bytes[23],
+        bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23],
     ]);
 
     // Create test consensus parameters
@@ -56,8 +55,8 @@ fuzz_target!(|data: &[u8]| {
         height_delta,
         time_delta,
         &params,
-        Some(bitquan_consensus::asert::GuardContext {
-            state: &mut bitquan_consensus::asert::BurstGuardState::default(),
+        Some(bitquan_consensus::GuardContext {
+            state: &mut bitquan_consensus::BurstGuardState::default(),
             current_height: height_delta.max(0) as u64,
             activation_height: 0,
         }),

@@ -9,7 +9,7 @@ fn create_test_transaction(nonce: u8) -> Transaction {
         version: 1,
         network: NetworkId::Devnet,
         genesis_hash: GENESIS_HASH_BYTES,
-        sig_algo: bitquan_types::SigAlgorithm::Dilithium3,
+        sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
         inputs: vec![TxIn {
             prev_txid: GENESIS_HASH_BYTES,
             prev_vout: nonce as u32,
@@ -23,8 +23,8 @@ fn create_test_transaction(nonce: u8) -> Transaction {
         witnesses: vec![Witness {
             signatures: vec![SignaturePayload {
                 signer_index: 0,
-                signature: vec![0xBB; 3293],
-                public_key: vec![0xCC; 1952],
+                signature: vec![0xBB; 4595],
+                public_key: vec![0xCC; 2592],
                 aux: None,
             }],
         }],

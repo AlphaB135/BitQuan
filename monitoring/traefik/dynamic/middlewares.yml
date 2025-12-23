@@ -1,0 +1,94 @@
+# Traefik dynamic configuration for middlewares
+
+http:
+  middlewares:
+    # Security headers for all services
+    security-headers:
+      headers:
+        # Prevent clickjacking
+        frameDeny: true
+        # Hide server information
+        server: ""
+        # Prevent MIME type sniffing
+        contentTypeNosniff: true
+        # XSS protection
+        browserXssFilter: true
+        # Content Security Policy
+        contentSecurityPolicy: |
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval';
+          style-src 'self' 'unsafe-inline';
+          img-src 'self' data: https:;
+          font-src 'self';
+          connect-src 'self' https:;
+          frame-ancestors 'none';
+        # Referrer Policy
+        referrerPolicy: "strict-origin-when-cross-origin"
+        # Permissions Policy
+        permissionsPolicy: |
+          geolocation=(), microphone=(), camera=()
+
+    # Authentication for Grafana (HTTP Basic Auth)
+    grafana-auth:
+      basicAuth:
+        users:
+          - "admin:$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBdXwt.Gtu5xg6" # admin:securepassword123
+          - "viewer:$2a$12$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy" # viewer:viewonly123
+
+    # Authentication for Prometheus
+    prometheus-auth:
+      basicAuth:
+        users:
+          - "admin:$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBdXwt.Gtu5xg6" # admin:securepassword123
+
+    # Authentication for AlertManager
+    alertmanager-auth:
+      basicAuth:
+        users:
+          - "admin:$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBdXwt.Gtu5xg6" # admin:securepassword123
+
+    # Authentication for Traefik dashboard
+    dashboard-auth:
+      basicAuth:
+        users:
+          - "admin:$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBdXwt.Gtu5xg6" # admin:securepassword123
+
+    # IP whitelist for monitoring services (restrict to internal network)
+    ip-whitelist:
+      ipWhitelist:
+        sourceRange:
+          - "127.0.0.1/32"     # Localhost
+          - "10.0.0.0/8"       # Private network A
+          - "172.16.0.0/12"    # Private network B
+          - "192.168.0.0/16"   # Private network C
+
+    # Rate limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        period: 1m
+        burst: 200
+
+    # Strip prefix for health checks
+    strip-prefix:
+      stripPrefix:
+        prefixes:
+          - "/health"
+
+  routers:
+    # Health check router (no auth required)
+    health-router:
+      rule: "PathPrefix(`/health`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - security-headers
+        - strip-prefix
+      service: health-check
+
+  services:
+    # Health check service (simple response)
+    health-check:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:80"

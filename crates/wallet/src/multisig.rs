@@ -18,7 +18,7 @@ pub struct MultisigConfig {
     pub required_sigs: u8,
     /// Total number of signers (N).
     pub total_signers: u8,
-    /// List of public keys (Dilithium3 public keys as hex strings).
+    /// List of public keys (Dilithium5 public keys as hex strings).
     pub public_keys: Vec<String>,
     /// Optional label for this multisig wallet.
     pub label: Option<String>,
@@ -31,7 +31,7 @@ pub struct MultisigConfig {
 pub struct PartialSignature {
     /// Public key of the signer (hex string).
     pub public_key: String,
-    /// Signature bytes (Dilithium3 signature as hex string).
+    /// Signature bytes (Dilithium5 signature as hex string).
     pub signature: String,
     /// Timestamp when signed.
     pub signed_at: u64,
@@ -284,7 +284,7 @@ impl MultisigWallet {
         let tx_data = hex::decode(&pending.tx_data).map_err(|_| MultisigError::InvalidSignature)?;
 
         // CRITICAL FIX: Always hash the transaction data before signature verification
-        // Dilithium3 should sign a digest, not raw data (for security and performance)
+        // Dilithium5 should sign a digest, not raw data (for security and performance)
         let tx_hash = {
             let mut hasher = Sha256::new();
             hasher.update(&tx_data);
@@ -345,7 +345,7 @@ impl MultisigWallet {
         // PERFORMANCE FIX: Use cached registry instead of creating new one
         let provider = self
             .crypto_registry
-            .provider_for(SigAlgorithm::Dilithium3)
+            .provider_for(SigAlgorithm::Dilithium5)
             .ok_or(MultisigError::InvalidSignature)?;
 
         // Verify signature

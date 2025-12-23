@@ -31,7 +31,9 @@ name = "api"
 harness = false
 
 [features]
-# By default this library uses mode3, also called Dilithium3
+# Default to Dilithium5 (Mode 5) with randomized signing
+# Randomized signing provides better security properties than deterministic
+default = ["mode5", "random_signing"]
 mode2 = []
 mode3 = []
 mode5 = []

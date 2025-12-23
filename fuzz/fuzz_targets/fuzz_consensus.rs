@@ -1,11 +1,11 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use bitquan_consensus::{ForkChoice, BlockNode, ForkError};
-use bitquan_types::{BlockHeader, compact_to_target};
-use primitive_types::U256;
+use bitquan_consensus::{ForkChoice, ForkError};
+use bitquan_types::BlockHeader;
+use bitquan_consensus::difficulty::compact_to_target;
 
-// Fuzz fork choice logic for U256 chain work and reorg handling
+// Fuzz fork choice logic for difficulty calculations and reorg handling
 fuzz_target!(|data: &[u8]| {
     // Ensure minimum data for block headers
     if data.len() < 117 {
@@ -26,7 +26,7 @@ fuzz_target!(|data: &[u8]| {
         algo_id: 0,
     };
 
-    let _ = fork_choice.add_genesis(genesis_header);
+    let _ = fork_choice.add_genesis(genesis_header.clone());
 
     // Parse multiple block headers from fuzz data
     let num_blocks = (data.len() / 117).min(10); // Limit to prevent excessive computation
@@ -104,32 +104,25 @@ fuzz_target!(|data: &[u8]| {
             }
         }
 
-        // Test U256 chain work calculations directly
-        if let Ok(target_bytes) = compact_to_target(header.bits) {
-            let target = U256::from_big_endian(&target_bytes);
+        // Test difficulty calculations directly
+        let target = compact_to_target(header.bits);
 
-            // Test extreme target values
-            if target == U256::zero() {
-                // Should handle zero target gracefully
-                continue;
-            }
-
-            if target == U256::max_value() {
-                // Should handle max target gracefully
-                continue;
-            }
-
-            // Test work calculation (should not overflow)
-            let work = if target != U256::zero() {
-                U256::max_value().checked_div(target.saturating_add(U256::one()))
-                    .unwrap_or(U256::one())
-            } else {
-                U256::one()
-            };
-
-            // Work should be reasonable
-            assert!(work > U256::zero(), "Work should be positive");
+        // Test extreme target values
+        if target == 0 {
+            // Should handle zero target gracefully
+            continue;
         }
+
+        // Test work calculation (should not overflow)
+        let work = if target != 0 {
+            u64::MAX.checked_div(target.saturating_add(1))
+                .unwrap_or(1)
+        } else {
+            1
+        };
+
+        // Work should be reasonable
+        assert!(work > 0, "Work should be positive");
     }
 
     // Test fork choice state queries
@@ -142,7 +135,7 @@ fuzz_target!(|data: &[u8]| {
     if data.len() > 500 {
         // Test with maximum reorg depth
         let mut limited_fc = ForkChoice::with_max_reorg(1);
-        let _ = limited_fc.add_genesis(genesis_header);
+        let _ = limited_fc.add_genesis(genesis_header.clone());
 
         // Try to create deep reorg
         for i in 0..5 {

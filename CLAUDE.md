@@ -1,6 +1,6 @@
 # CLAUDE.md - Generic AI Assistant Guidelines
 
-## 📚 Table of Contents
+## Table of Contents
 
 1.  [Executive Summary](#executive-summary)
 2.  [Quick Start Guide](#quick-start-guide)
@@ -17,7 +17,18 @@
 
 ## Executive Summary
 
-This document provides comprehensive guidelines for an AI assistant working on any software development project. It establishes safe, efficient, and well-documented workflows to ensure high-quality contributions.
+This document provides comprehensive guidelines for an AI assistant working on the BitQuan cryptocurrency project. It establishes safe, efficient, and well-documented workflows to ensure high-quality contributions with zero tolerance for errors.
+
+## Communication Guidelines (User Preferences)
+
+### Language & Tone
+-   **Language**: **Thai (ภาษาไทย)** is the primary language for all explanations and conversation. Use English only for technical terms, code comments, and commit messages.
+-   **Tone**: Direct, Professional but Relaxed (Senior Engineer to Peer). No fluff, get straight to the point.
+-   **Style**: "เพื่อนคุยกับเพื่อน" (Buddy style) is acceptable if the user initiates it. Focus on technical accuracy over politeness.
+
+### Quality Standards
+-   **Zero Tolerance**: DO NOT mark a task as complete if there is even a single Lint warning or Test failure.
+-   **Perfectionist**: The user prefers "100% completion" over speed. Take time to refactor and optimize. "ช้าแต่ชัวร์" (Slow but sure).
 
 ### Key Responsibilities
 -   Code development and implementation
@@ -32,9 +43,17 @@ This document provides comprehensive guidelines for an AI assistant working on a
 -   `nnn` - Smart planning: Auto-runs `ccc` if no recent context → Create a detailed implementation plan.
 -   `gogogo` - Execute the most recent plan issue step-by-step.
 -   `lll` - List project status (issues, PRs, commits) ✅
+-   `ck` - Pre-Commit Check (The "100%" Check): Run before marking any task as done.
 
 #### Project Management
 -   `rrr` - Create a detailed session retrospective.
+
+#### `ck` - Pre-Commit Check (The "100%" Check)
+**Purpose**: Run before marking any task as done to ensure perfection.
+1.  Run `cargo fmt --all -- --check`
+2.  Run `cargo clippy --all-targets --all-features -- -D warnings`
+3.  Run `cargo test --all-features`
+4.  **Rule**: If ANY of these fail, do not ask for review. Fix it immediately.
 
 
 ## Quick Start Guide
@@ -74,23 +93,32 @@ cp .env.example .env
 
 ## Project Context
 
-*(This section should be filled out for each specific project)*
-
 ### Project Overview
-A brief, high-level description of the project's purpose and goals.
+BitQuan - A high-performance, secure cryptocurrency implementation with post-quantum cryptography support. Built from scratch in Rust for maximum security and performance.
 
 ### Architecture
--   **Backend**: [Framework, Language, Database]
--   **Frontend**: [Framework, Language, Libraries]
--   **Infrastructure**: [Hosting, CI/CD, etc.]
--   **Key Libraries**: [List of major dependencies]
+-   **Language**: Rust (Edition 2021+)
+-   **Core Stack**: Async Rust (Tokio), Serde, ThisError, Tracing
+-   **Security**: Dilithium5 post-quantum cryptography, rustls-pki-types, rigid dependency auditing
+-   **Build System**: Cargo with strict clippy linting
+-   **Crypto Stack**: pqc-dilithium-seeded, SHA-256, Blake3
+-   **P2P Network**: Custom async networking with TLS support
 
 ### Current Features
--   [Feature A]
--   [Feature B]
--   [Feature C]
+-   **Post-Quantum Security**: Full Dilithium5 implementation (2592/4595 byte keys)
+-   **Async Networking**: High-performance peer-to-peer protocol
+-   **Mining**: PoW consensus with SHA-256d and RandomX support
+-   **Wallet**: Hierarchical deterministic (HD) wallets with secure key management
+-   **PSBT Support**: Post-quantum Partially Signed Bitcoin Transactions
+-   **Hardware Wallet**: Integration with USB hardware wallets
 
-## 🔴 Critical Safety Rules
+### Key Constraints
+-   **Async Rules**: Must handle MutexGuard correctly across await points.
+-   **Crypto**: Use fully qualified syntax to avoid trait conflicts.
+-   **CI/CD**: Strict adherence to `cargo deny` and `cargo clippy -- -D warnings`.
+-   **Memory Security**: Zeroization of sensitive cryptographic material.
+
+## Critical Safety Rules
 
 ### Repository Usage
 -   **NEVER create issues/PRs on upstream**
@@ -221,6 +249,17 @@ gh pr create --title "Same as commit" --body "Fixes #issue_number"
 # WAIT for explicit user instruction to merge
 # The user will review and merge when ready
 ```
+## Communication Guidelines (User Preferences)
+
+### Language & Tone
+-   **Language**: **Thai (ภาษาไทย)** is the primary language for all explanations and conversation. Use English only for technical terms, code comments, and commit messages.
+-   **Tone**: Direct, Professional but Relaxed (Senior Engineer to Peer). No fluff, get straight to the point.
+-   **Style**: "เพื่อนคุยกับเพื่อน" (Buddy style) is acceptable if the user initiates it. Focus on technical accuracy over politeness.
+
+### Quality Standards
+-   **Zero Tolerance**: DO NOT mark a task as complete if there is even a single Lint warning or Test failure.
+-   **Perfectionist**: The user prefers "100% completion" over speed. Take time to refactor and optimize. "ช้าแต่ชัวร์" (Slow but sure).
+
 
 ## Context Management & Short Codes
 
@@ -257,13 +296,15 @@ When you see `lll`, execute relevant `gh` and `git` commands in parallel to get 
 
 **⚠️ CRITICAL**: The AI Diary and Honest Feedback sections are MANDATORY. These provide essential context and continuous improvement insights. Never skip these sections.
 
+**⚠️ LOCATION**: Retrospectives are stored in `.claude/retrospectives/` (personal knowledge, NOT committed to git)
+
 1.  **Gather Session Data**: `git diff --name-only main...HEAD`, `git log --oneline main...HEAD`, and session timestamps.
-2.  **Create Retrospective Document**: Use the template to create a markdown file in `retrospectives/` with ALL required sections, especially:
+2.  **Create Retrospective Document**: Use the template to create a markdown file in `.claude/retrospectives/` with ALL required sections, especially:
     - **AI Diary**: First-person narrative of the session experience
     - **Honest Feedback**: Frank assessment of what worked and what didn't
 3.  **Validate Completeness**: Use the retrospective validation checklist to ensure no sections are skipped.
-4.  **Update CLAUDE.md**: Copy any new lessons learned to the main guidelines. ** Append to to botoom only **
-5.  **Link to GitHub**: Commit the retrospective and comment on the relevant issue/PR.
+4.  **Update CLAUDE.md**: Copy any new lessons learned to the main guidelines. **Append to bottom only**
+5.  **DO NOT commit retrospectives to git** - They are personal knowledge for AI context only
 
 **Time Zone Note**:
 -   **PRIMARY TIME ZONE: [Your Time Zone]** - Always show the primary time zone first.
@@ -278,11 +319,11 @@ SESSION_DATE=$(date +"%Y-%m-%d")
 END_TIME_UTC=$(date -u +"%H:%M")
 END_TIME_LOCAL=$(TZ='Asia/Bangkok' date +"%H:%M")
 
-# Create directory structure
-mkdir -p retrospectives/$(date +%Y/%m)
+# Create directory structure in .claude (personal knowledge, NOT committed)
+mkdir -p .claude/retrospectives/$(date +%Y/%m)
 
 # Create retrospective file with auto-filled date/time
-cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrospective.md << EOF
+cat > .claude/retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrospective.md << EOF
 # Session Retrospective
 
 **Session Date**: ${SESSION_DATE}
@@ -319,8 +360,8 @@ cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrosp
 - Decision 1: Rationale
 - Decision 2: Rationale
 
-## 📝 AI Diary (REQUIRED - DO NOT SKIP)
-**⚠️ MANDATORY: This section provides crucial context for future sessions**
+## AI Diary (REQUIRED - DO NOT SKIP)
+**MANDATORY: This section provides crucial context for future sessions**
 [Write a detailed first-person narrative of your experience during this session. Include:
 - Initial understanding and assumptions
 - How your approach evolved
@@ -342,8 +383,8 @@ cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrosp
 - **Blocker**: Description
   **Resolution**: How it was solved
 
-## 💭 Honest Feedback (REQUIRED - DO NOT SKIP)
-**⚠️ MANDATORY: This section ensures continuous improvement**
+## Honest Feedback (REQUIRED - DO NOT SKIP)
+**MANDATORY: This section ensures continuous improvement**
 [Provide frank, unfiltered assessment of:
 - Session effectiveness
 - Tool performance and limitations
@@ -366,19 +407,6 @@ cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrosp
 ## Related Resources
 - Issue: #XXX
 - PR: #XXX
-- Export: [session_YYYY-MM-DD_HH-MM.md](../exports/session_YYYY-MM-DD_HH-MM.md)
-
-## ✅ Retrospective Validation Checklist
-**BEFORE SAVING, VERIFY ALL REQUIRED SECTIONS ARE COMPLETE:**
-- [ ] AI Diary section has detailed narrative (not placeholder)
-- [ ] Honest Feedback section has frank assessment (not placeholder)
-- [ ] Session Summary is clear and concise
-- [ ] Timeline includes actual times and events
-- [ ] Technical Details are accurate
-- [ ] Lessons Learned has actionable insights
-- [ ] Next Steps are specific and achievable
-
-⚠️ **IMPORTANT**: A retrospective without AI Diary and Honest Feedback is incomplete and loses significant value for future reference.
 EOF
 ```
 
@@ -387,16 +415,8 @@ EOF
 - Add any new patterns or anti-patterns discovered
 - Update user preferences if any were observed
 
-**Step 5: Link to GitHub**
-```bash
-# Add retrospective to git
-git add retrospectives/
-git commit -m "docs: Add session retrospective $(date +%Y-%m-%d)"
-
-# Comment on relevant issue/PR with actual path
-RETRO_PATH="retrospectives/$(date +%Y/%m)/$(date +%Y-%m-%d_%H-%M)_retrospective.md"
-gh issue comment XXX --body "Session retrospective created: ${RETRO_PATH}"
-```
+**Step 5: DO NOT commit retrospectives to git**
+Retrospectives are stored in `.claude/retrospectives/` for AI personal knowledge only. They are NOT committed to the repository.
 
 **Time Zone Note**:
 - **PRIMARY TIME ZONE: GMT+7 (Bangkok time)** - Always show GMT+7 time first
@@ -440,6 +460,13 @@ fd "[pattern]"
 
 ## Development Practices
 
+### Rust & Security Best Practices
+-   **Strict Clippy**: Treat all warnings as errors. Code is not done until `cargo clippy` is silent.
+-   **Lock Management**: Always drop MutexGuards before `.await`. Use scoped blocks `{ let lock = ...; }` to enforce this.
+-   **Dependency Updates**: Check for security advisories (RUSTSEC) before starting work. Immediate priority if found.
+-   **Trait Disambiguation**: Use `<Type>::method()` syntax instead of method chaining if traits might conflict.
+-   **Memory Zeroization**: Always zeroize cryptographic keys and sensitive data after use.
+
 ### Code Standards
 -   Follow the established style guide for the language/framework.
 -   Enable strict mode and linting where possible.
@@ -469,16 +496,45 @@ Closes #[issue-number]
 *(This section should be continuously updated with project-specific findings)*
 
 
-### Planning & Architecture Patterns (2025-08-26)
--   **Pattern**: Use parallel agents for analyzing different aspects of complex systems
--   **Anti-Pattern**: Creating monolithic plans that try to implement everything at once
--   **Pattern**: Ask "what's the minimum viable first step?" before comprehensive implementation
+### Permanent Architecture Rules
+-   **Rule**: Use parallel agents for analyzing different aspects of complex systems
+-   **Rule**: Never create monolithic plans - always ask "what's the minimum viable first step?"
+-   **Rule**: Break complex projects into 1-hour implementation chunks for focus and progress tracking
+
+### Permanent Security Rules
+-   **Rule**: Zero tolerance for RUSTSEC advisories - resolve immediately
+-   **Rule**: Always use fully qualified syntax `<Type>::method()` to resolve trait conflicts
+-   **Rule**: Use scoped blocks `{ let data = lock()?; data }` for async lock management
+-   **Rule**: Always zeroize cryptographic keys and sensitive data after use
+
+### Permanent CI/CD Rules
+-   **Rule**: Clippy warnings must be resolved before CI can pass
+-   **Rule**: Security advisories block CI completely - highest priority
+-   **Rule**: Cargo Deny PASS is mandatory for CI success
+-   **Rule**: Pre-commit checks (`ck`) must pass before any task is marked complete
+
+### Permanent Async Rust Rules
+-   **Rule**: MutexGuard must be dropped before all await points
+-   **Rule**: Collect data in scoped blocks, then perform async operations
+-   **Rule**: Use `flatten()` for cleaner iterator handling
+-   **Rule**: Collapsible-if patterns satisfy clippy and improve readability
+
+### Planning & Architecture Patterns (Historical)
 -   **Pattern**: 1-hour implementation chunks are optimal for maintaining focus and seeing progress
+-   **Pattern**: Workspace-wide dependency upgrades require careful coordination
+-   **Discovery**: rustls-pki-types is significantly safer than rustls-pemfile (RUSTSEC-2025-0134)
+-   **Discovery**: Pre-commit hooks with clippy become bottlenecks for iterative development
 
 ### Common Mistakes to Avoid
 -   **Creating overly comprehensive initial plans** - Break complex projects into 1-hour phases instead
 -   **Trying to implement everything at once** - Start with minimum viable implementation, test, then expand
 -   **Skipping AI Diary and Honest Feedback in retrospectives** - These sections provide crucial context and self-reflection that technical documentation alone cannot capture
+-   **Ignoring security advisories** - RUSTSEC warnings require immediate migration to newer APIs
+-   **Holding MutexGuard across await points** - Causes clippy warnings and potential deadlocks
+-   **Copy-Paste Roulette migrations** - Updating references without verifying the source of truth (enum definitions)
+-   **Trust without verification** - Assuming previous migrations were complete without systematic verification
+-   **Following user hypothesis without verification** - User guessed "hardcoded 3293" but code was already using constants; should have verified runtime values first
+-   **Identifying git worktrees as duplicates** - agents/X with .git directories are worktrees for parallel development, NOT backups
 -   *Example: Forgetting to update a lockfile after changing dependencies.*
 -   *Example: Not checking build logs for warnings that could become errors.*
 -   *Example: Making assumptions about API responses instead of checking the spec.*
@@ -487,23 +543,40 @@ Closes #[issue-number]
 -   **Parallel agents for analysis** - Using multiple agents to analyze different aspects speeds up planning significantly
 -   **ccc → nnn workflow** - Context capture followed by focused planning creates better structured issues
 -   **Phase markers in issues** - Using "Phase 1:", "Phase 2:" helps track incremental progress
+-   **Trait conflict resolution** - Use `<Type>::method()` syntax when method names conflict with traits
+-   **Modern TLS API migration** - rustls-pki-types provides safer PEM parsing with better error handling
+-   **checked_sub() for CI safety** - Prevents underflow panics in time arithmetic on low-uptime systems
+-   **Systematic grep for migrations** - `rg "old_value" --type rust` finds all references that need updating
+-   **Debug forensics with println!** - Adding EXPECTED vs ACTUAL debug output reveals runtime state that static analysis cannot; crucial for debugging constant calculation bugs
+-   **Cargo Feature Priority Pattern** - Use `cfg!(all(feature = "mode2", not(feature = "mode5")))` for proper feature priority in constant calculations
+-   **Bash glob safety** - Use `shopt -s nullglob` before iterating globs that may not match; don't use `2>/dev/null` inside `for` loops
+-   **"Move instead of delete" cleanup** - Safer to move to `_TRASH_PENDING/` folder than permanent deletion; allows recovery from mistakes
+-   **Git worktree detection** - Directories with `.git` subdirectories are worktrees, not duplicates; use `git worktree remove` to delete
 -   *Example: Using a specific library feature to simplify complex state.*
 -   *Example: A shell command alias that speeds up a common task.*
 -   *Example: A design pattern that solved a recurring problem in the codebase.*
 
 ### Project-Specific Patterns
+-   **BitQuan Security Stack**: rustls-pki-types + thiserror 2.0 + comprehensive dependency auditing
+-   **Async Network Architecture**: Scoped lock management → peer data collection → async operations
+-   **Hardware Wallet Integration**: Fully qualified method calls to resolve serde trait conflicts
+-   **PQC Migration Pattern**: Update enum definition first → systematic grep for all references → verify cross-language bindings
+-   **CI Safety Pattern**: Use checked arithmetic for all time-based operations to prevent panics on low-uptime systems
+-   **Dilithium5 Constants**: SIGNBYTES=4595, PUBLICKEYBYTES=2592, SECRETKEYBYTES=4864 (includes hint bits in signatures)
+-   **Cargo Feature Unification Trap**: When `--all-features` is used, ALL features are enabled simultaneously; must use `cfg!(all(feature = "X", not(feature = "Y")))` for proper priority in BOTH `#[cfg]` attributes AND `cfg!` macro
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
 
-### User Preferences (Observed)
--   **Prefers manageable scope** - "i love this - Can be completed in under 1 hour" shows preference for achievable tasks
--   **Values phased approaches** - Recognizes when plans are "too huge" and appreciates splitting work
--   **Appreciates workflow patterns** - Likes using established patterns like "ccc nnn gh flow"
--   *Example: Prefers simple, direct solutions over complex abstractions.*
--   *Example: Values quick iteration and seeing visual progress.*
--   *Example: Appreciates clear, actionable feedback and well-defined tasks.*
--   **Time zone preference: GMT+7 (Bangkok/Asia)**
+### User Preferences (Absolute Requirements)
+-   **Language**: Thai is primary for communication. English only for code/commits.
+-   **Zero tolerance for CI failures** - "ไม่ยอมให้ผ่าน แก้" (Don't allow passing, fix it)
+-   **Perfection over speed** - "100 เลย เวลาไม่ต้องรีบ" (100% all the way, no need to rush)
+-   **Task scope**: Prefers <1 hour tasks. "i love this - Can be completed in under 1 hour"
+-   **Workflow**: Loves established patterns - "ccc nnn gh flow", "ck check"
+-   **Direct style**: No fluff, straight to technical solutions
+-   **Critical feedback**: Will be called out for lazy error messages like "should not be Err"
+-   **Time zone**: GMT+7 (Bangkok) - always show this time first
 
 ## Troubleshooting
 
@@ -555,5 +628,5 @@ Ctrl+b, d              # Detach from session
 -   [ ] Environment variables set
 -   [ ] Git configured
 
-**Last Updated**: [Date]
-**Version**: 1.0.0
+**Last Updated**: 2025-12-23
+**Version**: 1.0.1

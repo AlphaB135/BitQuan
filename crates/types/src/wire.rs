@@ -652,12 +652,12 @@ mod tests {
                 value: 5000000000,
                 script_pubkey: vec![0x76, 0xa9, 0x14],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![Witness {
                 signatures: vec![crate::SignaturePayload {
                     signer_index: 0,
-                    signature: vec![0xde; 2420],
-                    public_key: vec![0xab; 1952],
+                    signature: vec![0xde; 4595],
+                    public_key: vec![0xab; 2592],
                     aux: None,
                 }],
             }],
@@ -721,7 +721,7 @@ mod tests {
                     value: 5000000000,
                     script_pubkey: vec![],
                 }],
-                sig_algo: SigAlgorithm::Dilithium3,
+                sig_algo: SigAlgorithm::Dilithium5,
                 witnesses: vec![],
             }],
         };

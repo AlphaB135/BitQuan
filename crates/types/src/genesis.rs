@@ -63,7 +63,7 @@ pub fn create_genesis_block() -> Block {
         lock_time: 0,
         inputs: vec![coinbase_in],
         outputs: vec![coinbase_out],
-        sig_algo: SigAlgorithm::Dilithium3,
+        sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
 

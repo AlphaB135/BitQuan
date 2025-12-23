@@ -10,9 +10,9 @@ fn main() {
     // Example 1: Create a 2-of-3 multisig wallet
     println!("1. Creating a 2-of-3 multisig wallet...");
     let public_keys = vec![
-        "dilithium3_pubkey_alice_0x1234...".to_string(),
-        "dilithium3_pubkey_bob_0x5678...".to_string(),
-        "dilithium3_pubkey_charlie_0xabcd...".to_string(),
+        "dilithium5_pubkey_alice_0x1234...".to_string(),
+        "dilithium5_pubkey_bob_0x5678...".to_string(),
+        "dilithium5_pubkey_charlie_0xabcd...".to_string(),
     ];
 
     #[allow(clippy::expect_used)]
@@ -37,7 +37,7 @@ fn main() {
 
     // Example 3: First signature (Alice)
     println!("3. Alice signs the transaction...");
-    let alice_signature = b"dilithium3_sig_alice_..."; // In real use, generate with keypair.sign()
+    let alice_signature = b"dilithium5_sig_alice_..."; // In real use, generate with keypair.sign()
     #[allow(clippy::expect_used)]
     wallet
         .add_signature(&mut pending, &public_keys[0], alice_signature)
@@ -58,7 +58,7 @@ fn main() {
 
     // Example 4: Second signature (Bob)
     println!("4. Bob signs the transaction...");
-    let bob_signature = b"dilithium3_sig_bob_...";
+    let bob_signature = b"dilithium5_sig_bob_...";
     #[allow(clippy::expect_used)]
     wallet
         .add_signature(&mut pending, &public_keys[1], bob_signature)
@@ -165,5 +165,5 @@ fn main() {
     println!("  ✓ Progress tracking");
     println!("  ✓ Transaction finalization");
     println!("  ✓ Comprehensive error handling");
-    println!("\nReady for integration with Dilithium3 signatures!");
+    println!("\nReady for integration with Dilithium5 signatures!");
 }

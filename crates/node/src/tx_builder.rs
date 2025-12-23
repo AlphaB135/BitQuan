@@ -112,7 +112,7 @@ impl TransactionBuilder {
             lock_time: self.lock_time,
             inputs: self.inputs,
             outputs: self.outputs,
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: Vec::new(),
         })
     }
@@ -330,6 +330,7 @@ pub fn select_coins(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use bitquan_types::error::Error;
@@ -516,6 +517,7 @@ mod tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod overflow_tests {
     use super::*;
 

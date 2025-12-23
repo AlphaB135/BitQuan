@@ -20,9 +20,6 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
-#[cfg(feature = "randomx")]
-use bitquan_consensus::pow::randomx_pow_hash;
-
 use crate::block_submit::{BlockSubmitter, SubmitResult as BlockSubmitResult};
 use crate::pool_template::{BlockTemplate, PoolTemplateManager};
 use crate::vardiff::VarDiff;

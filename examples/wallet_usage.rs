@@ -22,7 +22,7 @@ fn basic_usage_example() -> Result<(), Box<dyn std::error::Error>> {
 
     // Decrypt it back
     let start = std::time::Instant::now();
-    let decrypted = decrypt_keystore(&keystore.as_ref().unwrap(), password)?;
+    let decrypted = decrypt_keystore(keystore.as_ref().unwrap(), password)?;
     let first_time = start.elapsed();
 
     println!("✅ First decryption: {:?} (cold cache)", first_time);
@@ -30,7 +30,7 @@ fn basic_usage_example() -> Result<(), Box<dyn std::error::Error>> {
 
     // Decrypt again (should be much faster)
     let start = std::time::Instant::now();
-    let decrypted2 = decrypt_keystore(&keystore.as_ref().unwrap(), password)?;
+    let decrypted2 = decrypt_keystore(keystore.as_ref().unwrap(), password)?;
     let second_time = start.elapsed();
 
     println!("✅ Second decryption: {:?} (hot cache)", second_time);
@@ -60,7 +60,7 @@ fn server_security_example() -> Result<(), Box<dyn std::error::Error>> {
     // Decrypt (always performs full KDF, no caching)
     let start = std::time::Instant::now();
     let decrypted =
-        decrypt_keystore_with_config(&keystore.as_ref().unwrap(), server_password, &server_config)?;
+        decrypt_keystore_with_config(keystore.as_ref().unwrap(), server_password, &server_config)?;
     let duration = start.elapsed();
 
     println!("✅ Decrypted in {:?} (no cache for security)", duration);
@@ -85,7 +85,7 @@ fn mobile_optimization_example() -> Result<(), Box<dyn std::error::Error>> {
 
     // Decrypt with mobile config
     let decrypted =
-        decrypt_keystore_with_config(&keystore.as_ref().unwrap(), user_password, &mobile_config)?;
+        decrypt_keystore_with_config(keystore.as_ref().unwrap(), user_password, &mobile_config)?;
     assert_eq!(decrypted, mobile_data);
 
     println!("✅ Mobile decryption successful");
@@ -141,13 +141,13 @@ fn error_handling_example() {
     let keystore = encrypt_keystore_adaptive(b"secret", "correct_password", None);
 
     // Try wrong password
-    match decrypt_keystore(&keystore.as_ref().unwrap(), "wrong_password") {
+    match decrypt_keystore(keystore.as_ref().unwrap(), "wrong_password") {
         Ok(_) => println!("❌ This should not happen!"),
         Err(e) => println!("✅ Wrong password correctly rejected: {}", e),
     }
 
     // Correct password
-    match decrypt_keystore(&keystore.as_ref().unwrap(), "correct_password") {
+    match decrypt_keystore(keystore.as_ref().unwrap(), "correct_password") {
         Ok(data) => println!("✅ Correct password accepted: {} bytes", data.len()),
         Err(e) => println!("❌ Unexpected error: {}", e),
     }

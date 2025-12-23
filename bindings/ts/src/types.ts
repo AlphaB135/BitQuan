@@ -112,7 +112,7 @@ export enum ValidationResult {
  */
 export enum SignatureAlgorithm {
   ECDSA = 'ecdsa',
-  Dilithium3 = 'dilithium3',
+  Dilithium5 = 'dilithium5',
   Hybrid = 'hybrid'
 }
 
@@ -121,7 +121,7 @@ export namespace SignatureAlgorithm {
    * Check if this is a post-quantum algorithm
    */
   export function isPostQuantum(algorithm: SignatureAlgorithm): boolean {
-    return algorithm === SignatureAlgorithm.Dilithium3 || algorithm === SignatureAlgorithm.Hybrid;
+    return algorithm === SignatureAlgorithm.Dilithium5 || algorithm === SignatureAlgorithm.Hybrid;
   }
 }
 

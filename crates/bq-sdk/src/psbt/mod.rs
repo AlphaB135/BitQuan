@@ -5,6 +5,7 @@
 
 use crate::{address::Address, Result, SDKError};
 use bitquan_types::Transaction;
+use pqc_dilithium_seeded::{PUBLICKEYBYTES, SIGNBYTES};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use std::collections::BTreeMap;
@@ -122,10 +123,10 @@ pub enum InputKey {
     Sequence(u32),
     /// ScriptSig (variable)
     ScriptSig(Vec<u8>),
-    /// Dilithium public key (1952 bytes)
-    DilithiumPublicKey(#[serde(with = "BigArray")] [u8; 1952]),
-    /// Dilithium signature (3293 bytes)
-    DilithiumSignature(#[serde(with = "BigArray")] [u8; 3293]),
+    /// Dilithium public key
+    DilithiumPublicKey(#[serde(with = "BigArray")] [u8; PUBLICKEYBYTES]),
+    /// Dilithium signature
+    DilithiumSignature(#[serde(with = "BigArray")] [u8; SIGNBYTES]),
     /// ECDSA fallback signature (variable)
     ECDSASignature(Vec<u8>),
     /// Proprietary data
@@ -186,21 +187,21 @@ impl PSBTInput {
     }
 
     /// Set Dilithium public key
-    pub fn set_dilithium_public_key(&mut self, pubkey: [u8; 1952]) {
+    pub fn set_dilithium_public_key(&mut self, pubkey: [u8; PUBLICKEYBYTES]) {
         self.add_field(InputKey::DilithiumPublicKey(pubkey), pubkey.to_vec());
     }
 
     /// Set Dilithium signature
-    pub fn set_dilithium_signature(&mut self, signature: [u8; 3293]) {
+    pub fn set_dilithium_signature(&mut self, signature: [u8; SIGNBYTES]) {
         self.add_field(InputKey::DilithiumSignature(signature), signature.to_vec());
     }
 
     /// Get Dilithium public key
-    pub fn get_dilithium_public_key(&self) -> Option<[u8; 1952]> {
+    pub fn get_dilithium_public_key(&self) -> Option<[u8; PUBLICKEYBYTES]> {
         self.fields.iter().find_map(|(key, value)| {
             if let InputKey::DilithiumPublicKey(_pubkey) = key {
-                if value.len() == 1952 {
-                    let mut array = [0u8; 1952];
+                if value.len() == PUBLICKEYBYTES {
+                    let mut array = [0u8; PUBLICKEYBYTES];
                     array.copy_from_slice(value);
                     Some(array)
                 } else {
@@ -213,11 +214,11 @@ impl PSBTInput {
     }
 
     /// Get Dilithium signature
-    pub fn get_dilithium_signature(&self) -> Option<[u8; 3293]> {
+    pub fn get_dilithium_signature(&self) -> Option<[u8; SIGNBYTES]> {
         self.fields.iter().find_map(|(key, value)| {
             if let InputKey::DilithiumSignature(_sig) = key {
-                if value.len() == 3293 {
-                    let mut array = [0u8; 3293];
+                if value.len() == SIGNBYTES {
+                    let mut array = [0u8; SIGNBYTES];
                     array.copy_from_slice(value);
                     Some(array)
                 } else {
@@ -461,9 +462,12 @@ impl PQPSBT {
 
     /// Finalize PSBT and extract transaction
     pub fn finalize(self) -> Result<Transaction> {
+        // TODO: Implement PSBT finalization
         // This would build the final transaction from PSBT data
         // Implementation depends on Transaction structure
-        todo!("Implement PSBT finalization")
+        Err(SDKError::PSBT(PSBTError::InvalidFormat(
+            "PSBT finalization not yet implemented".to_string(),
+        )))
     }
 
     // Helper methods for serialization

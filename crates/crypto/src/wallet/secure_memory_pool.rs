@@ -496,8 +496,9 @@ mod tests {
                         // Verify data integrity (this should pass if no race condition)
                         {
                             let slice = block.as_slice();
-                            for i in 0..8.min(slice.len()) {
-                                if slice[i] != thread_data.wrapping_add(i as u8) {
+                            for (i, &byte_val) in slice.iter().enumerate().take(8.min(slice.len()))
+                            {
+                                if byte_val != thread_data.wrapping_add(i as u8) {
                                     // Data was corrupted by another thread - race condition!
                                     race_detected_clone.store(true, Ordering::SeqCst);
                                     return;

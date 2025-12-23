@@ -25,7 +25,9 @@ secrecy = "0.8"
 libc = { version = "0.2", optional = true }
 thiserror = "1"
 hex = "0.4"
-pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1" }
+# Explicitly enable mode5 (Dilithium5) and randomized signing
+# Mode 5: 4147-byte signatures, 2592-byte public keys (strongest security)
+pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1", features = ["mode5", "random_signing"] }
 subtle = "2.6"
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -38,3 +40,4 @@ blake3 = "1.8.2"
 proptest = "1.4"
 hex = "0.4"
 tempfile = "3"
+criterion = "0.5"

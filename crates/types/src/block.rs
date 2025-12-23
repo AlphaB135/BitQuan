@@ -199,7 +199,7 @@ mod tests {
         let txid2 = [2u8; 32];
         let result = merkle_root_from_txids(&[txid1, txid2]);
         assert!(result.is_ok());
-        
+
         // Should produce deterministic result
         let root = result.unwrap();
         assert_ne!(root, [0u8; 32]);
@@ -211,7 +211,7 @@ mod tests {
     fn test_merkle_reject_duplicates() {
         let txid = [1u8; 32];
         let result = merkle_root_from_txids(&[txid, txid]);
-        
+
         // Should reject duplicates
         assert!(result.is_err());
         assert!(matches!(
@@ -226,9 +226,9 @@ mod tests {
         let txid1 = [1u8; 32];
         let txid2 = [2u8; 32];
         let txid3 = [3u8; 32];
-        
+
         let result = merkle_root_from_txids(&[txid1, txid2, txid3]);
-        
+
         // Should reject odd-length internal layers
         assert!(result.is_err());
         assert!(matches!(
@@ -242,7 +242,7 @@ mod tests {
         // Four txids is safe (power of 2)
         let txids = [[1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32]];
         let result = merkle_root_from_txids(&txids);
-        
+
         // Should succeed with 4 txids
         assert!(result.is_ok());
     }
@@ -252,7 +252,7 @@ mod tests {
         let txids = [[1u8; 32], [2u8; 32]];
         let result1 = merkle_root_from_txids(&txids);
         let result2 = merkle_root_from_txids(&txids);
-        
+
         assert!(result1.is_ok());
         assert!(result2.is_ok());
         assert_eq!(result1.unwrap(), result2.unwrap());
@@ -263,7 +263,7 @@ mod tests {
         // This test documents that we're using BLAKE3, not SHA-256d
         let txids = [[1u8; 32], [2u8; 32]];
         let blake3_root = merkle_root_from_txids(&txids).unwrap();
-        
+
         // BLAKE3 hash should be different from SHA-256d
         // (This test will pass as long as we're using BLAKE3)
         assert_ne!(blake3_root, [0u8; 32]);

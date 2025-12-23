@@ -16,26 +16,23 @@ pub fn compact_to_target(bits: u32) -> u64 {
     let mantissa = bits & 0x007fffff;
     let sign = bits & 0x00800000;
 
-    let target = if exponent <= 3 {
-        (mantissa as u64) >> (8 * (3 - exponent))
-    } else {
-        (mantissa as u64) << (8 * (exponent - 3))
-    };
-
-    // Apply sign if negative (though target is unsigned, this logic mimics Bitcoin's behavior)
-    // In Bitcoin, negative targets are invalid, but we handle the conversion here.
+    // Apply sign if negative
     if sign != 0 {
-        // For unsigned target, we can't represent negative. Return 0 or handle as error?
-        // Bitcoin returns 0 for negative targets.
         return 0;
     }
 
-    // Check for overflow
-    if exponent > 31 {
-        return u64::MAX; // Overflow - saturate to max
+    // Check for overflow (u64 can hold up to ~1.8e19)
+    // Formula: mantissa * 256^(exponent-3)
+    // If exponent >= 11, then exponent-3 >= 8, shift is >= 64, which panics/overflows u64
+    if exponent >= 11 {
+        return u64::MAX;
     }
 
-    target
+    if exponent <= 3 {
+        (mantissa as u64) >> (8 * (3 - exponent))
+    } else {
+        (mantissa as u64) << (8 * (exponent - 3))
+    }
 }
 
 /// Converts a 256-bit target (as u64 for simplified difficulty) to compact form.

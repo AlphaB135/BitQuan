@@ -14,13 +14,13 @@ fn test_password_rotation_roundtrip() {
     let keystore = encrypt_keystore(plaintext, old_password, None, 8192, 1, 1);
 
     // Verify old password works
-    let decrypted = decrypt_keystore(&keystore.as_ref().unwrap(), old_password)
+    let decrypted = decrypt_keystore(keystore.as_ref().unwrap(), old_password)
         .expect("decrypt with old password should succeed");
     assert_eq!(decrypted, plaintext);
 
     // Rotate to new password
     let rotated = rotate_keystore(
-        &keystore.as_ref().unwrap(),
+        keystore.as_ref().unwrap(),
         old_password,
         new_password,
         8192,
@@ -87,7 +87,7 @@ fn test_password_rotation_wrong_old_password() {
 
     // Attempt rotation with wrong old password should fail
     let result = rotate_keystore(
-        &keystore.as_ref().unwrap(),
+        keystore.as_ref().unwrap(),
         wrong_password,
         new_password,
         8192,
@@ -110,7 +110,7 @@ fn test_multiple_password_rotations() {
     // Rotate through multiple passwords
     for i in 0..passwords.len() - 1 {
         keystore = Ok(rotate_keystore(
-            &keystore.as_ref().unwrap(),
+            keystore.as_ref().unwrap(),
             passwords[i],
             passwords[i + 1],
             8192,
@@ -120,12 +120,12 @@ fn test_multiple_password_rotations() {
         .expect("Failed to rotate keystore"));
 
         // Verify new password works
-        let decrypted = decrypt_keystore(&keystore.as_ref().unwrap(), passwords[i + 1])
+        let decrypted = decrypt_keystore(keystore.as_ref().unwrap(), passwords[i + 1])
             .expect("Failed to decrypt with new password");
         assert_eq!(decrypted, data);
 
         // Verify old password no longer works
-        let old_result = decrypt_keystore(&keystore.as_ref().unwrap(), passwords[i]);
+        let old_result = decrypt_keystore(keystore.as_ref().unwrap(), passwords[i]);
         assert!(old_result.is_err(), "old password {} should not work", i);
     }
 }

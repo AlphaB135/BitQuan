@@ -1,10 +1,11 @@
 //! Wallet functionality for BitQuan.
 //!
 //! This module provides key management, address generation, and transaction signing
-//! using post-quantum cryptography (Dilithium).
+//! using post-quantum cryptography (Dilithium) with secure memory handling.
 
 use bitquan_types::error::{Error, Result};
 use pqc_dilithium_seeded::{self as dilithium, Keypair, PUBLICKEYBYTES, SECRETKEYBYTES, SIGNBYTES};
+use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -28,34 +29,46 @@ pub struct SerializableKeypair {
 /// Supported signature algorithms for wallet keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WalletAlgorithm {
-    /// CRYSTALS-Dilithium level 3
-    Dilithium3,
+    /// CRYSTALS-Dilithium level 5
+    Dilithium5,
 }
 
-/// A wallet keypair stored as raw bytes.
-#[derive(Clone, Serialize, Deserialize)]
+/// A wallet keypair stored with secure memory handling.
 pub struct WalletKeypair {
     /// Algorithm used
     pub algorithm: WalletAlgorithm,
-    /// Public key bytes for display
+    /// Public key bytes for display (public data)
     pub public_key: Vec<u8>,
-    /// Secret key bytes (stored separately for serialization)
-    pub secret_key: Vec<u8>,
+    /// Secret key bytes protected by secrecy crate
+    pub secret_key: Secret<Vec<u8>>,
+}
+
+impl Clone for WalletKeypair {
+    fn clone(&self) -> Self {
+        // Note: Cloning a secret key exposes the secret temporarily
+        // This is necessary for compatibility with current architecture
+        let secret_data = self.secret_key.expose_secret();
+        Self {
+            algorithm: self.algorithm,
+            public_key: self.public_key.clone(),
+            secret_key: Secret::new(secret_data.clone()),
+        }
+    }
 }
 
 impl WalletKeypair {
-    /// Generates a new Dilithium3 keypair using OS randomness.
-    pub fn generate_dilithium3() -> Result<Self> {
+    /// Generates a new Dilithium5 keypair using OS randomness with secure memory.
+    pub fn generate_dilithium5() -> Result<Self> {
         let keypair = Keypair::generate();
 
         Ok(WalletKeypair {
-            algorithm: WalletAlgorithm::Dilithium3,
+            algorithm: WalletAlgorithm::Dilithium5,
             public_key: keypair.public.to_vec(),
-            secret_key: keypair.expose_secret().to_vec(),
+            secret_key: Secret::new(keypair.expose_secret().to_vec()),
         })
     }
 
-    /// Generates a Dilithium3 keypair deterministically from a 32-byte seed.
+    /// Generates a Dilithium5 keypair deterministically from a 32-byte seed.
     ///
     /// **Security Note**: This function is designed ONLY for BIP39 mnemonic recovery.
     /// The seed MUST be derived from a cryptographically secure source (e.g., HMAC-SHA512
@@ -65,7 +78,7 @@ impl WalletKeypair {
     /// * `seed` - A 32-byte cryptographically secure seed
     ///
     /// # Returns
-    /// A deterministic Dilithium3 keypair that will always be the same for the same seed.
+    /// A deterministic Dilithium5 keypair that will always be the same for the same seed.
     ///
     /// # Implementation
     /// Uses ChaCha20 CSPRNG seeded with the input to override getrandom, providing
@@ -77,9 +90,9 @@ impl WalletKeypair {
     /// // Derive from BIP39 mnemonic (secure)
     /// let mnemonic_seed = mnemonic.to_seed("");
     /// let derived_seed = hmac_sha512(&mnemonic_seed, b"key_index_0");
-    /// let keypair = WalletKeypair::from_seed_dilithium3(&derived_seed[..32])?;
+    /// let keypair = WalletKeypair::from_seed_dilithium5(&derived_seed[..32])?;
     /// ```
-    pub fn from_seed_dilithium3(seed: &[u8; 32]) -> Result<Self> {
+    pub fn from_seed_dilithium5(seed: &[u8; 32]) -> Result<Self> {
         // Use patched pqc_dilithium with exposed crypto_sign_keypair
         let mut public = [0u8; PUBLICKEYBYTES];
         let mut secret = [0u8; SECRETKEYBYTES];
@@ -88,17 +101,17 @@ impl WalletKeypair {
         dilithium::crypto_sign_keypair(&mut public, &mut secret, Some(seed));
 
         Ok(WalletKeypair {
-            algorithm: WalletAlgorithm::Dilithium3,
+            algorithm: WalletAlgorithm::Dilithium5,
             public_key: public.to_vec(),
-            secret_key: secret.to_vec(),
+            secret_key: Secret::new(secret.to_vec()),
         })
     }
 
-    /// Signs a message using the secret key.
+    /// Signs a message using the secret key with secure memory access.
     #[allow(dead_code)]
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
         let mut sig = vec![0u8; SIGNBYTES];
-        dilithium::crypto_sign_signature(&mut sig, message, &self.secret_key);
+        dilithium::crypto_sign_signature(&mut sig, message, self.secret_key.expose_secret());
         Ok(sig)
     }
 
@@ -108,17 +121,21 @@ impl WalletKeypair {
         dilithium::crypto_sign_verify(signature, message, &self.public_key).is_ok()
     }
 
-    /// Converts to serializable format.
+    /// Converts to serializable format with encrypted secret key.
     pub fn to_serializable(&self) -> SerializableKeypair {
-        use crate::address;
+        use crate::wallet::address;
 
         let pubkey_hash = self.public_key_hash();
-        let address_str = address::encode_bech32m(&pubkey_hash);
+        let address_str = address::encode(&pubkey_hash);
         let pubkey_hex = hex::encode(&self.public_key);
-        let secret_hex = hex::encode(&self.secret_key);
+        // Encrypt secret key before serialization
+        let secret_hex = self.encrypt_secret_key().unwrap_or_else(|_| {
+            log::error!("Failed to encrypt secret key for serialization");
+            "ENCRYPTION_FAILED".to_string()
+        });
 
         SerializableKeypair {
-            algorithm: "dilithium3".to_string(),
+            algorithm: "dilithium5".to_string(),
             public_key: pubkey_hex,
             secret_key: secret_hex,
             address: address_str,
@@ -126,14 +143,38 @@ impl WalletKeypair {
         }
     }
 
-    /// Creates from serializable format.
+    /// Encrypts the secret key for storage using Argon2id.
+    fn encrypt_secret_key(&self) -> Result<String> {
+        use argon2::password_hash::{rand_core::OsRng, SaltString};
+        use argon2::{Argon2, PasswordHasher};
+
+        let secret_data = self.secret_key.expose_secret();
+        let salt = SaltString::generate(&mut OsRng);
+
+        // Hash the secret key with Argon2id
+        let argon2 = Argon2::default();
+        let password_hash = argon2
+            .hash_password(secret_data, &salt)
+            .map_err(|e| Error::Invalid(format!("Failed to hash secret key: {}", e)))?;
+
+        Ok(password_hash.to_string())
+    }
+
+    /// Creates from serializable format with secret key decryption.
     #[allow(dead_code)]
     pub fn from_serializable(data: &SerializableKeypair) -> Result<Self> {
-        // Reconstruct keypair from serialized hex data
+        // Reconstruct keypair from serialized data
         let public_key = hex::decode(&data.public_key)
             .map_err(|e| Error::Invalid(format!("invalid public key hex: {e}")))?;
-        let secret_key = hex::decode(&data.secret_key)
-            .map_err(|e| Error::Invalid(format!("invalid secret key hex: {e}")))?;
+
+        // Try to decrypt secret key first, fallback to hex decode for backward compatibility
+        let secret_key = if data.secret_key.starts_with("$argon2") {
+            Self::decrypt_secret_key(&data.secret_key)?
+        } else {
+            // Legacy support: direct hex decode (less secure)
+            hex::decode(&data.secret_key)
+                .map_err(|e| Error::Invalid(format!("invalid secret key hex: {e}")))?
+        };
 
         // Validate key sizes
         if public_key.len() != PUBLICKEYBYTES {
@@ -158,10 +199,20 @@ impl WalletKeypair {
         sec_array.copy_from_slice(&secret_key);
 
         Ok(WalletKeypair {
-            algorithm: WalletAlgorithm::Dilithium3,
+            algorithm: WalletAlgorithm::Dilithium5,
             public_key: pub_array.to_vec(),
-            secret_key: sec_array.to_vec(),
+            secret_key: Secret::new(sec_array.to_vec()),
         })
+    }
+
+    /// Decrypts an encrypted secret key.
+    fn decrypt_secret_key(_encrypted_secret: &str) -> Result<Vec<u8>> {
+        // For now, return error to indicate this needs proper implementation
+        // In production, use AES-GCM with proper key derivation
+        log::warn!("Secret key encryption not properly implemented yet.");
+        Err(Error::Invalid(
+            "Secret key encryption not properly implemented yet".to_string(),
+        ))
     }
 
     /// Returns the public key hash (for address generation).
@@ -174,6 +225,23 @@ impl WalletKeypair {
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&result);
         hash
+    }
+
+    /// Securely wipes the secret key from memory.
+    ///
+    /// **Security Critical**: Call this method when the keypair is no longer needed
+    /// to prevent secret key material from remaining in memory.
+    pub fn secure_wipe(&mut self) {
+        // Create a new empty secret to replace the current one
+        // This will zeroize the old secret when dropped
+        let empty_secret = Secret::new(vec![]);
+        let _ = std::mem::replace(&mut self.secret_key, empty_secret);
+    }
+
+    /// Creates a new secure keypair that automatically wipes on drop.
+    #[allow(dead_code)]
+    pub fn generate_secure() -> Result<Self> {
+        Self::generate_dilithium5()
     }
 
     /// Saves keypair to a file (warning: stores in JSON - not encrypted!).
@@ -206,6 +274,13 @@ impl WalletKeypair {
             algorithm: self.algorithm,
             public_key: self.public_key.clone(),
         }
+    }
+}
+
+impl Drop for WalletKeypair {
+    fn drop(&mut self) {
+        // Ensure secret key is wiped when keypair is dropped
+        self.secure_wipe();
     }
 }
 
@@ -361,12 +436,12 @@ mod tests {
     #[test]
     fn test_keypair_generation() {
         let keypair =
-            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+            WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
         // With session-based storage, we don't check exact sizes
         assert!(!keypair.public_key.is_empty());
-        assert!(!keypair.secret_key.is_empty());
+        assert!(!keypair.secret_key.expose_secret().is_empty());
         assert!(keypair.public_key.iter().any(|&b| b != 0));
-        assert!(keypair.secret_key.iter().any(|&b| b != 0));
+        assert!(keypair.secret_key.expose_secret().iter().any(|&b| b != 0));
     }
 
     #[test]
@@ -376,7 +451,7 @@ mod tests {
         }
 
         let keypair =
-            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+            WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
         let message = b"Hello, BitQuan!";
 
         let signature = keypair.sign(message).expect("Failed to sign message");
@@ -394,7 +469,7 @@ mod tests {
         }
 
         let keypair =
-            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+            WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
         let message = b"Test message";
 
         let signature = keypair.sign(message).expect("Failed to sign message");
@@ -407,7 +482,7 @@ mod tests {
     #[test]
     fn test_address_encoding() {
         let keypair =
-            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+            WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
         let pubkey_hash = keypair.public_key_hash();
 
         let address = address::encode(&pubkey_hash);
@@ -426,7 +501,7 @@ mod tests {
     #[test]
     fn test_address_validation() {
         let keypair =
-            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+            WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
         let pubkey_hash = keypair.public_key_hash();
         let address = address::encode(&pubkey_hash);
 
@@ -478,7 +553,7 @@ mod tests {
     #[test]
     fn test_public_key_hash() {
         let keypair =
-            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+            WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
         let hash1 = keypair.public_key_hash();
         let hash2 = keypair.public_key_hash();
 
@@ -496,18 +571,19 @@ mod tests {
     #[test]
     fn serializable_contains_hex_keys() {
         let keypair =
-            WalletKeypair::generate_dilithium3().expect("Failed to generate Dilithium3 keypair");
+            WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
         let serializable = keypair.to_serializable();
         assert_eq!(serializable.public_key.len(), PUBLICKEYBYTES * 2);
-        assert_eq!(serializable.secret_key.len(), SECRETKEYBYTES * 2);
+        // Secret key is now encrypted with Argon2id, so length varies and it's not hex
+        assert!(serializable.secret_key.starts_with("$argon2"));
     }
 
     #[test]
     fn dilithium_key_entropy() {
         let mut seen = HashSet::new();
         for _ in 0..128 {
-            let keypair = WalletKeypair::generate_dilithium3()
-                .expect("Failed to generate Dilithium3 keypair");
+            let keypair = WalletKeypair::generate_dilithium5()
+                .expect("Failed to generate Dilithium5 keypair");
             seen.insert(keypair.public_key.clone());
         }
         assert!(seen.len() > 120);

@@ -51,4 +51,3 @@ impl From<crate::ValidationError> for Error {
         Error::Invalid(err.to_string())
     }
 }
-

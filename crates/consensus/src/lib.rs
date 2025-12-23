@@ -4,12 +4,12 @@
 #![warn(clippy::expect_used)]
 
 use bitquan_types::{count_signatures, Block, NetworkId};
+use blake3::Hasher;
 use bq_crypto::{CryptoError, CryptoRegistry};
-use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 mod asert;
-mod difficulty;
+pub mod difficulty;
 mod economic;
 pub mod fork;
 mod monitoring;
@@ -207,6 +207,8 @@ pub struct MempoolPolicy {
     pub ancestor_limit: u32,
     /// Maximum number of in-mempool descendants allowed.
     pub descendant_limit: u32,
+    /// Dust threshold in qbits (satoshis).
+    pub dust_threshold: u64,
 }
 
 impl MempoolPolicy {
@@ -219,6 +221,7 @@ impl MempoolPolicy {
             min_relay_fee_per_wu: 1,
             ancestor_limit: 50,
             descendant_limit: 50,
+            dust_threshold: 546,
         }
     }
 }
@@ -357,6 +360,16 @@ pub enum ConsensusError {
     /// Invalid signature hash computation.
     #[error("invalid signature: {0}")]
     InvalidSignature(String),
+    /// Output value is below dust threshold.
+    #[error("dust output at index {index}: value {value} < threshold {threshold}")]
+    DustOutput {
+        /// Index of the output
+        index: usize,
+        /// Value of the output
+        value: u64,
+        /// Dust threshold
+        threshold: u64,
+    },
 }
 
 /// Calculates transaction weight according to BQIP-0002.
@@ -446,6 +459,7 @@ pub(crate) fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: 
 }
 
 /// Validates a block against the supplied consensus parameters (BQIP-0002).
+#[allow(clippy::too_many_arguments)]
 pub fn validate_block(
     block: &Block,
     height: u64,
@@ -453,9 +467,11 @@ pub fn validate_block(
     registry: &CryptoRegistry,
     network_id: bitquan_types::NetworkId,
     genesis_hash: [u8; 32],
+    total_fees: Option<u64>,
+    median_time_past: u64,
 ) -> Result<BlockValidationReport, ConsensusError> {
     // Bitcoin-style block header validation
-    validate_block_header(block, height, params)?;
+    validate_block_header(block, height, params, median_time_past)?;
 
     // Coinbase transaction validation
     validate_coinbase_transaction(block, height)?;
@@ -473,8 +489,13 @@ pub fn validate_block(
         });
     }
 
+    // Validate all transactions (e.g. dust checks)
+    for tx in &block.transactions {
+        validate_transaction(tx)?;
+    }
+
     // Validate transaction fees and rewards
-    validate_transaction_fees(block, block_subsidy)?;
+    validate_transaction_fees(block, block_subsidy, total_fees)?;
 
     // Create transaction context for signature verification
     let ctx = bitquan_types::TxContext::new(network_id, genesis_hash);
@@ -512,6 +533,7 @@ fn validate_block_header(
     block: &Block,
     height: u64,
     _params: &ConsensusParams,
+    median_time_past: u64,
 ) -> Result<(), ConsensusError> {
     let header = &block.header;
 
@@ -532,10 +554,9 @@ fn validate_block_header(
         }
 
         // Validate timestamp is greater than median of past 11 blocks
-        // Simplified: just ensure it's reasonable
-        if header.time == 0 {
+        if u64::from(header.time) <= median_time_past {
             return Err(ConsensusError::InvalidSignature(
-                "Invalid block timestamp".to_string(),
+                "Block timestamp too old (must be > median time past)".to_string(),
             ));
         }
     }
@@ -605,7 +626,11 @@ fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), Cons
 }
 
 /// Validates transaction fees and block reward
-fn validate_transaction_fees(block: &Block, block_subsidy: u64) -> Result<(), ConsensusError> {
+fn validate_transaction_fees(
+    block: &Block,
+    block_subsidy: u64,
+    total_fees: Option<u64>,
+) -> Result<(), ConsensusError> {
     // Simple validation: coinbase output should not exceed reasonable maximum
     let coinbase_output = block.transactions[0]
         .outputs
@@ -613,16 +638,29 @@ fn validate_transaction_fees(block: &Block, block_subsidy: u64) -> Result<(), Co
         .map(|o| o.value)
         .sum::<u64>();
 
-    // Coinbase should not exceed block subsidy + reasonable fee buffer
-    let max_reasonable_reward = block_subsidy.saturating_add(100000000); // 1 BTC fee buffer
+    if let Some(fees) = total_fees {
+        // Strict validation: Coinbase <= Subsidy + Fees
+        let max_allowed = block_subsidy
+            .checked_add(fees)
+            .ok_or(ConsensusError::WeightOverflow("block reward calculation"))?;
 
-    if coinbase_output > max_reasonable_reward {
-        return Err(ConsensusError::InvalidSignature(
-            "Coinbase reward exceeds reasonable limit".to_string(),
-        ));
+        if coinbase_output > max_allowed {
+            return Err(ConsensusError::CoinbaseExceedsSubsidy);
+        }
+    } else {
+        // Loose validation (when fees unknown): Coinbase <= Subsidy + Buffer
+        // Coinbase should not exceed block subsidy + reasonable fee buffer
+        let max_reasonable_reward = block_subsidy.saturating_add(100000000); // 1 BTC fee buffer
+
+        if coinbase_output > max_reasonable_reward {
+            return Err(ConsensusError::InvalidSignature(
+                "Coinbase reward exceeds reasonable limit".to_string(),
+            ));
+        }
     }
 
-    // Coinbase should be at least block subsidy
+    // Coinbase should be at least block subsidy (Prevent burning/mistakes)
+    // Note: Some chains allow burning, but BitQuan enforces this to prevent accidental loss
     if coinbase_output < block_subsidy {
         return Err(ConsensusError::InvalidSignature(
             "Coinbase reward below block subsidy".to_string(),
@@ -664,43 +702,42 @@ fn calculate_merkle_root(
 
 /// Hashes a transaction for merkle root calculation
 fn hash_transaction(tx: &bitquan_types::Transaction) -> [u8; 32] {
-    let mut hasher = Sha256::new();
+    let mut hasher = Hasher::new();
 
     // Simple transaction serialization for merkle root
-    hasher.update(tx.version.to_le_bytes());
-    hasher.update((tx.network as u8).to_le_bytes());
-    hasher.update(tx.genesis_hash);
-    hasher.update(tx.lock_time.to_le_bytes());
+    hasher.update(&tx.version.to_le_bytes());
+    hasher.update(&(tx.network as u8).to_le_bytes());
+    hasher.update(&tx.genesis_hash);
+    hasher.update(&tx.lock_time.to_le_bytes());
 
     // Hash inputs
     for input in &tx.inputs {
-        hasher.update(input.prev_txid);
-        hasher.update(input.prev_vout.to_le_bytes());
+        hasher.update(&input.prev_txid);
+        hasher.update(&input.prev_vout.to_le_bytes());
         hasher.update(&input.script_sig);
-        hasher.update(input.sequence.to_le_bytes());
+        hasher.update(&input.sequence.to_le_bytes());
     }
 
     // Hash outputs
     for output in &tx.outputs {
-        hasher.update(output.value.to_le_bytes());
+        hasher.update(&output.value.to_le_bytes());
         hasher.update(&output.script_pubkey);
     }
 
     let result = hasher.finalize();
     let mut hash = [0u8; 32];
-    hash.copy_from_slice(&result);
+    hash.copy_from_slice(result.as_bytes());
     hash
 }
 
 /// Hashes two merkle tree nodes
 fn hash_pair(a: [u8; 32], b: [u8; 32]) -> [u8; 32] {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(a);
-    hasher.update(b);
+    let mut hasher = Hasher::new();
+    hasher.update(&a);
+    hasher.update(&b);
     let result = hasher.finalize();
     let mut hash = [0u8; 32];
-    hash.copy_from_slice(&result);
+    hash.copy_from_slice(result.as_bytes());
     hash
 }
 
@@ -791,6 +828,7 @@ impl ConsensusEngine {
         &mut self,
         block: &Block,
         height: u64,
+        median_time_past: u64,
     ) -> Result<BlockValidationReport, ConsensusError> {
         // Standard block validation
         validate_block(
@@ -800,6 +838,52 @@ impl ConsensusEngine {
             &self.registry,
             self.network_id,
             self.genesis_hash,
+            None, // Total fees unknown in this context
+            median_time_past,
         )
     }
+
+    /// Validates a block with known total fees (for strict coinbase validation).
+    pub fn validate_block_with_fees(
+        &mut self,
+        block: &Block,
+        height: u64,
+        total_fees: u64,
+        median_time_past: u64,
+    ) -> Result<BlockValidationReport, ConsensusError> {
+        validate_block(
+            block,
+            height,
+            &self.params,
+            &self.registry,
+            self.network_id,
+            self.genesis_hash,
+            Some(total_fees),
+            median_time_past,
+        )
+    }
+}
+
+/// Standard dust threshold in qbits (satoshis).
+pub const DUST_THRESHOLD_QBITS: u64 = 546;
+
+/// Validates a single transaction against consensus rules (e.g. dust).
+pub fn validate_transaction(tx: &bitquan_types::Transaction) -> Result<(), ConsensusError> {
+    for (i, output) in tx.outputs.iter().enumerate() {
+        // Check for dust outputs
+        if output.value < DUST_THRESHOLD_QBITS {
+            // Allow provably unspendable outputs (e.g. OP_RETURN) to be dust
+            // OP_RETURN is 0x6a
+            let is_op_return = !output.script_pubkey.is_empty() && output.script_pubkey[0] == 0x6a;
+
+            if !is_op_return {
+                return Err(ConsensusError::DustOutput {
+                    index: i,
+                    value: output.value,
+                    threshold: DUST_THRESHOLD_QBITS,
+                });
+            }
+        }
+    }
+    Ok(())
 }

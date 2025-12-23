@@ -307,7 +307,7 @@ mod tests {
                 value: 1_000,
                 script_pubkey: vec![0x51],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![Witness {
                 signatures: vec![SignaturePayload {
                     signer_index: 0,

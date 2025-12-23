@@ -47,8 +47,10 @@ mod tests {
 
         #[test]
         fn test_rate_limiter_global_limits() {
-            let mut config = RateLimitConfig::default();
-            config.max_global_messages_per_second = 100;
+            let config = RateLimitConfig {
+                max_global_messages_per_second: 100,
+                ..Default::default()
+            };
             let mut limiter = RateLimiter::new(config);
 
             // Should trigger global limit
@@ -65,8 +67,10 @@ mod tests {
 
         #[test]
         fn test_rate_limiter_peer_violations() {
-            let mut config = RateLimitConfig::default();
-            config.violation_threshold = 2;
+            let config = RateLimitConfig {
+                violation_threshold: 2,
+                ..Default::default()
+            };
             let mut limiter = RateLimiter::new(config);
             let peer = format!("test_peer_{}", rand::random::<u64>());
 
@@ -123,8 +127,10 @@ mod tests {
 
         #[test]
         fn test_connection_limits() {
-            let mut config = ConnectionConfig::default();
-            config.max_total_connections = 2;
+            let config = ConnectionConfig {
+                max_total_connections: 2,
+                ..Default::default()
+            };
             let mut manager = ConnectionManager::new(config);
 
             let peer1 = format!("test_peer_{}", rand::random::<u64>());
@@ -159,8 +165,10 @@ mod tests {
 
         #[test]
         fn test_connection_cleanup() {
-            let mut config = ConnectionConfig::default();
-            config.idle_timeout = Duration::from_millis(100);
+            let config = ConnectionConfig {
+                idle_timeout: Duration::from_millis(100),
+                ..Default::default()
+            };
             let mut manager = ConnectionManager::new(config);
 
             let peer = format!("test_peer_{}", rand::random::<u64>());
@@ -322,8 +330,10 @@ mod tests {
 
         #[test]
         fn test_ban_expiration() {
-            let mut config = BanConfig::default();
-            config.default_temp_ban_duration = Duration::from_millis(100);
+            let config = BanConfig {
+                default_temp_ban_duration: Duration::from_millis(100),
+                ..Default::default()
+            };
             let mut manager = BanManager::new(config);
             let peer = format!("test_peer_{}", rand::random::<u64>());
 

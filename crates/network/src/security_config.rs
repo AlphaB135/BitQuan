@@ -284,12 +284,10 @@ impl SecurityConfig {
 // pub fn export_toml(&self) -> Result<String, toml::SerializationError> {
 //     toml::to_string_pretty(&self)
 // }
-
 /// Import configuration from TOML format
 // pub fn import_toml(toml_str: &str) -> Result<Self, toml::de::Error> {
 //     toml::from_str(toml_str)
 // }
-
 #[cfg(test)]
 mod tests {
     use super::*;

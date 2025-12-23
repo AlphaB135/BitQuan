@@ -87,11 +87,14 @@ fn test_secure_bytes_various_lengths() {
             len,
             "secure_bytes should produce correct length"
         );
-        assert!(
-            bytes.iter().any(|&b| b != 0),
-            "secure_bytes of length {} should not be all zeros",
-            len
-        );
+        // Only check non-zero for lengths > 1, since a single byte has a 1/256 chance of being 0
+        if len > 1 {
+            assert!(
+                bytes.iter().any(|&b| b != 0),
+                "secure_bytes of length {} should not be all zeros",
+                len
+            );
+        }
     }
 }
 

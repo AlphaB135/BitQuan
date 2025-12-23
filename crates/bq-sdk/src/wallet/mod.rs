@@ -49,9 +49,9 @@ pub enum WalletError {
 pub enum SignatureAlgorithm {
     /// ECDSA (secp256k1)
     ECDSA,
-    /// Dilithium3 (post-quantum)
+    /// Dilithium5 (post-quantum)
     #[default]
-    Dilithium3,
+    Dilithium5,
     /// Hybrid (both ECDSA and Dilithium)
     Hybrid,
 }
@@ -61,7 +61,7 @@ impl SignatureAlgorithm {
     pub fn is_post_quantum(&self) -> bool {
         matches!(
             self,
-            SignatureAlgorithm::Dilithium3 | SignatureAlgorithm::Hybrid
+            SignatureAlgorithm::Dilithium5 | SignatureAlgorithm::Hybrid
         )
     }
 }
@@ -226,7 +226,7 @@ impl Mnemonic {
         }
 
         // Convert to words (simplified BIP39 implementation)
-        let word_count = (entropy_bits + 10).div_ceil(11); // 11 bits per word
+        let word_count = entropy_bits.div_ceil(11); // 11 bits per word
         let mut words = Vec::with_capacity(word_count);
 
         for i in 0..word_count {
@@ -367,7 +367,7 @@ impl WalletConfig {
     pub fn new(network: Network) -> Self {
         Self {
             network,
-            signature_algorithms: vec![SignatureAlgorithm::Dilithium3],
+            signature_algorithms: vec![SignatureAlgorithm::Dilithium5],
             derivation: DerivationConfig::default(),
             security: SecurityConfig::default(),
             performance: PerformanceConfig::default(),
@@ -378,7 +378,7 @@ impl WalletConfig {
     pub fn server() -> Self {
         Self {
             network: Network::Mainnet,
-            signature_algorithms: vec![SignatureAlgorithm::Dilithium3],
+            signature_algorithms: vec![SignatureAlgorithm::Dilithium5],
             derivation: DerivationConfig::default(),
             security: SecurityConfig {
                 hybrid_signatures: false,
@@ -398,7 +398,7 @@ impl WalletConfig {
     pub fn mobile() -> Self {
         Self {
             network: Network::Mainnet,
-            signature_algorithms: vec![SignatureAlgorithm::Dilithium3],
+            signature_algorithms: vec![SignatureAlgorithm::Dilithium5],
             derivation: DerivationConfig::default(),
             security: SecurityConfig {
                 hybrid_signatures: false,
@@ -418,7 +418,7 @@ impl WalletConfig {
     pub fn desktop() -> Self {
         Self {
             network: Network::Mainnet,
-            signature_algorithms: vec![SignatureAlgorithm::Dilithium3],
+            signature_algorithms: vec![SignatureAlgorithm::Dilithium5],
             derivation: DerivationConfig::default(),
             security: SecurityConfig {
                 hybrid_signatures: false,

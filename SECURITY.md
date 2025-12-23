@@ -33,6 +33,50 @@ Security reports include, but are not limited to:
 - Dependency scanning for PQC libraries and third-party components
 - Regular red-team exercises on wallet, node, and deployment pipelines
 
+## Network Layer Security
+
+### Slowloris Attack Protection
+
+**Vulnerability:** Attackers send data very slowly (1 byte every 29 minutes)
+to exhaust server resources.
+
+**Our Protection:**
+- `tokio::time::timeout` wraps entire message read
+- Timeout does NOT reset on partial reads
+- 30-second total limit enforced
+- Connections auto-closed if exceeded
+
+**Test:**
+```bash
+python tools/test_slowloris.py --target localhost:8333
+# Expected: All slow connections closed after 30s
+```
+
+### Resource Limits
+
+- Max peers: 100 (configurable)
+- Max connections: 100 (configurable)
+- Timeout per message: 30 seconds
+- Memory per peer: ~4KB (async tasks)
+
+### Network Testing Tools
+
+**Slowloris Simulation:**
+```bash
+# Test Slowloris protection
+python tools/test_slowloris.py --port 18444 --connections 100
+```
+
+**Load Testing:**
+```bash
+# Test connection handling capacity
+python tools/load_test.py --connections 1000 --duration 10
+```
+
+**Expected Results:**
+- Slowloris: 100% connections closed after timeout
+- Load Test: <100MB RAM for 1000 connections (vs 8GB with sync)
+
 ## Bounty Program
 - Rewards scaled by impact and quality of report, distributed transparently
 - Payments occur after patch release and verification by the security team

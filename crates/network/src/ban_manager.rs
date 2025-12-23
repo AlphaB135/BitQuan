@@ -459,8 +459,10 @@ mod tests {
 
     #[test]
     fn test_ban_expiration() {
-        let mut config = BanConfig::default();
-        config.default_temp_ban_duration = Duration::from_millis(100);
+        let config = BanConfig {
+            default_temp_ban_duration: Duration::from_millis(100),
+            ..Default::default()
+        };
         let mut manager = BanManager::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
 

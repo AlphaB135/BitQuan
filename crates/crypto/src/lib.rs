@@ -99,25 +99,24 @@ impl Default for CryptoRegistry {
     }
 }
 
-/// Dilithium3 signature scheme implementation with constant-time verification.
+/// Dilithium5 signature scheme implementation with constant-time verification.
 #[derive(Default)]
 pub struct DilithiumProvider;
 
 impl SignatureScheme for DilithiumProvider {
     fn algorithm(&self) -> SigAlgorithm {
-        SigAlgorithm::Dilithium3
+        SigAlgorithm::Dilithium5
     }
 
     fn verify(&self, payload: &SignaturePayload, message: &[u8]) -> Result<(), CryptoError> {
-        // Dilithium signature sizes (level 3)
-        const DILITHIUM3_SIG_SIZE: usize = 3293;
-        const DILITHIUM3_PK_SIZE: usize = 1952;
+        // Use library constants for Dilithium5 (Mode 5)
+        use dilithium::{PUBLICKEYBYTES, SIGNBYTES};
 
-        // Validate sizes
-        if payload.signature.len() != DILITHIUM3_SIG_SIZE {
+        // Validate sizes using library constants
+        if payload.signature.len() != SIGNBYTES {
             return Err(CryptoError::Malformed("invalid signature length"));
         }
-        if payload.public_key.len() != DILITHIUM3_PK_SIZE {
+        if payload.public_key.len() != PUBLICKEYBYTES {
             return Err(CryptoError::Malformed("invalid public key length"));
         }
 
@@ -126,9 +125,9 @@ impl SignatureScheme for DilithiumProvider {
             return Err(CryptoError::Malformed("message too large"));
         }
 
-        // Convert to fixed arrays
-        let mut sig_bytes = [0u8; DILITHIUM3_SIG_SIZE];
-        let mut pk_bytes = [0u8; DILITHIUM3_PK_SIZE];
+        // Convert to fixed arrays using library constants
+        let mut sig_bytes = [0u8; SIGNBYTES];
+        let mut pk_bytes = [0u8; PUBLICKEYBYTES];
         sig_bytes.copy_from_slice(&payload.signature);
         pk_bytes.copy_from_slice(&payload.public_key);
 
@@ -159,7 +158,7 @@ mod tests {
                 value: 1000,
                 script_pubkey: vec![0x51],
             }],
-            sig_algo: SigAlgorithm::Dilithium3,
+            sig_algo: SigAlgorithm::Dilithium5,
             witnesses: vec![],
         }
     }
@@ -167,7 +166,7 @@ mod tests {
     #[test]
     fn test_registry_creation() {
         let registry = CryptoRegistry::with_default_providers();
-        assert!(registry.provider_for(SigAlgorithm::Dilithium3).is_some());
+        assert!(registry.provider_for(SigAlgorithm::Dilithium5).is_some());
     }
 
     #[test]
@@ -201,8 +200,8 @@ mod tests {
     fn test_provider_lookup() {
         let registry = CryptoRegistry::with_default_providers();
 
-        // Dilithium3 should be available
-        assert!(registry.provider_for(SigAlgorithm::Dilithium3).is_some());
+        // Dilithium5 should be available
+        assert!(registry.provider_for(SigAlgorithm::Dilithium5).is_some());
     }
 
     #[test]
@@ -210,6 +209,6 @@ mod tests {
         let registry = CryptoRegistry::new();
 
         // No providers registered
-        assert!(registry.provider_for(SigAlgorithm::Dilithium3).is_none());
+        assert!(registry.provider_for(SigAlgorithm::Dilithium5).is_none());
     }
 }

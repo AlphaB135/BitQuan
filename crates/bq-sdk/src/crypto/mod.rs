@@ -2,7 +2,8 @@
 
 use crate::{Result, SDKError};
 use pqc_dilithium_seeded::{
-    crypto_sign_signature, crypto_sign_verify, Keypair as DilithiumKeypair,
+    crypto_sign_signature, crypto_sign_verify, Keypair as DilithiumKeypair, PUBLICKEYBYTES,
+    SECRETKEYBYTES, SIGNBYTES,
 };
 
 use std::fmt;
@@ -36,10 +37,10 @@ pub enum CryptoError {
 /// Dilithium keypair wrapper
 #[derive(Debug, Clone)]
 pub struct DilithiumKeyPair {
-    /// Public key (1952 bytes)
-    pub public_key: [u8; 1952],
+    /// Public key
+    pub public_key: [u8; PUBLICKEYBYTES],
     /// Private key (kept secure)
-    private_key: [u8; 4000], // Dilithium3 private key size
+    private_key: [u8; SECRETKEYBYTES],
 }
 
 impl DilithiumKeyPair {
@@ -47,10 +48,10 @@ impl DilithiumKeyPair {
     pub fn generate() -> Result<Self> {
         let keypair = DilithiumKeypair::generate();
 
-        let mut public_key = [0u8; 1952];
+        let mut public_key = [0u8; PUBLICKEYBYTES];
         public_key.copy_from_slice(&keypair.public);
 
-        let mut private_key = [0u8; 4000];
+        let mut private_key = [0u8; SECRETKEYBYTES];
         private_key.copy_from_slice(keypair.expose_secret());
 
         Ok(Self {
@@ -76,10 +77,10 @@ impl DilithiumKeyPair {
         // Generate keypair using entropy (simplified)
         let keypair = DilithiumKeypair::generate();
 
-        let mut public_key = [0u8; 1952];
+        let mut public_key = [0u8; PUBLICKEYBYTES];
         public_key.copy_from_slice(&keypair.public);
 
-        let mut private_key = [0u8; 4000];
+        let mut private_key = [0u8; SECRETKEYBYTES];
         private_key.copy_from_slice(keypair.expose_secret());
 
         Ok(Self {
@@ -89,8 +90,8 @@ impl DilithiumKeyPair {
     }
 
     /// Sign message
-    pub fn sign(&self, message: &[u8]) -> Result<[u8; 3293]> {
-        let mut signature = [0u8; 3293];
+    pub fn sign(&self, message: &[u8]) -> Result<[u8; SIGNBYTES]> {
+        let mut signature = [0u8; SIGNBYTES];
 
         crypto_sign_signature(&mut signature, message, &self.private_key);
         // The function doesn't return a result, so we assume success if no panic
@@ -100,11 +101,15 @@ impl DilithiumKeyPair {
 
     /// Verify signature
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<bool> {
-        if signature.len() != 3293 {
-            return Err(SDKError::Crypto("Invalid signature length".to_string()));
+        if signature.len() != SIGNBYTES {
+            return Err(SDKError::Crypto(format!(
+                "Invalid signature length: expected {}, got {}",
+                SIGNBYTES,
+                signature.len()
+            )));
         }
 
-        let mut sig_array = [0u8; 3293];
+        let mut sig_array = [0u8; SIGNBYTES];
         sig_array.copy_from_slice(signature);
 
         crypto_sign_verify(&sig_array, message, &self.public_key)
@@ -113,12 +118,12 @@ impl DilithiumKeyPair {
     }
 
     /// Get public key bytes
-    pub fn public_key_bytes(&self) -> &[u8; 1952] {
+    pub fn public_key_bytes(&self) -> &[u8; PUBLICKEYBYTES] {
         &self.public_key
     }
 
     /// Get private key bytes (use with caution)
-    pub fn private_key_bytes(&self) -> &[u8; 4000] {
+    pub fn private_key_bytes(&self) -> &[u8; SECRETKEYBYTES] {
         &self.private_key
     }
 }
@@ -349,12 +354,43 @@ mod tests {
 
     #[test]
     fn test_dilithium_keypair() {
-        let keypair = DilithiumKeyPair::generate().unwrap();
+        // Verify we're using Dilithium5 (Mode 5) - use library constants
+        use pqc_dilithium_seeded::{PUBLICKEYBYTES, SIGNBYTES};
 
-        let message = b"Hello, BitQuan!";
-        let signature = keypair.sign(message).unwrap();
+        // Library produces SIGNBYTES for the active mode (mode5 via feature flag)
+        let expected_sig_len = SIGNBYTES;
+        let expected_pk_len = PUBLICKEYBYTES;
 
-        assert!(keypair.verify(message, &signature).unwrap());
+        // Generate a fresh, valid Dilithium5 keypair using mode5
+        let keypair = DilithiumKeypair::generate();
+
+        let message = b"Hello BitQuan Quantum World";
+
+        // Sign with Dilithium5
+        let signature = keypair.sign(message);
+
+        // Verify sizes match library expectations
+        assert_eq!(
+            signature.len(),
+            expected_sig_len,
+            "Signature size mismatch: expected {} bytes, got {}",
+            expected_sig_len,
+            signature.len()
+        );
+        assert_eq!(
+            keypair.public.len(),
+            expected_pk_len,
+            "Public key size mismatch: expected {} bytes, got {}",
+            expected_pk_len,
+            keypair.public.len()
+        );
+
+        // Verify with Dilithium5 using crypto_sign_verify directly
+        let result = crypto_sign_verify(&signature, message, &keypair.public);
+        assert!(
+            result.is_ok(),
+            "Verification failed with generated Dilithium5 key"
+        );
     }
 
     #[test]
@@ -398,5 +434,45 @@ mod tests {
 
         // Key should be zeroized after drop
         // This is hard to test directly, but the implementation ensures it
+    }
+
+    #[test]
+    fn test_dilithium_sign_verify_roundtrip() {
+        // Test our DilithiumKeyPair wrapper's sign and verify methods
+        let keypair = DilithiumKeyPair::generate().unwrap();
+
+        let message = b"Hello BitQuan Quantum World - Roundtrip Test";
+
+        // Sign using our wrapper
+        let signature = keypair.sign(message).unwrap();
+
+        // Verify signature size
+        assert_eq!(
+            signature.len(),
+            SIGNBYTES,
+            "Signature size mismatch: expected {}, got {}",
+            SIGNBYTES,
+            signature.len()
+        );
+
+        // Verify using our wrapper
+        let verify_result = keypair.verify(message, &signature);
+        assert!(
+            verify_result.is_ok(),
+            "Verification failed: {:?}",
+            verify_result
+        );
+        assert!(
+            verify_result.unwrap(),
+            "Signature verification returned false"
+        );
+
+        // Test that wrong message fails verification
+        let wrong_message = b"Wrong message";
+        let wrong_result = keypair.verify(wrong_message, &signature);
+        assert!(
+            wrong_result.is_err(),
+            "Wrong message should fail verification"
+        );
     }
 }

@@ -104,6 +104,24 @@ impl MinerMetrics {
             .map(|c| c.load(Ordering::Relaxed))
             .unwrap_or(0)
     }
+
+    /// Set total rewards (placeholder for Phase 8 integration).
+    #[allow(dead_code)] // Reserved for Phase 8 metrics API
+    pub fn set_total_rewards(&self, _rewards: u64) {
+        // TODO: Implement persistent metrics storage
+    }
+
+    /// Set pool balance (placeholder for Phase 8 integration).
+    #[allow(dead_code)] // Reserved for Phase 8 metrics API
+    pub fn set_pool_balance(&self, _balance: u64) {
+        // TODO: Implement persistent metrics storage
+    }
+
+    /// Set reward per block (placeholder for Phase 8 integration).
+    #[allow(dead_code)] // Reserved for Phase 8 metrics API
+    pub fn set_reward_per_block(&self, _reward: u64) {
+        // TODO: Implement persistent metrics storage
+    }
 }
 
 impl HybridMiner {

@@ -5,10 +5,12 @@
 //! an instance on an ephemeral port, wait for readiness, and shut it down
 //! cleanly without relying on `sleep` heuristics.
 
+#![allow(dead_code)]
+
 use crate::server::RpcServer;
 use bitquan_types::error::{Error, Result};
-use std::net::TcpListener;
-use std::sync::mpsc;
+use tokio::net::TcpListener;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
@@ -21,15 +23,17 @@ pub fn spawn_test_server<T>(
 where
     T: crate::methods::RpcMethods + Send + Sync + 'static,
 {
-    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let listener = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async { TcpListener::bind("127.0.0.1:0").await })
+    })?;
     let addr = listener.local_addr()?;
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-    let (signal_tx, signal_rx) = mpsc::channel::<()>();
+    let (signal_tx, signal_rx) = mpsc::channel::<()>(1);
 
     tokio::spawn(async move {
         let _ = shutdown_rx.await;
-        let _ = signal_tx.send(());
+        std::mem::drop(signal_tx.send(()));
     });
 
     let handle = tokio::task::spawn_blocking(move || {
