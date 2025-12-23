@@ -431,7 +431,8 @@ impl SecurityManager {
 
     /// Get comprehensive security statistics
     pub fn get_statistics(&self) -> SecurityStatistics {
-        let mut stats = self.stats.write().unwrap();
+        // Recover from poisoned lock if a thread panicked while holding it
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
 
         // Update statistics from all components
         stats.rate_limiting = RateLimitStats {

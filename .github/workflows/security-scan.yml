@@ -51,9 +51,10 @@ jobs:
     - name: 🔬 Run Clippy Security Lints
       run: |
         echo "🔬 Running clippy with security-focused lints..."
-        # Check all workspace crates with strict security lints
+        # Check lib and bins with strict security lints (exclude tests & examples)
+        # Note: Tests use expect() for assertions, examples use unwrap() for brevity
         # Note: arithmetic/indexing lints produce false positives on crypto & validation code
-        cargo clippy --all-targets --all-features -- -D warnings \
+        cargo clippy --lib --bins --all-features -- -D warnings \
           -W clippy::panic \
           -W clippy::unimplemented \
           -W clippy::unwrap_used \

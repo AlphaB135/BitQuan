@@ -273,7 +273,11 @@ fn bech32m_encode(hrp: &str, version: u8, data: &[u8]) -> Result<String> {
     let mut converted_data = vec![version];
     converted_data.extend_from_slice(data);
 
-    bech32::encode::<bech32::Bech32m>(bech32::Hrp::parse(hrp).unwrap(), &converted_data)
+    let hrp = bech32::Hrp::parse(hrp).map_err(|e| {
+        SDKError::Address(AddressError::Bech32mError(format!("Invalid HRP: {}", e)))
+    })?;
+
+    bech32::encode::<bech32::Bech32m>(hrp, &converted_data)
         .map_err(|e| SDKError::Address(AddressError::Bech32mError(e.to_string())))
 }
 

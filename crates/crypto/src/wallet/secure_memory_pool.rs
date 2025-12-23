@@ -284,9 +284,23 @@ impl SecureMemoryManager {
             .get_or_init(|| {
                 Arc::new(Self {
                     pool: Arc::new(SecureMemoryPool::new(4096, 100).unwrap_or_else(|e| {
-                        eprintln!("Warning: Failed to create secure memory pool: {}", e);
-                        // Fallback to a minimal pool
-                        SecureMemoryPool::new(1024, 10).unwrap()
+                        eprintln!(
+                            "Warning: Failed to create secure memory pool (4096, 100): {}",
+                            e
+                        );
+                        SecureMemoryPool::new(1024, 10).unwrap_or_else(|e| {
+                            eprintln!("Warning: Failed to create fallback pool (1024, 10): {}", e);
+                            SecureMemoryPool::new(256, 1).unwrap_or_else(|e| {
+                                eprintln!("Warning: Failed to create minimal pool (256, 1): {}", e);
+                                eprintln!("Creating empty pool - security features degraded");
+                                SecureMemoryPool {
+                                    available_blocks: Arc::new(Mutex::new(VecDeque::new())),
+                                    block_size: 256,
+                                    max_blocks: 0,
+                                    block_id_counter: std::sync::atomic::AtomicU64::new(0),
+                                }
+                            })
+                        })
                     })),
                 })
             })
