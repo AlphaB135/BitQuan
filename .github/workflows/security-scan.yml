@@ -52,17 +52,10 @@ jobs:
       run: |
         echo "🔬 Running clippy with security-focused lints..."
         # Check all workspace crates except pqc-dilithium-seeded (crypto code requires exact arithmetic)
+        # Note: pqc-dilithium-seeded is checked in regular CI workflow
         cargo clippy --workspace --all-targets --all-features --exclude pqc-dilithium-seeded -- -D warnings \
-          -W clippy::integer_arithmetic \
+          -W clippy::arithmetic_side_effects \
           -W clippy::float_arithmetic \
-          -W clippy::indexing_slicing \
-          -W clippy::panic \
-          -W clippy::unimplemented \
-          -W clippy::unwrap_used \
-          -W clippy::expect_used \
-          -W clippy::panic_in_result_fn
-        # Check pqc-dilithium-seeded separately without arithmetic lints
-        cargo clippy -p pqc-dilithium-seeded --all-targets --all-features -- -D warnings \
           -W clippy::indexing_slicing \
           -W clippy::panic \
           -W clippy::unimplemented \
