@@ -11,7 +11,7 @@
 
 A rust implementation of the Dilithium, a KEM standardised by the NIST Post-Quantum Standardization Project.
 
-See the [**features**](#features) section for different options regarding security levels and modes of operation. The default security setting is Dilithium3.
+See the [**features**](#features) section for different options regarding security levels and modes of operation. The default security setting is **Dilithium5** (post-quantum secure).
 
 It is recommended to use Dilithium in a hybrid system alongside a traditional signature algorithm such as ed25519.
 
@@ -75,7 +75,7 @@ always be the same.
 
 ## Features
 
-By default this library uses Dilithium3
+By default this library uses **Dilithium5** (Mode 5) for maximum post-quantum security.
 
 | Name           | Description                                                                                                       |
 |----------------|-------------------------------------------------------------------------------------------------------------------|
