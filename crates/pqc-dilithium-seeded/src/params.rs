@@ -1,14 +1,15 @@
 #[cfg(all(feature = "mode2", not(feature = "mode5")))]
 mod mode_2;
-#[cfg(not(any(feature = "mode2", feature = "mode5")))]
-mod mode_3;
 #[cfg(feature = "mode5")]
 mod mode_5;
+// Only use mode3 as EXPLICIT opt-in, never as fallback
+#[cfg(all(feature = "mode3", not(feature = "mode5")))]
+mod mode_3;
 
+#[cfg(all(feature = "mode3", not(feature = "mode5"), not(feature = "mode2")))]
+use mode_3 as active_mode;
 #[cfg(all(not(feature = "mode5"), feature = "mode2"))]
 use mode_2 as active_mode;
-#[cfg(all(not(feature = "mode5"), not(feature = "mode2")))]
-use mode_3 as active_mode;
 #[cfg(feature = "mode5")]
 use mode_5 as active_mode;
 

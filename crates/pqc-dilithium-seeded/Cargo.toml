@@ -62,8 +62,9 @@ version = "0.3.0"
 features = ["load"]
 
 [features]
-# Default to Dilithium5 (Mode 5) - Post-quantum secure security level
-default = ["mode5"]
+# Default to Dilithium5 (Mode 5) with randomized signing
+# Randomized signing provides better security properties than deterministic
+default = ["mode5", "random_signing"]
 aes = []
 mode2 = []
 mode3 = []
