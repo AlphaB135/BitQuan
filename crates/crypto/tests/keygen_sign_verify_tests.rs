@@ -5,16 +5,26 @@ use sha2::{Digest, Sha256};
 
 #[test]
 fn test_keygen_sign_verify_roundtrip() {
+    // DEBUG FORENSICS: Print what constants we're actually using
+    println!("=== DILITHIUM DEBUG FORENSICS ===");
+    println!("EXPECTED: SIGNBYTES={}, PUBLICKEYBYTES={}, SECRETKEYBYTES={}",
+             SIGNBYTES, PUBLICKEYBYTES, SECRETKEYBYTES);
+
     let message = b"Hello, BitQuan!";
 
     // Generate keypair
     let keypair = Keypair::generate();
+    println!("ACTUAL:   PK len={}, SK len={}",
+             keypair.public.len(), keypair.expose_secret().len());
 
     // Sign message
     let signature = keypair.sign(message);
+    println!("ACTUAL:   Signature len={}", signature.len());
 
     // Verify signature
     let result = pqc_dilithium_seeded::verify(&signature, message, &keypair.public);
+    println!("VERIFY:   is_ok={}", result.is_ok());
+    println!("====================================");
 
     assert!(result.is_ok(), "signature should be valid");
 }
