@@ -67,7 +67,10 @@ jobs:
         cargo install cargo-secret
         cargo secret scan || true
 
-        # Additional secret scanning with trufflehog
+    - name: 🔍 Secret Scanning with TruffleHog
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "🔍 Running TruffleHog secret scanning..."
         docker run --rm -v "$PWD:/src" ghcr.io/trufflesecurity/trufflehog:latest \
           github --token ${{ secrets.GITHUB_TOKEN }} --repo ${{ github.repository }} \
           --json > trufflehog-report.json || true
