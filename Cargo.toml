@@ -1,4 +1,5 @@
 [workspace]
+# Workspace configuration for BitQuan blockchain
 resolver = "2"
 members = [
     "crates/node",
