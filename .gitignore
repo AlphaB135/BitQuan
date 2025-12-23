@@ -310,3 +310,6 @@ agents/
 # Web Landing Page
 bitquan-web/
 .claude/retrospectives/
+secrets/
+
+_TRASH_PENDING/

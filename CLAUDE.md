@@ -534,6 +534,7 @@ Closes #[issue-number]
 -   **Copy-Paste Roulette migrations** - Updating references without verifying the source of truth (enum definitions)
 -   **Trust without verification** - Assuming previous migrations were complete without systematic verification
 -   **Following user hypothesis without verification** - User guessed "hardcoded 3293" but code was already using constants; should have verified runtime values first
+-   **Identifying git worktrees as duplicates** - agents/X with .git directories are worktrees for parallel development, NOT backups
 -   *Example: Forgetting to update a lockfile after changing dependencies.*
 -   *Example: Not checking build logs for warnings that could become errors.*
 -   *Example: Making assumptions about API responses instead of checking the spec.*
@@ -548,6 +549,9 @@ Closes #[issue-number]
 -   **Systematic grep for migrations** - `rg "old_value" --type rust` finds all references that need updating
 -   **Debug forensics with println!** - Adding EXPECTED vs ACTUAL debug output reveals runtime state that static analysis cannot; crucial for debugging constant calculation bugs
 -   **Cargo Feature Priority Pattern** - Use `cfg!(all(feature = "mode2", not(feature = "mode5")))` for proper feature priority in constant calculations
+-   **Bash glob safety** - Use `shopt -s nullglob` before iterating globs that may not match; don't use `2>/dev/null` inside `for` loops
+-   **"Move instead of delete" cleanup** - Safer to move to `_TRASH_PENDING/` folder than permanent deletion; allows recovery from mistakes
+-   **Git worktree detection** - Directories with `.git` subdirectories are worktrees, not duplicates; use `git worktree remove` to delete
 -   *Example: Using a specific library feature to simplify complex state.*
 -   *Example: A shell command alias that speeds up a common task.*
 -   *Example: A design pattern that solved a recurring problem in the codebase.*
