@@ -435,4 +435,44 @@ mod tests {
         // Key should be zeroized after drop
         // This is hard to test directly, but the implementation ensures it
     }
+
+    #[test]
+    fn test_dilithium_sign_verify_roundtrip() {
+        // Test our DilithiumKeyPair wrapper's sign and verify methods
+        let keypair = DilithiumKeyPair::generate().unwrap();
+
+        let message = b"Hello BitQuan Quantum World - Roundtrip Test";
+
+        // Sign using our wrapper
+        let signature = keypair.sign(message).unwrap();
+
+        // Verify signature size
+        assert_eq!(
+            signature.len(),
+            SIGNBYTES,
+            "Signature size mismatch: expected {}, got {}",
+            SIGNBYTES,
+            signature.len()
+        );
+
+        // Verify using our wrapper
+        let verify_result = keypair.verify(message, &signature);
+        assert!(
+            verify_result.is_ok(),
+            "Verification failed: {:?}",
+            verify_result
+        );
+        assert!(
+            verify_result.unwrap(),
+            "Signature verification returned false"
+        );
+
+        // Test that wrong message fails verification
+        let wrong_message = b"Wrong message";
+        let wrong_result = keypair.verify(wrong_message, &signature);
+        assert!(
+            wrong_result.is_err(),
+            "Wrong message should fail verification"
+        );
+    }
 }
