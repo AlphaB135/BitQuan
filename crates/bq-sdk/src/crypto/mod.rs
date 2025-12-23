@@ -2,8 +2,8 @@
 
 use crate::{Result, SDKError};
 use pqc_dilithium_seeded::{
-    crypto_sign_signature, crypto_sign_verify, Keypair as DilithiumKeypair,
-    PUBLICKEYBYTES, SECRETKEYBYTES, SIGNBYTES,
+    crypto_sign_signature, crypto_sign_verify, Keypair as DilithiumKeypair, PUBLICKEYBYTES,
+    SECRETKEYBYTES, SIGNBYTES,
 };
 
 use std::fmt;
