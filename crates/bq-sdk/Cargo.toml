@@ -17,7 +17,7 @@ wasm = ["getrandom/js"]
 # BitQuan dependencies
 bitquan-types = { path = "../types", version = "0.1.0" }
 bq-crypto = { path = "../crypto", version = "0.1.0" }
-pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1", features = ["mode5"] }
+pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1", default-features = false, features = ["mode5"] }
 
 # Cryptography
 sha2 = "0.10"
