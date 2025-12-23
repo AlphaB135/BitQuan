@@ -46,7 +46,7 @@ jobs:
       run: |
         echo "🛡️ Running cargo deny for license and ban checking..."
         cargo install cargo-deny
-        cargo deny check --all-features
+        cargo deny check
 
     - name: 🔬 Run Clippy Security Lints
       run: |
