@@ -69,8 +69,12 @@ jobs:
     - name: 📊 Check for Hardcoded Secrets
       run: |
         echo "📊 Scanning for hardcoded secrets..."
-        cargo install cargo-secret
-        cargo secret scan || true
+        # cargo-secret may not be available, skip if install fails
+        if cargo install cargo-secret 2>/dev/null; then
+          cargo secret scan || true
+        else
+          echo "cargo-secret not available, skipping..."
+        fi
 
     - name: 🔍 Secret Scanning with TruffleHog
       if: github.event_name == 'pull_request'
