@@ -245,6 +245,8 @@ fuzz/*/deps/
 fuzz/**/deps/
 fuzz/*/incremental/
 fuzz/**/incremental/
+fuzz/*/.fingerprint/
+fuzz/**/.fingerprint/
 
 # macOS metadata files (EXFAT filesystem)
 ._*
