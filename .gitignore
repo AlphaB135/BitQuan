@@ -237,8 +237,10 @@ baseline_*.txt
 # Temporary audit packages
 audit_package/
 
-# Fuzz test results
+# Fuzz test results and build artifacts
 fuzz/results/
+fuzz/*/build/
+fuzz/**/build/
 
 # macOS metadata files (EXFAT filesystem)
 ._*
