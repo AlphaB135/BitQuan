@@ -296,13 +296,15 @@ When you see `lll`, execute relevant `gh` and `git` commands in parallel to get 
 
 **⚠️ CRITICAL**: The AI Diary and Honest Feedback sections are MANDATORY. These provide essential context and continuous improvement insights. Never skip these sections.
 
+**⚠️ LOCATION**: Retrospectives are stored in `.claude/retrospectives/` (personal knowledge, NOT committed to git)
+
 1.  **Gather Session Data**: `git diff --name-only main...HEAD`, `git log --oneline main...HEAD`, and session timestamps.
-2.  **Create Retrospective Document**: Use the template to create a markdown file in `retrospectives/` with ALL required sections, especially:
+2.  **Create Retrospective Document**: Use the template to create a markdown file in `.claude/retrospectives/` with ALL required sections, especially:
     - **AI Diary**: First-person narrative of the session experience
     - **Honest Feedback**: Frank assessment of what worked and what didn't
 3.  **Validate Completeness**: Use the retrospective validation checklist to ensure no sections are skipped.
-4.  **Update CLAUDE.md**: Copy any new lessons learned to the main guidelines. ** Append to to botoom only **
-5.  **Link to GitHub**: Commit the retrospective and comment on the relevant issue/PR.
+4.  **Update CLAUDE.md**: Copy any new lessons learned to the main guidelines. **Append to bottom only**
+5.  **DO NOT commit retrospectives to git** - They are personal knowledge for AI context only
 
 **Time Zone Note**:
 -   **PRIMARY TIME ZONE: [Your Time Zone]** - Always show the primary time zone first.
@@ -317,11 +319,11 @@ SESSION_DATE=$(date +"%Y-%m-%d")
 END_TIME_UTC=$(date -u +"%H:%M")
 END_TIME_LOCAL=$(TZ='Asia/Bangkok' date +"%H:%M")
 
-# Create directory structure
-mkdir -p retrospectives/$(date +%Y/%m)
+# Create directory structure in .claude (personal knowledge, NOT committed)
+mkdir -p .claude/retrospectives/$(date +%Y/%m)
 
 # Create retrospective file with auto-filled date/time
-cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrospective.md << EOF
+cat > .claude/retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrospective.md << EOF
 # Session Retrospective
 
 **Session Date**: ${SESSION_DATE}
@@ -405,19 +407,6 @@ cat > retrospectives/$(date +%Y/%m)/${SESSION_DATE}_${END_TIME_UTC//:/-}_retrosp
 ## Related Resources
 - Issue: #XXX
 - PR: #XXX
-- Export: [session_YYYY-MM-DD_HH-MM.md](../exports/session_YYYY-MM-DD_HH-MM.md)
-
-## Retrospective Validation Checklist
-**BEFORE SAVING, VERIFY ALL REQUIRED SECTIONS ARE COMPLETE:**
-- [ ] AI Diary section has detailed narrative (not placeholder)
-- [ ] Honest Feedback section has frank assessment (not placeholder)
-- [ ] Session Summary is clear and concise
-- [ ] Timeline includes actual times and events
-- [ ] Technical Details are accurate
-- [ ] Lessons Learned has actionable insights
-- [ ] Next Steps are specific and achievable
-
-**IMPORTANT**: A retrospective without AI Diary and Honest Feedback is incomplete and loses significant value for future reference.
 EOF
 ```
 
@@ -426,16 +415,8 @@ EOF
 - Add any new patterns or anti-patterns discovered
 - Update user preferences if any were observed
 
-**Step 5: Link to GitHub**
-```bash
-# Add retrospective to git
-git add retrospectives/
-git commit -m "docs: Add session retrospective $(date +%Y-%m-%d)"
-
-# Comment on relevant issue/PR with actual path
-RETRO_PATH="retrospectives/$(date +%Y/%m)/$(date +%Y-%m-%d_%H-%M)_retrospective.md"
-gh issue comment XXX --body "Session retrospective created: ${RETRO_PATH}"
-```
+**Step 5: DO NOT commit retrospectives to git**
+Retrospectives are stored in `.claude/retrospectives/` for AI personal knowledge only. They are NOT committed to the repository.
 
 **Time Zone Note**:
 - **PRIMARY TIME ZONE: GMT+7 (Bangkok time)** - Always show GMT+7 time first
