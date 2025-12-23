@@ -32,9 +32,17 @@ pub const POLYT0_PACKEDBYTES: usize = 416;
 pub const POLYVECH_PACKEDBYTES: usize = mode_params::OMEGA + mode_params::K;
 
 pub const POLYZ_PACKEDBYTES: usize =
-  if cfg!(all(feature = "mode2", not(feature = "mode5"))) { 576 } else { 640 };
+  if cfg!(all(feature = "mode2", not(feature = "mode5"))) {
+    576
+  } else {
+    640
+  };
 pub const POLYW1_PACKEDBYTES: usize =
-  if cfg!(all(feature = "mode2", not(feature = "mode5"))) { 192 } else { 128 };
+  if cfg!(all(feature = "mode2", not(feature = "mode5"))) {
+    192
+  } else {
+    128
+  };
 
 pub const POLYETA_PACKEDBYTES: usize =
   if cfg!(not(any(feature = "mode2", feature = "mode5"))) {
