@@ -35,6 +35,11 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+    - name: 📦 Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev pkg-config
+
     - name: 🔍 Run Security Audit
       run: |
         echo "🔍 Running cargo audit for security vulnerabilities..."
