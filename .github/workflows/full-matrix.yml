@@ -47,8 +47,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           # Run coverage twice to generate both HTML and LCOV formats
+          # HTML uses --output-dir, LCOV uses --output-path
           cargo llvm-cov nextest --workspace --html --output-dir coverage/html
-          cargo llvm-cov nextest --workspace --lcov --output-dir coverage/lcov --summary-only
+          cargo llvm-cov nextest --workspace --lcov --output-path coverage/lcov.info --summary-only
         # สามารถอัปโหลด artifact/report ต่อได้
 
   build-extra-targets:
