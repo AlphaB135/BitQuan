@@ -21,7 +21,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       # RUSTC_WRAPPER: sccache # Temporary disabled due to GitHub Actions infrastructure issue
       # SCCACHE_GHA_ENABLED: "true"
@@ -37,18 +37,14 @@ jobs:
       #   with:
       #     # main/nightly cache key กว้างขึ้นได้ถ้าต้องการ
       #     shared-key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install nextest + llvm-cov
-        run: cargo install cargo-nextest cargo-llvm-cov --locked
+      - name: Install nextest
+        run: cargo install cargo-nextest --locked
 
       - name: Test (nextest)
         run: cargo nextest run --workspace
 
-      - name: Coverage (LCOV + summary)
-        if: runner.os == 'Linux'
-        run: |
-          # Generate LCOV coverage for CI analysis
-          cargo llvm-cov nextest --workspace --lcov --output-path coverage/lcov.info --summary-only
-        # สามารถอัปโหลด artifact/report ต่อได้
+      # Coverage skipped in Full Matrix - use security-scan.yml for coverage reports
+      # Running coverage takes 60+ minutes and causes runner timeouts
 
   build-extra-targets:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')
