@@ -43,12 +43,10 @@ jobs:
       - name: Test (nextest)
         run: cargo nextest run --workspace
 
-      - name: Coverage (HTML + summary + lcov)
+      - name: Coverage (LCOV + summary)
         if: runner.os == 'Linux'
         run: |
-          # Run coverage twice to generate both HTML and LCOV formats
-          # HTML uses --output-dir, LCOV uses --output-path
-          cargo llvm-cov nextest --workspace --html --output-dir coverage/html
+          # Generate LCOV coverage for CI analysis
           cargo llvm-cov nextest --workspace --lcov --output-path coverage/lcov.info --summary-only
         # สามารถอัปโหลด artifact/report ต่อได้
 
