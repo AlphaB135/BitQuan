@@ -27,6 +27,8 @@ forks/
 *-e
 *.tmp
 .DS_Store
+._*
+.!*!.*
 
 # Wallet files
 *.json
