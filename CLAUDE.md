@@ -552,9 +552,10 @@ Closes #[issue-number]
 -   **Bash glob safety** - Use `shopt -s nullglob` before iterating globs that may not match; don't use `2>/dev/null` inside `for` loops
 -   **"Move instead of delete" cleanup** - Safer to move to `_TRASH_PENDING/` folder than permanent deletion; allows recovery from mistakes
 -   **Git worktree detection** - Directories with `.git` subdirectories are worktrees, not duplicates; use `git worktree remove` to delete
--   *Example: Using a specific library feature to simplify complex state.*
--   *Example: A shell command alias that speeds up a common task.*
--   *Example: A design pattern that solved a recurring problem in the codebase.*
+-   **OnceLock for MSRV-safe singletons** - Use `OnceLock::get_or_init()` instead of `LazyLock` when MSRV is below 1.80; stable since Rust 1.70
+-   **Arc + HashSet pattern** - Separate mutable status (HashSet) from immutable data (Arc<T>) to enable zero-copy sharing while still allowing state updates
+-   **Associated function extraction** - When you only need one field to calculate something, extract as associated fn instead of creating temp objects
+-   **Check before insert pattern** - For HashMap, check condition on value BEFORE insert to avoid needing clone or expect after insert
 
 ### Project-Specific Patterns
 -   **BitQuan Security Stack**: rustls-pki-types + thiserror 2.0 + comprehensive dependency auditing

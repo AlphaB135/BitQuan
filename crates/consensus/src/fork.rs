@@ -65,12 +65,20 @@ impl BlockNode {
 
     /// Calculates work for this block based on difficulty target using integer math.
     pub fn block_work(&self) -> U256 {
+        Self::calculate_work_for_bits(self.header.bits)
+    }
+
+    /// Calculate work for a given difficulty bits value.
+    ///
+    /// -- Linus: Extracted as associated function so we don't need to create
+    /// a full BlockNode just to calculate work. Saves a header clone.
+    pub fn calculate_work_for_bits(bits: u32) -> U256 {
         // Real work calculation: work = 2^256 / (target + 1)
         // This is the proper Bitcoin-style work calculation
         use crate::pow::compact_to_target_bytes;
 
         // Convert bits to target bytes
-        let target_bytes = match compact_to_target_bytes(self.header.bits) {
+        let target_bytes = match compact_to_target_bytes(bits) {
             Ok(target) => target,
             Err(_) => return U256::zero(), // Invalid target = zero work
         };
@@ -195,21 +203,19 @@ impl ForkChoice {
         let height = parent.height + 1;
         let parent_work = parent.chain_work;
 
-        // Calculate block work first
-        let block_work = {
-            let temp_header = header.clone();
-            let temp_node = BlockNode::new(temp_header, height, U256::zero());
-            temp_node.block_work()
-        };
+        // -- Linus: Use associated function to calculate work without cloning header
+        let block_work = BlockNode::calculate_work_for_bits(header.bits);
 
         // Create final node with proper chain_work
-        let node = BlockNode::new(header, height, parent_work.saturating_add(block_work));
+        let chain_work = parent_work.saturating_add(block_work);
+        let node = BlockNode::new(header, height, chain_work);
 
-        // Insert node
-        self.nodes.insert(hash, node.clone());
-
-        // Check if this creates a new best tip
+        // -- Linus: Check if better tip BEFORE inserting to avoid clone.
+        // We already have node by value, just check then insert.
         let is_new_tip = self.is_better_tip(&node)?;
+
+        // Insert node (move, not clone)
+        self.nodes.insert(hash, node);
 
         let reorg_info = if is_new_tip {
             let old_tip = self.best_tip;
