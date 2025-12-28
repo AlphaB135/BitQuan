@@ -502,29 +502,32 @@ impl InputValidator {
     }
 }
 
-/// Global input validator instance
-static mut GLOBAL_VALIDATOR: Option<InputValidator> = None;
-static VALIDATOR_INITIALIZED: std::sync::Once = std::sync::Once::new();
+/// Global input validator instance.
+///
+/// Uses OnceLock for thread-safe lazy initialization without unsafe code.
+/// OnceLock is stable since Rust 1.70, so it works with MSRV 1.79.
+///
+/// -- Linus-style refactor: killed `static mut` and all unsafe blocks.
+/// Had to use OnceLock instead of LazyLock because project MSRV is 1.79
+/// and LazyLock requires 1.80. Still safe, just slightly more verbose.
+static GLOBAL_VALIDATOR: std::sync::OnceLock<InputValidator> = std::sync::OnceLock::new();
 
-/// Get the global input validator
-#[allow(clippy::expect_used)]
-#[allow(static_mut_refs)]
+/// Get the global input validator.
+///
+/// Lazily initializes the default validator on first call.
+/// This is safe, fast, and doesn't require unsafe blocks.
 pub fn get_validator() -> &'static InputValidator {
-    unsafe {
-        VALIDATOR_INITIALIZED.call_once(|| {
-            GLOBAL_VALIDATOR = Some(InputValidator::default());
-        });
-        GLOBAL_VALIDATOR
-            .as_ref()
-            .expect("Global validator not initialized")
-    }
+    GLOBAL_VALIDATOR.get_or_init(InputValidator::default)
 }
 
-/// Initialize the global validator with custom settings
-pub fn init_validator(validator: InputValidator) {
-    unsafe {
-        GLOBAL_VALIDATOR = Some(validator);
-    }
+/// Initialize the global validator with custom settings.
+///
+/// IMPORTANT: This can only be called ONCE, and only BEFORE the first
+/// call to get_validator(). After that, it's immutable.
+///
+/// Returns true if initialization succeeded, false if already initialized.
+pub fn init_validator(validator: InputValidator) -> bool {
+    GLOBAL_VALIDATOR.set(validator).is_ok()
 }
 
 #[cfg(test)]
