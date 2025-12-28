@@ -180,9 +180,13 @@ pub struct SecurityManager {
 }
 
 /// Security event handler trait
+///
+/// -- Linus: Changed to take &SecurityEvent instead of SecurityEvent.
+/// This avoids cloning the event for every handler in emit_event().
+/// If a handler needs to store the event, IT can clone it.
 pub trait SecurityEventHandler: Send + Sync {
-    /// Handle a security event
-    fn handle_security_event(&self, event: SecurityEvent);
+    /// Handle a security event (by reference to avoid cloning)
+    fn handle_security_event(&self, event: &SecurityEvent);
 }
 
 impl SecurityManager {
@@ -499,9 +503,13 @@ impl SecurityManager {
     }
 
     /// Emit security event to all handlers
+    ///
+    /// -- Linus: Now passes &event instead of event.clone() per handler.
+    /// Before: O(n) clones where n = number of handlers
+    /// After:  0 clones
     fn emit_event(&self, event: SecurityEvent) {
         for handler in &self.event_handlers {
-            handler.handle_security_event(event.clone());
+            handler.handle_security_event(&event);
         }
     }
 
