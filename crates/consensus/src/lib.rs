@@ -6,6 +6,7 @@
 use bitquan_types::{count_signatures, Block, NetworkId};
 use blake3::Hasher;
 use bq_crypto::{CryptoError, CryptoRegistry};
+use rayon::prelude::*;
 use thiserror::Error;
 
 mod asert;
@@ -500,12 +501,14 @@ pub fn validate_block(
     // Create transaction context for signature verification
     let ctx = bitquan_types::TxContext::new(network_id, genesis_hash);
 
-    // Verify all transaction signatures
-    for tx in &block.transactions {
+    // Verify all transaction signatures (PARALLEL - Dilithium5 is expensive!)
+    // Uses rayon for multi-core signature verification with fail-fast semantics
+    block.transactions.par_iter().try_for_each(|tx| {
         let digest = transaction_sighash(tx, &ctx)
             .map_err(|e| ConsensusError::InvalidSignature(e.to_string()))?;
         registry.verify_transaction(tx, &digest)?;
-    }
+        Ok::<(), ConsensusError>(())
+    })?;
 
     Ok(BlockValidationReport {
         block_weight: block_weight as u64,

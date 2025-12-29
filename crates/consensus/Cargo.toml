@@ -30,6 +30,7 @@ primitive-types = { version = "0.6" }
 maxminddb = "0.27"
 ipnet = "2.9"
 parking_lot = "0.12"
+rayon.workspace = true
 
 [dev-dependencies]
 bitquan-storage = { path = "../storage", version = "0.1.0" }
