@@ -501,14 +501,30 @@ pub fn validate_block(
     // Create transaction context for signature verification
     let ctx = bitquan_types::TxContext::new(network_id, genesis_hash);
 
-    // Verify all transaction signatures (PARALLEL - Dilithium5 is expensive!)
-    // Uses rayon for multi-core signature verification with fail-fast semantics
-    block.transactions.par_iter().try_for_each(|tx| {
-        let digest = transaction_sighash(tx, &ctx)
-            .map_err(|e| ConsensusError::InvalidSignature(e.to_string()))?;
-        registry.verify_transaction(tx, &digest)?;
-        Ok::<(), ConsensusError>(())
-    })?;
+    // Verify all transaction signatures (PARALLEL + DETERMINISTIC)
+    // Uses rayon's find_first for deterministic error ordering:
+    // - Parallel execution for speed (Dilithium5 is expensive!)
+    // - Deterministic: ALWAYS returns error from lowest-index invalid tx
+    // - Short-circuits once first (by index) invalid tx is found
+    let first_invalid = block
+        .transactions
+        .par_iter()
+        .enumerate()
+        .map(|(idx, tx)| {
+            let result = transaction_sighash(tx, &ctx)
+                .map_err(|e| ConsensusError::InvalidSignature(e.to_string()))
+                .and_then(|digest| {
+                    registry
+                        .verify_transaction(tx, &digest)
+                        .map_err(ConsensusError::from)
+                });
+            (idx, result)
+        })
+        .find_first(|(_, result)| result.is_err());
+
+    if let Some((_, Err(e))) = first_invalid {
+        return Err(e);
+    }
 
     Ok(BlockValidationReport {
         block_weight: block_weight as u64,
