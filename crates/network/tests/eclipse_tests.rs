@@ -41,13 +41,13 @@ fn test_anchor_peers_config() {
 #[test]
 fn test_subnet_stats_empty() {
     let pm = PeerManager::new(10, NetworkId::Regtest);
-    let stats = pm.get_subnet_stats();
+    let stats = pm.get_subnet_stats().unwrap();
     assert!(stats.is_empty());
 }
 
 #[test]
 fn test_evict_no_peers() {
     let pm = PeerManager::new(10, NetworkId::Regtest);
-    let result = pm.evict_lowest_reputation_peer();
+    let result = pm.evict_lowest_reputation_peer().unwrap();
     assert!(result.is_none());
 }

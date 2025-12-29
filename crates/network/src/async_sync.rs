@@ -111,12 +111,12 @@ impl MigrationSafetyGates {
     ///
     /// -- Linus-style refactor: stop swallowing mutex poison like it's candy
     pub fn start_migration(&self) -> AsyncSyncResult<()> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|e| AsyncSyncError::MutexLock(format!(
-                "CRITICAL: State mutex poisoned - possible data corruption: {}", e
-            )))?;
+        let mut state = self.state.lock().map_err(|e| {
+            AsyncSyncError::MutexLock(format!(
+                "CRITICAL: State mutex poisoned - possible data corruption: {}",
+                e
+            ))
+        })?;
 
         // Check if already in progress
         if *state != MigrationState::NotStarted {
@@ -131,7 +131,8 @@ impl MigrationSafetyGates {
         {
             let mut start_time = self.start_time.lock().map_err(|e| {
                 AsyncSyncError::MutexLock(format!(
-                    "CRITICAL: start_time mutex poisoned: {}. Another thread panicked.", e
+                    "CRITICAL: start_time mutex poisoned: {}. Another thread panicked.",
+                    e
                 ))
             })?;
             *start_time = Some(Instant::now());
@@ -140,7 +141,8 @@ impl MigrationSafetyGates {
         {
             let mut retry_count = self.retry_count.lock().map_err(|e| {
                 AsyncSyncError::MutexLock(format!(
-                    "CRITICAL: retry_count mutex poisoned: {}. System in inconsistent state.", e
+                    "CRITICAL: retry_count mutex poisoned: {}. System in inconsistent state.",
+                    e
                 ))
             })?;
             *retry_count = 0;
@@ -262,19 +264,20 @@ impl MigrationSafetyGates {
     ///
     /// -- Linus-style refactor: same pattern, same fix. Don't swallow poison.
     pub fn reset(&self) -> AsyncSyncResult<()> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|e| AsyncSyncError::MutexLock(format!(
-                "CRITICAL: State mutex poisoned during reset: {}", e
-            )))?;
+        let mut state = self.state.lock().map_err(|e| {
+            AsyncSyncError::MutexLock(format!(
+                "CRITICAL: State mutex poisoned during reset: {}",
+                e
+            ))
+        })?;
 
         *state = MigrationState::NotStarted;
 
         {
             let mut start_time = self.start_time.lock().map_err(|e| {
                 AsyncSyncError::MutexLock(format!(
-                    "CRITICAL: start_time mutex poisoned during reset: {}", e
+                    "CRITICAL: start_time mutex poisoned during reset: {}",
+                    e
                 ))
             })?;
             *start_time = None;
@@ -283,7 +286,8 @@ impl MigrationSafetyGates {
         {
             let mut retry_count = self.retry_count.lock().map_err(|e| {
                 AsyncSyncError::MutexLock(format!(
-                    "CRITICAL: retry_count mutex poisoned during reset: {}", e
+                    "CRITICAL: retry_count mutex poisoned during reset: {}",
+                    e
                 ))
             })?;
             *retry_count = 0;

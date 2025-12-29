@@ -21,6 +21,16 @@ fn unix_timestamp() -> u64 {
 pub const MAX_MSG_BYTES: usize = 2 * 1024 * 1024;
 /// Handshake timeout in milliseconds.
 pub const HANDSHAKE_TIMEOUT_MS: u64 = 1_200;
+/// Rate limit: max messages per second per peer
+pub const RATE_LIMIT_PER_SECOND: u64 = 100;
+/// Peer timeout in seconds (disconnect if no activity).
+pub const PEER_TIMEOUT_SECS: u64 = 120;
+/// Ban score threshold (disconnect and ban at this score).
+pub const BAN_THRESHOLD: u32 = 100;
+/// NODE_NETWORK service flag.
+pub const SERVICE_NODE_NETWORK: u64 = 1;
+/// User agent string.
+pub const USER_AGENT: &str = concat!("BitQuan/", env!("CARGO_PKG_VERSION"));
 
 /// Performs a minimal TCP handshake with timeouts applied.
 pub fn handshake(stream: &mut TcpStream) -> TypesResult<()> {
@@ -141,12 +151,12 @@ impl Peer {
     /// Adds to ban score and returns true if peer should be disconnected.
     pub fn add_ban_score(&mut self, points: u32) -> bool {
         self.ban_score += points;
-        self.ban_score >= 100
+        self.ban_score >= BAN_THRESHOLD
     }
 
     /// Checks if peer should be banned.
     pub fn should_ban(&self) -> bool {
-        self.ban_score >= 100
+        self.ban_score >= BAN_THRESHOLD
     }
 
     /// Sends a message to the peer.
@@ -176,7 +186,7 @@ impl Peer {
         }
 
         self.message_count += 1;
-        if self.message_count > 100 {
+        if self.message_count > RATE_LIMIT_PER_SECOND {
             return Err(P2pError::ConnectionError("rate limit exceeded".into()));
         }
 
@@ -188,9 +198,9 @@ impl Peer {
         // Send our version
         let version_msg = Message::Version {
             version: PROTOCOL_VERSION,
-            services: 1, // NODE_NETWORK
+            services: SERVICE_NODE_NETWORK, // NODE_NETWORK
             timestamp: unix_timestamp(),
-            user_agent: "BitQuan/0.1.0".to_string(),
+            user_agent: USER_AGENT.to_string(),
             start_height: our_height,
         };
 
@@ -256,9 +266,9 @@ impl Peer {
         // Send our version
         let version_msg = Message::Version {
             version: PROTOCOL_VERSION,
-            services: 1,
+            services: SERVICE_NODE_NETWORK,
             timestamp: unix_timestamp(),
-            user_agent: "BitQuan/0.1.0".to_string(),
+            user_agent: USER_AGENT.to_string(),
             start_height: our_height,
         };
 
@@ -282,7 +292,7 @@ impl Peer {
         SystemTime::now()
             .duration_since(self.last_seen)
             .unwrap_or_default()
-            < Duration::from_secs(120)
+            < Duration::from_secs(PEER_TIMEOUT_SECS)
     }
 
     /// Sends a ping to keep connection alive.
@@ -394,10 +404,10 @@ impl PeerManager {
     }
 
     /// Updates the current blockchain height.
-    pub fn update_height(&self, height: u64) {
-        if let Ok(mut h) = self.lock_height() {
-            *h = height;
-        }
+    pub fn update_height(&self, height: u64) -> Result<(), P2pError> {
+        let mut h = self.lock_height()?;
+        *h = height;
+        Ok(())
     }
 
     /// Extract /24 subnet from IP address
@@ -548,31 +558,27 @@ impl PeerManager {
     }
 
     /// Removes disconnected peers.
-    pub fn cleanup_peers(&self) {
-        if let Ok(mut peers) = self.lock_peers() {
-            peers.retain(|p| p.is_alive() && p.state != PeerState::Disconnected);
-        }
+    pub fn cleanup_peers(&self) -> Result<(), P2pError> {
+        let mut peers = self.lock_peers()?;
+        peers.retain(|p| p.is_alive() && p.state != PeerState::Disconnected);
+        Ok(())
     }
 
     /// Returns the current number of peers.
-    pub fn peer_count(&self) -> usize {
-        self.lock_peers().map(|p| p.len()).unwrap_or(0)
+    pub fn peer_count(&self) -> Result<usize, P2pError> {
+        let peers = self.lock_peers()?;
+        Ok(peers.len())
     }
 
     /// Returns the number of ready peers.
-    pub fn ready_peer_count(&self) -> usize {
-        self.peers
-            .lock()
-            .ok()
-            .map(|peers| peers.iter().filter(|p| p.state == PeerState::Ready).count())
-            .unwrap_or(0)
+    pub fn ready_peer_count(&self) -> Result<usize, P2pError> {
+        let peers = self.lock_peers()?;
+        Ok(peers.iter().filter(|p| p.state == PeerState::Ready).count())
     }
 
     /// Get subnet diversity statistics
-    pub fn get_subnet_stats(&self) -> std::collections::HashMap<[u8; 3], usize> {
-        let Ok(peers) = self.lock_peers() else {
-            return std::collections::HashMap::new();
-        };
+    pub fn get_subnet_stats(&self) -> Result<std::collections::HashMap<[u8; 3], usize>, P2pError> {
+        let peers = self.lock_peers()?;
         let mut subnet_counts = std::collections::HashMap::new();
 
         for peer in peers.iter() {
@@ -581,14 +587,12 @@ impl PeerManager {
             }
         }
 
-        subnet_counts
+        Ok(subnet_counts)
     }
 
     /// Evict lowest-reputation non-anchor peer
-    pub fn evict_lowest_reputation_peer(&self) -> Option<SocketAddr> {
-        let Ok(mut peers) = self.lock_peers() else {
-            return None;
-        };
+    pub fn evict_lowest_reputation_peer(&self) -> Result<Option<SocketAddr>, P2pError> {
+        let mut peers = self.lock_peers()?;
 
         let result = peers
             .iter()
@@ -599,15 +603,15 @@ impl PeerManager {
 
         if let Some((idx, addr)) = result {
             peers.remove(idx);
-            Some(addr)
+            Ok(Some(addr))
         } else {
-            None
+            Ok(None)
         }
     }
 
     /// Get list of anchor peers
-    pub fn get_anchors(&self) -> Vec<SocketAddr> {
-        self.eclipse_config.anchor_peers.clone()
+    pub fn get_anchors(&self) -> &[SocketAddr] {
+        &self.eclipse_config.anchor_peers
     }
 
     /// Check if subnet diversity is enforced
@@ -664,14 +668,14 @@ mod tests {
     #[test]
     fn test_peer_manager_creation() {
         let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet);
-        assert_eq!(pm.peer_count(), 0);
+        assert_eq!(pm.peer_count().unwrap(), 0);
         assert_eq!(pm.max_peers, 10);
     }
 
     #[test]
     fn test_peer_manager_height_update() {
         let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet);
-        pm.update_height(42);
+        pm.update_height(42).unwrap();
         assert_eq!(
             *pm.current_height
                 .lock()

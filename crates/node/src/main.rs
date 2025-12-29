@@ -1576,7 +1576,9 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             s.height()
                 .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?
         };
-        pm.update_height(current_height);
+        if let Err(e) = pm.update_height(current_height) {
+            eprintln!("⚠️  Failed to update peer height: {}", e);
+        }
 
         // Connect to all peers
         let mut connected_count = 0;
@@ -1607,7 +1609,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                 connected_count,
                 peers.len()
             );
-            println!("Ready peers: {}", pm.ready_peer_count());
+            println!("Ready peers: {}", pm.ready_peer_count().unwrap_or(0));
             println!("================================\n");
             Some(pm)
         } else {
@@ -1973,7 +1975,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         // Broadcast block to connected peers
         if let Some(ref pm) = peer_manager {
-            let ready_peers = pm.ready_peer_count();
+            let ready_peers = pm.ready_peer_count().unwrap_or(0);
             if ready_peers > 0 {
                 print!(" | Broadcasting to {} peer(s)...", ready_peers);
 
@@ -2925,7 +2927,9 @@ async fn p2p_server(
         relay_manager.clone(),
         network,
     ));
-    peer_manager.update_height(height);
+    if let Err(e) = peer_manager.update_height(height) {
+        eprintln!("⚠️  Failed to update peer height: {}", e);
+    }
 
     let listener = P2PListener::bind(listen, peer_manager.clone())
         .map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
@@ -2950,8 +2954,8 @@ async fn p2p_server(
     loop {
         match listener.accept_one() {
             Ok(()) => {
-                let count = peer_manager.peer_count();
-                let ready = peer_manager.ready_peer_count();
+                let count = peer_manager.peer_count().unwrap_or(0);
+                let ready = peer_manager.ready_peer_count().unwrap_or(0);
                 println!("Peer connected! Total: {}, Ready: {}", count, ready);
 
                 // TODO: Send inv for tip block to new peer (requires async handling)
@@ -2962,8 +2966,12 @@ async fn p2p_server(
         }
 
         // Cleanup dead peers and old relay data
-        peer_manager.cleanup_peers();
-        let _ = relay_manager.cleanup();
+        if let Err(e) = peer_manager.cleanup_peers() {
+            eprintln!("⚠️  Peer cleanup failed: {}", e);
+        }
+        if let Err(e) = relay_manager.cleanup() {
+            eprintln!("⚠️  Relay cleanup failed: {}", e);
+        }
 
         thread::sleep(Duration::from_millis(100));
     }
@@ -2979,7 +2987,9 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
     println!("Our height: {}", height);
 
     let peer_manager = Arc::new(PeerManager::new(1, NetworkId::Mainnet));
-    peer_manager.update_height(height);
+    if let Err(e) = peer_manager.update_height(height) {
+        eprintln!("⚠️  Failed to update peer height: {}", e);
+    }
 
     let addr: SocketAddr = peer
         .parse()
@@ -2989,7 +2999,7 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
     match peer_manager.connect_peer(addr) {
         Ok(()) => {
             println!("✅ Connected and handshake complete!");
-            println!("Ready peers: {}", peer_manager.ready_peer_count());
+            println!("Ready peers: {}", peer_manager.ready_peer_count().unwrap_or(0));
 
             // Keep connection alive for a bit
             for i in 1..=5 {
