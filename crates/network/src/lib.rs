@@ -4,6 +4,7 @@
 pub mod ban_manager;
 pub mod connection_manager;
 pub mod dos_protection;
+pub mod noise; // Noise Protocol encryption for P2P
 pub mod rate_limiter;
 pub mod reputation;
 pub mod security_config;
@@ -55,6 +56,9 @@ pub use propagation::{
 pub use relay::{create_block_inv, create_tx_inv, RelayManager, RelayPolicy};
 pub use sync::{process_headers, request_blocks, ChainSync, SyncProgress, SyncStatus};
 
+// Noise Protocol encryption
+pub use noise::{NoiseConfig, NoiseError, NoiseTransport};
+
 pub use bitquan_types::Block;
 pub use thiserror::Error;
 
@@ -71,7 +75,7 @@ pub struct NetworkConfig {
     pub listen_addr: String,
     /// Maximum concurrent peers accepted.
     pub max_peers: usize,
-    /// Enable TLS/encryption (placeholder for future)
+    /// Enable Noise Protocol encryption for P2P connections
     pub enable_encryption: bool,
     /// Maximum message size in bytes (10 MB)
     pub max_message_size: usize,

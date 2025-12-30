@@ -19,6 +19,10 @@ toml = "0.8"
 hex = "0.4"
 libc = "0.2"
 
+# P2P Encryption: Noise Protocol Framework
+snow = "0.9"
+zeroize.workspace = true
+
 # Async runtime for network layer
 tokio = { workspace = true }
 futures = "0.3"
