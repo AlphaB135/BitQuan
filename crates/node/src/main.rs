@@ -2333,18 +2333,25 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
     Ok(())
 }
 
-/// Helper to read password from stdin securely
+/// Helper to read password from stdin securely (no echo)
 fn read_password_from_stdin() -> Result<String> {
     use std::io::{self, Write};
 
     print!("Password: ");
     io::stdout().flush()?;
 
-    let mut password = String::new();
-    io::stdin().read_line(&mut password)?;
+    // SECURITY: Use rpassword to hide input (no terminal echo)
+    let password = rpassword::read_password()
+        .map_err(|e| Error::Invalid(format!("Failed to read password: {e}")))?;
 
-    // Trim newline
-    Ok(password.trim().to_string())
+    // Print newline since rpassword doesn't echo anything
+    println!();
+
+    if password.is_empty() {
+        return Err(Error::Invalid("Password cannot be empty".into()));
+    }
+
+    Ok(password)
 }
 
 /// Verify a signature
