@@ -1,5 +1,10 @@
-//! TCP-based P2P connection handler.
+//! TCP-based P2P connection handler with Noise Protocol encryption.
+//!
+//! All peer connections are encrypted using `Noise_XX_25519_ChaChaPoly_BLAKE2s`.
+//! This provides mutual authentication, forward secrecy, and protection against
+//! eavesdropping and MITM attacks.
 
+use crate::noise::{NoiseConfig, NoiseTransport};
 use crate::protocol::{Message, MessageEnvelope, P2pError, PROTOCOL_VERSION};
 use bitquan_types::error::{Error, Result as TypesResult};
 use bitquan_types::ext::ResultExt;
@@ -32,23 +37,19 @@ pub const SERVICE_NODE_NETWORK: u64 = 1;
 /// User agent string.
 pub const USER_AGENT: &str = concat!("BitQuan/", env!("CARGO_PKG_VERSION"));
 
-/// Performs a minimal TCP handshake with timeouts applied.
-pub fn handshake(stream: &mut TcpStream) -> TypesResult<()> {
+/// Performs encrypted protocol handshake on an established NoiseTransport.
+///
+/// This sends the magic byte `0x42` through the encrypted channel to confirm
+/// both sides are speaking the BitQuan protocol. The magic byte is encrypted,
+/// so it cannot be detected by network observers.
+pub fn handshake(stream: &mut NoiseTransport) -> TypesResult<()> {
     let timeout = Duration::from_millis(HANDSHAKE_TIMEOUT_MS);
-    stream.set_read_timeout(Some(timeout))?;
-    stream.set_write_timeout(Some(timeout))?;
+    stream.stream().set_read_timeout(Some(timeout))?;
+    stream.stream().set_write_timeout(Some(timeout))?;
 
-    match do_handshake(stream) {
+    match do_handshake_encrypted(stream) {
         Ok(()) => Ok(()),
-        Err(e)
-            if matches!(
-                e.kind(),
-                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-            ) =>
-        {
-            Err(Error::Timeout("handshake timeout".to_string()))
-        }
-        Err(e) => Err(Error::Net(e.to_string())),
+        Err(e) => Err(Error::Net(format!("encrypted handshake failed: {e}"))),
     }
 }
 
@@ -68,15 +69,20 @@ pub fn read_frame<R: Read>(reader: &mut R) -> TypesResult<Vec<u8>> {
     Ok(buf)
 }
 
-fn do_handshake(stream: &mut TcpStream) -> io::Result<()> {
-    // Exchange a single magic byte to confirm liveness.
+/// Exchange magic byte through encrypted channel.
+/// SECURITY: This is sent AFTER Noise handshake, so it's encrypted.
+fn do_handshake_encrypted(stream: &mut NoiseTransport) -> io::Result<()> {
+    // Exchange magic byte through encrypted channel
     stream.write_all(&[0x42])?;
+    stream.flush()?;
+
     let mut response = [0u8; 1];
     stream.read_exact(&mut response)?;
+
     if response[0] != 0x42 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "invalid handshake token",
+            "invalid handshake token (encrypted)",
         ));
     }
     Ok(())
@@ -97,14 +103,20 @@ pub enum PeerState {
     Disconnected,
 }
 
-/// Represents a single peer connection.
+/// Represents a single encrypted peer connection.
+///
+/// All communication goes through a Noise Protocol encrypted channel.
+/// The encryption is established during construction and cannot be bypassed.
 pub struct Peer {
     /// Peer's socket address.
     pub addr: SocketAddr,
     /// Current connection state.
     pub state: PeerState,
-    /// TCP stream for communication.
-    stream: TcpStream,
+    /// Encrypted stream for communication (Noise Protocol).
+    /// SECURITY: This is NOT a raw TcpStream - all data is encrypted.
+    stream: NoiseTransport,
+    /// Remote peer's authenticated public key (from Noise handshake).
+    pub remote_public_key: [u8; 32],
     /// Peer's protocol version (from version message).
     pub version: Option<u32>,
     /// Peer's user agent string.
@@ -124,8 +136,17 @@ pub struct Peer {
 }
 
 impl Peer {
-    /// Creates a new peer from an accepted connection.
-    pub fn new(stream: TcpStream, addr: SocketAddr, magic: [u8; 4]) -> Result<Self, P2pError> {
+    /// Creates a new encrypted peer from an inbound connection (we are responder).
+    ///
+    /// Performs Noise Protocol handshake as responder, then exchanges protocol magic.
+    /// Returns an error if encryption handshake fails.
+    pub fn new_inbound(
+        stream: TcpStream,
+        addr: SocketAddr,
+        magic: [u8; 4],
+        noise_config: &NoiseConfig,
+    ) -> Result<Self, P2pError> {
+        // Set timeouts on raw stream before handshake
         stream
             .set_read_timeout(Some(Duration::from_secs(30)))
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
@@ -133,10 +154,23 @@ impl Peer {
             .set_write_timeout(Some(Duration::from_secs(30)))
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
+        // Perform Noise handshake (we are responder for inbound connections)
+        let encrypted_stream = NoiseTransport::upgrade_responder(stream, noise_config)
+            .map_err(|e| P2pError::ConnectionError(format!("Noise handshake failed: {e}")))?;
+
+        let remote_public_key = *encrypted_stream.remote_public_key();
+
+        log::info!(
+            "Encrypted connection established (inbound) from {} - remote key: {}",
+            addr,
+            hex::encode(remote_public_key)
+        );
+
         Ok(Peer {
             addr,
             state: PeerState::Connected,
-            stream,
+            stream: encrypted_stream,
+            remote_public_key,
             version: None,
             user_agent: None,
             start_height: None,
@@ -146,6 +180,57 @@ impl Peer {
             ban_score: 0,
             magic,
         })
+    }
+
+    /// Creates a new encrypted peer from an outbound connection (we are initiator).
+    ///
+    /// Performs Noise Protocol handshake as initiator, then exchanges protocol magic.
+    /// Returns an error if encryption handshake fails.
+    pub fn new_outbound(
+        stream: TcpStream,
+        addr: SocketAddr,
+        magic: [u8; 4],
+        noise_config: &NoiseConfig,
+    ) -> Result<Self, P2pError> {
+        // Set timeouts on raw stream before handshake
+        stream
+            .set_read_timeout(Some(Duration::from_secs(30)))
+            .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+        stream
+            .set_write_timeout(Some(Duration::from_secs(30)))
+            .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+
+        // Perform Noise handshake (we are initiator for outbound connections)
+        let encrypted_stream = NoiseTransport::upgrade_initiator(stream, noise_config)
+            .map_err(|e| P2pError::ConnectionError(format!("Noise handshake failed: {e}")))?;
+
+        let remote_public_key = *encrypted_stream.remote_public_key();
+
+        log::info!(
+            "Encrypted connection established (outbound) to {} - remote key: {}",
+            addr,
+            hex::encode(remote_public_key)
+        );
+
+        Ok(Peer {
+            addr,
+            state: PeerState::Connected,
+            stream: encrypted_stream,
+            remote_public_key,
+            version: None,
+            user_agent: None,
+            start_height: None,
+            last_seen: SystemTime::now(),
+            message_count: 0,
+            rate_limit_window: SystemTime::now(),
+            ban_score: 0,
+            magic,
+        })
+    }
+
+    /// Get remote peer's public key as hex string.
+    pub fn remote_public_key_hex(&self) -> String {
+        hex::encode(self.remote_public_key)
     }
 
     /// Adds to ban score and returns true if peer should be disconnected.
@@ -327,9 +412,12 @@ impl Default for EclipseConfig {
     }
 }
 
-/// Manages multiple peer connections.
+/// Manages multiple encrypted peer connections.
+///
+/// All peer connections are encrypted using Noise Protocol.
+/// The NoiseConfig contains the node's static keypair used for authentication.
 pub struct PeerManager {
-    /// Active peer connections.
+    /// Active peer connections (all encrypted).
     peers: Arc<Mutex<Vec<Peer>>>,
     /// Maximum number of peers.
     max_peers: usize,
@@ -341,11 +429,26 @@ pub struct PeerManager {
     eclipse_config: EclipseConfig,
     /// Network magic bytes.
     magic: [u8; 4],
+    /// Noise Protocol configuration (static keypair for encryption).
+    noise_config: Arc<NoiseConfig>,
 }
 
 impl PeerManager {
-    /// Creates a new peer manager.
-    pub fn new(max_peers: usize, network: bitquan_types::NetworkId) -> Self {
+    /// Creates a new peer manager with encryption.
+    ///
+    /// # Arguments
+    /// * `max_peers` - Maximum number of concurrent peer connections
+    /// * `network` - Network identifier (mainnet, testnet, etc.)
+    /// * `noise_config` - Noise Protocol keypair for encryption
+    pub fn new(
+        max_peers: usize,
+        network: bitquan_types::NetworkId,
+        noise_config: Arc<NoiseConfig>,
+    ) -> Self {
+        log::info!(
+            "PeerManager initialized with encryption - public key: {}",
+            noise_config.public_key_hex()
+        );
         PeerManager {
             peers: Arc::new(Mutex::new(Vec::new())),
             max_peers,
@@ -353,15 +456,21 @@ impl PeerManager {
             relay_manager: None,
             eclipse_config: EclipseConfig::default(),
             magic: crate::protocol::network_magic(network),
+            noise_config,
         }
     }
 
-    /// Creates a new peer manager with relay support.
+    /// Creates a new peer manager with relay support and encryption.
     pub fn with_relay(
         max_peers: usize,
         relay_manager: Arc<crate::relay::RelayManager>,
         network: bitquan_types::NetworkId,
+        noise_config: Arc<NoiseConfig>,
     ) -> Self {
+        log::info!(
+            "PeerManager (with relay) initialized - public key: {}",
+            noise_config.public_key_hex()
+        );
         PeerManager {
             peers: Arc::new(Mutex::new(Vec::new())),
             max_peers,
@@ -369,16 +478,22 @@ impl PeerManager {
             relay_manager: Some(relay_manager),
             eclipse_config: EclipseConfig::default(),
             magic: crate::protocol::network_magic(network),
+            noise_config,
         }
     }
 
-    /// Creates a new peer manager with eclipse attack mitigation
+    /// Creates a new peer manager with eclipse attack mitigation and encryption.
     pub fn with_eclipse_config(
         max_peers: usize,
         relay_manager: Option<Arc<crate::relay::RelayManager>>,
         eclipse_config: EclipseConfig,
         network: bitquan_types::NetworkId,
+        noise_config: Arc<NoiseConfig>,
     ) -> Self {
+        log::info!(
+            "PeerManager (with eclipse config) initialized - public key: {}",
+            noise_config.public_key_hex()
+        );
         PeerManager {
             peers: Arc::new(Mutex::new(Vec::new())),
             max_peers,
@@ -386,7 +501,13 @@ impl PeerManager {
             relay_manager,
             eclipse_config,
             magic: crate::protocol::network_magic(network),
+            noise_config,
         }
+    }
+
+    /// Get our public key (for display/logging).
+    pub fn public_key_hex(&self) -> String {
+        self.noise_config.public_key_hex()
     }
 
     /// Helper to lock peers mutex.
@@ -444,7 +565,9 @@ impl PeerManager {
             .any(|anchor| anchor == addr)
     }
 
-    /// Adds a new peer connection (inbound).
+    /// Adds a new encrypted peer connection (inbound).
+    ///
+    /// Performs Noise Protocol handshake as responder, then version handshake.
     pub fn add_peer_inbound(&self, stream: TcpStream, addr: SocketAddr) -> Result<(), P2pError> {
         let mut peers = self.lock_peers()?;
 
@@ -465,15 +588,24 @@ impl PeerManager {
             }
         }
 
-        let mut peer = Peer::new(stream, addr, self.magic)?;
+        // Create encrypted peer (Noise handshake happens here)
+        let mut peer = Peer::new_inbound(stream, addr, self.magic, &self.noise_config)?;
         let height = *self.lock_height()?;
         peer.handshake_inbound(height)?;
+
+        log::info!(
+            "Inbound peer connected: {} (key: {})",
+            addr,
+            peer.remote_public_key_hex()
+        );
 
         peers.push(peer);
         Ok(())
     }
 
-    /// Connects to a new peer (outbound).
+    /// Connects to a new encrypted peer (outbound).
+    ///
+    /// Performs Noise Protocol handshake as initiator, then version handshake.
     pub fn connect_peer(&self, addr: SocketAddr) -> Result<(), P2pError> {
         let mut peers = self.lock_peers()?;
 
@@ -484,9 +616,16 @@ impl PeerManager {
         let stream =
             TcpStream::connect(addr).map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
-        let mut peer = Peer::new(stream, addr, self.magic)?;
+        // Create encrypted peer (Noise handshake happens here)
+        let mut peer = Peer::new_outbound(stream, addr, self.magic, &self.noise_config)?;
         let height = *self.lock_height()?;
         peer.handshake_outbound(height)?;
+
+        log::info!(
+            "Outbound peer connected: {} (key: {})",
+            addr,
+            peer.remote_public_key_hex()
+        );
 
         peers.push(peer);
         Ok(())
@@ -665,16 +804,23 @@ impl P2PListener {
 mod tests {
     use super::*;
 
+    /// Create a test NoiseConfig for unit tests.
+    fn test_noise_config() -> Arc<NoiseConfig> {
+        Arc::new(NoiseConfig::generate().expect("Failed to generate test noise config"))
+    }
+
     #[test]
     fn test_peer_manager_creation() {
-        let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet);
+        let noise_config = test_noise_config();
+        let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet, noise_config);
         assert_eq!(pm.peer_count().unwrap(), 0);
         assert_eq!(pm.max_peers, 10);
     }
 
     #[test]
     fn test_peer_manager_height_update() {
-        let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet);
+        let noise_config = test_noise_config();
+        let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet, noise_config);
         pm.update_height(42).unwrap();
         assert_eq!(
             *pm.current_height
@@ -696,19 +842,38 @@ mod tests {
     #[test]
     fn test_ban_score_threshold() {
         use std::net::TcpListener;
+        use std::thread;
+
+        // Create server and client noise configs
+        let server_config = test_noise_config();
+        let client_config = test_noise_config();
+
         let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind TCP listener");
         let addr = listener.local_addr().expect("Failed to get local address");
 
-        std::thread::spawn(move || {
-            if let Ok((stream, _)) = listener.accept() {
-                drop(stream);
-            }
+        // Server thread: accept connection and perform Noise handshake as responder
+        let server_cfg = Arc::clone(&server_config);
+        let server_thread = thread::spawn(move || {
+            let (stream, peer_addr) = listener.accept().expect("Failed to accept connection");
+            // Create peer as responder (inbound connection)
+            Peer::new_inbound(
+                stream,
+                peer_addr,
+                crate::protocol::MAINNET_MAGIC,
+                &server_cfg,
+            )
         });
 
+        // Client: connect and perform Noise handshake as initiator
         let stream = TcpStream::connect(addr).expect("Failed to connect to test server");
         let mut peer =
-            Peer::new(stream, addr, crate::protocol::MAINNET_MAGIC).expect("Failed to create peer");
+            Peer::new_outbound(stream, addr, crate::protocol::MAINNET_MAGIC, &client_config)
+                .expect("Failed to create peer with Noise encryption");
 
+        // Wait for server to complete handshake
+        let _server_peer = server_thread.join().expect("Server thread panicked");
+
+        // Test ban score functionality
         assert_eq!(peer.ban_score, 0);
         assert!(!peer.should_ban());
 

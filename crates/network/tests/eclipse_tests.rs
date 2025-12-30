@@ -1,8 +1,14 @@
 //! Tests for eclipse attack mitigation
 
-use bitquan_network::{EclipseConfig, PeerManager};
+use bitquan_network::{EclipseConfig, NoiseConfig, PeerManager};
 use bitquan_types::NetworkId;
 use std::net::SocketAddr;
+use std::sync::Arc;
+
+/// Create a test NoiseConfig for unit tests.
+fn test_noise_config() -> Arc<NoiseConfig> {
+    Arc::new(NoiseConfig::generate().expect("Failed to generate test noise config"))
+}
 
 #[test]
 fn test_subnet_diversity_enforcement() {
@@ -12,7 +18,8 @@ fn test_subnet_diversity_enforcement() {
         enforce_subnet_diversity: true,
     };
 
-    let pm = PeerManager::with_eclipse_config(10, None, config, NetworkId::Regtest);
+    let noise_config = test_noise_config();
+    let pm = PeerManager::with_eclipse_config(10, None, config, NetworkId::Regtest, noise_config);
 
     // Try to connect multiple peers from same subnet
     // Note: This is a simplified test - real implementation would need actual connections
@@ -31,7 +38,8 @@ fn test_anchor_peers_config() {
         enforce_subnet_diversity: true,
     };
 
-    let pm = PeerManager::with_eclipse_config(10, None, config, NetworkId::Regtest);
+    let noise_config = test_noise_config();
+    let pm = PeerManager::with_eclipse_config(10, None, config, NetworkId::Regtest, noise_config);
 
     let anchors = pm.get_anchors();
     assert_eq!(anchors.len(), 1);
@@ -40,14 +48,16 @@ fn test_anchor_peers_config() {
 
 #[test]
 fn test_subnet_stats_empty() {
-    let pm = PeerManager::new(10, NetworkId::Regtest);
+    let noise_config = test_noise_config();
+    let pm = PeerManager::new(10, NetworkId::Regtest, noise_config);
     let stats = pm.get_subnet_stats().unwrap();
     assert!(stats.is_empty());
 }
 
 #[test]
 fn test_evict_no_peers() {
-    let pm = PeerManager::new(10, NetworkId::Regtest);
+    let noise_config = test_noise_config();
+    let pm = PeerManager::new(10, NetworkId::Regtest, noise_config);
     let result = pm.evict_lowest_reputation_peer().unwrap();
     assert!(result.is_none());
 }

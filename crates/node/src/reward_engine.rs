@@ -106,7 +106,11 @@ impl PoolDatabase {
             .lock()
             .map_err(|_| Error::Invalid("CRITICAL: Lock poisoned".into()))?;
         // -- Linus Phase 2: find() gives &Arc<T>, map(Arc::clone) = O(1).
-        Ok(data.blocks.iter().find(|b| b.height == height).map(Arc::clone))
+        Ok(data
+            .blocks
+            .iter()
+            .find(|b| b.height == height)
+            .map(Arc::clone))
     }
 
     // Additional methods needed by RewardEngine
@@ -134,7 +138,12 @@ impl PoolDatabase {
             .lock()
             .map_err(|_| Error::Invalid("CRITICAL: Lock poisoned".into()))?;
         // -- Linus Phase 2: filter().map(Arc::clone).collect() = O(n) refcount bumps, 0 data copies.
-        Ok(data.blocks.iter().filter(|b| b.height == height).map(Arc::clone).collect())
+        Ok(data
+            .blocks
+            .iter()
+            .filter(|b| b.height == height)
+            .map(Arc::clone)
+            .collect())
     }
 
     /// Mark a block's reward as spendable (mature).

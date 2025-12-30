@@ -2,6 +2,7 @@
 
 use crate::{
     discovery::PeerBook,
+    noise::NoiseConfig,
     peer::PeerManager,
     sync::{ChainSync, SyncProgress},
 };
@@ -373,7 +374,14 @@ impl AsyncSyncManager {
     /// Create a new async sync manager with minimal setup
     pub fn new(local_height: u64) -> Self {
         // Create mock components for testing
-        let peer_manager = Arc::new(PeerManager::new(125, bitquan_types::NetworkId::Testnet));
+        let noise_config = Arc::new(
+            NoiseConfig::generate().expect("Failed to generate noise config for sync manager"),
+        );
+        let peer_manager = Arc::new(PeerManager::new(
+            125,
+            bitquan_types::NetworkId::Testnet,
+            noise_config,
+        ));
         let peer_book = Arc::new(Mutex::new(PeerBook::new()));
         let safety_config = MigrationSafetyConfig::default();
 
@@ -703,7 +711,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_sync_manager() {
-        let peer_manager = Arc::new(PeerManager::new(10, NetworkId::Regtest));
+        let noise_config = Arc::new(NoiseConfig::generate().unwrap());
+        let peer_manager = Arc::new(PeerManager::new(10, NetworkId::Regtest, noise_config));
         let peer_book = Arc::new(Mutex::new(PeerBook::new()));
         let network_id = NetworkId::Regtest;
 

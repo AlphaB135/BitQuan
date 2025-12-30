@@ -2335,17 +2335,10 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
 
 /// Helper to read password from stdin securely (no echo)
 fn read_password_from_stdin() -> Result<String> {
-    use std::io::{self, Write};
-
-    print!("Password: ");
-    io::stdout().flush()?;
-
-    // SECURITY: Use rpassword to hide input (no terminal echo)
-    let password = rpassword::read_password()
+    // SECURITY: Use rpassword to prompt and hide input (no terminal echo)
+    // prompt_password handles flushing stdout automatically
+    let password = rpassword::prompt_password("Password: ")
         .map_err(|e| Error::Invalid(format!("Failed to read password: {e}")))?;
-
-    // Print newline since rpassword doesn't echo anything
-    println!();
 
     if password.is_empty() {
         return Err(Error::Invalid("Password cannot be empty".into()));
@@ -3006,7 +2999,10 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
     match peer_manager.connect_peer(addr) {
         Ok(()) => {
             println!("✅ Connected and handshake complete!");
-            println!("Ready peers: {}", peer_manager.ready_peer_count().unwrap_or(0));
+            println!(
+                "Ready peers: {}",
+                peer_manager.ready_peer_count().unwrap_or(0)
+            );
 
             // Keep connection alive for a bit
             for i in 1..=5 {

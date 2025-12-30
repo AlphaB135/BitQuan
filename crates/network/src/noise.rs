@@ -161,7 +161,7 @@ impl NoiseConfig {
         }
 
         // Write public key
-        fs::write(public_path, &self.public_key)?;
+        fs::write(public_path, self.public_key)?;
 
         Ok(())
     }
@@ -439,7 +439,7 @@ impl Read for NoiseTransport {
                 Ok(to_copy)
             }
             Err(NoiseError::Io(e)) => Err(e),
-            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
+            Err(e) => Err(io::Error::other(e)),
         }
     }
 }
@@ -451,8 +451,7 @@ impl Write for NoiseTransport {
         let chunk_size = MAX_NOISE_MSG_LEN - 16; // Reserve space for AEAD tag
 
         for chunk in buf.chunks(chunk_size) {
-            self.send(chunk)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            self.send(chunk).map_err(io::Error::other)?;
         }
 
         Ok(buf.len())
@@ -500,14 +499,8 @@ mod tests {
         let mut responder = responder_thread.join().unwrap();
 
         // Verify key exchange
-        assert_eq!(
-            initiator.remote_public_key(),
-            &responder_config.public_key
-        );
-        assert_eq!(
-            responder.remote_public_key(),
-            &initiator_config.public_key
-        );
+        assert_eq!(initiator.remote_public_key(), &responder_config.public_key);
+        assert_eq!(responder.remote_public_key(), &initiator_config.public_key);
 
         // Test encrypted communication
         let test_msg = b"Hello, encrypted world!";
