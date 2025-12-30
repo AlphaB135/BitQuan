@@ -643,12 +643,13 @@ fn validate_transaction_fees(
     block_subsidy: u64,
     total_fees: Option<u64>,
 ) -> Result<(), ConsensusError> {
-    // Simple validation: coinbase output should not exceed reasonable maximum
+    // SECURITY: Use checked arithmetic to prevent integer overflow attacks.
+    // An attacker could craft outputs that sum to > u64::MAX, causing wrap-around.
     let coinbase_output = block.transactions[0]
         .outputs
         .iter()
-        .map(|o| o.value)
-        .sum::<u64>();
+        .try_fold(0u64, |acc, o| acc.checked_add(o.value))
+        .ok_or(ConsensusError::WeightOverflow("coinbase output sum"))?;
 
     if let Some(fees) = total_fees {
         // Strict validation: Coinbase <= Subsidy + Fees

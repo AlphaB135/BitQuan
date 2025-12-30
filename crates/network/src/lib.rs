@@ -46,9 +46,10 @@ pub use discovery::{
     PEER_TIMEOUT_SECS, PING_INTERVAL_SECS, TESTNET_SEEDS,
 };
 pub use dns_bootstrap::{load_default_seeds, DnsBootstrap, DnsSeed};
+#[allow(deprecated)] // Re-export deprecated items for backwards compatibility
 pub use peer::{
     handshake, read_frame, EclipseConfig, P2PListener, Peer, PeerManager, PeerState,
-    HANDSHAKE_TIMEOUT_MS, MAX_MSG_BYTES,
+    HANDSHAKE_TIMEOUT_MS, MAX_MSG_BYTES, SOCKET_TIMEOUT_SECS,
 };
 pub use propagation::{
     broadcast_block_inv, create_envelope, BlockPropagator, PropagationStats, SeenFilter,

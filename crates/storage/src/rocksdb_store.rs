@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use std::{convert::TryInto, fs, path::Path};
 
-use rocksdb::{Options, WriteBatch, DB};
+use rocksdb::{Options, WriteBatch, WriteOptions, DB};
 
 use crate::{ChainStore, StorageError};
 use bitquan_types::{Block, BlockHeader, Transaction};
@@ -686,6 +686,14 @@ impl RocksDBStore {
 
         Ok(stats)
     }
+
+    /// Creates WriteOptions with sync=true for durability.
+    /// SECURITY: Without sync, writes may be lost on power failure.
+    fn sync_write_opts() -> WriteOptions {
+        let mut opts = WriteOptions::default();
+        opts.set_sync(true);
+        opts
+    }
 }
 
 /// Database statistics
@@ -811,9 +819,9 @@ impl ChainStore for RocksDBStore {
         batch.put_cf(&cf_meta, KEY_TIP, header_json.clone());
         batch.put_cf(&cf_meta, KEY_HEIGHT, height.to_le_bytes());
 
-        // Write batch atomically
+        // Write batch atomically with sync for durability
         self.db
-            .write(batch)
+            .write_opt(batch, &Self::sync_write_opts())
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
 
         Ok(())
@@ -898,7 +906,7 @@ impl ChainStore for RocksDBStore {
         batch.put_cf(&cf_meta, KEY_HEIGHT, new_height.to_le_bytes());
 
         self.db
-            .write(batch)
+            .write_opt(batch, &Self::sync_write_opts())
             .map_err(|e| StorageError::DatabaseError(e.to_string()))
     }
 
@@ -1071,7 +1079,7 @@ impl RocksDBStore {
         batch.put_cf(&cf_meta, KEY_HEIGHT, new_height.to_le_bytes());
 
         self.db
-            .write(batch)
+            .write_opt(batch, &Self::sync_write_opts())
             .map_err(|e| StorageError::DatabaseError(e.to_string()))
     }
 

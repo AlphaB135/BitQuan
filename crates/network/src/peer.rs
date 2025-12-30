@@ -23,8 +23,13 @@ fn unix_timestamp() -> u64 {
 }
 
 /// Maximum frame size accepted by low-level peer helpers (2 MiB).
+/// SECURITY: This limit is enforced BEFORE allocation to prevent buffer bloat attacks.
 pub const MAX_MSG_BYTES: usize = 2 * 1024 * 1024;
-/// Handshake timeout in milliseconds.
+/// Socket read/write timeout in seconds for Slowloris protection.
+/// SECURITY: Prevents attackers from holding connections open indefinitely.
+pub const SOCKET_TIMEOUT_SECS: u64 = 30;
+/// Handshake timeout in milliseconds (deprecated, use SOCKET_TIMEOUT_SECS).
+#[deprecated(note = "Use SOCKET_TIMEOUT_SECS instead")]
 pub const HANDSHAKE_TIMEOUT_MS: u64 = 1_200;
 /// Rate limit: max messages per second per peer
 pub const RATE_LIMIT_PER_SECOND: u64 = 100;
@@ -39,9 +44,12 @@ pub const USER_AGENT: &str = concat!("BitQuan/", env!("CARGO_PKG_VERSION"));
 
 /// Performs encrypted protocol handshake on an established NoiseTransport.
 ///
-/// This sends the magic byte `0x42` through the encrypted channel to confirm
-/// both sides are speaking the BitQuan protocol. The magic byte is encrypted,
-/// so it cannot be detected by network observers.
+/// # Deprecated
+/// This function is no longer needed - the handshake is performed automatically
+/// during `Peer::new_inbound()` and `Peer::new_outbound()`. It remains for
+/// backwards compatibility but should not be used in new code.
+#[deprecated(note = "Handshake is now performed automatically in Peer::new_inbound/new_outbound")]
+#[allow(deprecated)] // Allow use of deprecated HANDSHAKE_TIMEOUT_MS
 pub fn handshake(stream: &mut NoiseTransport) -> TypesResult<()> {
     let timeout = Duration::from_millis(HANDSHAKE_TIMEOUT_MS);
     stream.stream().set_read_timeout(Some(timeout))?;
@@ -54,6 +62,13 @@ pub fn handshake(stream: &mut NoiseTransport) -> TypesResult<()> {
 }
 
 /// Reads a single length-prefixed message frame.
+///
+/// # Security
+/// - **Buffer Bloat Protection:** Message length is validated BEFORE allocation.
+///   Messages exceeding `MAX_MSG_BYTES` (2 MiB) are rejected.
+/// - **Slowloris Protection:** Relies on socket-level read timeouts. Callers must
+///   ensure the underlying stream has appropriate timeouts configured via
+///   `set_read_timeout()` before calling this function.
 pub fn read_frame<R: Read>(reader: &mut R) -> TypesResult<Vec<u8>> {
     let mut len_le = [0u8; 4];
     reader.read_exact(&mut len_le).ctx("read len")?;
@@ -146,12 +161,13 @@ impl Peer {
         magic: [u8; 4],
         noise_config: &NoiseConfig,
     ) -> Result<Self, P2pError> {
-        // Set timeouts on raw stream before handshake
+        // SECURITY: Set socket timeouts for Slowloris protection.
+        // These timeouts apply to all read/write operations on the socket.
         stream
-            .set_read_timeout(Some(Duration::from_secs(30)))
+            .set_read_timeout(Some(Duration::from_secs(SOCKET_TIMEOUT_SECS)))
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
         stream
-            .set_write_timeout(Some(Duration::from_secs(30)))
+            .set_write_timeout(Some(Duration::from_secs(SOCKET_TIMEOUT_SECS)))
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
         // Perform Noise handshake (we are responder for inbound connections)
@@ -192,12 +208,13 @@ impl Peer {
         magic: [u8; 4],
         noise_config: &NoiseConfig,
     ) -> Result<Self, P2pError> {
-        // Set timeouts on raw stream before handshake
+        // SECURITY: Set socket timeouts for Slowloris protection.
+        // These timeouts apply to all read/write operations on the socket.
         stream
-            .set_read_timeout(Some(Duration::from_secs(30)))
+            .set_read_timeout(Some(Duration::from_secs(SOCKET_TIMEOUT_SECS)))
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
         stream
-            .set_write_timeout(Some(Duration::from_secs(30)))
+            .set_write_timeout(Some(Duration::from_secs(SOCKET_TIMEOUT_SECS)))
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
         // Perform Noise handshake (we are initiator for outbound connections)
