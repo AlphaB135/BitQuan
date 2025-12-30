@@ -47,6 +47,19 @@ This document provides comprehensive guidelines for an AI assistant working on t
 
 #### Project Management
 -   `rrr` - Create a detailed session retrospective.
+-   `wip` - Show work in progress.
+-   `standup` - Daily standup summary.
+
+#### Knowledge & Context (Oracle Framework)
+-   `trace` - Search everything (git history, files, issues).
+-   `recap` - Fresh start context summary.
+-   `snapshot` - Quick knowledge capture.
+-   `forward` - Forward context before /clear.
+
+#### Available Agents
+-   `context-finder` (Haiku) - Fast search through git history, files, and codebase.
+-   `executor` (Haiku) - Execute bash commands from specs (files or GitHub issues).
+-   `marie-kondo` (Haiku) - File placement consultant - ask BEFORE creating files.
 
 #### `ck` - Pre-Commit Check (The "100%" Check)
 **Purpose**: Run before marking any task as done to ensure perfection.
@@ -519,6 +532,13 @@ Closes #[issue-number]
 -   **Rule**: Use `flatten()` for cleaner iterator handling
 -   **Rule**: Collapsible-if patterns satisfy clippy and improve readability
 
+### Permanent Rayon/Parallelism Rules
+-   **Rule**: Use `find_first()` not `try_for_each()` for deterministic parallel validation
+-   **Rule**: `find_first()` guarantees lowest-index match; `find_any()` is non-deterministic
+-   **Rule**: Consensus code MUST be deterministic - all nodes must return same error for same input
+-   **Pattern**: `par_iter().map(...).find_first(|r| r.is_err())` = deterministic + zero allocation
+-   **Anti-pattern**: `par_iter().map(...).collect().find()` = huge Vec allocation
+
 ### Planning & Architecture Patterns (Historical)
 -   **Pattern**: 1-hour implementation chunks are optimal for maintaining focus and seeing progress
 -   **Pattern**: Workspace-wide dependency upgrades require careful coordination
@@ -556,6 +576,10 @@ Closes #[issue-number]
 -   **Arc + HashSet pattern** - Separate mutable status (HashSet) from immutable data (Arc<T>) to enable zero-copy sharing while still allowing state updates
 -   **Associated function extraction** - When you only need one field to calculate something, extract as associated fn instead of creating temp objects
 -   **Check before insert pattern** - For HashMap, check condition on value BEFORE insert to avoid needing clone or expect after insert
+-   **Linus-style audit roleplay** - Adversarial mindset catches bugs normal review misses; use checklist (f64, HashMap iteration, overflow, loops, Rayon determinism)
+-   **Never use .sum::<u64>() on user data** - Always use `try_fold` with `checked_add` for any sum of user-controlled values to prevent integer overflow
+-   **RocksDB sync=true for durability** - Create helper `sync_write_opts()` and use `write_opt(batch, &opts)` instead of `write(batch)` for blockchain data
+-   **Deprecation with re-export** - When deprecating an exported item, add `#[allow(deprecated)]` before the `pub use` statement for backwards compatibility
 
 ### Project-Specific Patterns
 -   **BitQuan Security Stack**: rustls-pki-types + thiserror 2.0 + comprehensive dependency auditing
@@ -565,6 +589,9 @@ Closes #[issue-number]
 -   **CI Safety Pattern**: Use checked arithmetic for all time-based operations to prevent panics on low-uptime systems
 -   **Dilithium5 Constants**: SIGNBYTES=4595, PUBLICKEYBYTES=2592, SECRETKEYBYTES=4864 (includes hint bits in signatures)
 -   **Cargo Feature Unification Trap**: When `--all-features` is used, ALL features are enabled simultaneously; must use `cfg!(all(feature = "X", not(feature = "Y")))` for proper priority in BOTH `#[cfg]` attributes AND `cfg!` macro
+-   **Noise Protocol Pattern**: Use `Noise_XX_25519_ChaChaPoly_BLAKE2s` for P2P encryption; XX pattern provides mutual authentication with forward secrecy
+-   **P2P Encryption Integration**: Replace raw `TcpStream` with `NoiseTransport` in Peer struct; send magic bytes AFTER Noise handshake (invisible to DPI)
+-   **Socket Timeout for Slowloris**: Set 30-second read/write timeout on TcpStream BEFORE Noise upgrade to prevent connection exhaustion attacks
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
@@ -602,6 +629,59 @@ lsof -i :[port-number]
 kill -9 [PID]
 ```
 
+## Oracle Framework Integration
+
+### ψ/ Structure (7 Pillars)
+
+The ψ/ (Psi) structure is a 7-pillar knowledge organization system:
+
+```
+ψ/
+├── active/      ← Research in progress (gitignored)
+├── inbox/       ← Communication, focus.md
+├── memory/      ← Knowledge base
+│   ├── retrospectives/
+│   ├── learnings/
+│   └── logs/
+├── writing/     ← Blog drafts
+├── lab/         ← Experiments
+├── incubate/    ← Active development (symlinks)
+└── learn/       ← Study materials (symlinks)
+```
+
+### Focus States
+
+| State | Meaning |
+|-------|---------|
+| `working` | Actively doing task |
+| `focusing` | Deep work, don't interrupt |
+| `pending` | Waiting for input |
+| `completed` | Task done |
+
+### Session Workflow
+
+#### Start Session
+```bash
+# Update focus
+echo "STATE: working
+TASK: [your task]
+SINCE: \$(date '+%H:%M')" > ψ/inbox/focus.md
+```
+
+#### End Session
+```bash
+/rrr   # Create retrospective
+```
+
+### Oracle Philosophy
+
+> "The Oracle Keeps the Human Human"
+
+Three pillars:
+1. **Nothing is Deleted** - Append only, timestamps = truth
+2. **Patterns Over Intentions** - Observe behavior, not promises
+3. **External Brain, Not Command** - Mirror reality, don't decide
+
 ## Appendices
 
 ### A. Glossary
@@ -629,5 +709,5 @@ Ctrl+b, d              # Detach from session
 -   [ ] Environment variables set
 -   [ ] Git configured
 
-**Last Updated**: 2025-12-23
-**Version**: 1.0.1
+**Last Updated**: 2025-12-30
+**Version**: 1.1.0
