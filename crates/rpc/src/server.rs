@@ -5,6 +5,7 @@ use crate::{
     JsonRpcResponse, RpcConfig,
 };
 use base64::Engine;
+use chrono;
 use http::StatusCode;
 use once_cell::sync::Lazy;
 use serde_json::json;
@@ -298,10 +299,9 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
                 force_tls,
                 basic_auth,
                 validator: &validator,
+                jwt_auth: auth.as_ref(),
             };
-            if let Err(e) =
-                handle_connection(stream, peer_ip, handler.as_ref(), auth.as_ref(), options).await
-            {
+            if let Err(e) = handle_connection(stream, peer_ip, handler.as_ref(), options).await {
                 if e.kind() != std::io::ErrorKind::ConnectionReset
                     && e.kind() != std::io::ErrorKind::BrokenPipe
                 {
@@ -320,6 +320,7 @@ struct ConnectionOptions<'a> {
     force_tls: bool,
     basic_auth: Option<(String, String)>,
     validator: &'a Arc<InputValidator>,
+    jwt_auth: Option<&'a AuthMethod>,
 }
 
 enum RpcStream {
@@ -384,7 +385,6 @@ async fn handle_connection<T: methods::RpcMethods>(
     mut stream: TcpStream,
     peer_ip: IpAddr,
     handler: &T,
-    _auth: Option<&AuthMethod>,
     options: ConnectionOptions<'_>,
 ) -> std::io::Result<()> {
     let start = Instant::now();
@@ -602,6 +602,73 @@ async fn handle_connection<T: methods::RpcMethods>(
         }
     }
     // --- End Basic Authentication Check ---
+
+    // --- JWT Bearer Token Authentication ---
+    if config.require_jwt_auth {
+        let auth_header = req
+            .headers
+            .iter()
+            .find(|h| h.name.eq_ignore_ascii_case("authorization"))
+            .and_then(|h| std::str::from_utf8(h.value).ok());
+
+        let jwt_result = verify_jwt_token(
+            auth_header,
+            options.jwt_auth,
+            config.jwt_max_age_secs,
+            peer_ip,
+        );
+
+        if let Err(jwt_error) = jwt_result {
+            // Log JWT authentication failure
+            let auth_event = SecurityEvent::new(
+                peer_ip.to_string(),
+                SecurityEventType::AuthenticationFailed,
+                SecuritySeverity::Medium,
+                json!({
+                    "action": "authentication_failed",
+                    "auth_type": "jwt_bearer",
+                    "error": jwt_error,
+                    "has_auth_header": auth_header.is_some(),
+                }),
+            );
+            auth_event.log();
+
+            // Record auth failure for backoff
+            {
+                let mut backoff_map = options.auth_backoff.lock().await;
+                let state = backoff_map
+                    .entry(peer_ip)
+                    .or_insert_with(|| BackoffState::new(5, Duration::from_secs(900)));
+                state.record_failure();
+            }
+
+            let error_body = serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32001,
+                    "message": "Unauthorized",
+                    "data": jwt_error
+                },
+                "id": null
+            });
+            let error_json = serde_json::to_string(&error_body).unwrap_or_default();
+            let response = format!(
+                "HTTP/1.1 401 Unauthorized\r\n\
+                 WWW-Authenticate: Bearer realm=\"BitQuan RPC\"\r\n\
+                 Content-Type: application/json\r\n\
+                 Content-Length: {}\r\n\
+                 Connection: close\r\n\r\n{}",
+                error_json.len(),
+                error_json
+            );
+            let stream_inner = buf_reader.into_inner();
+            stream_inner.write_all(response.as_bytes()).await?;
+            stream_inner.flush().await?;
+            stream_inner.shutdown().await?;
+            return Ok(());
+        }
+    }
+    // --- End JWT Bearer Token Authentication ---
 
     // --- End Header Parsing ---
 
@@ -1039,4 +1106,73 @@ impl RpcMetrics {
         _body_timeout: bool,
     ) {
     }
+}
+
+/// Verify JWT Bearer token from Authorization header.
+///
+/// Validates:
+/// 1. Authorization header is present and starts with "Bearer "
+/// 2. Token signature is valid
+/// 3. Token is not expired
+/// 4. Token `iat` (issued at) is within acceptable age
+///
+/// # Arguments
+/// * `auth_header` - The Authorization header value
+/// * `jwt_auth` - The JWT authentication manager
+/// * `max_age_secs` - Maximum age for the `iat` claim
+/// * `peer_ip` - Client IP for logging
+///
+/// # Returns
+/// * `Ok(())` if token is valid
+/// * `Err(String)` with error message if validation fails
+fn verify_jwt_token(
+    auth_header: Option<&str>,
+    jwt_auth: Option<&AuthMethod>,
+    max_age_secs: u64,
+    peer_ip: IpAddr,
+) -> Result<(), String> {
+    // Check if JWT auth is configured
+    let jwt = jwt_auth.ok_or("JWT authentication not configured")?;
+
+    // Check Authorization header
+    let header = auth_header.ok_or("Missing Authorization header")?;
+
+    // Extract Bearer token
+    let token = header
+        .strip_prefix("Bearer ")
+        .ok_or("Authorization header must use Bearer scheme")?;
+
+    // Verify token signature and expiration
+    let claims = jwt.verify_token(token)?;
+
+    // Check token freshness (iat claim)
+    let now = chrono::Utc::now().timestamp();
+    let token_age = now.saturating_sub(claims.iat);
+
+    if token_age < 0 {
+        warn!(
+            "JWT token from {} has future iat: {} seconds in the future",
+            peer_ip, -token_age
+        );
+        return Err("Token issued in the future".to_string());
+    }
+
+    if token_age > max_age_secs as i64 {
+        info!(
+            "JWT token from {} is stale: {} seconds old (max: {})",
+            peer_ip, token_age, max_age_secs
+        );
+        return Err(format!(
+            "Token too old: {} seconds (max: {})",
+            token_age, max_age_secs
+        ));
+    }
+
+    // Token is valid
+    info!(
+        "JWT authentication successful for user '{}' (role: {}) from {}",
+        claims.sub, claims.role, peer_ip
+    );
+
+    Ok(())
 }

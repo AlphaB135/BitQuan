@@ -59,6 +59,16 @@ pub struct RpcConfig {
     pub rate_limit_window: u32,
     /// Connection cooldown duration for rate limit violations
     pub cooldown_duration: Duration,
+    /// Require JWT authentication for all RPC requests.
+    ///
+    /// When enabled, all requests must include `Authorization: Bearer <token>`.
+    /// The token is verified against the JWT secret in `jwt.hex`.
+    pub require_jwt_auth: bool,
+    /// Maximum age for JWT `iat` (issued at) claim in seconds.
+    ///
+    /// Tokens older than this will be rejected to prevent replay attacks.
+    /// Default: 60 seconds (Ethereum Engine API default).
+    pub jwt_max_age_secs: u64,
 }
 
 impl Default for RpcConfig {
@@ -84,6 +94,8 @@ impl Default for RpcConfig {
             rate_limit_requests: 100, // 100 requests per window
             rate_limit_window: 1,     // 1 minute window
             cooldown_duration: Duration::from_secs(5), // 5 second cooldown
+            require_jwt_auth: false,  // Disabled by default for backwards compatibility
+            jwt_max_age_secs: 60,     // Ethereum Engine API default
         }
     }
 }
@@ -92,12 +104,14 @@ impl RpcConfig {
     /// Creates a mainnet-safe configuration with strict security settings.
     pub fn mainnet() -> Self {
         Self {
-            require_tls: true,        // ✅ Mandatory TLS
-            allow_self_signed: false, // ❌ No self-signed certs
+            require_tls: true,        // Mandatory TLS
+            allow_self_signed: false, // No self-signed certs
             enable_hsts: true,
             hsts_max_age: 31536000,
             hsts_include_subdomains: true,
-            enforce_host_validation: true, // ✅ Enforce Host validation
+            enforce_host_validation: true, // Enforce Host validation
+            require_jwt_auth: true,        // Mandatory JWT authentication
+            jwt_max_age_secs: 60,          // Strict 60s token freshness
             ..Default::default()
         }
     }
@@ -108,6 +122,7 @@ impl RpcConfig {
             require_tls: false,      // Optional TLS
             allow_self_signed: true, // Allow self-signed
             enable_hsts: false,
+            require_jwt_auth: false, // Optional JWT for easier testing
             ..Default::default()
         }
     }
