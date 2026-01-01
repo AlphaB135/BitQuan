@@ -24,7 +24,6 @@ pub const GENESIS_REWARD: u64 = 5_000_000_000; // 50 BQ in qbits
 pub const GENESIS_NONCE: u64 = 2;
 
 /// Genesis block hash (double SHA256, displayed big-endian)
-/// Updated for Jan 1, 2025 launch
 pub const GENESIS_HASH: &str = "cac0577af8fb0f988f64dbdd9b79c36d25f5cc7208dd66f8c97daa46bb9ec583";
 
 /// Genesis block hash bytes (big-endian)

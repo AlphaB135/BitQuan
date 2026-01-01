@@ -283,6 +283,27 @@ The `ccc` → `nnn` workflow uses a two-issue pattern:
 
 This separation ensures a clear distinction between context dumps and actionable tasks, leading to better organization and cleaner task tracking. `nnn` intelligently checks for a recent context issue and creates one if it's missing.
 
+### Session Triggers (AUTO-RUN)
+
+#### 🚀 เปิด Session ใหม่ (Start)
+เมื่อเริ่ม conversation ใหม่ ให้รันทันที:
+```
+1. /recap              ← สรุป context จาก session ก่อน
+2. Read ψ/inbox/focus.md   ← ดู task ล่าสุด + next steps
+3. git status          ← เช็คว่ามี uncommitted changes ไหม
+4. git log -5          ← ดู commits ล่าสุด
+```
+
+#### 🔚 ปิด Session ("บันทึกความรู้" / "rrr")
+เมื่อ user บอก **"บันทึกความรู้"** หรือ **"rrr"** ให้รัน:
+```
+1. /snapshot                    ← บันทึก insight หลักของ session
+2. Update ψ/inbox/focus.md      ← STATE: completed + next steps
+3. Create retrospective         ← .claude/retrospectives/YYYY/MM/
+4. Update CLAUDE.md             ← เพิ่ม lessons learned (append only)
+5. git status                   ← เช็คว่า commit หมดยัง
+```
+
 ### Core Short Codes
 
 #### `ccc` - Create Context & Compact
@@ -519,6 +540,10 @@ Closes #[issue-number]
 -   **Rule**: Always use fully qualified syntax `<Type>::method()` to resolve trait conflicts
 -   **Rule**: Use scoped blocks `{ let data = lock()?; data }` for async lock management
 -   **Rule**: Always zeroize cryptographic keys and sensitive data after use
+-   **Rule**: NEVER use `Validation::default()` for JWT - it accepts `alg: "none"` attack
+-   **Rule**: Always use `Validation::new(Algorithm::HS256)` with explicit algorithm enforcement
+-   **Rule**: JWT validation must include leeway (60s) for clock drift tolerance
+-   **Rule**: Secret files (jwt.hex) must use 0o600 permissions (owner read/write only)
 
 ### Permanent CI/CD Rules
 -   **Rule**: Clippy warnings must be resolved before CI can pass
@@ -580,6 +605,12 @@ Closes #[issue-number]
 -   **Never use .sum::<u64>() on user data** - Always use `try_fold` with `checked_add` for any sum of user-controlled values to prevent integer overflow
 -   **RocksDB sync=true for durability** - Create helper `sync_write_opts()` and use `write_opt(batch, &opts)` instead of `write(batch)` for blockchain data
 -   **Deprecation with re-export** - When deprecating an exported item, add `#[allow(deprecated)]` before the `pub use` statement for backwards compatibility
+-   **JWT Algorithm None attack** - `Validation::default()` in jsonwebtoken crate accepts ANY algorithm including "none"; attackers can forge tokens without signatures
+-   **Linus-style security audit** - Before shipping auth code, roleplay as attacker: "What if I change alg to none? What if I modify claims?"
+-   **Security test pattern** - Write tests that PROVE vulnerabilities are blocked, not just that happy path works
+-   **Slash command registration** - New commands in `.claude/commands/` require Claude Code restart to register
+-   **Oracle Framework knowledge flow** - `logs → retrospectives → learnings → resonance` (raw → patterns → soul)
+-   **Oracle Philosophy** - "Nothing is deleted, Patterns over intentions, External brain not command"
 
 ### Project-Specific Patterns
 -   **BitQuan Security Stack**: rustls-pki-types + thiserror 2.0 + comprehensive dependency auditing
