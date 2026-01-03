@@ -22,6 +22,7 @@ mod tx_builder;
 mod utxo;
 mod vardiff;
 mod wallet;
+mod worker;
 mod ws_dashboard;
 
 use bitquan_consensus::{
@@ -1111,70 +1112,131 @@ fn run_node(
 }
 
 fn start_p2p_server(addr: &str, network: NetworkId) -> Result<()> {
+    use bitquan_network::noise::NoiseConfig;
+    use bitquan_network::peer::{Peer, PeerManager};
+    use std::sync::Arc;
+
     let listener = TcpListener::bind(addr)?;
     listener.set_nonblocking(false)?;
-    println!("P2P server listening at {addr} (network: {:?})", network);
-    loop {
-        let (stream, peer) = listener.accept()?;
-        println!("Incoming connection from {peer}");
-        thread::spawn(move || {
-            if let Err(e) = handle_peer(stream, network) {
-                eprintln!("peer error: {e}");
+    println!("🌐 P2P server listening at {} (network: {:?})", addr, network);
+
+    // Generate Noise Protocol keypair for this session
+    let noise_config = Arc::new(NoiseConfig::generate()
+        .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
+    println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
+
+    // Create peer manager
+    let max_peers = 50;
+    let peer_manager = Arc::new(PeerManager::new(max_peers, network, noise_config.clone()));
+
+    // Create storage (in-memory for now)
+    let storage = Arc::new(InMemoryChainStore::new());
+
+    // Create tokio runtime for async worker
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| Error::Invalid(format!("failed to create runtime: {e}")))?;
+
+    // Accept connections in a loop
+    rt.block_on(async {
+        loop {
+            match listener.accept() {
+                Ok((stream, peer_addr)) => {
+                    println!("📥 Incoming connection from {}", peer_addr);
+
+                    // Clone shared state for this peer
+                    let noise_config_clone = noise_config.clone();
+                    let peer_manager_clone = peer_manager.clone();
+                    let storage_clone = storage.clone();
+                    let network_clone = network;
+
+                    // Spawn peer handler in async task
+                    tokio::spawn(async move {
+                        // Perform Noise Protocol handshake and create Peer
+                        let peer_result = Peer::new_inbound(stream, peer_addr, network_magic(network_clone), &noise_config_clone);
+
+                        match peer_result {
+                            Ok(mut peer) => {
+                                // Perform version handshake
+                                if let Err(e) = perform_version_handshake(&mut peer, network_clone).await {
+                                    eprintln!("❌ Version handshake failed for {}: {}", peer.addr, e);
+                                    return;
+                                }
+
+                                // Create worker context
+                                let ctx = Arc::new(worker::WorkerContext::new(
+                                    peer_manager_clone,
+                                    storage_clone,
+                                    network_clone,
+                                ));
+
+                                // Run peer message loop
+                                if let Err(e) = worker::run_peer_loop(peer, ctx).await {
+                                    eprintln!("❌ Peer error: {}", e);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("❌ Peer connection failed: {}", e);
+                            }
+                        }
+                    });
+                }
+                Err(e) => {
+                    eprintln!("❌ Accept error: {}", e);
+                }
             }
-        });
-    }
+        }
+    });
+
+    Ok(())
 }
 
-fn handle_peer(stream: TcpStream, network: NetworkId) -> Result<()> {
-    stream.set_read_timeout(Some(Duration::from_secs(30)))?;
-    stream.set_write_timeout(Some(Duration::from_secs(30)))?;
+/// Perform version handshake with peer.
+async fn perform_version_handshake(peer: &mut Peer, network: NetworkId) -> Result<()> {
+    use bitquan_network::protocol::{Message, MessageEnvelope};
+
     let magic = network_magic(network);
 
-    // Simple handshake: expect Version -> send VerAck, reply with our Version -> expect optional VerAck
-    let env = read_envelope(&stream, magic)?;
-    match env.message {
-        Message::Version { .. } => {
-            let version = Message::Version {
+    // Wait for version message
+    let msg = peer.recv_message()?;
+    match msg {
+        Message::Version { version, services, timestamp, user_agent, start_height } => {
+            peer.version = Some(version);
+            peer.services = Some(services);
+            peer.user_agent = Some(user_agent.clone());
+            peer.start_height = Some(start_height);
+
+            log::info!("🤝 Handshake: {} (v{}, {}, height={})",
+                user_agent, version, peer.addr, start_height);
+
+            // Send our version
+            let our_version = Message::Version {
                 version: PROTOCOL_VERSION,
                 services: 1,
-                timestamp: 1_700_000_000,
-                user_agent: "BitQuan/0.1.0".into(),
-                start_height: 0,
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+                user_agent: env!("CARGO_PKG_NAME").to_string(),
+                start_height: 0, // TODO: Get from chain state
             };
-            write_envelope(&stream, &MessageEnvelope::new(magic, version))?;
-            write_envelope(&stream, &MessageEnvelope::new(magic, Message::VerAck))?;
+
+            peer.send_message(our_version)?;
+            peer.send_message(Message::VerAck)?;
         }
         _ => {
-            write_envelope(
-                &stream,
-                &MessageEnvelope::new(
-                    magic,
-                    Message::Reject {
-                        message: "expected version".into(),
-                        code: bitquan_network::protocol::RejectCode::Malformed,
-                        reason: "handshake".into(),
-                    },
-                ),
-            )?;
-            return Ok(());
+            return Err(Error::Invalid("expected version message".to_string()));
         }
     }
 
-    // Minimal message loop: respond to Ping with Pong
-    loop {
-        let msg = read_envelope(&stream, magic)?;
-        match msg.message {
-            Message::Ping { nonce } => write_envelope(
-                &stream,
-                &MessageEnvelope::new(magic, Message::Pong { nonce }),
-            )?,
-            Message::GetAddr => write_envelope(
-                &stream,
-                &MessageEnvelope::new(magic, Message::Addr { addrs: vec![] }),
-            )?,
-            _ => {}
-        }
+    // Wait for verack (optional, some nodes skip it)
+    let next_msg = peer.recv_message();
+    if let Ok(Message::VerAck) = next_msg {
+        log::debug!("✅ VerAck received from {}", peer.addr);
     }
+
+    peer.state = bitquan_network::peer::PeerState::Ready;
+
+    Ok(())
 }
 
 /// Mine the genesis block
