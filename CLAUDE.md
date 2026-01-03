@@ -674,6 +674,13 @@ Closes #[issue-number]
 -   **Linus Mode Decision Framework** (2026-01-04): Using persona (Linus Torvalds) provides clarity in uncertain technical situations; Ask "what would Linus do?" - he cares about code quality (clippy), functionality (tests), security; NOT infrastructure issues (missing system libraries)
 -   **Honest PR Descriptions** (2026-01-04): PR descriptions must match code reality, not aspirations; If features are stubs/partial, SAY SO with ⚠️ IMPORTANT section; Misleading descriptions erode trust
 -   **Separation of Concerns in CI** (2026-01-04): Distinguish "code issues" (clippy warnings) from "infrastructure issues" (missing libudev); Real checks (clippy, tests, security) = blockers; CI tooling failures = technical debt
+-   **Use Existing Code Before Writing New** (2026-01-04): Always explore codebase for existing implementations before coding from scratch; ConsensusEngine already had full validation (Merkle, Coinbase, Signatures) - we just wired it up; Rewriting existing code wastes hours and introduces bugs
+-   **Parallel Agents for Fast Exploration** (2026-01-04): Launch multiple Task agents simultaneously to explore different aspects (consensus code + worker integration); Saves ~10 minutes vs sequential; Synthesize results before planning
+-   **Extended Context Structs Pattern** (2026-01-04): When adding new features, extend existing context structs rather than creating new patterns; WorkerContext was already shared state for peer workers; Added consensus, network_id, genesis_hash fields to maintain consistency
+-   **Explicit Drop Before Async Boundaries** (2026-01-04): Always drop MutexGuard BEFORE .await points to prevent deadlocks; Pattern: `let lock = mutex.lock().await; ...; drop(lock); async_op().await;` - Clippy will warn if you miss this
+-   **Psychological Checkpoints via Merge** (2026-01-04): Merging to main creates "save points" that provide completion and prevent branch staleness; Plan features in mergeable chunks; Celebrate milestones: "งานเสร็จไปอีกเปลาะ"; Continue next feature in fresh branch
+-   **ConsensusEngine Integration Pattern** (2026-01-04): Use `Arc<TokioMutex<ConsensusEngine>>` for async-safe shared state; Each peer worker acquires lock, validates, releases lock; Critical: `drop(engine)` before async storage operations to prevent deadlocks
+-   **Knowledge Capture Workflow** (2026-01-04): Systematically capture via `/snapshot` → `focus.md` update → retrospective → CLAUDE.md append; Without capture, insights are lost; With capture, patterns emerge and can be reused
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
