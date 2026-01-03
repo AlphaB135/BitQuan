@@ -1562,11 +1562,16 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
 
     // Initialize PeerManager if peers are specified
     let peer_manager = if !peers.is_empty() {
-        use bitquan_network::PeerManager;
+        use bitquan_network::{NoiseConfig, PeerManager};
         println!("\n=== P2P Network Configuration ===");
         println!("Connecting to {} peer(s)...", peers.len());
 
-        let pm = Arc::new(PeerManager::new(peers.len(), network));
+        // Generate Noise Protocol keypair for P2P encryption
+        let noise_config = Arc::new(NoiseConfig::generate()
+            .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
+        println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
+
+        let pm = Arc::new(PeerManager::new(peers.len(), network, noise_config));
 
         // Update peer manager with current chain height
         let current_height = {
@@ -2918,14 +2923,20 @@ async fn p2p_server(
     }
 
     // Create relay manager
-    use bitquan_network::RelayManager;
+    use bitquan_network::{NoiseConfig, RelayManager};
     let relay_manager = Arc::new(RelayManager::new(10000));
+
+    // Generate Noise Protocol keypair for P2P encryption
+    let noise_config = Arc::new(NoiseConfig::generate()
+        .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
+    println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
 
     // Create peer manager with relay support
     let peer_manager = Arc::new(PeerManager::with_relay(
         max_peers,
         relay_manager.clone(),
         network,
+        noise_config,
     ));
     if let Err(e) = peer_manager.update_height(height) {
         eprintln!("⚠️  Failed to update peer height: {}", e);
@@ -2979,14 +2990,19 @@ async fn p2p_server(
 
 /// Connect to a peer as a client
 fn p2p_connect(peer: &str, height: u64) -> Result<()> {
-    use bitquan_network::PeerManager;
+    use bitquan_network::{NoiseConfig, PeerManager};
     use std::sync::Arc;
 
     println!("BitQuan P2P Client");
     println!("Connecting to: {}", peer);
     println!("Our height: {}", height);
 
-    let peer_manager = Arc::new(PeerManager::new(1, NetworkId::Mainnet));
+    // Generate Noise Protocol keypair for P2P encryption
+    let noise_config = Arc::new(NoiseConfig::generate()
+        .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
+    println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
+
+    let peer_manager = Arc::new(PeerManager::new(1, NetworkId::Mainnet, noise_config));
     if let Err(e) = peer_manager.update_height(height) {
         eprintln!("⚠️  Failed to update peer height: {}", e);
     }
