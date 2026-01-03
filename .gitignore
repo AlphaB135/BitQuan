@@ -2,7 +2,6 @@
 **/*.rs.bk
 /.trunk/tmp/
 data/
-.DS_Store
 .agents
 
 CLAUDE.md
@@ -26,8 +25,6 @@ forks/
 *.bak
 *-e
 *.tmp
-.DS_Store
-._*
 .!*!.*
 
 # Wallet files
@@ -69,15 +66,6 @@ package-lock.json
 *.swp
 *.swo
 *~
-
-# OS files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
 # Temporary files
 *.tmp
@@ -249,12 +237,6 @@ fuzz/*/incremental/
 fuzz/**/incremental/
 fuzz/*/.fingerprint/
 fuzz/**/.fingerprint/
-
-# macOS metadata files (EXFAT filesystem)
-._*
-._.DS_Store
-**/._.DS_Store
-**/._*
 
 # Agent and AI assistant files
 .agents/
