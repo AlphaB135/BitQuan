@@ -623,6 +623,10 @@ Closes #[issue-number]
 -   **Noise Protocol Pattern**: Use `Noise_XX_25519_ChaChaPoly_BLAKE2s` for P2P encryption; XX pattern provides mutual authentication with forward secrecy
 -   **P2P Encryption Integration**: Replace raw `TcpStream` with `NoiseTransport` in Peer struct; send magic bytes AFTER Noise handshake (invisible to DPI)
 -   **Socket Timeout for Slowloris**: Set 30-second read/write timeout on TcpStream BEFORE Noise upgrade to prevent connection exhaustion attacks
+-   **AsyncStoreWrapper Bridge Pattern** (2026-01-04): Use `AsyncStoreWrapper<T>` to bridge sync `ChainStore` to async `AsyncChainStore`; wraps in `Arc<Mutex<T>>` for shared access across async tasks; WorkerContext should use `Arc<dyn AsyncChainStore>` NOT `Arc<dyn ChainStore>`
+-   **P2P Worker Architecture** (2026-01-04): Extract P2P message processing to dedicated `worker.rs` module; use `TcpListener` + `tokio::spawn` instead of `P2PListener`; each peer task runs `worker::run_peer_loop()` for actual message processing
+-   **Shared Storage Pattern** (2026-01-04): Open RocksDB ONCE at startup, Arc-clone to all consumers (P2P, RPC, Miner); NEVER create separate `InMemoryChainStore` per component - causes "Disconnected Brain" syndrome
+-   **Message vs MessageEnvelope** (2026-01-04): `Peer::send_message()` expects `Message` enum, NOT `&MessageEnvelope`; envelope wrapping is handled internally; always check function signatures before passing arguments
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*

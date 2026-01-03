@@ -99,7 +99,7 @@ pub trait AsyncChainStore: Send + Sync {
     ) -> std::result::Result<Option<Transaction>, AsyncStoreError>;
 
     /// Insert a block into the store
-    async fn insert_block(&mut self, block: Block) -> std::result::Result<(), AsyncStoreError>;
+    async fn insert_block(&self, block: Block) -> std::result::Result<(), AsyncStoreError>;
 
     /// Check if a block exists
     async fn has_block(&self, hash: &[u8; 32]) -> std::result::Result<bool, AsyncStoreError>;
@@ -180,7 +180,7 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
         .map_err(AsyncStoreError::TaskSpawn)??)
     }
 
-    async fn insert_block(&mut self, block: Block) -> std::result::Result<(), AsyncStoreError> {
+    async fn insert_block(&self, block: Block) -> std::result::Result<(), AsyncStoreError> {
         let store = Arc::clone(&self.inner);
 
         Ok(tokio::task::spawn_blocking(move || {

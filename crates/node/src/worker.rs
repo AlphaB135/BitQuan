@@ -5,12 +5,13 @@
 //! with the chain, mempool, and peer manager.
 
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::Mutex as TokioMutex;
 use bitquan_network::peer::{Peer, PeerManager};
-use bitquan_network::protocol::{Message, MessageEnvelope, InvVector, InvType, network_magic};
+use bitquan_network::protocol::{Message, InvVector, InvType, RejectCode, network_magic};
 use bitquan_types::{Block, Transaction, NetworkId};
 use bitquan_storage::async_store::AsyncChainStore;
 use bitquan_consensus::header_hash;
+use bitquan_mempool::Mempool;
 
 /// Errors that can occur during peer message processing.
 #[derive(Debug)]
@@ -45,8 +46,8 @@ pub struct WorkerContext {
     pub peer_manager: Arc<PeerManager>,
     /// Blockchain storage (async wrapper for thread-safe access).
     pub storage: Arc<dyn AsyncChainStore>,
-    /// Network magic bytes.
-    pub magic: [u8; 4],
+    /// Transaction mempool.
+    pub mempool: Arc<TokioMutex<Mempool>>,
 }
 
 impl WorkerContext {
@@ -54,12 +55,12 @@ impl WorkerContext {
     pub fn new(
         peer_manager: Arc<PeerManager>,
         storage: Arc<dyn AsyncChainStore>,
-        network: NetworkId,
+        mempool: Arc<TokioMutex<Mempool>>,
     ) -> Self {
         Self {
             peer_manager,
             storage,
-            magic: network_magic(network),
+            mempool,
         }
     }
 }
@@ -329,10 +330,7 @@ async fn handle_block(
         peer.addr
     );
 
-    // TODO: Full consensus validation
-    // For now, just do basic sanity checks and store
-
-    // Check if we already have this block
+    // Step 1: Check if we already have this block
     match ctx.storage.get_block(&block_hash).await {
         Ok(Some(_)) => {
             log::debug!("Block {} already known, ignoring", hex::encode(&block_hash[..8]));
@@ -347,34 +345,46 @@ async fn handle_block(
         }
     }
 
-    // TODO: Run full consensus validation here
-    // For now, just store it (DEV BUILD - DO NOT USE IN PRODUCTION)
+    // Step 2: Validate PoW (basic check - full consensus validation TODO)
+    use bitquan_consensus::check_header_pow;
+    if let Err(e) = check_header_pow(&block.header) {
+        log::warn!("⚠️  Block {} invalid PoW: {}", hex::encode(&block_hash[..8]), e);
+        // Invalid block - reject and disconnect peer
+        let _ = peer.send_message(Message::Reject {
+            message: "block".to_string(),
+            code: RejectCode::Malformed,
+            reason: format!("invalid PoW: {}", e),
+        });
+        return Err(WorkerError::InvalidData(format!("invalid PoW: {}", e)));
+    }
 
-    // Store block (Note: ChainStore uses insert_block, RocksDBStore has connect_block)
-    // We need mutable access to storage, but ctx.storage is Arc<dyn ChainStore>
-    // TODO: This requires refactoring - storage needs interior mutability
-    // For now, just log the block (DEV BUILD - DO NOT USE IN PRODUCTION)
-    log::warn!("⚠️  Block {} received but storage is immutable (TODO: fix)", hex::encode(&block_hash[..8]));
+    log::debug!("✅ Block {} PoW valid", hex::encode(&block_hash[..8]));
 
-    // Uncomment when storage has interior mutability:
-    // if let Err(e) = ctx.storage.insert_block(block) {
-    //     log::error!("Failed to insert block {}: {}", hex::encode(&block_hash[..8]), e);
-    //     return Err(WorkerError::Storage(e.to_string()));
-    // }
+    // Step 3: TODO: Full consensus validation (coinbase, signatures, etc.)
+    // For now, we accept blocks with valid PoW (DEV BUILD - DO NOT USE IN PRODUCTION)
+
+    // Step 4: Insert block into storage
+    if let Err(e) = ctx.storage.insert_block(block.clone()).await {
+        log::error!("❌ Failed to insert block {}: {}", hex::encode(&block_hash[..8]), e);
+        return Err(WorkerError::Storage(e.to_string()));
+    }
 
     log::info!("✅ Block {} connected to chain", hex::encode(&block_hash[..8]));
 
-    // Broadcast Inv to other peers
-    let inv = vec![InvVector {
+    // Step 5: Broadcast Inv to other peers
+    let inv = [InvVector {
         inv_type: InvType::Block,
         hash: block_hash,
     }];
 
-    let inv_msg = MessageEnvelope::new(ctx.magic, Message::Inv { inventory: inv });
-
-    // TODO: Broadcast to all peers except sender
-    // For now, just log
-    log::info!("📢 Broadcasting Inv(Block {}) to network", hex::encode(&block_hash[..8]));
+    match ctx.peer_manager.broadcast_inv(inv[0].clone()) {
+        Ok(count) => {
+            log::info!("📢 Broadcast Block {} to {} peers", hex::encode(&block_hash[..8]), count);
+        }
+        Err(e) => {
+            log::error!("❌ Failed to broadcast Block {}: {}", hex::encode(&block_hash[..8]), e);
+        }
+    }
 
     Ok(true)
 }
@@ -382,7 +392,7 @@ async fn handle_block(
 /// Handle incoming transaction.
 ///
 /// Logic:
-/// 1. Validate the transaction
+/// 1. Validate the transaction (basic checks)
 /// 2. If valid:
 ///    - Add to mempool
 ///    - Broadcast Inv(Tx) to all other peers
@@ -396,12 +406,51 @@ async fn handle_tx(
     let tx_hash = transaction.txid();
     log::info!("💸 Received tx {} from {}", hex::encode(&tx_hash[..8]), peer.addr);
 
-    // TODO: Validate transaction
-    // TODO: Add to mempool
-    // TODO: Broadcast Inv to other peers
+    // Step 1: Basic validation (Mempool::insert does full validation)
+    // For now, estimate fee as 1 qbit per byte (conservative)
+    let tx_size = transaction.serialized_size_hint().unwrap_or(1000);
+    let estimated_fee = tx_size as u64; // 1 qbit per byte
 
-    // For now, just acknowledge
-    log::debug!("Tx {} received (mempool not integrated)", hex::encode(&tx_hash[..8]));
+    // Step 2: Try to add to mempool (this validates the transaction)
+    let is_new = {
+        let mut mempool = ctx.mempool.lock().await;
+        match mempool.insert(transaction.clone(), estimated_fee) {
+            Ok(()) => {
+                log::info!("✅ Tx {} added to mempool ({} bytes, fee: {})",
+                    hex::encode(&tx_hash[..8]), tx_size, estimated_fee);
+                true
+            }
+            Err(e) => {
+                log::warn!("⚠️  Tx {} rejected: {}", hex::encode(&tx_hash[..8]), e);
+                // Send reject message
+                let _ = peer.send_message(Message::Reject {
+                    message: "tx".to_string(),
+                    code: RejectCode::Malformed,
+                    reason: e.to_string(),
+                });
+                return Ok(true); // Don't disconnect, just reject
+            }
+        }
+    };
+
+    // Step 3: Broadcast Inv to other peers if new
+    if is_new {
+        let inv = [InvVector {
+            inv_type: InvType::Tx,
+            hash: tx_hash,
+        }];
+
+        match ctx.peer_manager.broadcast_inv(inv[0].clone()) {
+            Ok(count) => {
+                log::info!("📢 Broadcast Tx {} to {} peers", hex::encode(&tx_hash[..8]), count);
+            }
+            Err(e) => {
+                log::error!("❌ Failed to broadcast Tx {}: {}", hex::encode(&tx_hash[..8]), e);
+            }
+        }
+    } else {
+        log::debug!("Tx {} already in mempool, skipping broadcast", hex::encode(&tx_hash[..8]));
+    }
 
     Ok(true)
 }
@@ -413,7 +462,7 @@ async fn handle_tx(
 /// 2. Send up to 2000 headers starting from common ancestor + 1
 async fn handle_get_headers(
     peer: &mut Peer,
-    ctx: &WorkerContext,
+    _ctx: &WorkerContext,
     locator_hashes: Vec<[u8; 32]>,
     stop_hash: [u8; 32],
 ) -> Result<bool, WorkerError> {
@@ -450,7 +499,7 @@ pub async fn perform_version_handshake(
 ) -> Result<(), WorkerError> {
     use bitquan_network::protocol::{Message, PROTOCOL_VERSION};
 
-    let magic = network_magic(network);
+    let _magic = network_magic(network);
 
     // Wait for version message
     let msg = peer.recv_message()?;

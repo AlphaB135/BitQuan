@@ -1111,7 +1111,7 @@ fn run_node(
 
     rt.block_on(async {
         p2p_server(
-            &p2p_addr,
+            p2p_addr,
             50, // max_peers
             datadir,
             RpcServerOptions {
@@ -2677,8 +2677,9 @@ async fn p2p_server(
     rpc: RpcServerOptions<'_>,
     network: NetworkId,
 ) -> Result<()> {
-    use bitquan_network::{P2PListener, PeerManager};
+    use bitquan_network::PeerManager;
     use bitquan_storage::AsyncChainStore;
+    use bitquan_mempool::Mempool;
     #[cfg(feature = "rocksdb-backend")]
     use std::path::Path;
     use std::sync::Arc;
@@ -2922,6 +2923,12 @@ async fn p2p_server(
         eprintln!("⚠️  Failed to update peer height: {}", e);
     }
 
+    // Create mempool for transaction relay
+    let mempool = Arc::new(tokio::sync::Mutex::new(
+        Mempool::new().map_err(|e| Error::Invalid(format!("failed to create mempool: {e}")))?
+    ));
+    println!("💾 Mempool initialized (max 300 MB)");
+
     // Bind TCP listener
     let listener = TcpListener::bind(listen)
         .map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
@@ -2943,7 +2950,9 @@ async fn p2p_server(
 
     // Create shared storage reference for worker context
     // Note: store is Arc<AsyncStoreWrapper<RocksDBStore>> which implements AsyncChainStore
-    let store_arc = store.clone().unwrap();
+    let Some(store_arc) = store.clone() else {
+        return Err(Error::Invalid("P2P server requires storage backend".to_string()));
+    };
 
     // Accept connections loop - spawn worker task for each peer
     loop {
@@ -2955,6 +2964,7 @@ async fn p2p_server(
                 let noise_config_clone = noise_config.clone();
                 let peer_manager_clone = peer_manager.clone();
                 let store_clone = store_arc.clone();
+                let mempool_clone = mempool.clone();
                 let network_clone = network;
 
                 // Spawn async task for this peer
@@ -2979,7 +2989,7 @@ async fn p2p_server(
                             let ctx = Arc::new(worker::WorkerContext::new(
                                 peer_manager_clone,
                                 store_clone,
-                                network_clone,
+                                mempool_clone,
                             ));
 
                             // Run peer message loop (this is where the magic happens!)
