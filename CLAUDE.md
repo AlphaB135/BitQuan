@@ -671,6 +671,9 @@ Closes #[issue-number]
 -   **DoS Protection Pattern** (2026-01-04): Limit message sizes aggressively (2MB not 10MB); 80% reduction in attack surface with negligible functional impact; legitimate blocks ~1MB typical
 -   **Boris Cherny Workflow** (2026-01-04): "The future is about problem-solving and delivering high-quality work"; AI as force multiplier NOT replacement; Plan mode → Verify → Deliver; Quality comes from planning not execution
 -   **Slash Command Automation** (2026-01-04): Create commands for repeated workflows (/ck for pre-commit, /gogogo for execution); prevents prompt repetition and ensures consistency across sessions
+-   **Linus Mode Decision Framework** (2026-01-04): Using persona (Linus Torvalds) provides clarity in uncertain technical situations; Ask "what would Linus do?" - he cares about code quality (clippy), functionality (tests), security; NOT infrastructure issues (missing system libraries)
+-   **Honest PR Descriptions** (2026-01-04): PR descriptions must match code reality, not aspirations; If features are stubs/partial, SAY SO with ⚠️ IMPORTANT section; Misleading descriptions erode trust
+-   **Separation of Concerns in CI** (2026-01-04): Distinguish "code issues" (clippy warnings) from "infrastructure issues" (missing libudev); Real checks (clippy, tests, security) = blockers; CI tooling failures = technical debt
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
