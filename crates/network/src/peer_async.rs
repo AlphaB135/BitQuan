@@ -3,7 +3,7 @@
 //! This module provides an async version of the Peer struct that properly
 //! protects against Slowloris attacks using tokio::time::timeout.
 
-use crate::protocol::{Message, MessageEnvelope, P2pError, PROTOCOL_VERSION, MAX_MESSAGE_SIZE};
+use crate::protocol::{Message, MessageEnvelope, P2pError, MAX_MESSAGE_SIZE, PROTOCOL_VERSION};
 use bitquan_types::error::{Error, Result as TypesResult};
 use bitquan_types::ext::ResultExt;
 use std::net::SocketAddr;
@@ -20,7 +20,6 @@ fn unix_timestamp() -> u64 {
         .map(|d| d.as_secs())
         .unwrap_or(0)
 }
-
 
 /// Handshake timeout.
 pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(1_200);

@@ -4,14 +4,14 @@
 //! Each peer runs in its own async task, processing messages and coordinating
 //! with the chain, mempool, and peer manager.
 
-use std::sync::Arc;
-use tokio::sync::Mutex as TokioMutex;
-use bitquan_network::peer::{Peer, PeerManager};
-use bitquan_network::protocol::{Message, InvVector, InvType, RejectCode, network_magic};
-use bitquan_types::{Block, Transaction, NetworkId};
-use bitquan_storage::async_store::AsyncChainStore;
 use bitquan_consensus::header_hash;
 use bitquan_mempool::Mempool;
+use bitquan_network::peer::{Peer, PeerManager};
+use bitquan_network::protocol::{network_magic, InvType, InvVector, Message, RejectCode};
+use bitquan_storage::async_store::AsyncChainStore;
+use bitquan_types::{Block, NetworkId, Transaction};
+use std::sync::Arc;
+use tokio::sync::Mutex as TokioMutex;
 
 /// Errors that can occur during peer message processing.
 #[derive(Debug)]
@@ -152,29 +152,23 @@ async fn handle_message(
         }
 
         // === Inventory Announcements ===
-        Message::Inv { inventory } => {
-            handle_inv(peer, ctx, inventory).await
-        }
+        Message::Inv { inventory } => handle_inv(peer, ctx, inventory).await,
 
         // === Data Requests ===
-        Message::GetData { inventory } => {
-            handle_get_data(peer, ctx, inventory).await
-        }
+        Message::GetData { inventory } => handle_get_data(peer, ctx, inventory).await,
 
         // === Block Data ===
-        Message::Block { block } => {
-            handle_block(peer, ctx, block).await
-        }
+        Message::Block { block } => handle_block(peer, ctx, block).await,
 
         // === Transaction Data ===
-        Message::Tx { transaction } => {
-            handle_tx(peer, ctx, transaction).await
-        }
+        Message::Tx { transaction } => handle_tx(peer, ctx, transaction).await,
 
         // === Block Headers ===
-        Message::GetHeaders { version: _, locator_hashes, stop_hash } => {
-            handle_get_headers(peer, ctx, locator_hashes, stop_hash).await
-        }
+        Message::GetHeaders {
+            version: _,
+            locator_hashes,
+            stop_hash,
+        } => handle_get_headers(peer, ctx, locator_hashes, stop_hash).await,
 
         Message::Headers { headers } => {
             log::info!("📨 Received {} headers from {}", headers.len(), peer.addr);
@@ -189,8 +183,18 @@ async fn handle_message(
         }
 
         // === Rejections ===
-        Message::Reject { message, code, reason } => {
-            log::warn!("⛔ Peer {} rejected {}: {:?} - {}", peer.addr, message, code, reason);
+        Message::Reject {
+            message,
+            code,
+            reason,
+        } => {
+            log::warn!(
+                "⛔ Peer {} rejected {}: {:?} - {}",
+                peer.addr,
+                message,
+                code,
+                reason
+            );
             Ok(true)
         }
 
@@ -219,7 +223,11 @@ async fn handle_inv(
     ctx: &WorkerContext,
     inventory: Vec<InvVector>,
 ) -> Result<bool, WorkerError> {
-    log::debug!("📦 Received {} inv items from {}", inventory.len(), peer.addr);
+    log::debug!(
+        "📦 Received {} inv items from {}",
+        inventory.len(),
+        peer.addr
+    );
 
     let mut to_request: Vec<InvVector> = vec![];
 
@@ -230,7 +238,11 @@ async fn handle_inv(
                 let block_exists = ctx.storage.get_block(&inv.hash).await.is_ok();
 
                 if !block_exists {
-                    log::info!("❓ Missing block: {}, requesting from {}", hex::encode(inv.hash), peer.addr);
+                    log::info!(
+                        "❓ Missing block: {}, requesting from {}",
+                        hex::encode(inv.hash),
+                        peer.addr
+                    );
                     to_request.push(inv);
                 }
             }
@@ -238,7 +250,11 @@ async fn handle_inv(
             InvType::Tx => {
                 // TODO: Check mempool
                 // For now, always request (mempool not integrated yet)
-                log::info!("❓ Requesting tx: {} from {}", hex::encode(inv.hash), peer.addr);
+                log::info!(
+                    "❓ Requesting tx: {} from {}",
+                    hex::encode(inv.hash),
+                    peer.addr
+                );
                 to_request.push(inv);
             }
 
@@ -297,7 +313,10 @@ async fn handle_get_data(
             InvType::Tx => {
                 // TODO: Check mempool first
                 // For now, respond with "not found"
-                log::debug!("Tx {} requested but mempool not integrated", hex::encode(inv.hash));
+                log::debug!(
+                    "Tx {} requested but mempool not integrated",
+                    hex::encode(inv.hash)
+                );
             }
 
             _ => {
@@ -324,7 +343,8 @@ async fn handle_block(
     block: Block,
 ) -> Result<bool, WorkerError> {
     let block_hash = header_hash(&block.header);
-    log::info!("🧱 Received block {} ({} txs) from {}",
+    log::info!(
+        "🧱 Received block {} ({} txs) from {}",
         hex::encode(&block_hash[..8]),
         block.transactions.len(),
         peer.addr
@@ -333,7 +353,10 @@ async fn handle_block(
     // Step 1: Check if we already have this block
     match ctx.storage.get_block(&block_hash).await {
         Ok(Some(_)) => {
-            log::debug!("Block {} already known, ignoring", hex::encode(&block_hash[..8]));
+            log::debug!(
+                "Block {} already known, ignoring",
+                hex::encode(&block_hash[..8])
+            );
             return Ok(true);
         }
         Ok(None) => {
@@ -348,7 +371,11 @@ async fn handle_block(
     // Step 2: Validate PoW (basic check - full consensus validation TODO)
     use bitquan_consensus::check_header_pow;
     if let Err(e) = check_header_pow(&block.header) {
-        log::warn!("⚠️  Block {} invalid PoW: {}", hex::encode(&block_hash[..8]), e);
+        log::warn!(
+            "⚠️  Block {} invalid PoW: {}",
+            hex::encode(&block_hash[..8]),
+            e
+        );
         // Invalid block - reject and disconnect peer
         let _ = peer.send_message(Message::Reject {
             message: "block".to_string(),
@@ -365,11 +392,18 @@ async fn handle_block(
 
     // Step 4: Insert block into storage
     if let Err(e) = ctx.storage.insert_block(block.clone()).await {
-        log::error!("❌ Failed to insert block {}: {}", hex::encode(&block_hash[..8]), e);
+        log::error!(
+            "❌ Failed to insert block {}: {}",
+            hex::encode(&block_hash[..8]),
+            e
+        );
         return Err(WorkerError::Storage(e.to_string()));
     }
 
-    log::info!("✅ Block {} connected to chain", hex::encode(&block_hash[..8]));
+    log::info!(
+        "✅ Block {} connected to chain",
+        hex::encode(&block_hash[..8])
+    );
 
     // Step 5: Broadcast Inv to other peers
     let inv = [InvVector {
@@ -379,10 +413,18 @@ async fn handle_block(
 
     match ctx.peer_manager.broadcast_inv(inv[0].clone()) {
         Ok(count) => {
-            log::info!("📢 Broadcast Block {} to {} peers", hex::encode(&block_hash[..8]), count);
+            log::info!(
+                "📢 Broadcast Block {} to {} peers",
+                hex::encode(&block_hash[..8]),
+                count
+            );
         }
         Err(e) => {
-            log::error!("❌ Failed to broadcast Block {}: {}", hex::encode(&block_hash[..8]), e);
+            log::error!(
+                "❌ Failed to broadcast Block {}: {}",
+                hex::encode(&block_hash[..8]),
+                e
+            );
         }
     }
 
@@ -404,7 +446,11 @@ async fn handle_tx(
     transaction: Transaction,
 ) -> Result<bool, WorkerError> {
     let tx_hash = transaction.txid();
-    log::info!("💸 Received tx {} from {}", hex::encode(&tx_hash[..8]), peer.addr);
+    log::info!(
+        "💸 Received tx {} from {}",
+        hex::encode(&tx_hash[..8]),
+        peer.addr
+    );
 
     // Step 1: Basic validation (Mempool::insert does full validation)
     // For now, estimate fee as 1 qbit per byte (conservative)
@@ -416,8 +462,12 @@ async fn handle_tx(
         let mut mempool = ctx.mempool.lock().await;
         match mempool.insert(transaction.clone(), estimated_fee) {
             Ok(()) => {
-                log::info!("✅ Tx {} added to mempool ({} bytes, fee: {})",
-                    hex::encode(&tx_hash[..8]), tx_size, estimated_fee);
+                log::info!(
+                    "✅ Tx {} added to mempool ({} bytes, fee: {})",
+                    hex::encode(&tx_hash[..8]),
+                    tx_size,
+                    estimated_fee
+                );
                 true
             }
             Err(e) => {
@@ -442,14 +492,25 @@ async fn handle_tx(
 
         match ctx.peer_manager.broadcast_inv(inv[0].clone()) {
             Ok(count) => {
-                log::info!("📢 Broadcast Tx {} to {} peers", hex::encode(&tx_hash[..8]), count);
+                log::info!(
+                    "📢 Broadcast Tx {} to {} peers",
+                    hex::encode(&tx_hash[..8]),
+                    count
+                );
             }
             Err(e) => {
-                log::error!("❌ Failed to broadcast Tx {}: {}", hex::encode(&tx_hash[..8]), e);
+                log::error!(
+                    "❌ Failed to broadcast Tx {}: {}",
+                    hex::encode(&tx_hash[..8]),
+                    e
+                );
             }
         }
     } else {
-        log::debug!("Tx {} already in mempool, skipping broadcast", hex::encode(&tx_hash[..8]));
+        log::debug!(
+            "Tx {} already in mempool, skipping broadcast",
+            hex::encode(&tx_hash[..8])
+        );
     }
 
     Ok(true)
@@ -466,7 +527,11 @@ async fn handle_get_headers(
     locator_hashes: Vec<[u8; 32]>,
     stop_hash: [u8; 32],
 ) -> Result<bool, WorkerError> {
-    log::debug!("📋 GetHeaders: {} locators, stop={}", locator_hashes.len(), hex::encode(&stop_hash[..8]));
+    log::debug!(
+        "📋 GetHeaders: {} locators, stop={}",
+        locator_hashes.len(),
+        hex::encode(&stop_hash[..8])
+    );
 
     // TODO: Implement proper header locator logic
     // For now, send empty response
@@ -504,13 +569,24 @@ pub async fn perform_version_handshake(
     // Wait for version message
     let msg = peer.recv_message()?;
     match msg {
-        Message::Version { version, services: _, timestamp: _, user_agent, start_height } => {
+        Message::Version {
+            version,
+            services: _,
+            timestamp: _,
+            user_agent,
+            start_height,
+        } => {
             peer.version = Some(version);
             peer.user_agent = Some(user_agent.clone());
             peer.start_height = Some(start_height);
 
-            log::info!("🤝 Handshake: {} (v{}, {}, height={})",
-                user_agent, version, peer.addr, start_height);
+            log::info!(
+                "🤝 Handshake: {} (v{}, {}, height={})",
+                user_agent,
+                version,
+                peer.addr,
+                start_height
+            );
 
             // Send our version
             let our_version = Message::Version {
@@ -528,7 +604,9 @@ pub async fn perform_version_handshake(
             peer.send_message(Message::VerAck)?;
         }
         _ => {
-            return Err(WorkerError::InvalidData("expected version message".to_string()));
+            return Err(WorkerError::InvalidData(
+                "expected version message".to_string(),
+            ));
         }
     }
 
@@ -542,4 +620,3 @@ pub async fn perform_version_handshake(
 
     Ok(())
 }
-
