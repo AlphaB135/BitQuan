@@ -1096,147 +1096,58 @@ fn run_node(
     network: NetworkId,
 ) -> Result<()> {
     let p2p_addr = p2p_bind.unwrap_or("0.0.0.0:18444");
-    let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332");
+    let rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332");
 
     println!(
         "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}"
     );
 
-    // Bootstraps placeholder subsystems to illustrate crate integration.
-    let registry = CryptoRegistry::default();
-    let params = ConsensusParams::phase3_defaults();
-    let _engine = ConsensusEngine::new(params, registry);
-    let _storage = InMemoryChainStore::new();
+    // Extract datadir from config (default to ./data/chainstate)
+    let datadir = "./data/chainstate"; // TODO: Load from config file
 
-    start_p2p_server(p2p_addr, network)
-}
-
-fn start_p2p_server(addr: &str, network: NetworkId) -> Result<()> {
-    use bitquan_network::noise::NoiseConfig;
-    use bitquan_network::peer::{Peer, PeerManager};
-    use std::sync::Arc;
-
-    let listener = TcpListener::bind(addr)?;
-    listener.set_nonblocking(false)?;
-    println!("🌐 P2P server listening at {} (network: {:?})", addr, network);
-
-    // Generate Noise Protocol keypair for this session
-    let noise_config = Arc::new(NoiseConfig::generate()
-        .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
-    println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
-
-    // Create peer manager
-    let max_peers = 50;
-    let peer_manager = Arc::new(PeerManager::new(max_peers, network, noise_config.clone()));
-
-    // Create storage (in-memory for now)
-    let storage = Arc::new(InMemoryChainStore::new());
-
-    // Create tokio runtime for async worker
+    // Use the full p2p_server implementation with RocksDB storage
     let rt = tokio::runtime::Runtime::new()
         .map_err(|e| Error::Invalid(format!("failed to create runtime: {e}")))?;
 
-    // Accept connections in a loop
     rt.block_on(async {
-        loop {
-            match listener.accept() {
-                Ok((stream, peer_addr)) => {
-                    println!("📥 Incoming connection from {}", peer_addr);
-
-                    // Clone shared state for this peer
-                    let noise_config_clone = noise_config.clone();
-                    let peer_manager_clone = peer_manager.clone();
-                    let storage_clone = storage.clone();
-                    let network_clone = network;
-
-                    // Spawn peer handler in async task
-                    tokio::spawn(async move {
-                        // Perform Noise Protocol handshake and create Peer
-                        let peer_result = Peer::new_inbound(stream, peer_addr, network_magic(network_clone), &noise_config_clone);
-
-                        match peer_result {
-                            Ok(mut peer) => {
-                                // Perform version handshake
-                                if let Err(e) = perform_version_handshake(&mut peer, network_clone).await {
-                                    eprintln!("❌ Version handshake failed for {}: {}", peer.addr, e);
-                                    return;
-                                }
-
-                                // Create worker context
-                                let ctx = Arc::new(worker::WorkerContext::new(
-                                    peer_manager_clone,
-                                    storage_clone,
-                                    network_clone,
-                                ));
-
-                                // Run peer message loop
-                                if let Err(e) = worker::run_peer_loop(peer, ctx).await {
-                                    eprintln!("❌ Peer error: {}", e);
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("❌ Peer connection failed: {}", e);
-                            }
-                        }
-                    });
-                }
-                Err(e) => {
-                    eprintln!("❌ Accept error: {}", e);
-                }
-            }
-        }
-    });
-
-    Ok(())
-}
-
-/// Perform version handshake with peer.
-async fn perform_version_handshake(peer: &mut Peer, network: NetworkId) -> Result<()> {
-    use bitquan_network::protocol::{Message, MessageEnvelope};
-
-    let magic = network_magic(network);
-
-    // Wait for version message
-    let msg = peer.recv_message()?;
-    match msg {
-        Message::Version { version, services, timestamp, user_agent, start_height } => {
-            peer.version = Some(version);
-            peer.services = Some(services);
-            peer.user_agent = Some(user_agent.clone());
-            peer.start_height = Some(start_height);
-
-            log::info!("🤝 Handshake: {} (v{}, {}, height={})",
-                user_agent, version, peer.addr, start_height);
-
-            // Send our version
-            let our_version = Message::Version {
-                version: PROTOCOL_VERSION,
-                services: 1,
-                timestamp: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-                user_agent: env!("CARGO_PKG_NAME").to_string(),
-                start_height: 0, // TODO: Get from chain state
-            };
-
-            peer.send_message(our_version)?;
-            peer.send_message(Message::VerAck)?;
-        }
-        _ => {
-            return Err(Error::Invalid("expected version message".to_string()));
-        }
-    }
-
-    // Wait for verack (optional, some nodes skip it)
-    let next_msg = peer.recv_message();
-    if let Ok(Message::VerAck) = next_msg {
-        log::debug!("✅ VerAck received from {}", peer.addr);
-    }
-
-    peer.state = bitquan_network::peer::PeerState::Ready;
-
-    Ok(())
+        p2p_server(
+            &p2p_addr,
+            50, // max_peers
+            datadir,
+            RpcServerOptions {
+                listen: Some(rpc_addr),
+                username: None,
+                password: None,
+                #[cfg(feature = "rocksdb-backend")]
+                jwt_config_path: None,
+                #[cfg(feature = "rocksdb-backend")]
+                jwt_secret: None,
+                #[cfg(feature = "rocksdb-backend")]
+                max_body_bytes: 1_000_000,
+                #[cfg(feature = "rocksdb-backend")]
+                rl_burst: 10,
+                #[cfg(feature = "rocksdb-backend")]
+                rl_refill_per_sec: 1,
+                #[cfg(feature = "rocksdb-backend")]
+                conn_cooldown_ms: 1000,
+                #[cfg(feature = "rocksdb-backend")]
+                max_header_bytes: 8192,
+                #[cfg(feature = "rocksdb-backend")]
+                header_timeout_ms: 5000,
+                #[cfg(feature = "rocksdb-backend")]
+                trust_proxy: false,
+                #[cfg(feature = "rocksdb-backend")]
+                trusted_cidr: vec![],
+                #[cfg(feature = "rocksdb-backend")]
+                tls_cert: None,
+                #[cfg(feature = "rocksdb-backend")]
+                tls_key: None,
+                #[cfg(feature = "rocksdb-backend")]
+                allow_insecure: false,
+            },
+            network,
+        ).await
+    })
 }
 
 /// Mine the genesis block
@@ -2808,10 +2719,12 @@ async fn p2p_server(
     #[cfg(feature = "rocksdb-backend")]
     let (height, store) = {
         use bitquan_storage::rocksdb_store::RocksDBStore;
-        let store = RocksDBStore::open(datadir)
+        use bitquan_storage::async_store::AsyncStoreWrapper;
+        let rocksdb_store = RocksDBStore::open(datadir)
             .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
-        let h = store.height().unwrap_or(0);
-        let async_store = Arc::new(bitquan_storage::async_store::AsyncStoreWrapper::new(store));
+        let h = rocksdb_store.height().unwrap_or(0);
+        // Wrap in AsyncStoreWrapper for async P2P worker + RPC use
+        let async_store = Arc::new(AsyncStoreWrapper::new(rocksdb_store));
         (h, Some(async_store))
     };
 
@@ -2984,11 +2897,16 @@ async fn p2p_server(
         println!("RPC server listening on {}", addr);
     }
 
-    // Create relay manager
-    use bitquan_network::{NoiseConfig, RelayManager};
+    // === P2P SERVER SETUP ===
+    use bitquan_network::noise::NoiseConfig;
+    use bitquan_network::peer::Peer;
+    use bitquan_network::RelayManager;
+    use std::net::TcpListener;
+
+    // Create relay manager for transaction relay
     let relay_manager = Arc::new(RelayManager::new(10000));
 
-    // Generate Noise Protocol keypair for P2P encryption
+    // Generate Noise Protocol keypair for P2P encryption (ephemeral, V1)
     let noise_config = Arc::new(NoiseConfig::generate()
         .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
     println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
@@ -2998,55 +2916,92 @@ async fn p2p_server(
         max_peers,
         relay_manager.clone(),
         network,
-        noise_config,
+        noise_config.clone(),
     ));
     if let Err(e) = peer_manager.update_height(height) {
         eprintln!("⚠️  Failed to update peer height: {}", e);
     }
 
-    let listener = P2PListener::bind(listen, peer_manager.clone())
+    // Bind TCP listener
+    let listener = TcpListener::bind(listen)
         .map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
-    let local_addr = listener
-        .local_addr()
+    listener.set_nonblocking(false)?;
+    let local_addr = listener.local_addr()
         .map_err(|e| Error::Invalid(format!("p2p local addr failed: {e}")))?;
-    println!("Server started at {}", local_addr);
-    println!("Waiting for connections...");
+
+    println!("🌐 P2P Server started at {}", local_addr);
+    println!("📊 Current height: {}", height);
+    println!("⏳ Waiting for peer connections...");
     println!();
-    println!("Commands:");
-    println!("  - Press Ctrl+C to stop");
-    println!("  - Peers will sync blockchain automatically");
 
     // Show tip info when we have storage
     if height > 0 {
+        println!("💡 Tip: Use 'mine' command to mine blocks");
+        println!("💡 New blocks will be broadcast to peers automatically");
         println!();
-        println!("Tip: Use 'mine' command to mine blocks");
-        println!("Current height: {}", height);
-        println!("New blocks will be broadcast to peers");
     }
 
-    loop {
-        match listener.accept_one() {
-            Ok(()) => {
-                let count = peer_manager.peer_count().unwrap_or(0);
-                let ready = peer_manager.ready_peer_count().unwrap_or(0);
-                println!("Peer connected! Total: {}, Ready: {}", count, ready);
+    // Create shared storage reference for worker context
+    // Note: store is Arc<AsyncStoreWrapper<RocksDBStore>> which implements AsyncChainStore
+    let store_arc = store.clone().unwrap();
 
-                // TODO: Send inv for tip block to new peer (requires async handling)
+    // Accept connections loop - spawn worker task for each peer
+    loop {
+        match listener.accept() {
+            Ok((stream, peer_addr)) => {
+                println!("📥 Incoming connection from {}", peer_addr);
+
+                // Clone shared state for this peer's task
+                let noise_config_clone = noise_config.clone();
+                let peer_manager_clone = peer_manager.clone();
+                let store_clone = store_arc.clone();
+                let network_clone = network;
+
+                // Spawn async task for this peer
+                tokio::spawn(async move {
+                    // Perform Noise Protocol handshake (encrypted peer creation)
+                    let peer_result = Peer::new_inbound(
+                        stream,
+                        peer_addr,
+                        bitquan_network::protocol::network_magic(network_clone),
+                        &noise_config_clone,
+                    );
+
+                    match peer_result {
+                        Ok(mut peer) => {
+                            // Perform version handshake
+                            if let Err(e) = worker::perform_version_handshake(&mut peer, network_clone).await {
+                                eprintln!("❌ Version handshake failed for {}: {}", peer.addr, e);
+                                return;
+                            }
+
+                            // Create worker context
+                            let ctx = Arc::new(worker::WorkerContext::new(
+                                peer_manager_clone,
+                                store_clone,
+                                network_clone,
+                            ));
+
+                            // Run peer message loop (this is where the magic happens!)
+                            if let Err(e) = worker::run_peer_loop(peer, ctx).await {
+                                eprintln!("❌ Peer {} error: {}", peer_addr, e);
+                            } else {
+                                eprintln!("🔌 Peer {} disconnected normally", peer_addr);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Peer {} connection failed: {}", peer_addr, e);
+                        }
+                    }
+                });
             }
             Err(e) => {
-                eprintln!("Accept error: {}", e);
+                eprintln!("❌ Accept error: {}", e);
             }
         }
 
-        // Cleanup dead peers and old relay data
-        if let Err(e) = peer_manager.cleanup_peers() {
-            eprintln!("⚠️  Peer cleanup failed: {}", e);
-        }
-        if let Err(e) = relay_manager.cleanup() {
-            eprintln!("⚠️  Relay cleanup failed: {}", e);
-        }
-
-        thread::sleep(Duration::from_millis(100));
+        // Small sleep to prevent tight loop on errors
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     }
 }
 

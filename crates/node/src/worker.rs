@@ -9,7 +9,8 @@ use tokio::sync::Mutex;
 use bitquan_network::peer::{Peer, PeerManager};
 use bitquan_network::protocol::{Message, MessageEnvelope, InvVector, InvType, network_magic};
 use bitquan_types::{Block, Transaction, NetworkId};
-use bitquan_storage::ChainStore;
+use bitquan_storage::async_store::AsyncChainStore;
+use bitquan_consensus::header_hash;
 
 /// Errors that can occur during peer message processing.
 #[derive(Debug)]
@@ -42,8 +43,8 @@ impl From<bitquan_network::protocol::P2pError> for WorkerError {
 pub struct WorkerContext {
     /// Peer manager for broadcasting to other peers.
     pub peer_manager: Arc<PeerManager>,
-    /// Blockchain storage.
-    pub storage: Arc<dyn ChainStore>,
+    /// Blockchain storage (async wrapper for thread-safe access).
+    pub storage: Arc<dyn AsyncChainStore>,
     /// Network magic bytes.
     pub magic: [u8; 4],
 }
@@ -52,7 +53,7 @@ impl WorkerContext {
     /// Create a new worker context.
     pub fn new(
         peer_manager: Arc<PeerManager>,
-        storage: Arc<dyn ChainStore>,
+        storage: Arc<dyn AsyncChainStore>,
         network: NetworkId,
     ) -> Self {
         Self {
@@ -125,8 +126,7 @@ async fn handle_message(
         // === Keepalive ===
         Message::Ping { nonce } => {
             // Respond with pong
-            let pong = MessageEnvelope::new(ctx.magic, Message::Pong { nonce });
-            peer.send_message(&pong)?;
+            peer.send_message(Message::Pong { nonce })?;
             log::debug!("🏓 Pong sent to {}", peer.addr);
             Ok(true)
         }
@@ -140,8 +140,7 @@ async fn handle_message(
         Message::GetAddr => {
             // TODO: Send known peer addresses
             // For now, send empty list
-            let addr_msg = MessageEnvelope::new(ctx.magic, Message::Addr { addrs: vec![] });
-            peer.send_message(&addr_msg)?;
+            peer.send_message(Message::Addr { addrs: vec![] })?;
             Ok(true)
         }
 
@@ -172,7 +171,7 @@ async fn handle_message(
         }
 
         // === Block Headers ===
-        Message::GetHeaders { locator_hashes, stop_hash } => {
+        Message::GetHeaders { version: _, locator_hashes, stop_hash } => {
             handle_get_headers(peer, ctx, locator_hashes, stop_hash).await
         }
 
@@ -253,11 +252,9 @@ async fn handle_inv(
         const MAX_PER_REQUEST: usize = 500; // Conservative limit
 
         for chunk in to_request.chunks(MAX_PER_REQUEST) {
-            let get_data = MessageEnvelope::new(ctx.magic, Message::GetData {
+            peer.send_message(Message::GetData {
                 inventory: chunk.to_vec(),
-            });
-
-            peer.send_message(&get_data)?;
+            })?;
             log::debug!("📤 Requested {} items from {}", chunk.len(), peer.addr);
         }
     }
@@ -284,8 +281,7 @@ async fn handle_get_data(
                 // Try to get block from storage
                 match ctx.storage.get_block(&inv.hash).await {
                     Ok(Some(block)) => {
-                        let msg = MessageEnvelope::new(ctx.magic, Message::Block { block });
-                        peer.send_message(&msg)?;
+                        peer.send_message(Message::Block { block })?;
                         log::debug!("📤 Sent block {} to {}", hex::encode(inv.hash), peer.addr);
                     }
                     Ok(None) => {
@@ -326,7 +322,7 @@ async fn handle_block(
     ctx: &WorkerContext,
     block: Block,
 ) -> Result<bool, WorkerError> {
-    let block_hash = block.block_hash();
+    let block_hash = header_hash(&block.header);
     log::info!("🧱 Received block {} ({} txs) from {}",
         hex::encode(&block_hash[..8]),
         block.transactions.len(),
@@ -425,11 +421,76 @@ async fn handle_get_headers(
 
     // TODO: Implement proper header locator logic
     // For now, send empty response
-
-    let headers_msg = MessageEnvelope::new(ctx.magic, Message::Headers { headers: vec![] });
-    peer.send_message(&headers_msg)?;
+    peer.send_message(Message::Headers { headers: vec![] })?;
 
     log::debug!("📤 Sent empty Headers response to {}", peer.addr);
 
     Ok(true)
 }
+
+/// Perform version handshake with a newly connected peer.
+///
+/// This function:
+/// 1. Waits for Version message from peer
+/// 2. Sends our Version message
+/// 3. Sends VerAck
+/// 4. Waits for optional VerAck from peer
+/// 5. Sets peer state to Ready
+///
+/// # Arguments
+/// * `peer` - The peer connection (must have Noise handshake completed)
+/// * `network` - Network ID for magic bytes
+///
+/// # Returns
+/// * `Ok(())` if handshake successful
+/// * `Err(WorkerError)` if handshake fails
+pub async fn perform_version_handshake(
+    peer: &mut Peer,
+    network: NetworkId,
+) -> Result<(), WorkerError> {
+    use bitquan_network::protocol::{Message, PROTOCOL_VERSION};
+
+    let magic = network_magic(network);
+
+    // Wait for version message
+    let msg = peer.recv_message()?;
+    match msg {
+        Message::Version { version, services: _, timestamp: _, user_agent, start_height } => {
+            peer.version = Some(version);
+            peer.user_agent = Some(user_agent.clone());
+            peer.start_height = Some(start_height);
+
+            log::info!("🤝 Handshake: {} (v{}, {}, height={})",
+                user_agent, version, peer.addr, start_height);
+
+            // Send our version
+            let our_version = Message::Version {
+                version: PROTOCOL_VERSION,
+                services: 1,
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+                user_agent: env!("CARGO_PKG_NAME").to_string(),
+                start_height: 0, // TODO: Get from chain state
+            };
+
+            peer.send_message(our_version)?;
+            peer.send_message(Message::VerAck)?;
+        }
+        _ => {
+            return Err(WorkerError::InvalidData("expected version message".to_string()));
+        }
+    }
+
+    // Wait for verack (optional, some nodes skip it)
+    let next_msg = peer.recv_message();
+    if let Ok(Message::VerAck) = next_msg {
+        log::debug!("✅ VerAck received from {}", peer.addr);
+    }
+
+    peer.state = bitquan_network::peer::PeerState::Ready;
+
+    Ok(())
+}
+
