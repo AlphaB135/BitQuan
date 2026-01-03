@@ -4,29 +4,27 @@
   <img src="https://raw.githubusercontent.com/AlphaB135/BitQuan/main/docs/img/BitQuan.png" alt="BitQuan Logo" width="200"/>
 </div>
 
-[![Security Audit](https://img.shields.io/badge/Security-B%2B%20(83%2F100)-yellow)](docs/security/AUDIT_SUMMARY.md)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/security.yml?branch=main)](https://github.com/AlphaB135/BitQuan/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Rust](https://img.shields.io/badge/rust-1.82%2B-orange)](https://www.rust-lang.org)
-[![Post-Quantum](https://img.shields.io/badge/Cryptography-Post--Quantum-purple)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
+[![Post-Quantum](https://img.shields.io/badge/Cryptography-Dilithium5-purple)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
 
-A proof-of-work blockchain with post-quantum security using CRYSTALS-Dilithium3 signatures.
+A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium5** signatures.
 
 ## Mainnet Status
 
 Network: Mainnet (Magic: `0xe8f3e1e3`)
 Security: B+ Rating (83/100) - Critical issues fixed, minor issues remain
 Mining: RandomX PoW with Stratum support
-Nodes: 100+ global bootstrap nodes
-Production Readiness: 90% - Testnet Ready, P2P & Maturity Complete
+Production Readiness: ~50% - Building, testnet in development
 
 ## Core Principles
 
 - **Proven Consensus**: Longest VALID chain rule, no checkpoints, no governance
-- **Quantum-Resistant**: CRYSTALS-Dilithium3 post-quantum signatures (NIST-approved)
+- **Quantum-Resistant**: CRYSTALS-Dilithium5 post-quantum signatures (NIST-approved)
 - **Simple & Secure**: No smart contracts, no DeFi, just value transfer
 - **Proof-of-Work**: SHA-256d mining with RandomX support
-- **Memory Safety**: 15 unsafe blocks (all justified), improved error handling
+- **Memory Safety**: ~15 unsafe blocks (all justified with SAFETY comments), minimal unwrap() in production code
 - **Open Source**: Apache 2.0, fully auditable, no backdoors
 - **Async-Powered**: High-performance network layer with DoS protection
 
@@ -65,9 +63,6 @@ cargo build --release
 
 # Or mine with SHA256d (ASIC-friendly)
 ./target/release/bitquan-node mine --algorithm sha256d
-
-# Join a mining pool
-bitquan-miner --pool pool.bitquan.org:3333 --address YOUR_ADDRESS
 ```
 
 
@@ -78,21 +73,21 @@ BitQuan is a cryptocurrency designed for 50+ year security resilience against qu
 
 ## Security Status
 
-**PRODUCTION READY - MAINNET LIVE**
+**DEVELOPMENT BUILD - TESTNET IN DEVELOPMENT**
 
-Last Security Audit: November 21, 2025
+Last Security Audit: 2025 (historical baseline)
 Security Score: 83/100 (Grade: B+) - Critical issues fixed, minor issues remain
-Production Readiness: 75% - Testnet Ready, Mainnet pending fixes
+Production Readiness: ~50% - Building, not production-ready
 
 ### Security Compliance
 
 | Category | Score | Status |
 |----------|--------|---------|
-| **Error Handling** | 25/30 | Good (192 unwrap() calls, target <50) |
+| **Error Handling** | 25/30 | Good (unwrap() mostly in test code, minimal in production) |
 | **Memory Safety** | 25/25 | Excellent (Panic-free) |
-| **Cryptography** | 20/20 | Excellent (PQC verified) |
-| **Dependencies** | 20/20 | Excellent (0 vulnerabilities) |
-| **Crypto Ops** | 25/25 | Excellent (RNG perfect) |
+| **Cryptography** | 20/20 | Excellent (Dilithium5 verified) |
+| **Dependencies** | 20/20 | Excellent (0 known vulnerabilities) |
+| **Crypto Ops** | 25/25 | Excellent (RNG verified) |
 | **Input Validation** | 20/20 | Excellent (Complete validation) |
 | **Total** | **83/100** | **B+** |
 
@@ -151,17 +146,17 @@ Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
 
 ## Features
 
-- **Post-Quantum Cryptography**: CRYSTALS-Dilithium3 signatures (NIST-approved)
+- **Post-Quantum Cryptography**: CRYSTALS-Dilithium5 signatures (NIST-approved)
 - **Proven Consensus**: Longest chain rule, no governance, no checkpoints
 - **Proof-of-Work Mining**: SHA-256d with RandomX support for CPU/GPU mining
 - **BIP39 Wallet Support**: 12/24 word mnemonic phrases with deterministic recovery
 - **UTXO Model**: Transaction model with 100-block coin maturity
 - **Block Weight System**: 4MB blocks with 384 weight units per PQC signature
-- **Difficulty Adjustment**: ASERT algorithm with quantum-aware adjustments
+- **Difficulty Adjustment**: ASERT algorithm with integer fixed-point arithmetic
 - **Async P2P Networking**: High-performance async network layer with DoS protection
 - **JSON-RPC API**: Standard RPC interface
-- **Mining Pools**: Stratum V1 protocol support for pool mining
-- **Memory Safety**: 15 unsafe blocks (all justified), improved error handling
+- **Stratum Mining Pool Support**: Stratum V1 protocol for pool mining
+- **Memory Safety**: ~15 unsafe blocks (all justified with SAFETY comments)
 
 ## Async Network Layer
 
@@ -233,12 +228,13 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 
 ## Development Status
 
-Current version: v0.0.2-alpha (testnet ready)
-Production Readiness: 90%
+Current version: v0.0.2-alpha
+Production Readiness: ~50%
 Tests: 72 network tests + 10 reward maturity integration tests (all passing)
 Recent Updates:
 - ✅ P2P TCP socket I/O implementation complete
 - ✅ Reward maturity integration tests (100-block maturity)
+- ✅ Noise Protocol encryption for P2P (ephemeral keys - V1)
 - ✅ Code cleanup and documentation improvements
 
 See [docs/archive/](docs/archive/) for historical audits and planning documents.
@@ -316,7 +312,7 @@ BitQuan is a spare-time solo project. If it helps your work or research, you can
 
 ## Testnet
 
-BitQuan testnet is **READY** for testing and development.
+BitQuan testnet is **IN DEVELOPMENT**.
 
 **Quick Start:**
 ```bash
@@ -328,7 +324,6 @@ BitQuan testnet is **READY** for testing and development.
 - Network: testnet
 - P2P Port: 19444
 - RPC Port: 19443
-- Status: READY FOR TESTING
-- Faucet: coming soon
+- Status: IN DEVELOPMENT
 
 For full testnet documentation, see [docs/testnet/README.md](docs/testnet/README.md)
