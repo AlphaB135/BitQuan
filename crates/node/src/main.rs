@@ -52,6 +52,7 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
+use tokio::sync::Mutex as TokioMutex;
 
 #[cfg(feature = "rocksdb-backend")]
 use rpc::NodeRpcHandler;
@@ -2969,6 +2970,17 @@ async fn p2p_server(
         ));
     };
 
+    // Create consensus engine for block validation
+    let consensus_params = bitquan_consensus::ConsensusParams::devnet_hybrid();
+    let crypto_registry = bq_crypto::CryptoRegistry::default();
+    let consensus_engine = bitquan_consensus::ConsensusEngine::with_network(
+        consensus_params,
+        crypto_registry,
+        network,
+        GENESIS_HASH_BYTES,
+    );
+    let consensus = Arc::new(TokioMutex::new(consensus_engine));
+
     // Accept connections loop - spawn worker task for each peer
     loop {
         match listener.accept() {
@@ -2981,6 +2993,7 @@ async fn p2p_server(
                 let store_clone = store_arc.clone();
                 let mempool_clone = mempool.clone();
                 let network_clone = network;
+                let consensus_clone = consensus.clone();
 
                 // Spawn async task for this peer
                 tokio::spawn(async move {
@@ -3007,6 +3020,9 @@ async fn p2p_server(
                                 peer_manager_clone,
                                 store_clone,
                                 mempool_clone,
+                                consensus_clone,
+                                network_clone,
+                                GENESIS_HASH_BYTES,
                             ));
 
                             // Run peer message loop (this is where the magic happens!)

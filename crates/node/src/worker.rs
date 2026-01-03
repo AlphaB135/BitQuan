@@ -4,7 +4,7 @@
 //! Each peer runs in its own async task, processing messages and coordinating
 //! with the chain, mempool, and peer manager.
 
-use bitquan_consensus::header_hash;
+use bitquan_consensus::{header_hash, ConsensusEngine};
 use bitquan_mempool::Mempool;
 use bitquan_network::peer::{Peer, PeerManager};
 use bitquan_network::protocol::{network_magic, InvType, InvVector, Message, RejectCode};
@@ -48,6 +48,12 @@ pub struct WorkerContext {
     pub storage: Arc<dyn AsyncChainStore>,
     /// Transaction mempool.
     pub mempool: Arc<TokioMutex<Mempool>>,
+    /// Consensus engine for block validation.
+    pub consensus: Arc<TokioMutex<bitquan_consensus::ConsensusEngine>>,
+    /// Network identifier for validation.
+    pub network_id: bitquan_types::NetworkId,
+    /// Genesis hash for transaction context.
+    pub genesis_hash: [u8; 32],
 }
 
 impl WorkerContext {
@@ -56,11 +62,17 @@ impl WorkerContext {
         peer_manager: Arc<PeerManager>,
         storage: Arc<dyn AsyncChainStore>,
         mempool: Arc<TokioMutex<Mempool>>,
+        consensus: Arc<TokioMutex<bitquan_consensus::ConsensusEngine>>,
+        network_id: bitquan_types::NetworkId,
+        genesis_hash: [u8; 32],
     ) -> Self {
         Self {
             peer_manager,
             storage,
             mempool,
+            consensus,
+            network_id,
+            genesis_hash,
         }
     }
 }
@@ -368,27 +380,49 @@ async fn handle_block(
         }
     }
 
-    // Step 2: Validate PoW (basic check - full consensus validation TODO)
-    use bitquan_consensus::check_header_pow;
-    if let Err(e) = check_header_pow(&block.header) {
-        log::warn!(
-            "⚠️  Block {} invalid PoW: {}",
-            hex::encode(&block_hash[..8]),
-            e
-        );
-        // Invalid block - reject and disconnect peer
-        let _ = peer.send_message(Message::Reject {
-            message: "block".to_string(),
-            code: RejectCode::Malformed,
-            reason: format!("invalid PoW: {}", e),
-        });
-        return Err(WorkerError::InvalidData(format!("invalid PoW: {}", e)));
+    // Step 2: Get current height for validation
+    let height = match ctx.storage.height().await {
+        Ok(h) => h,
+        Err(e) => {
+            log::error!("❌ Failed to get chain height: {}", e);
+            return Err(WorkerError::Storage(e.to_string()));
+        }
+    };
+
+    // Calculate median time past (simplified: use current block time for now)
+    // TODO: Implement proper median of past 11 blocks
+    let median_time_past = u64::from(block.header.time);
+
+    // Step 3: Full consensus validation (coinbase, signatures, merkle, etc.)
+    let mut engine = ctx.consensus.lock().await;
+    match engine.validate_block(&block, height, median_time_past) {
+        Ok(report) => {
+            log::info!(
+                "✅ Block {} consensus valid (weight: {} WU, sigs: {})",
+                hex::encode(&block_hash[..8]),
+                report.block_weight,
+                report.signature_count
+            );
+        }
+        Err(e) => {
+            log::warn!(
+                "⚠️  Block {} consensus invalid: {}",
+                hex::encode(&block_hash[..8]),
+                e
+            );
+            // Invalid block - reject and disconnect peer
+            let _ = peer.send_message(Message::Reject {
+                message: "block".to_string(),
+                code: RejectCode::Invalid,
+                reason: format!("consensus validation failed: {}", e),
+            });
+            return Err(WorkerError::InvalidData(format!(
+                "consensus validation failed: {}",
+                e
+            )));
+        }
     }
-
-    log::debug!("✅ Block {} PoW valid", hex::encode(&block_hash[..8]));
-
-    // Step 3: TODO: Full consensus validation (coinbase, signatures, etc.)
-    // For now, we accept blocks with valid PoW (DEV BUILD - DO NOT USE IN PRODUCTION)
+    drop(engine); // Release lock before async operations
 
     // Step 4: Insert block into storage
     if let Err(e) = ctx.storage.insert_block(block.clone()).await {
