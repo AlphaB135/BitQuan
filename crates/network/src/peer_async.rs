@@ -3,7 +3,7 @@
 //! This module provides an async version of the Peer struct that properly
 //! protects against Slowloris attacks using tokio::time::timeout.
 
-use crate::protocol::{Message, MessageEnvelope, P2pError, PROTOCOL_VERSION};
+use crate::protocol::{Message, MessageEnvelope, P2pError, MAX_MESSAGE_SIZE, PROTOCOL_VERSION};
 use bitquan_types::error::{Error, Result as TypesResult};
 use bitquan_types::ext::ResultExt;
 use std::net::SocketAddr;
@@ -20,9 +20,6 @@ fn unix_timestamp() -> u64 {
         .map(|d| d.as_secs())
         .unwrap_or(0)
 }
-
-/// Maximum frame size accepted (2 MiB).
-pub const MAX_MSG_BYTES: usize = 2 * 1024 * 1024;
 
 /// Handshake timeout.
 pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(1_200);
@@ -145,7 +142,7 @@ impl AsyncPeer {
         if len == 0 {
             return Err(Error::Invalid("empty frame".to_string()));
         }
-        if len > MAX_MSG_BYTES {
+        if len > MAX_MESSAGE_SIZE {
             return Err(Error::Invalid("message too large".to_string()));
         }
 

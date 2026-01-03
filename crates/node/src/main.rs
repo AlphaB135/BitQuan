@@ -22,6 +22,7 @@ mod tx_builder;
 mod utxo;
 mod vardiff;
 mod wallet;
+mod worker;
 mod ws_dashboard;
 
 use bitquan_consensus::{
@@ -1095,86 +1096,59 @@ fn run_node(
     network: NetworkId,
 ) -> Result<()> {
     let p2p_addr = p2p_bind.unwrap_or("0.0.0.0:18444");
-    let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332");
+    let rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332");
 
     println!(
         "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}"
     );
 
-    // Bootstraps placeholder subsystems to illustrate crate integration.
-    let registry = CryptoRegistry::default();
-    let params = ConsensusParams::phase3_defaults();
-    let _engine = ConsensusEngine::new(params, registry);
-    let _storage = InMemoryChainStore::new();
+    // Extract datadir from config (default to ./data/chainstate)
+    let datadir = "./data/chainstate"; // TODO: Load from config file
 
-    start_p2p_server(p2p_addr, network)
-}
+    // Use the full p2p_server implementation with RocksDB storage
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| Error::Invalid(format!("failed to create runtime: {e}")))?;
 
-fn start_p2p_server(addr: &str, network: NetworkId) -> Result<()> {
-    let listener = TcpListener::bind(addr)?;
-    listener.set_nonblocking(false)?;
-    println!("P2P server listening at {addr} (network: {:?})", network);
-    loop {
-        let (stream, peer) = listener.accept()?;
-        println!("Incoming connection from {peer}");
-        thread::spawn(move || {
-            if let Err(e) = handle_peer(stream, network) {
-                eprintln!("peer error: {e}");
-            }
-        });
-    }
-}
-
-fn handle_peer(stream: TcpStream, network: NetworkId) -> Result<()> {
-    stream.set_read_timeout(Some(Duration::from_secs(30)))?;
-    stream.set_write_timeout(Some(Duration::from_secs(30)))?;
-    let magic = network_magic(network);
-
-    // Simple handshake: expect Version -> send VerAck, reply with our Version -> expect optional VerAck
-    let env = read_envelope(&stream, magic)?;
-    match env.message {
-        Message::Version { .. } => {
-            let version = Message::Version {
-                version: PROTOCOL_VERSION,
-                services: 1,
-                timestamp: 1_700_000_000,
-                user_agent: "BitQuan/0.1.0".into(),
-                start_height: 0,
-            };
-            write_envelope(&stream, &MessageEnvelope::new(magic, version))?;
-            write_envelope(&stream, &MessageEnvelope::new(magic, Message::VerAck))?;
-        }
-        _ => {
-            write_envelope(
-                &stream,
-                &MessageEnvelope::new(
-                    magic,
-                    Message::Reject {
-                        message: "expected version".into(),
-                        code: bitquan_network::protocol::RejectCode::Malformed,
-                        reason: "handshake".into(),
-                    },
-                ),
-            )?;
-            return Ok(());
-        }
-    }
-
-    // Minimal message loop: respond to Ping with Pong
-    loop {
-        let msg = read_envelope(&stream, magic)?;
-        match msg.message {
-            Message::Ping { nonce } => write_envelope(
-                &stream,
-                &MessageEnvelope::new(magic, Message::Pong { nonce }),
-            )?,
-            Message::GetAddr => write_envelope(
-                &stream,
-                &MessageEnvelope::new(magic, Message::Addr { addrs: vec![] }),
-            )?,
-            _ => {}
-        }
-    }
+    rt.block_on(async {
+        p2p_server(
+            p2p_addr,
+            50, // max_peers
+            datadir,
+            RpcServerOptions {
+                listen: Some(rpc_addr),
+                username: None,
+                password: None,
+                #[cfg(feature = "rocksdb-backend")]
+                jwt_config_path: None,
+                #[cfg(feature = "rocksdb-backend")]
+                jwt_secret: None,
+                #[cfg(feature = "rocksdb-backend")]
+                max_body_bytes: 1_000_000,
+                #[cfg(feature = "rocksdb-backend")]
+                rl_burst: 10,
+                #[cfg(feature = "rocksdb-backend")]
+                rl_refill_per_sec: 1,
+                #[cfg(feature = "rocksdb-backend")]
+                conn_cooldown_ms: 1000,
+                #[cfg(feature = "rocksdb-backend")]
+                max_header_bytes: 8192,
+                #[cfg(feature = "rocksdb-backend")]
+                header_timeout_ms: 5000,
+                #[cfg(feature = "rocksdb-backend")]
+                trust_proxy: false,
+                #[cfg(feature = "rocksdb-backend")]
+                trusted_cidr: vec![],
+                #[cfg(feature = "rocksdb-backend")]
+                tls_cert: None,
+                #[cfg(feature = "rocksdb-backend")]
+                tls_key: None,
+                #[cfg(feature = "rocksdb-backend")]
+                allow_insecure: false,
+            },
+            network,
+        )
+        .await
+    })
 }
 
 /// Mine the genesis block
@@ -1567,9 +1541,14 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         println!("Connecting to {} peer(s)...", peers.len());
 
         // Generate Noise Protocol keypair for P2P encryption
-        let noise_config = Arc::new(NoiseConfig::generate()
-            .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
-        println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
+        let noise_config = Arc::new(
+            NoiseConfig::generate()
+                .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?,
+        );
+        println!(
+            "🔐 P2P Encryption enabled (public key: {})",
+            noise_config.public_key_hex()
+        );
 
         let pm = Arc::new(PeerManager::new(peers.len(), network, noise_config));
 
@@ -2704,7 +2683,8 @@ async fn p2p_server(
     rpc: RpcServerOptions<'_>,
     network: NetworkId,
 ) -> Result<()> {
-    use bitquan_network::{P2PListener, PeerManager};
+    use bitquan_mempool::Mempool;
+    use bitquan_network::PeerManager;
     use bitquan_storage::AsyncChainStore;
     #[cfg(feature = "rocksdb-backend")]
     use std::path::Path;
@@ -2745,11 +2725,13 @@ async fn p2p_server(
     // Load current height from storage
     #[cfg(feature = "rocksdb-backend")]
     let (height, store) = {
+        use bitquan_storage::async_store::AsyncStoreWrapper;
         use bitquan_storage::rocksdb_store::RocksDBStore;
-        let store = RocksDBStore::open(datadir)
+        let rocksdb_store = RocksDBStore::open(datadir)
             .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
-        let h = store.height().unwrap_or(0);
-        let async_store = Arc::new(bitquan_storage::async_store::AsyncStoreWrapper::new(store));
+        let h = rocksdb_store.height().unwrap_or(0);
+        // Wrap in AsyncStoreWrapper for async P2P worker + RPC use
+        let async_store = Arc::new(AsyncStoreWrapper::new(rocksdb_store));
         (h, Some(async_store))
     };
 
@@ -2922,69 +2904,131 @@ async fn p2p_server(
         println!("RPC server listening on {}", addr);
     }
 
-    // Create relay manager
-    use bitquan_network::{NoiseConfig, RelayManager};
+    // === P2P SERVER SETUP ===
+    use bitquan_network::noise::NoiseConfig;
+    use bitquan_network::peer::Peer;
+    use bitquan_network::RelayManager;
+    use std::net::TcpListener;
+
+    // Create relay manager for transaction relay
     let relay_manager = Arc::new(RelayManager::new(10000));
 
-    // Generate Noise Protocol keypair for P2P encryption
-    let noise_config = Arc::new(NoiseConfig::generate()
-        .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
-    println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
+    // Generate Noise Protocol keypair for P2P encryption (ephemeral, V1)
+    let noise_config = Arc::new(
+        NoiseConfig::generate()
+            .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?,
+    );
+    println!(
+        "🔐 P2P Encryption enabled (public key: {})",
+        noise_config.public_key_hex()
+    );
 
     // Create peer manager with relay support
     let peer_manager = Arc::new(PeerManager::with_relay(
         max_peers,
         relay_manager.clone(),
         network,
-        noise_config,
+        noise_config.clone(),
     ));
     if let Err(e) = peer_manager.update_height(height) {
         eprintln!("⚠️  Failed to update peer height: {}", e);
     }
 
-    let listener = P2PListener::bind(listen, peer_manager.clone())
-        .map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
+    // Create mempool for transaction relay
+    let mempool =
+        Arc::new(tokio::sync::Mutex::new(Mempool::new().map_err(|e| {
+            Error::Invalid(format!("failed to create mempool: {e}"))
+        })?));
+    println!("💾 Mempool initialized (max 300 MB)");
+
+    // Bind TCP listener
+    let listener =
+        TcpListener::bind(listen).map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
+    listener.set_nonblocking(false)?;
     let local_addr = listener
         .local_addr()
         .map_err(|e| Error::Invalid(format!("p2p local addr failed: {e}")))?;
-    println!("Server started at {}", local_addr);
-    println!("Waiting for connections...");
+
+    println!("🌐 P2P Server started at {}", local_addr);
+    println!("📊 Current height: {}", height);
+    println!("⏳ Waiting for peer connections...");
     println!();
-    println!("Commands:");
-    println!("  - Press Ctrl+C to stop");
-    println!("  - Peers will sync blockchain automatically");
 
     // Show tip info when we have storage
     if height > 0 {
+        println!("💡 Tip: Use 'mine' command to mine blocks");
+        println!("💡 New blocks will be broadcast to peers automatically");
         println!();
-        println!("Tip: Use 'mine' command to mine blocks");
-        println!("Current height: {}", height);
-        println!("New blocks will be broadcast to peers");
     }
 
-    loop {
-        match listener.accept_one() {
-            Ok(()) => {
-                let count = peer_manager.peer_count().unwrap_or(0);
-                let ready = peer_manager.ready_peer_count().unwrap_or(0);
-                println!("Peer connected! Total: {}, Ready: {}", count, ready);
+    // Create shared storage reference for worker context
+    // Note: store is Arc<AsyncStoreWrapper<RocksDBStore>> which implements AsyncChainStore
+    let Some(store_arc) = store.clone() else {
+        return Err(Error::Invalid(
+            "P2P server requires storage backend".to_string(),
+        ));
+    };
 
-                // TODO: Send inv for tip block to new peer (requires async handling)
+    // Accept connections loop - spawn worker task for each peer
+    loop {
+        match listener.accept() {
+            Ok((stream, peer_addr)) => {
+                println!("📥 Incoming connection from {}", peer_addr);
+
+                // Clone shared state for this peer's task
+                let noise_config_clone = noise_config.clone();
+                let peer_manager_clone = peer_manager.clone();
+                let store_clone = store_arc.clone();
+                let mempool_clone = mempool.clone();
+                let network_clone = network;
+
+                // Spawn async task for this peer
+                tokio::spawn(async move {
+                    // Perform Noise Protocol handshake (encrypted peer creation)
+                    let peer_result = Peer::new_inbound(
+                        stream,
+                        peer_addr,
+                        bitquan_network::protocol::network_magic(network_clone),
+                        &noise_config_clone,
+                    );
+
+                    match peer_result {
+                        Ok(mut peer) => {
+                            // Perform version handshake
+                            if let Err(e) =
+                                worker::perform_version_handshake(&mut peer, network_clone).await
+                            {
+                                eprintln!("❌ Version handshake failed for {}: {}", peer.addr, e);
+                                return;
+                            }
+
+                            // Create worker context
+                            let ctx = Arc::new(worker::WorkerContext::new(
+                                peer_manager_clone,
+                                store_clone,
+                                mempool_clone,
+                            ));
+
+                            // Run peer message loop (this is where the magic happens!)
+                            if let Err(e) = worker::run_peer_loop(peer, ctx).await {
+                                eprintln!("❌ Peer {} error: {}", peer_addr, e);
+                            } else {
+                                eprintln!("🔌 Peer {} disconnected normally", peer_addr);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Peer {} connection failed: {}", peer_addr, e);
+                        }
+                    }
+                });
             }
             Err(e) => {
-                eprintln!("Accept error: {}", e);
+                eprintln!("❌ Accept error: {}", e);
             }
         }
 
-        // Cleanup dead peers and old relay data
-        if let Err(e) = peer_manager.cleanup_peers() {
-            eprintln!("⚠️  Peer cleanup failed: {}", e);
-        }
-        if let Err(e) = relay_manager.cleanup() {
-            eprintln!("⚠️  Relay cleanup failed: {}", e);
-        }
-
-        thread::sleep(Duration::from_millis(100));
+        // Small sleep to prevent tight loop on errors
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     }
 }
 
@@ -2998,9 +3042,14 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
     println!("Our height: {}", height);
 
     // Generate Noise Protocol keypair for P2P encryption
-    let noise_config = Arc::new(NoiseConfig::generate()
-        .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?);
-    println!("🔐 P2P Encryption enabled (public key: {})", noise_config.public_key_hex());
+    let noise_config = Arc::new(
+        NoiseConfig::generate()
+            .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?,
+    );
+    println!(
+        "🔐 P2P Encryption enabled (public key: {})",
+        noise_config.public_key_hex()
+    );
 
     let peer_manager = Arc::new(PeerManager::new(1, NetworkId::Mainnet, noise_config));
     if let Err(e) = peer_manager.update_height(height) {

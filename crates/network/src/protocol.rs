@@ -34,8 +34,8 @@ pub enum P2pError {
 /// Protocol version.
 pub const PROTOCOL_VERSION: u32 = 1;
 
-/// Maximum message size (10 MB).
-pub const MAX_MESSAGE_SIZE: usize = 10_000_000;
+/// Maximum message size (2 MB) - EMERGENCY PATCH for DoS protection.
+pub const MAX_MESSAGE_SIZE: usize = 2 * 1024 * 1024; // 2MB hard limit
 
 /// Maximum inv/getdata items per message.
 pub const MAX_INV_ITEMS: usize = 50_000;

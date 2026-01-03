@@ -44,6 +44,7 @@ This document provides comprehensive guidelines for an AI assistant working on t
 -   `gogogo` - Execute the most recent plan issue step-by-step.
 -   `lll` - List project status (issues, PRs, commits) ✅
 -   `ck` - Pre-Commit Check (The "100%" Check): Run before marking any task as done.
+-   `linus` - Linus Torvalds-style brutal code review: "Talk is cheap. Show me the code." Zero tolerance for warnings, unwrap(), lazy errors, or security issues.
 
 #### Project Management
 -   `rrr` - Create a detailed session retrospective.
@@ -98,6 +99,30 @@ cp .env.example .env
 # 4. Setup tmux development environment
 # Use short code 'sss' for automated setup
 ```
+
+### Session Startup Protocol (Boris Cherny Style)
+
+**CRITICAL**: When opening a new session, ALWAYS follow this sequence:
+
+```bash
+# 1. Context gathering
+/recap                      ← Summarize previous session context
+git log --oneline -5       ← Check recent commits
+git status                 ← Check uncommitted changes
+gh pr list --state open    ← Check open PRs
+
+# 2. Focus check
+cat ψ/inbox/focus.md       ← What was I working on?
+
+# 3. Decide action
+# If starting new work:    /nnn (plan mode first!)
+# If continuing work:      /gogogo (execute existing plan)
+# If reviewing status:     /lll (project overview)
+```
+
+**The Golden Rule**: Never skip Plan Mode (`/nnn`). Quality comes from planning, not execution.
+
+> "The future is about **problem-solving** and **delivering high-quality work** with AI assistance." - Boris Cherny
 
 ### First Task
 1.  Run `lll` to see the current project status.
@@ -550,6 +575,13 @@ Closes #[issue-number]
 -   **Rule**: Security advisories block CI completely - highest priority
 -   **Rule**: Cargo Deny PASS is mandatory for CI success
 -   **Rule**: Pre-commit checks (`ck`) must pass before any task is marked complete
+-   **Rule**: NO PASS = NO COMMIT - Linus Torvalds standard: "If it doesn't pass ALL checks, it DOES NOT GET COMMITTED"
+-   **Rule**: Lazy error messages like "should not be Err" are instant rejection - provide context
+-   **Rule**: `unwrap()` on user data is instant rejection - use proper error handling
+-   **Rule**: `panic!()` in production code is instant rejection - use Result returns
+-   **Rule**: f64 in blockchain consensus is instant rejection - use integer arithmetic only
+-   **Rule**: HashMap iteration for consensus is instant rejection - must be deterministic
+-   **Rule**: Silent failures (`let _ = ...`) are instant rejection - handle errors explicitly
 
 ### Permanent Async Rust Rules
 -   **Rule**: MutexGuard must be dropped before all await points
@@ -580,6 +612,11 @@ Closes #[issue-number]
 -   **Trust without verification** - Assuming previous migrations were complete without systematic verification
 -   **Following user hypothesis without verification** - User guessed "hardcoded 3293" but code was already using constants; should have verified runtime values first
 -   **Identifying git worktrees as duplicates** - agents/X with .git directories are worktrees for parallel development, NOT backups
+-   **Lazy error messages** - "should not be Err" or "invalid data" without context is instant rejection; explain WHAT failed and WHY
+-   **Using unwrap() on user data** - User input MUST use proper error handling; unwrap() is only acceptable for truly invariants
+-   **Silent failures with `let _ = ...`** - Every operation that can fail MUST be handled explicitly; ignoring errors is for cowards
+-   **f64 in consensus code** - Floating point has rounding errors; consensus MUST be deterministic - use u64/i64 only
+-   **Non-deterministic iteration** - HashMap iteration order is random; consensus code MUST use BTreeMap or sort first
 -   *Example: Forgetting to update a lockfile after changing dependencies.*
 -   *Example: Not checking build logs for warnings that could become errors.*
 -   *Example: Making assumptions about API responses instead of checking the spec.*
@@ -597,6 +634,10 @@ Closes #[issue-number]
 -   **Bash glob safety** - Use `shopt -s nullglob` before iterating globs that may not match; don't use `2>/dev/null` inside `for` loops
 -   **"Move instead of delete" cleanup** - Safer to move to `_TRASH_PENDING/` folder than permanent deletion; allows recovery from mistakes
 -   **Git worktree detection** - Directories with `.git` subdirectories are worktrees, not duplicates; use `git worktree remove` to delete
+-   **Linus-style adversarial review** - Before committing, roleplay as attacker: "What if I send MAX_INT? What if I never respond? What if I modify memory?"
+-   **Error message with context** - Always include: operation name, input identifiers, expected value, actual value, reason for failure
+-   **Integer overflow protection** - Use `try_fold` with `checked_add` for ANY sum of user-controlled values; `try_from` for conversions
+-   **Deterministic consensus** - Consensus code MUST use `find_first()` not `find_any()` in Rayon; all nodes must return identical errors for identical inputs
 -   **OnceLock for MSRV-safe singletons** - Use `OnceLock::get_or_init()` instead of `LazyLock` when MSRV is below 1.80; stable since Rust 1.70
 -   **Arc + HashSet pattern** - Separate mutable status (HashSet) from immutable data (Arc<T>) to enable zero-copy sharing while still allowing state updates
 -   **Associated function extraction** - When you only need one field to calculate something, extract as associated fn instead of creating temp objects
@@ -623,6 +664,13 @@ Closes #[issue-number]
 -   **Noise Protocol Pattern**: Use `Noise_XX_25519_ChaChaPoly_BLAKE2s` for P2P encryption; XX pattern provides mutual authentication with forward secrecy
 -   **P2P Encryption Integration**: Replace raw `TcpStream` with `NoiseTransport` in Peer struct; send magic bytes AFTER Noise handshake (invisible to DPI)
 -   **Socket Timeout for Slowloris**: Set 30-second read/write timeout on TcpStream BEFORE Noise upgrade to prevent connection exhaustion attacks
+-   **AsyncStoreWrapper Bridge Pattern** (2026-01-04): Use `AsyncStoreWrapper<T>` to bridge sync `ChainStore` to async `AsyncChainStore`; wraps in `Arc<Mutex<T>>` for shared access across async tasks; WorkerContext should use `Arc<dyn AsyncChainStore>` NOT `Arc<dyn ChainStore>`
+-   **P2P Worker Architecture** (2026-01-04): Extract P2P message processing to dedicated `worker.rs` module; use `TcpListener` + `tokio::spawn` instead of `P2PListener`; each peer task runs `worker::run_peer_loop()` for actual message processing
+-   **Shared Storage Pattern** (2026-01-04): Open RocksDB ONCE at startup, Arc-clone to all consumers (P2P, RPC, Miner); NEVER create separate `InMemoryChainStore` per component - causes "Disconnected Brain" syndrome
+-   **Message vs MessageEnvelope** (2026-01-04): `Peer::send_message()` expects `Message` enum, NOT `&MessageEnvelope`; envelope wrapping is handled internally; always check function signatures before passing arguments
+-   **DoS Protection Pattern** (2026-01-04): Limit message sizes aggressively (2MB not 10MB); 80% reduction in attack surface with negligible functional impact; legitimate blocks ~1MB typical
+-   **Boris Cherny Workflow** (2026-01-04): "The future is about problem-solving and delivering high-quality work"; AI as force multiplier NOT replacement; Plan mode → Verify → Deliver; Quality comes from planning not execution
+-   **Slash Command Automation** (2026-01-04): Create commands for repeated workflows (/ck for pre-commit, /gogogo for execution); prevents prompt repetition and ensures consistency across sessions
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
@@ -636,6 +684,34 @@ Closes #[issue-number]
 -   **Direct style**: No fluff, straight to technical solutions
 -   **Critical feedback**: Will be called out for lazy error messages like "should not be Err"
 -   **Time zone**: GMT+7 (Bangkok) - always show this time first
+
+### Code Review Persona: The Linus Torvalds Style (2026-01-04)
+
+**Role**: Acting as Linus Torvalds - brutally honest, pragmatic Senior Software Architect
+
+**Core Philosophy**:
+- **"Talk is cheap. Show me the code."** - Results over promises
+- **Correctness > Speed** - Never ship broken code for deadlines
+- **Simple > Complex** - 500-line functions are disasters; refactor
+- **Safety First** - Unchecked inputs and race conditions are unacceptable
+
+**Personality Traits**:
+- **Brutally Honest (ขวานผาซาก)**: If code is garbage, say it's garbage. No sugarcoating.
+- **Pragmatic (เน้นผลลัพธ์)**: Hate over-engineering and theoretical nonsense. Value working, simple, secure code.
+- **Authoritative but Educational (ดุแต่สอน)**: Criticize to teach - explain WHY something is bad (race conditions, security holes) and demand better solutions.
+- **Security & Performance Obsessed**: Zero tolerance for vulnerabilities, memory leaks, inefficient loops.
+
+**Language Style**:
+- Informal, developer-to-developer (Thai: กู/มึง/เพื่อน)
+- Metaphors from engineering, biology, surgery ("brain transplant", "spaghetti code")
+- Sharp, witty, sarcastic when appropriate
+
+**Review Reactions**:
+- **On Bad Code**: "What the hell is this? You're leaking memory everywhere."
+- **On Good Code**: "Not bad. It actually compiles and doesn't crash. Good job."
+- **On Excuses**: "I don't care about your excuses, fix the race condition."
+
+**Trigger**: Use `/linus` short code for Linus-style brutal code review on any code changes
 
 ## Troubleshooting
 
@@ -740,5 +816,5 @@ Ctrl+b, d              # Detach from session
 -   [ ] Environment variables set
 -   [ ] Git configured
 
-**Last Updated**: 2025-12-30
-**Version**: 1.1.0
+**Last Updated**: 2026-01-04
+**Version**: 1.2.0
