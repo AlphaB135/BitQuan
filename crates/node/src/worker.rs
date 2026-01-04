@@ -625,7 +625,7 @@ async fn handle_get_headers(
 /// - Attempts double spend
 /// - Violates coinbase maturity
 /// - Has invalid input/output balance
-async fn validate_block_utxos(
+pub(crate) async fn validate_block_utxos(
     ctx: &WorkerContext,
     block: &Block,
     _height: u64,
@@ -801,4 +801,215 @@ pub async fn perform_version_handshake(
     peer.state = bitquan_network::peer::PeerState::Ready;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bitquan_storage::async_store::{AsyncChainStore, AsyncStoreError};
+    use bitquan_types::{TxIn, TxOut};
+    use std::sync::Arc;
+    use tokio::sync::Mutex as TokioMutex;
+
+    /// Mock storage that returns predefined UTXOs
+    struct MockAsyncStore {
+        utxos: std::collections::HashMap<Vec<u8>, Vec<u8>>,
+    }
+
+    impl MockAsyncStore {
+        fn new() -> Self {
+            let mut utxos = std::collections::HashMap::new();
+
+            // Create a mock UTXO: prev_txid + prev_vout -> TxOut
+            let prev_txid = [1u8; 32];
+            let prev_vout = 0u32;
+            let outpoint_key = [&prev_txid[..], &prev_vout.to_le_bytes()[..]].concat();
+
+            let utxo = TxOut {
+                value: 100_000_000, // 1 BQ
+                script_pubkey: vec![0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac], // P2PKH
+            };
+
+            utxos.insert(outpoint_key, serde_json::to_vec(&utxo).unwrap());
+            Self { utxos }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl AsyncChainStore for MockAsyncStore {
+        async fn height(&self) -> std::result::Result<u64, AsyncStoreError> {
+            Ok(0)
+        }
+
+        async fn tip(&self) -> std::result::Result<Option<bitquan_types::BlockHeader>, AsyncStoreError> {
+            Ok(None)
+        }
+
+        async fn get_block(
+            &self,
+            _hash: &[u8; 32],
+        ) -> std::result::Result<Option<bitquan_types::Block>, AsyncStoreError> {
+            Ok(None)
+        }
+
+        async fn get_block_by_height(
+            &self,
+            _height: u64,
+        ) -> std::result::Result<Option<bitquan_types::Block>, AsyncStoreError> {
+            Ok(None)
+        }
+
+        async fn get_transaction(
+            &self,
+            _txid: &[u8; 32],
+        ) -> std::result::Result<Option<bitquan_types::Transaction>, AsyncStoreError> {
+            Ok(None)
+        }
+
+        async fn insert_block(
+            &self,
+            _block: bitquan_types::Block,
+        ) -> std::result::Result<(), AsyncStoreError> {
+            Ok(())
+        }
+
+        async fn has_block(&self, _hash: &[u8; 32]) -> std::result::Result<bool, AsyncStoreError> {
+            Ok(false)
+        }
+
+        async fn get_header(
+            &self,
+            _hash: &[u8; 32],
+        ) -> std::result::Result<Option<bitquan_types::BlockHeader>, AsyncStoreError> {
+            Ok(None)
+        }
+
+        async fn get_utxo(
+            &self,
+            outpoint: &[u8],
+        ) -> std::result::Result<Option<Vec<u8>>, AsyncStoreError> {
+            Ok(self.utxos.get(outpoint).cloned())
+        }
+    }
+
+    /// Test that double spends within the same block are detected and rejected
+    #[tokio::test]
+    async fn test_double_spend_detection_within_block() {
+        // Setup mock storage with one UTXO
+        let storage = Arc::new(MockAsyncStore::new()) as Arc<dyn AsyncChainStore>;
+
+        // Create WorkerContext with mock dependencies
+        let noise_config = Arc::new(bitquan_network::noise::NoiseConfig::generate().unwrap());
+        let ctx = WorkerContext {
+            peer_manager: Arc::new(bitquan_network::peer::PeerManager::new(
+                10, // max_peers
+                bitquan_types::NetworkId::Devnet,
+                noise_config,
+            )),
+            storage: storage.clone(),
+            mempool: Arc::new(TokioMutex::new(bitquan_mempool::Mempool::new().unwrap())),
+            consensus: Arc::new(TokioMutex::new(
+                bitquan_consensus::ConsensusEngine::new(
+                    bitquan_consensus::ConsensusParams::devnet_hybrid(),
+                    bq_crypto::CryptoRegistry::new(),
+                )
+            )),
+            network_id: bitquan_types::NetworkId::Devnet,
+            genesis_hash: [0u8; 32],
+        };
+
+        // Create two transactions that BOTH spend the same UTXO (double spend)
+        let prev_txid = [1u8; 32];
+        let prev_vout = 0u32;
+
+        let tx_a = Transaction {
+            version: 1,
+            network: bitquan_types::NetworkId::Devnet,
+            genesis_hash: [0u8; 32],
+            inputs: vec![TxIn {
+                prev_txid,
+                prev_vout,
+                sequence: 0xffffffff,
+                script_sig: vec![],
+            }],
+            outputs: vec![TxOut {
+                value: 50_000_000, // 0.5 BQ
+                script_pubkey: vec![],
+            }],
+            lock_time: 0,
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
+            witnesses: vec![],
+        };
+
+        let tx_b = Transaction {
+            version: 1,
+            network: bitquan_types::NetworkId::Devnet,
+            genesis_hash: [0u8; 32],
+            inputs: vec![TxIn {
+                prev_txid, // SAME prev_txid!
+                prev_vout, // SAME prev_vout!
+                sequence: 0xffffffff,
+                script_sig: vec![],
+            }],
+            outputs: vec![TxOut {
+                value: 50_000_000, // 0.5 BQ
+                script_pubkey: vec![],
+            }],
+            lock_time: 0,
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
+            witnesses: vec![],
+        };
+
+        // Create a coinbase transaction
+        let coinbase = Transaction {
+            version: 1,
+            network: bitquan_types::NetworkId::Devnet,
+            genesis_hash: [0u8; 32],
+            inputs: vec![TxIn {
+                prev_txid: [0u8; 32], // Null hash for coinbase
+                prev_vout: 0xffffffff,
+                sequence: 0xffffffff,
+                script_sig: b"coinbase".to_vec(),
+            }],
+            outputs: vec![TxOut {
+                value: 100_000_000, // 1 BQ block reward
+                script_pubkey: vec![],
+            }],
+            lock_time: 0,
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
+            witnesses: vec![],
+        };
+
+        // Create a block with both transactions (DOUBLE SPEND!)
+        let block = bitquan_types::Block {
+            header: bitquan_types::BlockHeader {
+                version: 1,
+                prev_block: [0u8; 32],
+                merkle_root: [0u8; 32],
+                pqc_agg_hint: [0u8; 32],
+                time: 0,
+                bits: 0x1d00ffff,
+                nonce: 0,
+                algo_id: 0, // SHA-256d
+            },
+            transactions: vec![coinbase, tx_a, tx_b],
+        };
+
+        // Try to validate - should FAIL with double spend error
+        let result = validate_block_utxos(&ctx, &block, 0).await;
+
+        // Assert that validation FAILED
+        assert!(result.is_err(), "Double spend should be detected!");
+
+        // Verify error message contains "double spend"
+        let error_msg = result.unwrap_err().to_string();
+        assert!(
+            error_msg.to_lowercase().contains("double spend"),
+            "Error message should mention 'double spend', got: {}",
+            error_msg
+        );
+
+        println!("✅ Test passed: Double spend was correctly detected!");
+        println!("   Error message: {}", error_msg);
+    }
 }
