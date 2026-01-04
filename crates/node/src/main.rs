@@ -27,7 +27,8 @@ mod ws_dashboard;
 
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
-    target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
+    target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState,
+    DEVNET_MAX_BITS,
 };
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{network_magic, Message, MessageEnvelope, PROTOCOL_VERSION};
@@ -2981,6 +2982,7 @@ async fn p2p_server(
     );
     let consensus = Arc::new(TokioMutex::new(consensus_engine));
 
+
     // Accept connections loop - spawn worker task for each peer
     loop {
         match listener.accept() {
@@ -2993,6 +2995,7 @@ async fn p2p_server(
                 let store_clone = store_arc.clone();
                 let mempool_clone = mempool.clone();
                 let network_clone = network;
+                let consensus_clone = consensus.clone();
                 let consensus_clone = consensus.clone();
 
                 // Spawn async task for this peer

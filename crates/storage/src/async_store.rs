@@ -109,6 +109,12 @@ pub trait AsyncChainStore: Send + Sync {
         &self,
         hash: &[u8; 32],
     ) -> std::result::Result<Option<BlockHeader>, AsyncStoreError>;
+
+    /// Get a UTXO entry by outpoint
+    async fn get_utxo(
+        &self,
+        outpoint: &[u8],
+    ) -> std::result::Result<Option<Vec<u8>>, AsyncStoreError>;
 }
 
 #[async_trait]
@@ -229,6 +235,23 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
                 Ok(None) => Ok(None),
                 Err(e) => Err(e),
             }
+        })
+        .await
+        .map_err(AsyncStoreError::TaskSpawn)??)
+    }
+
+    async fn get_utxo(
+        &self,
+        outpoint: &[u8],
+    ) -> std::result::Result<Option<Vec<u8>>, AsyncStoreError> {
+        let store = Arc::clone(&self.inner);
+        let outpoint = outpoint.to_vec();
+
+        Ok(tokio::task::spawn_blocking(move || {
+            let guard = store
+                .lock()
+                .map_err(|_| AsyncStoreError::Poisoned("get_utxo operation"))?;
+            guard.get_utxo(&outpoint)
         })
         .await
         .map_err(AsyncStoreError::TaskSpawn)??)
