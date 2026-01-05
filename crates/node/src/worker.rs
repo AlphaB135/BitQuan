@@ -559,16 +559,37 @@ async fn handle_block(
                 // Disconnect from storage (undo UTXOs)
                 if let Err(e) = ctx.storage.disconnect_block(&old_block).await {
                     log::error!(
-                        "❌ Failed to disconnect block {}: {}",
-                        hex::encode(&old_hash[..8]),
-                        e
+                        "🔥 FATAL: Failed to disconnect block {} during reorg!",
+                        hex::encode(&old_hash[..8])
                     );
-                    return Err(WorkerError::Storage(e.to_string()));
+                    log::error!("🔥 Error: {}", e);
+                    log::error!("🔥 CHAIN STATE IS CORRUPTED. Node must shutdown to prevent consensus failure.");
+                    log::error!("🔥 Please restart and resync from trusted peers.");
+
+                    // PANIC to stop the node immediately
+                    panic!("CRITICAL STORAGE FAILURE: Cannot rollback chain during reorg. Node shutdown required.");
                 }
+                // Resurrect non-coinbase transactions back to mempool
+                for (i, tx) in old_block.transactions.iter().enumerate() {
+                    // Skip coinbase (index 0)
+                    if i == 0 {
+                        continue;
+                    }
 
-                // TODO: Resurrect transactions from disconnected block back to mempool
-                // For now, transactions are lost (will be re-broadcast by peers if needed)
+                    let txid = hex::encode(&tx.txid()[..8]);
+                    log::info!("♻️  Resurrecting tx {} to mempool", txid);
 
+                    let mut mempool = ctx.mempool.lock().await;
+                    match mempool.insert(tx.clone(), /*estimated_fee=*/ 1000) {
+                        Ok(()) => {
+                            log::debug!("✅ Tx {} resurrected", txid);
+                        }
+                        Err(e) => {
+                            log::debug!("⚠️  Tx {} not resurrected: {}", txid, e);
+                        }
+                    }
+                    drop(mempool); // Release lock before next iteration
+                }
                 log::info!("⏪ Disconnected block {}", hex::encode(&old_hash[..8]));
             }
 

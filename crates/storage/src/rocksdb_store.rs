@@ -883,9 +883,6 @@ impl ChainStore for RocksDBStore {
             }
         }
 
-        // Delete undo data (it's no longer needed)
-        batch.delete_cf(&cf_undo, block_id);
-
         // Update tip and height
         let new_height = self.height()?.saturating_sub(1);
         let prev_header_json = match self.get_block(&block.header.prev_block)? {
