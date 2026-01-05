@@ -667,7 +667,8 @@ fn validate_transaction_fees(
         ConsensusError::InvalidSignature(
             "Total fees MUST be provided for coinbase validation. \
              Use validate_block_with_fees() or calculate from UTXO set. \
-             Blocks with unknown fees CANNOT be accepted (inflation risk).".to_string()
+             Blocks with unknown fees CANNOT be accepted (inflation risk)."
+                .to_string(),
         )
     })?;
 

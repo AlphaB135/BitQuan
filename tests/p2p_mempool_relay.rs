@@ -18,7 +18,6 @@ use bitquan_network::protocol::{InvType, InvVector, Message};
 use bitquan_storage::async_store::{AsyncChainStore, AsyncStoreError};
 use bitquan_types::{Block, BlockHeader, NetworkId, Transaction, TxIn, TxOut};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::Mutex as TokioMutex;
 
 /// Mock storage for testing (returns empty results)
@@ -42,7 +41,10 @@ impl AsyncChainStore for MockAsyncStore {
         Ok(None)
     }
 
-    async fn get_transaction(&self, _txid: &[u8; 32]) -> Result<Option<Transaction>, AsyncStoreError> {
+    async fn get_transaction(
+        &self,
+        _txid: &[u8; 32],
+    ) -> Result<Option<Transaction>, AsyncStoreError> {
         Ok(None)
     }
 
@@ -60,6 +62,11 @@ impl AsyncChainStore for MockAsyncStore {
 
     async fn get_utxo(&self, _outpoint: &[u8]) -> Result<Option<Vec<u8>>, AsyncStoreError> {
         Ok(None)
+    }
+
+    async fn disconnect_block(&self, _block: &Block) -> Result<(), AsyncStoreError> {
+        // Mock implementation - does nothing
+        Ok(())
     }
 }
 
@@ -90,9 +97,7 @@ async fn test_mempool_transaction_relay() {
     println!("🧪 Starting P2P Mempool Relay Test");
 
     // Step 1: Create shared components
-    let noise_config = Arc::new(
-        NoiseConfig::generate().expect("Failed to generate noise config"),
-    );
+    let noise_config = Arc::new(NoiseConfig::generate().expect("Failed to generate noise config"));
 
     let storage = Arc::new(MockAsyncStore) as Arc<dyn AsyncChainStore>;
 
@@ -116,11 +121,16 @@ async fn test_mempool_transaction_relay() {
     // Step 4: Create WorkerContexts (matching worker.rs structure)
     use bitquan_node::worker::WorkerContext;
 
+    // Create ForkChoice instances for both Alice and Bob
+    let alice_fork_choice = Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new()));
+    let bob_fork_choice = Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new()));
+
     let alice_ctx = Arc::new(WorkerContext::new(
         alice_peer_manager.clone(),
         storage.clone(),
         alice_mempool.clone(),
         consensus.clone(),
+        alice_fork_choice,
         NetworkId::Regtest,
         [0u8; 32],
     ));
@@ -130,6 +140,7 @@ async fn test_mempool_transaction_relay() {
         storage,
         bob_mempool.clone(),
         consensus,
+        bob_fork_choice,
         NetworkId::Regtest,
         [0u8; 32],
     ));
@@ -155,7 +166,8 @@ async fn test_mempool_transaction_relay() {
 
     {
         let mut mempool = alice_ctx.mempool.lock().await;
-        mempool.insert(test_tx.clone(), estimated_fee)
+        mempool
+            .insert(test_tx.clone(), estimated_fee)
             .expect("Failed to insert into Alice's mempool");
     }
 
@@ -251,12 +263,12 @@ async fn test_mempool_transaction_relay() {
         mempool.contains(&tx_hash)
     };
 
-    assert!(
-        bob_has_tx,
-        "Bob MUST have the tx in mempool (relay failed)"
-    );
+    assert!(bob_has_tx, "Bob MUST have the tx in mempool (relay failed)");
 
-    println!("✅ SUCCESS: Bob's mempool contains tx {}", hex::encode(&tx_hash[..8]));
+    println!(
+        "✅ SUCCESS: Bob's mempool contains tx {}",
+        hex::encode(&tx_hash[..8])
+    );
 
     // Step 13: Verify no spam loop (Bob doesn't request again)
     println!("🔍 Verifying spam loop prevention...");

@@ -50,6 +50,8 @@ pub struct WorkerContext {
     pub mempool: Arc<TokioMutex<Mempool>>,
     /// Consensus engine for block validation.
     pub consensus: Arc<TokioMutex<bitquan_consensus::ConsensusEngine>>,
+    /// Fork choice manager for chain reorganization.
+    pub fork_choice: Arc<TokioMutex<bitquan_consensus::fork::ForkChoice>>,
     /// Network identifier for validation.
     #[allow(dead_code)] // Used for future sighash context
     pub network_id: bitquan_types::NetworkId,
@@ -65,6 +67,7 @@ impl WorkerContext {
         storage: Arc<dyn AsyncChainStore>,
         mempool: Arc<TokioMutex<Mempool>>,
         consensus: Arc<TokioMutex<bitquan_consensus::ConsensusEngine>>,
+        fork_choice: Arc<TokioMutex<bitquan_consensus::fork::ForkChoice>>,
         network_id: bitquan_types::NetworkId,
         genesis_hash: [u8; 32],
     ) -> Self {
@@ -73,6 +76,7 @@ impl WorkerContext {
             storage,
             mempool,
             consensus,
+            fork_choice,
             network_id,
             genesis_hash,
         }
@@ -376,7 +380,11 @@ async fn handle_get_data(
                                 // Transaction not found - do nothing (peer will timeout)
                             }
                             Err(e) => {
-                                log::warn!("❌ Failed to get tx {} from storage: {}", hex::encode(&inv.hash[..8]), e);
+                                log::warn!(
+                                    "❌ Failed to get tx {} from storage: {}",
+                                    hex::encode(&inv.hash[..8]),
+                                    e
+                                );
                             }
                         }
                     }
@@ -509,7 +517,126 @@ async fn handle_block(
     }
     drop(engine); // Release lock before async operations
 
-    // Step 5: Insert block into storage
+    // Step 5: ForkChoice check (BEFORE insertion - this determines chain state)
+    // Add block to ForkChoice to detect reorgs
+    let fork_result = {
+        let mut fc = ctx.fork_choice.lock().await;
+        fc.add_block(block.header.clone())
+    };
+
+    match fork_result {
+        Ok((_is_new_tip, Some(reorg_info))) => {
+            // 🔀 REORG DETECTED! 🚨
+            log::warn!(
+                "🔀 CHAIN REORG! Old: {}, New: {}, Depth: {} blocks",
+                hex::encode(&reorg_info.old_tip[..8]),
+                hex::encode(&reorg_info.new_tip[..8]),
+                reorg_info.disconnected_blocks.len()
+            );
+
+            // 5A. Disconnect old chain (rollback)
+            for old_hash in reorg_info.disconnected_blocks.iter().rev() {
+                // Get block from storage
+                let old_block = match ctx.storage.get_block(old_hash).await {
+                    Ok(Some(b)) => b,
+                    Ok(None) => {
+                        log::error!(
+                            "❌ Block {} not found for disconnect!",
+                            hex::encode(&old_hash[..8])
+                        );
+                        return Err(WorkerError::Storage("block not found".into()));
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "❌ Failed to get block {}: {}",
+                            hex::encode(&old_hash[..8]),
+                            e
+                        );
+                        return Err(WorkerError::Storage(e.to_string()));
+                    }
+                };
+
+                // Disconnect from storage (undo UTXOs)
+                if let Err(e) = ctx.storage.disconnect_block(&old_block).await {
+                    log::error!(
+                        "❌ Failed to disconnect block {}: {}",
+                        hex::encode(&old_hash[..8]),
+                        e
+                    );
+                    return Err(WorkerError::Storage(e.to_string()));
+                }
+
+                // TODO: Resurrect transactions from disconnected block back to mempool
+                // For now, transactions are lost (will be re-broadcast by peers if needed)
+
+                log::info!("⏪ Disconnected block {}", hex::encode(&old_hash[..8]));
+            }
+
+            // 5B. Connect new chain (already validated, just need to insert)
+            // Note: new_block is being processed now, insert it later in Step 6
+            for new_hash in &reorg_info.connected_blocks {
+                // Skip the current block (will be inserted in Step 6)
+                if new_hash == &block_hash {
+                    continue;
+                }
+
+                // Fetch block from storage (should exist from peer)
+                let new_block = match ctx.storage.get_block(new_hash).await {
+                    Ok(Some(b)) => b,
+                    Ok(None) => {
+                        log::warn!(
+                            "⚠️  New chain block {} not in storage yet",
+                            hex::encode(&new_hash[..8])
+                        );
+                        // Request this block from peer
+                        // TODO: Implement block request
+                        continue;
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "❌ Failed to get block {}: {}",
+                            hex::encode(&new_hash[..8]),
+                            e
+                        );
+                        continue;
+                    }
+                };
+
+                // Insert block
+                if let Err(e) = ctx.storage.insert_block(new_block).await {
+                    log::error!(
+                        "❌ Failed to insert block {}: {}",
+                        hex::encode(&new_hash[..8]),
+                        e
+                    );
+                    // Continue anyway to try inserting remaining blocks
+                } else {
+                    log::info!("➡️ Connected block {}", hex::encode(&new_hash[..8]));
+                }
+            }
+
+            log::info!(
+                "✅ Reorg complete! New tip: {}",
+                hex::encode(&reorg_info.new_tip[..8])
+            );
+        }
+        Ok((is_new_tip, None)) => {
+            // Normal chain extension (no reorg)
+            if is_new_tip {
+                log::debug!("✅ New block extends chain (no reorg)");
+            } else {
+                log::debug!("📊 Block added to side chain");
+            }
+        }
+        Err(e) => {
+            // ForkChoice rejected the block (orphan, duplicate, invalid work)
+            log::warn!("⚠️  ForkChoice rejected block: {}", e);
+            // Don't insert, but don't disconnect peer (might be valid side chain)
+            return Ok(true);
+        }
+    }
+
+    // Step 6: Insert block into storage
     if let Err(e) = ctx.storage.insert_block(block.clone()).await {
         log::error!(
             "❌ Failed to insert block {}: {}",
@@ -995,6 +1122,14 @@ mod tests {
         ) -> std::result::Result<Option<Vec<u8>>, AsyncStoreError> {
             Ok(self.utxos.get(outpoint).cloned())
         }
+
+        async fn disconnect_block(
+            &self,
+            _block: &bitquan_types::Block,
+        ) -> std::result::Result<(), AsyncStoreError> {
+            // Mock implementation - does nothing
+            Ok(())
+        }
     }
 
     /// Test that double spends within the same block are detected and rejected
@@ -1022,6 +1157,7 @@ mod tests {
                 bitquan_consensus::ConsensusParams::devnet_hybrid(),
                 bq_crypto::CryptoRegistry::new(),
             ))),
+            fork_choice: Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new())),
             network_id: bitquan_types::NetworkId::Devnet,
             genesis_hash: [0u8; 32],
         };
@@ -1144,6 +1280,7 @@ mod tests {
                 bitquan_consensus::ConsensusParams::devnet_hybrid(),
                 bq_crypto::CryptoRegistry::new(),
             ))),
+            fork_choice: Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new())),
             network_id: bitquan_types::NetworkId::Devnet,
             genesis_hash: [0u8; 32],
         };
@@ -1208,8 +1345,8 @@ mod tests {
         let error_msg = result.unwrap_err().to_string();
         // Overflow protection works by catching outputs > inputs
         assert!(
-            error_msg.to_lowercase().contains("overflow") ||
-            error_msg.to_lowercase().contains("exceed"),
+            error_msg.to_lowercase().contains("overflow")
+                || error_msg.to_lowercase().contains("exceed"),
             "Error should mention overflow or exceed, got: {}",
             error_msg
         );

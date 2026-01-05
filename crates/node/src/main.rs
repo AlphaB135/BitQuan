@@ -1034,7 +1034,11 @@ async fn main() -> Result<()> {
                 .await
             }
         }
-        Commands::P2PConnect { peer, height, network } => {
+        Commands::P2PConnect {
+            peer,
+            height,
+            network,
+        } => {
             let network_id = parse_network_id(&network)?;
             p2p_connect(&peer, height, network_id)
         }
@@ -1567,7 +1571,11 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             noise_config.public_key_hex()
         );
 
-        let pm = Arc::new(PeerManager::new(bootstrap_peers.len(), network, noise_config));
+        let pm = Arc::new(PeerManager::new(
+            bootstrap_peers.len(),
+            network,
+            noise_config,
+        ));
 
         // Update peer manager with current chain height
         let current_height = {
@@ -2956,6 +2964,16 @@ async fn p2p_server(
         })?));
     println!("💾 Mempool initialized (max 300 MB)");
 
+    // Create fork choice manager for chain reorganization
+    let fork_choice = Arc::new(tokio::sync::Mutex::new(
+        bitquan_consensus::fork::ForkChoice::new(),
+    ));
+    println!("🔀 ForkChoice initialized");
+
+    // TODO: Sync ForkChoice with current chain state
+    // For now, ForkChoice starts empty - will build up as blocks arrive
+    // In production, should load existing chain tips into ForkChoice
+
     // Bind TCP listener
     let listener =
         TcpListener::bind(listen).map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
@@ -3008,7 +3026,7 @@ async fn p2p_server(
                 let mempool_clone = mempool.clone();
                 let network_clone = network;
                 let consensus_clone = consensus.clone();
-                let consensus_clone = consensus.clone();
+                let fork_choice_clone = fork_choice.clone();
 
                 // Spawn async task for this peer
                 tokio::spawn(async move {
@@ -3036,6 +3054,7 @@ async fn p2p_server(
                                 store_clone,
                                 mempool_clone,
                                 consensus_clone,
+                                fork_choice_clone,
                                 network_clone,
                                 GENESIS_HASH_BYTES,
                             ));
