@@ -602,6 +602,8 @@ Closes #[issue-number]
 -   **Pattern**: Workspace-wide dependency upgrades require careful coordination
 -   **Discovery**: rustls-pki-types is significantly safer than rustls-pemfile (RUSTSEC-2025-0134)
 -   **Discovery**: Pre-commit hooks with clippy become bottlenecks for iterative development
+-   **Three-Phase Fix Priority** (2026-01-05): (1) Root Cause → (2) User Impact → (3) Safety Net. This ordering prevents fixing symptoms instead of diseases.
+-   **Code ≠ Comments** (2026-01-05): Trust the code, not the comments. Implementation can be correct while documentation is misleading. Always verify code behavior before assuming bugs exist.
 
 ### Common Mistakes to Avoid
 -   **Creating overly comprehensive initial plans** - Break complex projects into 1-hour phases instead
@@ -686,12 +688,17 @@ Closes #[issue-number]
 -   **UTXO Double Spend Prevention Pattern** (2026-01-04): Use HashSet to track spent inputs WITHIN block to prevent internal double spends; `if !spent_in_block.insert(outpoint)` returns false if duplicate; Validate from persistent storage (source of truth), not in-memory cache; "Validate First, Commit Later" - validation must be read-only, storage commits atomically
 -   **Internal Double Spend Attack** (2026-01-04): Two transactions in same block spending same UTXO - both see pre-block state where UTXO exists; HashSet tracking prevents this by marking inputs as spent during validation; Classic vulnerability that consensus validation alone doesn't catch
 -   **Parallel Agent Audits** (2026-01-05): Launch 3-4 specialized agents simultaneously for comprehensive code review; Each agent digs deep into specific domain (Undo Expert, Flow Master, Ghost Hunter); Coverage exponentially better than single reviewer trying to remember everything
+-   **Chain Reorg Resurrection Pattern** (2026-01-05): During reorg (disconnect blocks), iterate transactions in reverse order; Skip coinbase (index 0); Insert remaining transactions back to mempool using `mempool.insert(tx.clone(), fee)`; Use `tx.clone()` because mempool takes ownership; Drop mempool lock before next iteration to prevent deadlock; Log at INFO level for audit trail
 -   **Error Handling > Happy Path** (2026-01-05): Blockchain code must handle failures gracefully or becomes network liability; For EVERY loop that modifies state, ask: "What if this fails on iteration 3 of 5?"; Partial reorg leaves chain corrupted - UTXO set mismatch, potential double spends
 -   **TODO Comments That Admit Bugs Should Block Commits** (2026-01-05): Found TODO at line 569-570: "For now, transactions are lost" - this was committed; Violates zero tolerance principle; Never commit code with TODOs that admit data loss or security issues
 -   **Halfway Disaster Pattern** (2026-01-05): Immediate return on error in multi-operation loop leaves corrupted state; Fix: Checkpoint/rollback mechanism or atomic operations; `return Err(e)` after partial work = inconsistent chain state
 -   **Atomicity Requires Careful Batch Design** (2026-01-05): Undo data deleted in same batch as UTXO ops = lost forever if write fails; Fix: Delete undo data in SEPARATE batch AFTER confirming UTXO ops succeeded; Always separate "confirm success" from "cleanup"
 -   **Mempool Resurrection Is Not Optional** (2026-01-05): During reorg, transactions from disconnected blocks MUST return to mempool; Users' payments disappear if not resurrected; Relying on peers to rebroadcast is irresponsible; This is user funds bug, not annoyance
 -   **Adversarial Review Pre-Commit** (2026-01-05): Add to `ck` checklist: "What if this fails halfway?"; Test failure scenarios, not just happy paths; Roleplay as attacker: "What if I pull power on iteration 3 of 5?"
+-   **Executor Agents Don't Run Format** (2026-01-05): Executor agents write working code but don't run `cargo fmt` before returning; Always run `cargo fmt --all` after agent completion; Saves time during pre-commit checks
+-   **Parallel Agent Velocity** (2026-01-05): Launching 5 agents simultaneously reduces analysis time by 66% (10 min vs 30 min sequential); Synthesis agent combines findings into actionable plan; Force multiplier for complex systems
+-   **Suicide Switch Pattern** (2026-01-05): `panic!()` is appropriate when state is irrecoverably corrupted; "Better Dead than Wrong" philosophy; Continuing with corrupted blockchain state causes consensus failures and double spends
+-   **Disconnect with Resurrection** (2026-01-05): When removing blocks from chain (reorg), MUST resurrect transactions to mempool (except coinbase); Pattern: `for tx in block.transactions { if !is_coinbase(tx) { mempool.insert(tx); } }`
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
