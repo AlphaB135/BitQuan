@@ -651,25 +651,33 @@ fn validate_transaction_fees(
         .try_fold(0u64, |acc, o| acc.checked_add(o.value))
         .ok_or(ConsensusError::WeightOverflow("coinbase output sum"))?;
 
-    if let Some(fees) = total_fees {
-        // Strict validation: Coinbase <= Subsidy + Fees
-        let max_allowed = block_subsidy
-            .checked_add(fees)
-            .ok_or(ConsensusError::WeightOverflow("block reward calculation"))?;
+    // 🔴 CRITICAL: STRICT VALIDATION - NO BUFFER ALLOWED
+    //
+    // The "loose validation with fee buffer" was REMOVED because it allowed
+    // miners to claim block_subsidy + 1 BTC WITHOUT any fees, creating a
+    // permanent inflation bug (~6 BTC/hour at 10 min/block).
+    //
+    // Economic security requires EXACT fee calculation. We cannot accept
+    // blocks with unknown fees - this would enable monetary inflation.
+    //
+    // CALLER MUST: Calculate fees from UTXO set before calling this function.
+    // Use validate_block_with_fees() or calculate fees externally.
+    //
+    let fees = total_fees.ok_or_else(|| {
+        ConsensusError::InvalidSignature(
+            "Total fees MUST be provided for coinbase validation. \
+             Use validate_block_with_fees() or calculate from UTXO set. \
+             Blocks with unknown fees CANNOT be accepted (inflation risk).".to_string()
+        )
+    })?;
 
-        if coinbase_output > max_allowed {
-            return Err(ConsensusError::CoinbaseExceedsSubsidy);
-        }
-    } else {
-        // Loose validation (when fees unknown): Coinbase <= Subsidy + Buffer
-        // Coinbase should not exceed block subsidy + reasonable fee buffer
-        let max_reasonable_reward = block_subsidy.saturating_add(100000000); // 1 BTC fee buffer
+    // Strict validation: Coinbase <= Subsidy + Fees (EXACT, no buffer)
+    let max_allowed = block_subsidy
+        .checked_add(fees)
+        .ok_or(ConsensusError::WeightOverflow("block reward calculation"))?;
 
-        if coinbase_output > max_reasonable_reward {
-            return Err(ConsensusError::InvalidSignature(
-                "Coinbase reward exceeds reasonable limit".to_string(),
-            ));
-        }
+    if coinbase_output > max_allowed {
+        return Err(ConsensusError::CoinbaseExceedsSubsidy);
     }
 
     // Coinbase should be at least block subsidy (Prevent burning/mistakes)

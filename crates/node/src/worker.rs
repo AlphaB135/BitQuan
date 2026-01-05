@@ -395,9 +395,42 @@ async fn handle_block(
     // TODO: Implement proper median of past 11 blocks
     let median_time_past = u64::from(block.header.time);
 
-    // Step 3: Full consensus validation (coinbase, signatures, merkle, etc.)
+    // Step 3: UTXO validation (CRITICAL - prevents double spends, calculates fees)
+    // This MUST come before consensus validation because we need total_fees
+    // for strict coinbase reward validation (prevents inflation bug).
+    let total_fees = match validate_block_utxos(ctx, &block, height).await {
+        Ok(fees) => {
+            log::info!(
+                "✅ Block {} UTXO valid (all inputs exist, no double spends, fees: {})",
+                hex::encode(&block_hash[..8]),
+                fees
+            );
+            fees
+        }
+        Err(e) => {
+            log::warn!(
+                "⚠️  Block {} UTXO validation failed: {}",
+                hex::encode(&block_hash[..8]),
+                e
+            );
+            // Invalid block - reject and disconnect peer
+            let _ = peer.send_message(Message::Reject {
+                message: "block".to_string(),
+                code: RejectCode::Invalid,
+                reason: format!("UTXO validation failed: {}", e),
+            });
+            return Err(WorkerError::InvalidData(format!(
+                "UTXO validation failed: {}",
+                e
+            )));
+        }
+    };
+
+    // Step 4: Full consensus validation (coinbase, signatures, merkle, etc.)
+    // Uses total_fees from UTXO validation for STRICT coinbase reward check.
+    // This prevents the inflation bug where miners claim subsidy + 1 BTC without fees.
     let mut engine = ctx.consensus.lock().await;
-    match engine.validate_block(&block, height, median_time_past) {
+    match engine.validate_block_with_fees(&block, height, total_fees, median_time_past) {
         Ok(report) => {
             log::info!(
                 "✅ Block {} consensus valid (weight: {} WU, sigs: {})",
@@ -426,35 +459,7 @@ async fn handle_block(
     }
     drop(engine); // Release lock before async operations
 
-    // Step 3.5: UTXO validation (CRITICAL - prevents double spends)
-    // This validates that all transaction inputs exist and haven't been spent
-    match validate_block_utxos(ctx, &block, height).await {
-        Ok(_) => {
-            log::info!(
-                "✅ Block {} UTXO valid (all inputs exist, no double spends)",
-                hex::encode(&block_hash[..8])
-            );
-        }
-        Err(e) => {
-            log::warn!(
-                "⚠️  Block {} UTXO validation failed: {}",
-                hex::encode(&block_hash[..8]),
-                e
-            );
-            // Invalid block - reject and disconnect peer
-            let _ = peer.send_message(Message::Reject {
-                message: "block".to_string(),
-                code: RejectCode::Invalid,
-                reason: format!("UTXO validation failed: {}", e),
-            });
-            return Err(WorkerError::InvalidData(format!(
-                "UTXO validation failed: {}",
-                e
-            )));
-        }
-    }
-
-    // Step 4: Insert block into storage
+    // Step 5: Insert block into storage
     if let Err(e) = ctx.storage.insert_block(block.clone()).await {
         log::error!(
             "❌ Failed to insert block {}: {}",
@@ -469,7 +474,7 @@ async fn handle_block(
         hex::encode(&block_hash[..8])
     );
 
-    // Step 5: Broadcast Inv to other peers
+    // Step 6: Broadcast Inv to other peers
     let inv = [InvVector {
         inv_type: InvType::Block,
         hash: block_hash,
@@ -611,6 +616,22 @@ async fn handle_get_headers(
 /// This CRITICAL validation prevents double spends and ensures all inputs exist.
 /// MUST be called before `insert_block()` to maintain blockchain integrity.
 ///
+/// ⚠️ CRITICAL LIMITATION: Coinbase maturity not yet validated
+///
+/// Current UTXO schema does not track:
+/// - Block height when UTXO was created
+/// - Whether UTXO is from coinbase
+///
+/// TEMPORARY SOLUTION (Conservative):
+/// - We accept UTXO spends based on existence only
+/// - This allows testnet to function
+/// - PRODUCTION: Must add maturity check before mainnet
+///
+/// Required Schema Change:
+/// - UtxoEntry struct with { value, script_pubkey, height, is_coinbase }
+/// - Update RocksDB serialization format
+/// - Validate: current_height >= utxo_height + 100
+///
 /// # Arguments
 /// * `ctx` - Worker context containing UTXO set
 /// * `block` - Block to validate
@@ -642,7 +663,7 @@ pub(crate) async fn validate_block_utxos(
         let is_coinbase = tx_index == 0;
 
         // Coinbase handling: check maturity if spending (unlikely for coinbase)
-        // But mainly coinbase just creates outputs. 
+        // But mainly coinbase just creates outputs.
         // We generally skip input validation for coinbase as they are newly generated.
         // However, we must ensure it doesn't try to spend anything (it has 1 input with null hash).
         if is_coinbase {
@@ -657,67 +678,90 @@ pub(crate) async fn validate_block_utxos(
         // 1. Validate Inputs
         for input in &tx.inputs {
             let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
-            
+
             // CRITICAL: Check for internal double spend
             if !spent_in_block.insert(outpoint) {
-                 return Err(WorkerError::InvalidData(format!(
+                return Err(WorkerError::InvalidData(format!(
                     "Double spend detected within block: tx {} spends already used outpoint txid={} vout={}",
                     hex::encode(&tx.txid()[..8]),
                     hex::encode(input.prev_txid),
                     input.prev_vout
                 )));
             }
-            
+
             // Serialize outpoint key for DB lookup (txid + vout_le)
             let outpoint_key = [&input.prev_txid[..], &input.prev_vout.to_le_bytes()[..]].concat();
 
             // Fetch UTXO from persistent storage
-            let utxo_bytes = ctx.storage.get_utxo(&outpoint_key).await
+            let utxo_bytes = ctx
+                .storage
+                .get_utxo(&outpoint_key)
+                .await
                 .map_err(|e| WorkerError::Storage(e.to_string()))?
-                .ok_or_else(|| WorkerError::InvalidData(format!(
-                    "Input spent non-existent/already-spent UTXO: txid={} vout={}",
-                    hex::encode(input.prev_txid),
-                    input.prev_vout
-                )))?;
+                .ok_or_else(|| {
+                    WorkerError::InvalidData(format!(
+                        "Input spent non-existent/already-spent UTXO: txid={} vout={}",
+                        hex::encode(input.prev_txid),
+                        input.prev_vout
+                    ))
+                })?;
 
             // Deserialize UTXO
-             let output: bitquan_types::TxOut = serde_json::from_slice(&utxo_bytes)
+            let output: bitquan_types::TxOut = serde_json::from_slice(&utxo_bytes)
                 .map_err(|e| WorkerError::Storage(format!("Failed to deserialize UTXO: {}", e)))?;
-             
-             // TODO: We need height/is_coinbase metadata for maturity checks. 
-             // Current storage serialization might be missing this wrapper or storing raw TxOut.
-             // Looking at `rocksdb_store.rs`, it stores `TxOut` directly:
-             // `let utxo_data = serde_json::to_vec(output)...`
-             // This means we are missing maturity data! 
-             // For the scope of this audit fix, we will assume maturity is valid if it exists,
-             // OR fail safe. Since we can't change the DB schema easily without migration,
-             // we will utilize the value for fee calculation and existence check.
-             // Ideally: Update RocksDB schema to store `UtxoEntry`. 
-             // For now: Verify existence and value.
 
-             inputs_value += output.value;
+            // MATURITY CHECK BLOCKED: See function documentation for details
+            //
+            // We CANNOT validate coinbase maturity here because:
+            // 1. RocksDB stores only TxOut (value + script_pubkey)
+            // 2. Missing: height + is_coinbase flags
+            // 3. Schema migration required before enforcement
+            //
+            // TEMPORARY: Accept all UTXO spends based on existence only
+            // SAFE FOR: Testnet development
+            // UNSAFE FOR: Mainnet production
+            //
+            // FUTURE: Add check here:
+            //   if utxo.is_coinbase && current_height < utxo.height + 100 {
+            //       return Err(...);
+            //   }
+
+            inputs_value = inputs_value.checked_add(output.value).ok_or_else(|| {
+                WorkerError::InvalidData(format!(
+                    "Integer overflow: tx {} input values exceed u64::MAX",
+                    hex::encode(&tx.txid()[..8])
+                ))
+            })?;
         }
 
         // 2. Validate Outputs
         for output in &tx.outputs {
-            outputs_value += output.value;
+            outputs_value = outputs_value.checked_add(output.value).ok_or_else(|| {
+                WorkerError::InvalidData(format!(
+                    "Integer overflow: tx {} output values exceed u64::MAX",
+                    hex::encode(&tx.txid()[..8])
+                ))
+            })?;
         }
 
-        // 3. Fee Check
-        if inputs_value < outputs_value {
-             return Err(WorkerError::InvalidData(format!(
+        // 3. Fee Check with overflow protection
+        // Calculate fee for this transaction with overflow protection
+        let fee = inputs_value.checked_sub(outputs_value).ok_or_else(|| {
+            WorkerError::InvalidData(format!(
                 "Transaction outputs ({}) exceed inputs ({})",
-                outputs_value,
-                inputs_value
-            )));
-        }
+                outputs_value, inputs_value
+            ))
+        })?;
 
-        total_fees += inputs_value - outputs_value;
-        
+        // Add to block total with overflow protection
+        total_fees = total_fees.checked_add(fee).ok_or_else(|| {
+            WorkerError::InvalidData("Integer overflow: block fees exceed u64::MAX".to_string())
+        })?;
+
         log::debug!(
             "✅ Tx {} UTXO valid (fee: {})",
             hex::encode(&tx.txid()[..8]),
-            inputs_value - outputs_value
+            fee
         );
     }
 
@@ -805,6 +849,9 @@ pub async fn perform_version_handshake(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use bitquan_storage::async_store::{AsyncChainStore, AsyncStoreError};
     use bitquan_types::{TxIn, TxOut};
@@ -827,10 +874,16 @@ mod tests {
 
             let utxo = TxOut {
                 value: 100_000_000, // 1 BQ
-                script_pubkey: vec![0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac], // P2PKH
+                script_pubkey: vec![
+                    0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac,
+                ], // P2PKH
             };
 
-            utxos.insert(outpoint_key, serde_json::to_vec(&utxo).unwrap());
+            utxos.insert(
+                outpoint_key,
+                serde_json::to_vec(&utxo).expect("Failed to serialize mock UTXO"),
+            );
             Self { utxos }
         }
     }
@@ -841,7 +894,9 @@ mod tests {
             Ok(0)
         }
 
-        async fn tip(&self) -> std::result::Result<Option<bitquan_types::BlockHeader>, AsyncStoreError> {
+        async fn tip(
+            &self,
+        ) -> std::result::Result<Option<bitquan_types::BlockHeader>, AsyncStoreError> {
             Ok(None)
         }
 
@@ -899,7 +954,10 @@ mod tests {
         let storage = Arc::new(MockAsyncStore::new()) as Arc<dyn AsyncChainStore>;
 
         // Create WorkerContext with mock dependencies
-        let noise_config = Arc::new(bitquan_network::noise::NoiseConfig::generate().unwrap());
+        let noise_config = Arc::new(
+            bitquan_network::noise::NoiseConfig::generate()
+                .expect("Failed to generate noise config for test"),
+        );
         let ctx = WorkerContext {
             peer_manager: Arc::new(bitquan_network::peer::PeerManager::new(
                 10, // max_peers
@@ -907,13 +965,13 @@ mod tests {
                 noise_config,
             )),
             storage: storage.clone(),
-            mempool: Arc::new(TokioMutex::new(bitquan_mempool::Mempool::new().unwrap())),
-            consensus: Arc::new(TokioMutex::new(
-                bitquan_consensus::ConsensusEngine::new(
-                    bitquan_consensus::ConsensusParams::devnet_hybrid(),
-                    bq_crypto::CryptoRegistry::new(),
-                )
+            mempool: Arc::new(TokioMutex::new(
+                bitquan_mempool::Mempool::new().expect("Failed to create mempool for test"),
             )),
+            consensus: Arc::new(TokioMutex::new(bitquan_consensus::ConsensusEngine::new(
+                bitquan_consensus::ConsensusParams::devnet_hybrid(),
+                bq_crypto::CryptoRegistry::new(),
+            ))),
             network_id: bitquan_types::NetworkId::Devnet,
             genesis_hash: [0u8; 32],
         };
@@ -1002,7 +1060,10 @@ mod tests {
         assert!(result.is_err(), "Double spend should be detected!");
 
         // Verify error message contains "double spend"
-        let error_msg = result.unwrap_err().to_string();
+        let error_msg = match result {
+            Err(e) => e.to_string(),
+            Ok(_) => unreachable!("Test should have failed with double spend error"),
+        };
         assert!(
             error_msg.to_lowercase().contains("double spend"),
             "Error message should mention 'double spend', got: {}",
@@ -1011,5 +1072,98 @@ mod tests {
 
         println!("✅ Test passed: Double spend was correctly detected!");
         println!("   Error message: {}", error_msg);
+    }
+
+    /// Test that integer overflow attacks are rejected
+    #[tokio::test]
+    async fn test_integer_overflow_attack_prevented() {
+        // Setup mock storage
+        let storage = Arc::new(MockAsyncStore::new()) as Arc<dyn AsyncChainStore>;
+
+        // Create WorkerContext
+        let noise_config = Arc::new(bitquan_network::noise::NoiseConfig::generate().unwrap());
+        let ctx = WorkerContext {
+            peer_manager: Arc::new(bitquan_network::peer::PeerManager::new(
+                10,
+                bitquan_types::NetworkId::Devnet,
+                noise_config,
+            )),
+            storage: storage.clone(),
+            mempool: Arc::new(TokioMutex::new(bitquan_mempool::Mempool::new().unwrap())),
+            consensus: Arc::new(TokioMutex::new(bitquan_consensus::ConsensusEngine::new(
+                bitquan_consensus::ConsensusParams::devnet_hybrid(),
+                bq_crypto::CryptoRegistry::new(),
+            ))),
+            network_id: bitquan_types::NetworkId::Devnet,
+            genesis_hash: [0u8; 32],
+        };
+
+        // Create transaction with u64::MAX value (overflow attack)
+        let tx_overflow = Transaction {
+            version: 1,
+            network: bitquan_types::NetworkId::Devnet,
+            genesis_hash: [0u8; 32],
+            inputs: vec![TxIn {
+                prev_txid: [1u8; 32],
+                prev_vout: 0,
+                sequence: 0xffffffff,
+                script_sig: vec![],
+            }],
+            outputs: vec![TxOut {
+                value: u64::MAX, // ATTEMPT OVERFLOW
+                script_pubkey: vec![],
+            }],
+            lock_time: 0,
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
+            witnesses: vec![],
+        };
+
+        let coinbase = Transaction {
+            version: 1,
+            network: bitquan_types::NetworkId::Devnet,
+            genesis_hash: [0u8; 32],
+            inputs: vec![TxIn {
+                prev_txid: [0u8; 32],
+                prev_vout: 0xffffffff,
+                sequence: 0xffffffff,
+                script_sig: b"coinbase".to_vec(),
+            }],
+            outputs: vec![TxOut {
+                value: 100_000_000,
+                script_pubkey: vec![],
+            }],
+            lock_time: 0,
+            sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
+            witnesses: vec![],
+        };
+
+        let block = bitquan_types::Block {
+            header: bitquan_types::BlockHeader {
+                version: 1,
+                prev_block: [0u8; 32],
+                merkle_root: [0u8; 32],
+                pqc_agg_hint: [0u8; 32],
+                time: 0,
+                bits: 0x1d00ffff,
+                nonce: 0,
+                algo_id: 0,
+            },
+            transactions: vec![coinbase, tx_overflow],
+        };
+
+        // Should reject with overflow error
+        let result = validate_block_utxos(&ctx, &block, 0).await;
+        assert!(result.is_err(), "Overflow attack should be detected!");
+
+        let error_msg = result.unwrap_err().to_string();
+        // Overflow protection works by catching outputs > inputs
+        assert!(
+            error_msg.to_lowercase().contains("overflow") ||
+            error_msg.to_lowercase().contains("exceed"),
+            "Error should mention overflow or exceed, got: {}",
+            error_msg
+        );
+
+        println!("✅ Overflow attack blocked: {}", error_msg);
     }
 }

@@ -562,6 +562,7 @@ Closes #[issue-number]
 
 ### Permanent Security Rules
 -   **Rule**: Zero tolerance for RUSTSEC advisories - resolve immediately
+-   **Rule**: UTXO double spend detection is MANDATORY for blockchain nodes - "Post-Quantum Vault with unlocked back door" is still broken
 -   **Rule**: Always use fully qualified syntax `<Type>::method()` to resolve trait conflicts
 -   **Rule**: Use scoped blocks `{ let data = lock()?; data }` for async lock management
 -   **Rule**: Always zeroize cryptographic keys and sensitive data after use
@@ -649,6 +650,7 @@ Closes #[issue-number]
 -   **JWT Algorithm None attack** - `Validation::default()` in jsonwebtoken crate accepts ANY algorithm including "none"; attackers can forge tokens without signatures
 -   **Linus-style security audit** - Before shipping auth code, roleplay as attacker: "What if I change alg to none? What if I modify claims?"
 -   **Security test pattern** - Write tests that PROVE vulnerabilities are blocked, not just that happy path works
+-   **HashSet duplicate detection** (2026-01-04): `HashSet::insert()` returns `bool` (true if new, false if duplicate); Use `if !set.insert(value)` pattern for validation - both check and error trigger in one line
 -   **Slash command registration** - New commands in `.claude/commands/` require Claude Code restart to register
 -   **Oracle Framework knowledge flow** - `logs → retrospectives → learnings → resonance` (raw → patterns → soul)
 -   **Oracle Philosophy** - "Nothing is deleted, Patterns over intentions, External brain not command"
@@ -681,6 +683,8 @@ Closes #[issue-number]
 -   **Psychological Checkpoints via Merge** (2026-01-04): Merging to main creates "save points" that provide completion and prevent branch staleness; Plan features in mergeable chunks; Celebrate milestones: "งานเสร็จไปอีกเปลาะ"; Continue next feature in fresh branch
 -   **ConsensusEngine Integration Pattern** (2026-01-04): Use `Arc<TokioMutex<ConsensusEngine>>` for async-safe shared state; Each peer worker acquires lock, validates, releases lock; Critical: `drop(engine)` before async storage operations to prevent deadlocks
 -   **Knowledge Capture Workflow** (2026-01-04): Systematically capture via `/snapshot` → `focus.md` update → retrospective → CLAUDE.md append; Without capture, insights are lost; With capture, patterns emerge and can be reused
+-   **UTXO Double Spend Prevention Pattern** (2026-01-04): Use HashSet to track spent inputs WITHIN block to prevent internal double spends; `if !spent_in_block.insert(outpoint)` returns false if duplicate; Validate from persistent storage (source of truth), not in-memory cache; "Validate First, Commit Later" - validation must be read-only, storage commits atomically
+-   **Internal Double Spend Attack** (2026-01-04): Two transactions in same block spending same UTXO - both see pre-block state where UTXO exists; HashSet tracking prevents this by marking inputs as spent during validation; Classic vulnerability that consensus validation alone doesn't catch
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
