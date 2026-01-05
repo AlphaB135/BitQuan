@@ -252,7 +252,9 @@ impl Peer {
 
     /// Adds to ban score and returns true if peer should be disconnected.
     pub fn add_ban_score(&mut self, points: u32) -> bool {
-        self.ban_score += points;
+        // Linus Rule: Use saturating_add to prevent overflow exploit
+        // If score is already high, adding more won't wrap around to 0
+        self.ban_score = self.ban_score.saturating_add(points);
         self.ban_score >= BAN_THRESHOLD
     }
 

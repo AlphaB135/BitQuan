@@ -29,6 +29,7 @@ use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
     target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
 };
+use bitquan_network::ban_manager::BanManager;
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{network_magic, Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
@@ -3013,6 +3014,9 @@ async fn p2p_server(
     );
     let consensus = Arc::new(TokioMutex::new(consensus_engine));
 
+    // Create ban manager for peer misconduct
+    let ban_manager = Arc::new(TokioMutex::new(BanManager::new(bitquan_network::ban_manager::BanConfig::default())));
+
     // Accept connections loop - spawn worker task for each peer
     loop {
         match listener.accept() {
@@ -3027,6 +3031,7 @@ async fn p2p_server(
                 let network_clone = network;
                 let consensus_clone = consensus.clone();
                 let fork_choice_clone = fork_choice.clone();
+                let ban_manager_clone = ban_manager.clone();
 
                 // Spawn async task for this peer
                 tokio::spawn(async move {
@@ -3055,6 +3060,7 @@ async fn p2p_server(
                                 mempool_clone,
                                 consensus_clone,
                                 fork_choice_clone,
+                                ban_manager_clone,
                                 network_clone,
                                 GENESIS_HASH_BYTES,
                             ));

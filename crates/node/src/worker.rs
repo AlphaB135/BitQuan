@@ -6,6 +6,7 @@
 
 use bitquan_consensus::header_hash;
 use bitquan_mempool::Mempool;
+use bitquan_network::ban_manager::{BanManager, BanReason};
 use bitquan_network::peer::{Peer, PeerManager};
 use bitquan_network::protocol::{network_magic, InvType, InvVector, Message, RejectCode};
 use bitquan_storage::async_store::AsyncChainStore;
@@ -52,6 +53,8 @@ pub struct WorkerContext {
     pub consensus: Arc<TokioMutex<bitquan_consensus::ConsensusEngine>>,
     /// Fork choice manager for chain reorganization.
     pub fork_choice: Arc<TokioMutex<bitquan_consensus::fork::ForkChoice>>,
+    /// Ban manager for peer misconduct.
+    pub ban_manager: Arc<TokioMutex<BanManager>>,
     /// Network identifier for validation.
     #[allow(dead_code)] // Used for future sighash context
     pub network_id: bitquan_types::NetworkId,
@@ -62,12 +65,14 @@ pub struct WorkerContext {
 
 impl WorkerContext {
     /// Create a new worker context.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         peer_manager: Arc<PeerManager>,
         storage: Arc<dyn AsyncChainStore>,
         mempool: Arc<TokioMutex<Mempool>>,
         consensus: Arc<TokioMutex<bitquan_consensus::ConsensusEngine>>,
         fork_choice: Arc<TokioMutex<bitquan_consensus::fork::ForkChoice>>,
+        ban_manager: Arc<TokioMutex<BanManager>>,
         network_id: bitquan_types::NetworkId,
         genesis_hash: [u8; 32],
     ) -> Self {
@@ -77,6 +82,7 @@ impl WorkerContext {
             mempool,
             consensus,
             fork_choice,
+            ban_manager,
             network_id,
             genesis_hash,
         }
@@ -125,7 +131,37 @@ pub async fn run_peer_loop(mut peer: Peer, ctx: Arc<WorkerContext>) -> Result<()
             }
             Err(e) => {
                 log::warn!("⚠️  Peer {} error: {}, disconnecting", peer.addr, e);
-                // TODO: Ban peer if error is severe
+
+                // Linus Rule: Penalize peer for protocol violations
+                // Score 50 for general errors (malformed messages, protocol issues)
+                let should_ban = peer.add_ban_score(50);
+                log::warn!("⚠️  Penalized peer {} with score {} for error", peer.addr, peer.ban_score);
+
+                if should_ban {
+                    // Ban threshold reached - permanently ban this peer
+                    log::warn!("🚫 Banning peer {} for malicious behavior (score: {})", peer.addr, peer.ban_score);
+
+                    let mut ban_manager = ctx.ban_manager.lock().await;
+                    let peer_id = peer.addr.to_string();
+                    let ip = peer.addr.ip();
+
+                    // Ban both peer ID and IP
+                    let _ = ban_manager.ban_peer_permanently(
+                        peer_id.clone(),
+                        BanReason::ProtocolViolation,
+                        Some("worker.rs".to_string()),
+                        Some(format!("Ban score reached: {}", peer.ban_score)),
+                    );
+
+                    let _ = ban_manager.ban_ip(
+                        ip,
+                        BanReason::ProtocolViolation,
+                        Some(std::time::Duration::from_secs(86400)), // 24 hours
+                        Some("worker.rs".to_string()),
+                        Some(format!("Peer {} banned for protocol violation", peer_id)),
+                    );
+                }
+
                 return Err(e);
             }
         }
@@ -471,6 +507,12 @@ async fn handle_block(
                 hex::encode(&block_hash[..8]),
                 e
             );
+
+            // Linus Rule: UTXO validation failure = 100 points (instant ban)
+            // This is CRITICAL - double spend attacks undermine consensus
+            let _ = peer.add_ban_score(100);
+            log::warn!("🚨 Penalized peer {} with 100 points for UTXO validation failure", peer.addr);
+
             // Invalid block - reject and disconnect peer
             let _ = peer.send_message(Message::Reject {
                 message: "block".to_string(),
@@ -503,6 +545,12 @@ async fn handle_block(
                 hex::encode(&block_hash[..8]),
                 e
             );
+
+            // Linus Rule: Consensus validation failure = 100 points (instant ban)
+            // Invalid signatures, wrong coinbase, merkle root mismatch = malicious
+            let _ = peer.add_ban_score(100);
+            log::warn!("🚨 Penalized peer {} with 100 points for consensus validation failure", peer.addr);
+
             // Invalid block - reject and disconnect peer
             let _ = peer.send_message(Message::Reject {
                 message: "block".to_string(),
@@ -739,6 +787,12 @@ async fn handle_tx(
             }
             Err(e) => {
                 log::warn!("⚠️  Tx {} rejected: {}", hex::encode(&tx_hash[..8]), e);
+
+                // Linus Rule: Transaction validation failure = 20 points
+                // Less severe than block failures (might be honest mistake)
+                let _ = peer.add_ban_score(20);
+                log::warn!("⚠️  Penalized peer {} with 20 points for invalid tx", peer.addr);
+
                 // Send reject message
                 let _ = peer.send_message(Message::Reject {
                     message: "tx".to_string(),
@@ -1179,8 +1233,9 @@ mod tests {
                 bq_crypto::CryptoRegistry::new(),
             ))),
             fork_choice: Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new())),
+            ban_manager: Arc::new(TokioMutex::new(BanManager::new(bitquan_network::ban_manager::BanConfig::default()))),
             network_id: bitquan_types::NetworkId::Devnet,
-            genesis_hash: [0u8; 32],
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
         };
 
         // Create two transactions that BOTH spend the same UTXO (double spend)
@@ -1302,6 +1357,7 @@ mod tests {
                 bq_crypto::CryptoRegistry::new(),
             ))),
             fork_choice: Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new())),
+            ban_manager: Arc::new(TokioMutex::new(BanManager::new(bitquan_network::ban_manager::BanConfig::default()))),
             network_id: bitquan_types::NetworkId::Devnet,
             genesis_hash: [0u8; 32],
         };
