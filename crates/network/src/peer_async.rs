@@ -160,12 +160,20 @@ impl AsyncPeer {
     }
 
     async fn send_envelope(&mut self, envelope: &MessageEnvelope) -> Result<(), P2pError> {
+        // Serialize the envelope (magic + payload)
         let data = envelope
             .serialize()
             .map_err(|e| P2pError::SerializationError(e.to_string()))?;
 
-        // Timeout for write as well
-        tokio::time::timeout(FRAME_READ_TIMEOUT, self.stream.write_all(&data))
+        // FRAMING: [length_prefix(4) + envelope_data(magic + payload)]
+        // This matches what read_frame_internal() expects
+        let len = data.len() as u32;
+        let mut frame = Vec::with_capacity(4 + data.len());
+        frame.extend_from_slice(&len.to_le_bytes());
+        frame.extend_from_slice(&data);
+
+        // Write with timeout
+        tokio::time::timeout(FRAME_READ_TIMEOUT, self.stream.write_all(&frame))
             .await
             .map_err(|_| P2pError::ConnectionError("write timeout".to_string()))?
             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;

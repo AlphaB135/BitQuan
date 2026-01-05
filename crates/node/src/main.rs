@@ -669,6 +669,9 @@ enum Commands {
         /// Our current block height
         #[arg(long, default_value_t = 0)]
         height: u64,
+        /// Network to target (mainnet|testnet|devnet|regtest)
+        #[arg(long, default_value = "devnet")]
+        network: String,
     },
     /// Start Stratum mining server
     StratumServer {
@@ -1031,7 +1034,10 @@ async fn main() -> Result<()> {
                 .await
             }
         }
-        Commands::P2PConnect { peer, height } => p2p_connect(&peer, height),
+        Commands::P2PConnect { peer, height, network } => {
+            let network_id = parse_network_id(&network)?;
+            p2p_connect(&peer, height, network_id)
+        }
         Commands::StratumServer {
             stratum_bind,
             stratum_allow,
@@ -3058,13 +3064,14 @@ async fn p2p_server(
 }
 
 /// Connect to a peer as a client
-fn p2p_connect(peer: &str, height: u64) -> Result<()> {
+fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> {
     use bitquan_network::{NoiseConfig, PeerManager};
     use std::sync::Arc;
 
     println!("BitQuan P2P Client");
     println!("Connecting to: {}", peer);
     println!("Our height: {}", height);
+    println!("Network: {:?}", network);
 
     // Generate Noise Protocol keypair for P2P encryption
     let noise_config = Arc::new(
@@ -3076,7 +3083,7 @@ fn p2p_connect(peer: &str, height: u64) -> Result<()> {
         noise_config.public_key_hex()
     );
 
-    let peer_manager = Arc::new(PeerManager::new(1, NetworkId::Mainnet, noise_config));
+    let peer_manager = Arc::new(PeerManager::new(1, network, noise_config));
     if let Err(e) = peer_manager.update_height(height) {
         eprintln!("⚠️  Failed to update peer height: {}", e);
     }
