@@ -115,6 +115,9 @@ pub trait AsyncChainStore: Send + Sync {
         &self,
         outpoint: &[u8],
     ) -> std::result::Result<Option<Vec<u8>>, AsyncStoreError>;
+
+    /// Disconnect a block, rolling back its changes (for chain reorg).
+    async fn disconnect_block(&self, block: &Block) -> std::result::Result<(), AsyncStoreError>;
 }
 
 #[async_trait]
@@ -255,6 +258,24 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
         })
         .await
         .map_err(AsyncStoreError::TaskSpawn)??)
+    }
+
+    async fn disconnect_block(&self, block: &Block) -> std::result::Result<(), AsyncStoreError> {
+        let store = Arc::clone(&self.inner);
+        let block = block.clone();
+
+        // Spawn blocking task because RocksDB disconnect_block is synchronous
+        tokio::task::spawn_blocking(move || {
+            let mut guard = store
+                .lock()
+                .map_err(|_e| AsyncStoreError::Poisoned("disconnect_block operation"))?;
+            guard.disconnect_block(&block)
+        })
+        .await
+        .map_err(AsyncStoreError::TaskSpawn)?
+        .map_err(AsyncStoreError::Storage)?;
+
+        Ok(())
     }
 }
 
