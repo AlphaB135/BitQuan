@@ -685,6 +685,13 @@ Closes #[issue-number]
 -   **Knowledge Capture Workflow** (2026-01-04): Systematically capture via `/snapshot` → `focus.md` update → retrospective → CLAUDE.md append; Without capture, insights are lost; With capture, patterns emerge and can be reused
 -   **UTXO Double Spend Prevention Pattern** (2026-01-04): Use HashSet to track spent inputs WITHIN block to prevent internal double spends; `if !spent_in_block.insert(outpoint)` returns false if duplicate; Validate from persistent storage (source of truth), not in-memory cache; "Validate First, Commit Later" - validation must be read-only, storage commits atomically
 -   **Internal Double Spend Attack** (2026-01-04): Two transactions in same block spending same UTXO - both see pre-block state where UTXO exists; HashSet tracking prevents this by marking inputs as spent during validation; Classic vulnerability that consensus validation alone doesn't catch
+-   **Parallel Agent Audits** (2026-01-05): Launch 3-4 specialized agents simultaneously for comprehensive code review; Each agent digs deep into specific domain (Undo Expert, Flow Master, Ghost Hunter); Coverage exponentially better than single reviewer trying to remember everything
+-   **Error Handling > Happy Path** (2026-01-05): Blockchain code must handle failures gracefully or becomes network liability; For EVERY loop that modifies state, ask: "What if this fails on iteration 3 of 5?"; Partial reorg leaves chain corrupted - UTXO set mismatch, potential double spends
+-   **TODO Comments That Admit Bugs Should Block Commits** (2026-01-05): Found TODO at line 569-570: "For now, transactions are lost" - this was committed; Violates zero tolerance principle; Never commit code with TODOs that admit data loss or security issues
+-   **Halfway Disaster Pattern** (2026-01-05): Immediate return on error in multi-operation loop leaves corrupted state; Fix: Checkpoint/rollback mechanism or atomic operations; `return Err(e)` after partial work = inconsistent chain state
+-   **Atomicity Requires Careful Batch Design** (2026-01-05): Undo data deleted in same batch as UTXO ops = lost forever if write fails; Fix: Delete undo data in SEPARATE batch AFTER confirming UTXO ops succeeded; Always separate "confirm success" from "cleanup"
+-   **Mempool Resurrection Is Not Optional** (2026-01-05): During reorg, transactions from disconnected blocks MUST return to mempool; Users' payments disappear if not resurrected; Relying on peers to rebroadcast is irresponsible; This is user funds bug, not annoyance
+-   **Adversarial Review Pre-Commit** (2026-01-05): Add to `ck` checklist: "What if this fails halfway?"; Test failure scenarios, not just happy paths; Roleplay as attacker: "What if I pull power on iteration 3 of 5?"
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
@@ -830,5 +837,5 @@ Ctrl+b, d              # Detach from session
 -   [ ] Environment variables set
 -   [ ] Git configured
 
-**Last Updated**: 2026-01-04
-**Version**: 1.2.0
+**Last Updated**: 2026-01-05
+**Version**: 1.3.0
