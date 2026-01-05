@@ -1535,11 +1535,21 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
     let found = Arc::new(AtomicBool::new(false));
     let blocks_mined = Arc::new(AtomicU64::new(0));
 
-    // Initialize PeerManager if peers are specified
-    let peer_manager = if !peers.is_empty() {
+    // Initialize PeerManager (with automatic seed bootstrap if no peers specified)
+    let peer_manager = {
         use bitquan_network::{NoiseConfig, PeerManager};
-        println!("\n=== P2P Network Configuration ===");
-        println!("Connecting to {} peer(s)...", peers.len());
+
+        // Use seed peers if none specified, otherwise use provided peers
+        let bootstrap_peers: Vec<String> = if peers.is_empty() {
+            // Automatic bootstrap: use hardcoded seed node for testnet
+            println!("\n=== P2P Auto-Bootstrap ===");
+            println!("No peers specified, using seed node...");
+            vec!["127.0.0.1:18444".to_string()]
+        } else {
+            println!("\n=== P2P Network Configuration ===");
+            println!("Connecting to {} peer(s)...", peers.len());
+            peers.clone()
+        };
 
         // Generate Noise Protocol keypair for P2P encryption
         let noise_config = Arc::new(
@@ -1551,7 +1561,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             noise_config.public_key_hex()
         );
 
-        let pm = Arc::new(PeerManager::new(peers.len(), network, noise_config));
+        let pm = Arc::new(PeerManager::new(bootstrap_peers.len(), network, noise_config));
 
         // Update peer manager with current chain height
         let current_height = {
@@ -1565,9 +1575,9 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             eprintln!("⚠️  Failed to update peer height: {}", e);
         }
 
-        // Connect to all peers
+        // Connect to all bootstrap peers
         let mut connected_count = 0;
-        for peer_addr in &peers {
+        for peer_addr in &bootstrap_peers {
             let addr: SocketAddr = match peer_addr.parse() {
                 Ok(a) => a,
                 Err(e) => {
@@ -1592,7 +1602,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             println!(
                 "\n✅ Connected to {}/{} peers",
                 connected_count,
-                peers.len()
+                bootstrap_peers.len()
             );
             println!("Ready peers: {}", pm.ready_peer_count().unwrap_or(0));
             println!("================================\n");
@@ -1601,8 +1611,6 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             eprintln!("⚠️  Warning: Failed to connect to any peers. Mining will continue without network connectivity.\n");
             None
         }
-    } else {
-        None
     };
 
     let mut history: VecDeque<BlockLog> = VecDeque::with_capacity(window + 2);

@@ -376,6 +376,30 @@ impl Mempool {
 
         selected
     }
+
+    /// Looks up a transaction by txid (for P2P transaction relay).
+    pub fn get_transaction(&self, txid: &[u8; 32]) -> Option<Transaction> {
+        for (_fee_rate, entries) in self.entries.iter() {
+            for entry in entries {
+                if entry.tx.txid() == *txid {
+                    return Some(entry.tx.clone());
+                }
+            }
+        }
+        None
+    }
+
+    /// Checks if a transaction exists in the mempool (for P2P Inv handling).
+    pub fn contains(&self, txid: &[u8; 32]) -> bool {
+        for (_fee_rate, entries) in self.entries.iter() {
+            for entry in entries {
+                if entry.tx.txid() == *txid {
+                    return true;
+                }
+            }
+        }
+        false
+    }
 }
 
 impl Default for Mempool {

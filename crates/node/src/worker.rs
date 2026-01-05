@@ -262,14 +262,26 @@ async fn handle_inv(
             }
 
             InvType::Tx => {
-                // TODO: Check mempool
-                // For now, always request (mempool not integrated yet)
-                log::info!(
-                    "❓ Requesting tx: {} from {}",
-                    hex::encode(inv.hash),
-                    peer.addr
-                );
-                to_request.push(inv);
+                // Check if we already have this transaction in mempool
+                let in_mempool = {
+                    let mempool = ctx.mempool.lock().await;
+                    mempool.contains(&inv.hash)
+                };
+
+                // Only request if not already in mempool
+                if !in_mempool {
+                    log::info!(
+                        "❓ Requesting tx: {} from {}",
+                        hex::encode(&inv.hash[..8]),
+                        peer.addr
+                    );
+                    to_request.push(inv);
+                } else {
+                    log::debug!(
+                        "✅ Tx {} already in mempool, skipping request",
+                        hex::encode(&inv.hash[..8])
+                    );
+                }
             }
 
             _ => {
@@ -325,12 +337,50 @@ async fn handle_get_data(
             }
 
             InvType::Tx => {
-                // TODO: Check mempool first
-                // For now, respond with "not found"
-                log::debug!(
-                    "Tx {} requested but mempool not integrated",
-                    hex::encode(inv.hash)
-                );
+                // Check mempool FIRST, then storage
+                let tx_from_mempool = {
+                    let mempool = ctx.mempool.lock().await;
+                    mempool.get_transaction(&inv.hash)
+                };
+
+                match tx_from_mempool {
+                    Some(tx) => {
+                        log::debug!(
+                            "📤 Sending tx {} from mempool to {}",
+                            hex::encode(&tx.txid()[..8]),
+                            peer.addr
+                        );
+                        peer.send_message(Message::Tx { transaction: tx })?;
+                    }
+                    None => {
+                        // Not in mempool, try storage
+                        log::debug!(
+                            "❓ Tx {} not in mempool, checking storage",
+                            hex::encode(&inv.hash[..8])
+                        );
+                        // Try storage
+                        match ctx.storage.get_transaction(&inv.hash).await {
+                            Ok(Some(tx)) => {
+                                log::debug!(
+                                    "📤 Sending tx {} from storage to {}",
+                                    hex::encode(&tx.txid()[..8]),
+                                    peer.addr
+                                );
+                                peer.send_message(Message::Tx { transaction: tx })?;
+                            }
+                            Ok(None) => {
+                                log::debug!(
+                                    "❓ Tx {} not found anywhere (mempool or storage)",
+                                    hex::encode(&inv.hash[..8])
+                                );
+                                // Transaction not found - do nothing (peer will timeout)
+                            }
+                            Err(e) => {
+                                log::warn!("❌ Failed to get tx {} from storage: {}", hex::encode(&inv.hash[..8]), e);
+                            }
+                        }
+                    }
+                }
             }
 
             _ => {
