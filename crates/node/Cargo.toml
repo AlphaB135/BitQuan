@@ -61,3 +61,7 @@ pool = []  # Enable pool database functionality (Phase 8)
 rocksdb-backend = ["bitquan-storage/rocksdb-backend"]
 randomx = ["bitquan-consensus/randomx"]
 mainnet = []
+
+[[test]]
+name = "p2p_mempool_relay"
+path = "../../tests/p2p_mempool_relay.rs"

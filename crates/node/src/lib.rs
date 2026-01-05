@@ -19,6 +19,7 @@ pub mod stratum_server;
 pub mod sync_task;
 pub mod vardiff;
 pub mod wallet;
+pub mod worker;
 
 // Re-export all public types for tests and external usage
 pub use block_submit::{BlockSubmitter, SubmitResult};
