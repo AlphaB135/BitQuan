@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitQuan Testnet Faucet 🚰</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #00ff9f;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #888;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #00ff9f;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 159, 0.3);
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00ff9f;
+            box-shadow: 0 0 10px rgba(0, 255, 159, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #00ff9f 0%, #00cc7a 100%);
+            border: none;
+            border-radius: 8px;
+            color: #1a1a2e;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 255, 159, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            font-size: 0.9em;
+        }
+
+        .result.success {
+            background: rgba(0, 255, 159, 0.1);
+            border: 1px solid rgba(0, 255, 159, 0.3);
+            color: #00ff9f;
+        }
+
+        .result.error {
+            background: rgba(255, 0, 100, 0.1);
+            border: 1px solid rgba(255, 0, 100, 0.3);
+            color: #ff0064;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #00ff9f;
+            margin-top: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid rgba(0, 255, 159, 0.1);
+            border-top: 3px solid #00ff9f;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid #00ff9f;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.85em;
+            color: #aaa;
+        }
+
+        .info strong {
+            color: #00ff9f;
+        }
+
+        .tx-link {
+            color: #00ff9f;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .tx-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚰 BitQuan Faucet</h1>
+        <p class="subtitle">Testnet Liquidity Pump</p>
+
+        <div class="info">
+            <strong>💡 How it works:</strong><br>
+            Enter your BitQuan testnet address and receive <strong>10 BQ</strong>.<br>
+            <strong>Rate limit:</strong> 1 request per minute per IP.
+        </div>
+
+        <form id="faucet-form">
+            <div class="form-group">
+                <label for="address">Your BitQuan Address (bq1...)</label>
+                <input
+                    type="text"
+                    id="address"
+                    name="address"
+                    placeholder="bq1..."
+                    required
+                    pattern="^bq1[a-z0-9]{38,62}$"
+                    title="BitQuan addresses start with 'bq1' and are 40-64 characters long"
+                >
+            </div>
+
+            <button type="submit" id="submit-btn">💧 Get Testnet Coins</button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Pumping coins...</p>
+        </div>
+
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('faucet-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const address = document.getElementById('address').value.trim();
+
+            // Reset UI
+            result.style.display = 'none';
+            result.className = 'result';
+            loading.classList.add('active');
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/drip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ address })
+                });
+
+                const data = await response.json();
+
+                loading.classList.remove('active');
+                result.style.display = 'block';
+
+                if (response.ok && data.txid) {
+                    result.classList.add('success');
+                    result.innerHTML = `
+                        <strong>✅ Coins sent!</strong><br><br>
+                        <strong>TXID:</strong><br>
+                        <a class="tx-link">${data.txid}</a><br><br>
+                        <small>Amount: 10 BQ</small>
+                    `;
+                } else {
+                    result.classList.add('error');
+                    result.innerHTML = `
+                        <strong>❌ Error:</strong><br>
+                        ${data.error || 'Unknown error'}
+                    `;
+                }
+            } catch (error) {
+                loading.classList.remove('active');
+                result.style.display = 'block';
+                result.classList.add('error');
+                result.innerHTML = `
+                    <strong>❌ Network Error:</strong><br>
+                    ${error.message}
+                `;
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
