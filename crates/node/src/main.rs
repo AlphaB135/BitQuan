@@ -1122,6 +1122,8 @@ fn run_node(
         .map_err(|e| Error::Invalid(format!("failed to create runtime: {e}")))?;
 
     rt.block_on(async {
+        // Start metrics server on port 9615
+        let _metrics_handle = metrics::start_metrics_server(9615);
         p2p_server(
             p2p_addr,
             50, // max_peers
@@ -2975,6 +2977,34 @@ async fn p2p_server(
     // For now, ForkChoice starts empty - will build up as blocks arrive
     // In production, should load existing chain tips into ForkChoice
 
+    // Start metrics server on port 9615
+    let _metrics_handle = metrics::start_metrics_server(9615);
+    println!("📊 Metrics server started on http://127.0.0.1:9615/metrics");
+
+    // Set initial block height metric
+    metrics::update_block_height(height);
+
+    // Spawn periodic metrics update task
+    // Updates connected_peers and mempool_size every 10 seconds
+    let peer_manager_for_metrics = peer_manager.clone();
+    let mempool_for_metrics = mempool.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
+        loop {
+            interval.tick().await;
+
+            // Update connected peers metric
+            if let Ok(count) = peer_manager_for_metrics.peer_count() {
+                metrics::update_connected_peers(count);
+            }
+
+            // Update mempool size metric
+            let mempool_lock = mempool_for_metrics.lock().await;
+            metrics::update_mempool_size(mempool_lock.len());
+            drop(mempool_lock);
+        }
+    });
+
     // Bind TCP listener
     let listener =
         TcpListener::bind(listen).map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
@@ -3015,7 +3045,9 @@ async fn p2p_server(
     let consensus = Arc::new(TokioMutex::new(consensus_engine));
 
     // Create ban manager for peer misconduct
-    let ban_manager = Arc::new(TokioMutex::new(BanManager::new(bitquan_network::ban_manager::BanConfig::default())));
+    let ban_manager = Arc::new(TokioMutex::new(BanManager::new(
+        bitquan_network::ban_manager::BanConfig::default(),
+    )));
 
     // Accept connections loop - spawn worker task for each peer
     loop {

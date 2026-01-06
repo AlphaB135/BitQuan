@@ -6,6 +6,7 @@
 
 use bitquan_consensus::header_hash;
 use bitquan_mempool::Mempool;
+use crate::metrics;
 use bitquan_network::ban_manager::{BanManager, BanReason};
 use bitquan_network::peer::{Peer, PeerManager};
 use bitquan_network::protocol::{network_magic, InvType, InvVector, Message, RejectCode};
@@ -135,11 +136,19 @@ pub async fn run_peer_loop(mut peer: Peer, ctx: Arc<WorkerContext>) -> Result<()
                 // Linus Rule: Penalize peer for protocol violations
                 // Score 50 for general errors (malformed messages, protocol issues)
                 let should_ban = peer.add_ban_score(50);
-                log::warn!("⚠️  Penalized peer {} with score {} for error", peer.addr, peer.ban_score);
+                log::warn!(
+                    "⚠️  Penalized peer {} with score {} for error",
+                    peer.addr,
+                    peer.ban_score
+                );
 
                 if should_ban {
                     // Ban threshold reached - permanently ban this peer
-                    log::warn!("🚫 Banning peer {} for malicious behavior (score: {})", peer.addr, peer.ban_score);
+                    log::warn!(
+                        "🚫 Banning peer {} for malicious behavior (score: {})",
+                        peer.addr,
+                        peer.ban_score
+                    );
 
                     let mut ban_manager = ctx.ban_manager.lock().await;
                     let peer_id = peer.addr.to_string();
@@ -160,6 +169,9 @@ pub async fn run_peer_loop(mut peer: Peer, ctx: Arc<WorkerContext>) -> Result<()
                         Some("worker.rs".to_string()),
                         Some(format!("Peer {} banned for protocol violation", peer_id)),
                     );
+
+                    // Update metrics - log ban event
+                    metrics::increment_ban_event("protocol_violation");
                 }
 
                 return Err(e);
@@ -511,7 +523,10 @@ async fn handle_block(
             // Linus Rule: UTXO validation failure = 100 points (instant ban)
             // This is CRITICAL - double spend attacks undermine consensus
             let _ = peer.add_ban_score(100);
-            log::warn!("🚨 Penalized peer {} with 100 points for UTXO validation failure", peer.addr);
+            log::warn!(
+                "🚨 Penalized peer {} with 100 points for UTXO validation failure",
+                peer.addr
+            );
 
             // Invalid block - reject and disconnect peer
             let _ = peer.send_message(Message::Reject {
@@ -549,7 +564,10 @@ async fn handle_block(
             // Linus Rule: Consensus validation failure = 100 points (instant ban)
             // Invalid signatures, wrong coinbase, merkle root mismatch = malicious
             let _ = peer.add_ban_score(100);
-            log::warn!("🚨 Penalized peer {} with 100 points for consensus validation failure", peer.addr);
+            log::warn!(
+                "🚨 Penalized peer {} with 100 points for consensus validation failure",
+                peer.addr
+            );
 
             // Invalid block - reject and disconnect peer
             let _ = peer.send_message(Message::Reject {
@@ -575,6 +593,7 @@ async fn handle_block(
     match fork_result {
         Ok((_is_new_tip, Some(reorg_info))) => {
             // 🔀 REORG DETECTED! 🚨
+            metrics::increment_reorg_counter();
             log::warn!(
                 "🔀 CHAIN REORG! Old: {}, New: {}, Depth: {} blocks",
                 hex::encode(&reorg_info.old_tip[..8]),
@@ -715,6 +734,9 @@ async fn handle_block(
         return Err(WorkerError::Storage(e.to_string()));
     }
 
+    // Update metrics - block height (new height = old height + 1)
+    metrics::update_block_height(height + 1);
+
     log::info!(
         "✅ Block {} connected to chain",
         hex::encode(&block_hash[..8])
@@ -791,7 +813,10 @@ async fn handle_tx(
                 // Linus Rule: Transaction validation failure = 20 points
                 // Less severe than block failures (might be honest mistake)
                 let _ = peer.add_ban_score(20);
-                log::warn!("⚠️  Penalized peer {} with 20 points for invalid tx", peer.addr);
+                log::warn!(
+                    "⚠️  Penalized peer {} with 20 points for invalid tx",
+                    peer.addr
+                );
 
                 // Send reject message
                 let _ = peer.send_message(Message::Reject {
@@ -1233,7 +1258,9 @@ mod tests {
                 bq_crypto::CryptoRegistry::new(),
             ))),
             fork_choice: Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new())),
-            ban_manager: Arc::new(TokioMutex::new(BanManager::new(bitquan_network::ban_manager::BanConfig::default()))),
+            ban_manager: Arc::new(TokioMutex::new(BanManager::new(
+                bitquan_network::ban_manager::BanConfig::default(),
+            ))),
             network_id: bitquan_types::NetworkId::Devnet,
             genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
         };
@@ -1357,7 +1384,9 @@ mod tests {
                 bq_crypto::CryptoRegistry::new(),
             ))),
             fork_choice: Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new())),
-            ban_manager: Arc::new(TokioMutex::new(BanManager::new(bitquan_network::ban_manager::BanConfig::default()))),
+            ban_manager: Arc::new(TokioMutex::new(BanManager::new(
+                bitquan_network::ban_manager::BanConfig::default(),
+            ))),
             network_id: bitquan_types::NetworkId::Devnet,
             genesis_hash: [0u8; 32],
         };

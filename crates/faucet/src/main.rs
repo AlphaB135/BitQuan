@@ -47,7 +47,8 @@ impl RateLimiter {
         let now = Instant::now();
         let duration = Duration::from_secs(60);
 
-        self.requests.retain(|_, timestamp| now.duration_since(*timestamp) < duration);
+        self.requests
+            .retain(|_, timestamp| now.duration_since(*timestamp) < duration);
 
         if self.requests.contains_key(ip) {
             return false;
@@ -166,7 +167,10 @@ async fn handle_drip(
     // Extract real IP (handles proxy scenarios)
     let ip = extract_real_ip(&headers, socket_addr);
 
-    info!("Received drip request from {} for address {}", ip, body.address);
+    info!(
+        "Received drip request from {} for address {}",
+        ip, body.address
+    );
 
     // Check rate limit
     if !rate_limiter.check(&ip) {
@@ -186,7 +190,10 @@ async fn handle_drip(
     // Send coins via RPC (with timeout protection)
     match send_to_address(&config, &body.address).await {
         Ok(txid) => {
-            info!("Successfully sent {} BQ to {}, txid: {}", config.drip_amount, body.address, txid);
+            info!(
+                "Successfully sent {} BQ to {}, txid: {}",
+                config.drip_amount, body.address, txid
+            );
             warp::reply::json(&DripResponse { txid })
         }
         Err(e) => {
@@ -206,8 +213,8 @@ fn index() -> impl Reply {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let rpc_url = env::var("BITQUAN_RPC_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:8332".to_string());
+    let rpc_url =
+        env::var("BITQUAN_RPC_URL").unwrap_or_else(|_| "http://127.0.0.1:8332".to_string());
     let rpc_user = env::var("BITQUAN_RPC_USER").unwrap_or_else(|_| "user".to_string());
     let rpc_pass = env::var("BITQUAN_RPC_PASS").unwrap_or_else(|_| "pass".to_string());
     let drip_amount = env::var("FAUCET_DRIP_AMOUNT")
@@ -241,14 +248,18 @@ async fn main() -> Result<()> {
                 let rate_limiter = rate_limiter.clone();
                 let config = config.clone();
                 async move {
-                    Ok::<_, warp::Rejection>(handle_drip(headers, addr, body, rate_limiter, config).await)
+                    Ok::<_, warp::Rejection>(
+                        handle_drip(headers, addr, body, rate_limiter, config).await,
+                    )
                 }
             }
         });
 
-    let routes = index_route
-        .or(api_drip)
-        .with(warp::cors().allow_any_origin().allow_methods(vec!["GET", "POST"]));
+    let routes = index_route.or(api_drip).with(
+        warp::cors()
+            .allow_any_origin()
+            .allow_methods(vec!["GET", "POST"]),
+    );
 
     let port = env::var("FAUCET_PORT")
         .ok()
