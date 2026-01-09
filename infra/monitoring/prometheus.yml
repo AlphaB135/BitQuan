@@ -1,0 +1,12 @@
+# Prometheus configuration for BitQuan metrics scraping
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # BitQuan Node metrics
+  - job_name: 'bitquan-node'
+    static_configs:
+      - targets: ['host.docker.internal:9615']
+    scrape_interval: 5s
+    metrics_path: /metrics

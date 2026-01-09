@@ -77,7 +77,12 @@ pub fn start_metrics_server(port: u16) -> tokio::task::JoinHandle<()> {
         let metric_string = encoder
             .encode_to_string(&metric_families)
             .unwrap_or_else(|e| format!("Error encoding metrics: {}", e));
-        warp::reply::html(metric_string)
+
+        // Build custom response with correct content-type
+        warp::http::Response::builder()
+            .header("content-type", "text/plain; version=0.0.4; charset=utf-8")
+            .body(metric_string)
+            .unwrap()
     });
 
     tokio::spawn(async move {
