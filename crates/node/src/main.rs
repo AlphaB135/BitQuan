@@ -3149,7 +3149,9 @@ async fn p2p_server(
         .unwrap_or(18444);
     let metrics_port = 9615 + p2p_port.saturating_sub(18444);
     
-    // Only start metrics if run_node() didn't already start it
+    // FIXME: (Linus) This block is a DIRTY HACK to prevent double-bind panic.
+    // Ideally, we should NOT attempt to start metrics here at all.
+    // Only the 'run' command in main.rs should own the metrics server.
     // (check by trying to bind - if it fails, it's already running)
     let metrics_addr = format!("127.0.0.1:{}", metrics_port);
     match std::net::TcpListener::bind(&metrics_addr) {
