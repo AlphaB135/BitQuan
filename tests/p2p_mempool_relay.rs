@@ -127,8 +127,12 @@ async fn test_mempool_transaction_relay() {
 
     // Create BanManager for each context
     use bitquan_network::BanConfig;
-    let alice_ban_manager = Arc::new(TokioMutex::new(bitquan_network::BanManager::new(BanConfig::default())));
-    let bob_ban_manager = Arc::new(TokioMutex::new(bitquan_network::BanManager::new(BanConfig::default())));
+    let alice_ban_manager = Arc::new(TokioMutex::new(bitquan_network::BanManager::new(
+        BanConfig::default(),
+    )));
+    let bob_ban_manager = Arc::new(TokioMutex::new(bitquan_network::BanManager::new(
+        BanConfig::default(),
+    )));
 
     let alice_ctx = Arc::new(WorkerContext::new(
         alice_peer_manager.clone(),

@@ -4,9 +4,9 @@
 //! Each peer runs in its own async task, processing messages and coordinating
 //! with the chain, mempool, and peer manager.
 
+use crate::metrics;
 use bitquan_consensus::header_hash;
 use bitquan_mempool::Mempool;
-use crate::metrics;
 use bitquan_network::ban_manager::{BanManager, BanReason};
 use bitquan_network::peer::{Peer, PeerManager};
 use bitquan_network::protocol::{network_magic, InvType, InvVector, Message, RejectCode};
@@ -1086,6 +1086,7 @@ pub(crate) async fn validate_block_utxos(
 /// # Returns
 /// * `Ok(())` if handshake successful
 /// * `Err(WorkerError)` if handshake fails
+#[allow(dead_code)]
 pub async fn perform_version_handshake(
     peer: &mut Peer,
     network: NetworkId,

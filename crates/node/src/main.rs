@@ -1111,21 +1111,21 @@ async fn run_node(
 ) -> Result<()> {
     // Parse config file for settings
     let config_content = std::fs::read_to_string(config_path).unwrap_or_default();
-    
+
     // Extract db_path from config (default to ./data/chainstate)
     let datadir = extract_config_value(&config_content, "db_path")
         .unwrap_or_else(|| "./data/chainstate".to_string());
-    
+
     // Extract p2p_port from config for deriving metrics port
     let config_p2p_port: u16 = extract_config_value(&config_content, "p2p_port")
         .and_then(|s| s.parse().ok())
         .unwrap_or(18444);
-    
+
     // Use CLI override or config value for P2P address
     let p2p_addr = p2p_bind
         .map(|s| s.to_string())
         .unwrap_or_else(|| format!("0.0.0.0:{}", config_p2p_port));
-    
+
     let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332"); // Currently unused
 
     println!(
@@ -1134,11 +1134,14 @@ async fn run_node(
 
     // Create data directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&datadir) {
-        eprintln!("Warning: Failed to create data directory {}: {}", datadir, e);
+        eprintln!(
+            "Warning: Failed to create data directory {}: {}",
+            datadir, e
+        );
     }
 
     // Metrics server will be started by p2p_server() with proper port derivation
-    
+
     // Extract bootstrap_nodes from config
     let bootstrap_peers = extract_config_array(&config_content, "bootstrap_nodes");
     let bootstrap_peers_opt = if bootstrap_peers.is_empty() {
@@ -1146,46 +1149,46 @@ async fn run_node(
     } else {
         Some(bootstrap_peers)
     };
-    
+
     p2p_server(
-            &p2p_addr,
-            50, // max_peers
-            &datadir,
-            RpcServerOptions {
-                listen: None, // Disabled for P2P testing
-                username: None,
-                password: None,
-                #[cfg(feature = "rocksdb-backend")]
-                jwt_config_path: None,
-                #[cfg(feature = "rocksdb-backend")]
-                jwt_secret: None,
-                #[cfg(feature = "rocksdb-backend")]
-                max_body_bytes: 1_000_000,
-                #[cfg(feature = "rocksdb-backend")]
-                rl_burst: 10,
-                #[cfg(feature = "rocksdb-backend")]
-                rl_refill_per_sec: 1,
-                #[cfg(feature = "rocksdb-backend")]
-                conn_cooldown_ms: 1000,
-                #[cfg(feature = "rocksdb-backend")]
-                max_header_bytes: 8192,
-                #[cfg(feature = "rocksdb-backend")]
-                header_timeout_ms: 5000,
-                #[cfg(feature = "rocksdb-backend")]
-                trust_proxy: false,
-                #[cfg(feature = "rocksdb-backend")]
-                trusted_cidr: vec![],
-                #[cfg(feature = "rocksdb-backend")]
-                tls_cert: None,
-                #[cfg(feature = "rocksdb-backend")]
-                tls_key: None,
-                #[cfg(feature = "rocksdb-backend")]
-                allow_insecure: false,
-            },
-            network,
-            bootstrap_peers_opt,
-        )
-        .await
+        &p2p_addr,
+        50, // max_peers
+        &datadir,
+        RpcServerOptions {
+            listen: None, // Disabled for P2P testing
+            username: None,
+            password: None,
+            #[cfg(feature = "rocksdb-backend")]
+            jwt_config_path: None,
+            #[cfg(feature = "rocksdb-backend")]
+            jwt_secret: None,
+            #[cfg(feature = "rocksdb-backend")]
+            max_body_bytes: 1_000_000,
+            #[cfg(feature = "rocksdb-backend")]
+            rl_burst: 10,
+            #[cfg(feature = "rocksdb-backend")]
+            rl_refill_per_sec: 1,
+            #[cfg(feature = "rocksdb-backend")]
+            conn_cooldown_ms: 1000,
+            #[cfg(feature = "rocksdb-backend")]
+            max_header_bytes: 8192,
+            #[cfg(feature = "rocksdb-backend")]
+            header_timeout_ms: 5000,
+            #[cfg(feature = "rocksdb-backend")]
+            trust_proxy: false,
+            #[cfg(feature = "rocksdb-backend")]
+            trusted_cidr: vec![],
+            #[cfg(feature = "rocksdb-backend")]
+            tls_cert: None,
+            #[cfg(feature = "rocksdb-backend")]
+            tls_key: None,
+            #[cfg(feature = "rocksdb-backend")]
+            allow_insecure: false,
+        },
+        network,
+        bootstrap_peers_opt,
+    )
+    .await
 }
 
 /// Extract a simple key = "value" or key = value from TOML content
@@ -1211,7 +1214,7 @@ fn extract_config_array(content: &str, key: &str) -> Vec<String> {
                 let val = value.trim();
                 // Parse simple array: ["a", "b"]
                 if val.starts_with('[') && val.ends_with(']') {
-                    let inner = &val[1..val.len()-1];
+                    let inner = &val[1..val.len() - 1];
                     return inner
                         .split(',')
                         .map(|s| s.trim().trim_matches('"').trim().to_string())
@@ -1223,7 +1226,6 @@ fn extract_config_array(content: &str, key: &str) -> Vec<String> {
     }
     Vec::new()
 }
-
 
 /// Mine the genesis block
 fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
@@ -3077,12 +3079,10 @@ async fn p2p_server(
     let peers_json_path = std::path::PathBuf::from("peers.json");
     if peers_json_path.exists() {
         match peer_manager.load_address_book(&peers_json_path) {
-            Ok(()) => {
-                match peer_manager.known_peers_count() {
-                    Ok(count) => println!("📖 Loaded {} peers from peers.json", count),
-                    Err(e) => println!("⚠️  Loaded peers.json but couldn't count: {}", e),
-                }
-            }
+            Ok(()) => match peer_manager.known_peers_count() {
+                Ok(count) => println!("📖 Loaded {} peers from peers.json", count),
+                Err(e) => println!("⚠️  Loaded peers.json but couldn't count: {}", e),
+            },
             Err(e) => {
                 println!("⚠️  Failed to load peers.json: {}, starting fresh", e);
             }
@@ -3143,11 +3143,11 @@ async fn p2p_server(
     // e.g., P2P 18444 -> Metrics 9615, P2P 18445 -> Metrics 9616
     let p2p_port: u16 = listen
         .split(':')
-        .last()
+        .next_back()
         .and_then(|s| s.parse().ok())
         .unwrap_or(18444);
     let metrics_port = 9615 + p2p_port.saturating_sub(18444);
-    
+
     // FIXME: (Linus) This block is a DIRTY HACK to prevent double-bind panic.
     // Ideally, we should NOT attempt to start metrics here at all.
     // Only the 'run' command in main.rs should own the metrics server.
@@ -3157,7 +3157,10 @@ async fn p2p_server(
         Ok(listener) => {
             drop(listener); // Release the port
             let _metrics_handle = metrics::start_metrics_server(metrics_port);
-            println!("📊 Metrics server started on http://{}/metrics", metrics_addr);
+            println!(
+                "📊 Metrics server started on http://{}/metrics",
+                metrics_addr
+            );
         }
         Err(_) => {
             // Metrics server already running on this port, skip
@@ -3204,7 +3207,10 @@ async fn p2p_server(
             }
 
             // Broadcast GetAddr to all ready peers for peer discovery
-            if let Err(e) = peer_manager_for_discovery.broadcast(bitquan_network::protocol::Message::GetAddr).await {
+            if let Err(e) = peer_manager_for_discovery
+                .broadcast(bitquan_network::protocol::Message::GetAddr)
+                .await
+            {
                 log::warn!("Failed to broadcast GetAddr for discovery: {}", e);
             } else {
                 log::debug!("🔍 Broadcast GetAddr to {} peers for discovery", peer_count);
@@ -3284,7 +3290,11 @@ async fn p2p_server(
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
             println!("\n=== P2P Bootstrap ===");
-            println!("Server ready at {}, connecting to {} peer(s)...", local_addr_copy, bootstrap_peers.len());
+            println!(
+                "Server ready at {}, connecting to {} peer(s)...",
+                local_addr_copy,
+                bootstrap_peers.len()
+            );
 
             let mut connected_count = 0;
             for peer_str in &bootstrap_peers {
@@ -3318,15 +3328,19 @@ async fn p2p_server(
                 }
             }
 
-            println!("\n📊 Bootstrap result: {} / {} peers connected", connected_count, bootstrap_peers.len());
+            println!(
+                "\n📊 Bootstrap result: {} / {} peers connected",
+                connected_count,
+                bootstrap_peers.len()
+            );
             println!("======================\n");
         });
     }
 
     // Accept connections loop - spawn worker task for each peer
     // ASYNC: Convert std TcpListener to tokio TcpListener for async accept
-    use tokio::net::TcpListener as TokioTcpListener;
     use bitquan_network::peer::{async_noise_handshake_responder, Peer};
+    use tokio::net::TcpListener as TokioTcpListener;
 
     let tokio_listener = TokioTcpListener::from_std(listener)
         .map_err(|e| Error::Net(format!("failed to convert to tokio listener: {e}")))?;
@@ -3349,6 +3363,7 @@ async fn p2p_server(
                 let fork_choice_clone = fork_choice.clone();
                 let ban_manager_clone = ban_manager.clone();
                 let magic = bitquan_network::protocol::network_magic(network);
+                let current_height = height; // Height is a plain u64, can be copied directly
 
                 // Spawn async task for this peer - FULLY ASYNC HANDSHAKE
                 tokio::spawn(async move {
@@ -3360,35 +3375,70 @@ async fn p2p_server(
                     let peer_result = async {
                         println!("🔧 [DEBUG] Inside async block, calling async_noise_handshake_responder...");
 
-                        // Perform async Noise handshake
-                        let (std_stream, transport, remote_public_key) =
+                        // Perform async Noise handshake (returns TokioTcpStream now)
+                        let (tokio_stream, transport, remote_public_key) =
                             async_noise_handshake_responder(tokio_stream, &noise_config_clone).await
                                 .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
-                        // Create NoiseTransport from handshaked components
-                        let noise_transport = bitquan_network::noise::NoiseTransport::from_parts(
-                            std_stream, transport, remote_public_key
-                        );
+                        // Convert TokioTcpStream to std TcpStream for NoiseTransport compatibility
+                        // Set socket back to blocking mode for sync version handshake
+                        let std_stream = {
+                            #[allow(unused_mut)]
+                            let mut stream = tokio_stream.into_std()
+                                .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+                            // CRITICAL: Tokio sets it non-blocking, but sync I/O requires blocking mode
+                            stream.set_nonblocking(false)
+                                .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+                            stream
+                        };
 
-                        // Create peer using the from_handshaked method
-                        let mut peer = Peer::from_handshaked(
+                        // Perform version handshake using sync I/O through NoiseTransport (encrypted)
+                        // Run in spawn_blocking to avoid blocking async runtime
+                        let (version, user_agent, start_height, final_transport) = tokio::task::spawn_blocking(move || {
+                            // Create NoiseTransport with encrypted channel
+                            let noise_transport = bitquan_network::noise::NoiseTransport::from_parts(
+                                std_stream, transport, remote_public_key
+                            );
+
+                            // Create a temporary Peer for version handshake
+                            let mut peer = Peer::from_handshaked(peer_addr, noise_transport, remote_public_key, magic);
+                            peer.handshake_inbound(current_height)?;
+
+                            let version = peer.version.unwrap_or(bitquan_network::protocol::PROTOCOL_VERSION);
+                            let user_agent = peer.user_agent.clone().unwrap_or_default();
+                            let start_height = peer.start_height.unwrap_or(0);
+                            let transport = peer.into_stream();
+
+                            Ok::<(u32, String, u64, bitquan_network::noise::NoiseTransport), P2pError>((
+                                version,
+                                user_agent,
+                                start_height,
+                                transport,
+                            ))
+                        }).await
+                        .map_err(|e| P2pError::ConnectionError(e.to_string()))?
+                        .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+
+                        println!("✅ Async inbound peer connected: {} (version: {}, height: {})",
+                                 peer_addr, version, start_height);
+
+                        // Create peer from the completed handshake with version info
+                        let peer = Peer::from_handshaked_with_version(
                             peer_addr,
-                            noise_transport,
+                            final_transport,
                             remote_public_key,
                             magic,
+                            version,
+                            user_agent,
+                            start_height,
                         );
-
-                        // EXPERIMENTAL: Skip version handshake for now
-                        // The socket is in non-blocking mode which causes EAGAIN in sync I/O
-                        // TODO: Fix by making version handshake async-aware or by fixing set_nonblocking
-                        println!("🔧 [DEBUG] Skipping version handshake (socket is non-blocking)");
 
                         std::result::Result::Ok::<Peer, P2pError>(peer)
                     }.await;
 
                     match peer_result {
-                        Ok(mut peer) => {
-                            println!("✅ Async inbound peer connected: {}", peer.addr);
+                        Ok(peer) => {
+                            // Note: Connection info already printed inside async block
 
                             // Create worker context
                             let ctx = Arc::new(worker::WorkerContext::new(
@@ -3454,10 +3504,7 @@ async fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> 
     match peer_manager.connect_peer(addr).await {
         Ok(()) => {
             println!("✅ Connected and handshake complete!");
-            println!(
-                "Ready peers: {}",
-                peer_manager.ready_peer_count().await
-            );
+            println!("Ready peers: {}", peer_manager.ready_peer_count().await);
 
             // Keep connection alive for a bit
             for i in 1..=5 {

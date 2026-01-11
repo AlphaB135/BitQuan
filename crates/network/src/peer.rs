@@ -195,11 +195,12 @@ const HANDSHAKE_BUF_SIZE: usize = 65536;
 /// 4. Extract authenticated remote public key
 ///
 /// # Returns
-/// A tuple of (TcpStream converted to std, NoiseTransport, remote_public_key)
+/// A tuple of (TokioTcpStream, TransportState, remote_public_key)
+/// NOTE: Returns TokioTcpStream to allow async version handshake to follow
 pub async fn async_noise_handshake_initiator(
     mut stream: TokioTcpStream,
     config: &NoiseConfig,
-) -> Result<(TcpStream, TransportState, [u8; 32]), P2pError> {
+) -> Result<(TokioTcpStream, TransportState, [u8; 32]), P2pError> {
     println!("🔧 [HANDSHAKE] async_noise_handshake_initiator: Starting");
 
     // Build handshake state using NoiseConfig's public method
@@ -216,7 +217,10 @@ pub async fn async_noise_handshake_initiator(
         .write_message(&[], &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake write failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Message 1 created ({} bytes), sending...", len);
+    println!(
+        "🔧 [HANDSHAKE] Message 1 created ({} bytes), sending...",
+        len
+    );
     send_handshake_msg_async(&mut stream, &buf[..len])
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg1 failed: {e}")))?;
@@ -241,7 +245,10 @@ pub async fn async_noise_handshake_initiator(
         .write_message(&[], &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake write msg3 failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Message 3 created ({} bytes), sending...", len);
+    println!(
+        "🔧 [HANDSHAKE] Message 3 created ({} bytes), sending...",
+        len
+    );
     send_handshake_msg_async(&mut stream, &buf[..len])
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg3 failed: {e}")))?;
@@ -257,23 +264,16 @@ pub async fn async_noise_handshake_initiator(
         .into_transport_mode()
         .map_err(|e| P2pError::ConnectionError(format!("into transport failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Converting tokio stream to std...");
-    // Flush any pending data before conversion
+    // Flush tokio stream before returning
     println!("🔧 [HANDSHAKE] Flushing tokio stream...");
-    stream.flush().await
+    stream
+        .flush()
+        .await
         .map_err(|e| P2pError::ConnectionError(format!("flush failed: {e}")))?;
     println!("🔧 [HANDSHAKE] Tokio stream flushed");
 
-    // Convert tokio stream to std stream for NoiseTransport compatibility
-    let std_stream = stream
-        .into_std()
-        .map_err(|e| P2pError::ConnectionError(format!("stream conversion failed: {e}")))?;
-
-    println!("🔧 [HANDSHAKE] std stream created");
-
-    // EXPERIMENTAL: Skip set_nonblocking(false) - it seems to hang!
-    // The version handshake might still work with the socket in non-blocking mode
-    // because it uses read_exact/write_all which should handle short reads/writes
+    // NOTE: Keep TokioTcpStream for async version handshake
+    // Conversion to std stream happens AFTER version handshake completes
 
     println!("🔧 [HANDSHAKE] About to log completion...");
     log::info!(
@@ -282,7 +282,7 @@ pub async fn async_noise_handshake_initiator(
     );
     println!("🔧 [HANDSHAKE] Returning from handshake...");
 
-    Ok((std_stream, transport, remote_public_key))
+    Ok((stream, transport, remote_public_key))
 }
 
 /// Performs an async Noise Protocol handshake as the responder (server side).
@@ -297,11 +297,12 @@ pub async fn async_noise_handshake_initiator(
 /// 4. Extract authenticated remote public key
 ///
 /// # Returns
-/// A tuple of (TcpStream converted to std, NoiseTransport, remote_public_key)
+/// A tuple of (TokioTcpStream, TransportState, remote_public_key)
+/// NOTE: Returns TokioTcpStream to allow async version handshake to follow
 pub async fn async_noise_handshake_responder(
     mut stream: TokioTcpStream,
     config: &NoiseConfig,
-) -> Result<(TcpStream, TransportState, [u8; 32]), P2pError> {
+) -> Result<(TokioTcpStream, TransportState, [u8; 32]), P2pError> {
     println!("🔧 [HANDSHAKE] async_noise_handshake_responder: Starting");
 
     // Build handshake state using NoiseConfig's public method
@@ -330,7 +331,10 @@ pub async fn async_noise_handshake_responder(
         .write_message(&[], &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake write msg2 failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Message 2 created ({} bytes), sending...", len);
+    println!(
+        "🔧 [HANDSHAKE] Message 2 created ({} bytes), sending...",
+        len
+    );
     send_handshake_msg_async(&mut stream, &buf[..len])
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg2 failed: {e}")))?;
@@ -354,23 +358,16 @@ pub async fn async_noise_handshake_responder(
         .into_transport_mode()
         .map_err(|e| P2pError::ConnectionError(format!("into transport failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Converting tokio stream to std...");
-    // Flush any pending data before conversion
+    // Flush tokio stream before returning
     println!("🔧 [HANDSHAKE] Flushing tokio stream...");
-    stream.flush().await
+    stream
+        .flush()
+        .await
         .map_err(|e| P2pError::ConnectionError(format!("flush failed: {e}")))?;
     println!("🔧 [HANDSHAKE] Tokio stream flushed");
 
-    // Convert tokio stream to std stream for NoiseTransport compatibility
-    let std_stream = stream
-        .into_std()
-        .map_err(|e| P2pError::ConnectionError(format!("stream conversion failed: {e}")))?;
-
-    println!("🔧 [HANDSHAKE] std stream created");
-
-    // EXPERIMENTAL: Skip set_nonblocking(false) - it seems to hang!
-    // The version handshake might still work with the socket in non-blocking mode
-    // because it uses read_exact/write_all which should handle short reads/writes
+    // NOTE: Keep TokioTcpStream for async version handshake
+    // Conversion to std stream happens AFTER version handshake completes
 
     println!("🔧 [HANDSHAKE] About to log completion...");
     log::info!(
@@ -379,14 +376,11 @@ pub async fn async_noise_handshake_responder(
     );
     println!("🔧 [HANDSHAKE] Returning from handshake...");
 
-    Ok((std_stream, transport, remote_public_key))
+    Ok((stream, transport, remote_public_key))
 }
 
 /// Sends a length-prefixed handshake message asynchronously.
-async fn send_handshake_msg_async(
-    stream: &mut TokioTcpStream,
-    msg: &[u8],
-) -> io::Result<()> {
+async fn send_handshake_msg_async(stream: &mut TokioTcpStream, msg: &[u8]) -> io::Result<()> {
     let len = (msg.len() as u16).to_be_bytes();
     stream.write_all(&len).await?;
     stream.write_all(msg).await?;
@@ -432,6 +426,227 @@ fn extract_remote_key(handshake: &HandshakeState) -> Result<[u8; 32], P2pError> 
 
 //=============================================================================
 // END ASYNC NOISE HANDSHAKE HELPERS
+//=============================================================================
+
+//=============================================================================
+// ASYNC VERSION HANDSHAKE
+//=============================================================================
+
+/// Async version of send_envelope - sends a serialized MessageEnvelope with length prefix.
+async fn send_envelope_async(
+    stream: &mut TokioTcpStream,
+    env: &MessageEnvelope,
+) -> Result<(), P2pError> {
+    let bytes = env
+        .serialize()
+        .map_err(|e| P2pError::SerializationError(e.to_string()))?;
+    let len = (bytes.len() as u32).to_le_bytes();
+    stream
+        .write_all(&len)
+        .await
+        .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+    stream
+        .write_all(&bytes)
+        .await
+        .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+    stream
+        .flush()
+        .await
+        .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+    Ok(())
+}
+
+/// Async version of recv_envelope - receives a length-prefixed serialized MessageEnvelope.
+async fn recv_envelope_async(
+    stream: &mut TokioTcpStream,
+    expected_magic: [u8; 4],
+) -> Result<MessageEnvelope, P2pError> {
+    let mut len_buf = [0u8; 4];
+    stream
+        .read_exact(&mut len_buf)
+        .await
+        .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+    let len = u32::from_le_bytes(len_buf) as usize;
+    if len == 0 {
+        return Err(P2pError::InvalidMessage);
+    }
+    if len > crate::protocol::MAX_MESSAGE_SIZE {
+        return Err(P2pError::MessageTooLarge(len));
+    }
+    let mut buf = vec![0u8; len];
+    stream
+        .read_exact(&mut buf)
+        .await
+        .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+    MessageEnvelope::deserialize(&buf, expected_magic)
+}
+
+/// Performs async version handshake for outbound connection (initiator).
+///
+/// # Protocol Flow (Outbound):
+/// 1. Send our Version
+/// 2. Wait for their Version
+/// 3. Send VerAck
+/// 4. Wait for their VerAck
+///
+/// # Returns
+/// A tuple of (version, user_agent, start_height) from the remote peer
+pub async fn async_version_handshake_outbound(
+    stream: &mut TokioTcpStream,
+    magic: [u8; 4],
+    our_height: u64,
+) -> Result<(u32, String, u64), P2pError> {
+    println!("🔧 [VERSION] Starting async outbound version handshake...");
+
+    // Send our version
+    let version_msg = Message::Version {
+        version: PROTOCOL_VERSION,
+        services: SERVICE_NODE_NETWORK,
+        timestamp: unix_timestamp(),
+        user_agent: USER_AGENT.to_string(),
+        start_height: our_height,
+    };
+
+    let envelope = MessageEnvelope::new(magic, version_msg);
+    send_envelope_async(stream, &envelope)
+        .await
+        .map_err(|e| P2pError::ConnectionError(format!("send version failed: {e}")))?;
+    println!("🔧 [VERSION] Sent our version");
+
+    // Wait for their version
+    let their_env = recv_envelope_async(stream, magic)
+        .await
+        .map_err(|e| P2pError::ConnectionError(format!("recv version failed: {e}")))?;
+
+    let (version, user_agent, start_height) = match their_env.message {
+        Message::Version {
+            version,
+            user_agent,
+            start_height,
+            ..
+        } => {
+            if version != PROTOCOL_VERSION {
+                return Err(P2pError::VersionMismatch(version, PROTOCOL_VERSION));
+            }
+            println!(
+                "🔧 [VERSION] Received their version: {} ({})",
+                version, user_agent
+            );
+            (version, user_agent, start_height)
+        }
+        _ => {
+            return Err(P2pError::InvalidMessage);
+        }
+    };
+
+    // Send verack
+    let verack_env = MessageEnvelope::new(magic, Message::VerAck);
+    send_envelope_async(stream, &verack_env)
+        .await
+        .map_err(|e| P2pError::ConnectionError(format!("send verack failed: {e}")))?;
+    println!("🔧 [VERSION] Sent verack");
+
+    // Wait for their verack
+    let verack_env = recv_envelope_async(stream, magic)
+        .await
+        .map_err(|e| P2pError::ConnectionError(format!("recv verack failed: {e}")))?;
+
+    match verack_env.message {
+        Message::VerAck => {
+            println!("🔧 [VERSION] Received verack - handshake complete!");
+        }
+        _ => {
+            return Err(P2pError::InvalidMessage);
+        }
+    }
+
+    Ok((version, user_agent, start_height))
+}
+
+/// Performs async version handshake for inbound connection (responder).
+///
+/// # Protocol Flow (Inbound):
+/// 1. Wait for their Version
+/// 2. Send our Version
+/// 3. Send VerAck
+/// 4. Wait for their VerAck
+///
+/// # Returns
+/// A tuple of (version, user_agent, start_height) from the remote peer
+pub async fn async_version_handshake_inbound(
+    stream: &mut TokioTcpStream,
+    magic: [u8; 4],
+    our_height: u64,
+) -> Result<(u32, String, u64), P2pError> {
+    println!("🔧 [VERSION] Starting async inbound version handshake...");
+
+    // Wait for their version
+    let their_env = recv_envelope_async(stream, magic)
+        .await
+        .map_err(|e| P2pError::ConnectionError(format!("recv version failed: {e}")))?;
+
+    let (version, user_agent, start_height) = match their_env.message {
+        Message::Version {
+            version,
+            user_agent,
+            start_height,
+            ..
+        } => {
+            if version != PROTOCOL_VERSION {
+                return Err(P2pError::VersionMismatch(version, PROTOCOL_VERSION));
+            }
+            println!(
+                "🔧 [VERSION] Received their version: {} ({})",
+                version, user_agent
+            );
+            (version, user_agent, start_height)
+        }
+        _ => {
+            return Err(P2pError::InvalidMessage);
+        }
+    };
+
+    // Send our version
+    let version_msg = Message::Version {
+        version: PROTOCOL_VERSION,
+        services: SERVICE_NODE_NETWORK,
+        timestamp: unix_timestamp(),
+        user_agent: USER_AGENT.to_string(),
+        start_height: our_height,
+    };
+
+    let envelope = MessageEnvelope::new(magic, version_msg);
+    send_envelope_async(stream, &envelope)
+        .await
+        .map_err(|e| P2pError::ConnectionError(format!("send version failed: {e}")))?;
+    println!("🔧 [VERSION] Sent our version");
+
+    // Send verack
+    let verack_env = MessageEnvelope::new(magic, Message::VerAck);
+    send_envelope_async(stream, &verack_env)
+        .await
+        .map_err(|e| P2pError::ConnectionError(format!("send verack failed: {e}")))?;
+    println!("🔧 [VERSION] Sent verack");
+
+    // Wait for their verack
+    let verack_env = recv_envelope_async(stream, magic)
+        .await
+        .map_err(|e| P2pError::ConnectionError(format!("recv verack failed: {e}")))?;
+
+    match verack_env.message {
+        Message::VerAck => {
+            println!("🔧 [VERSION] Received verack - handshake complete!");
+        }
+        _ => {
+            return Err(P2pError::InvalidMessage);
+        }
+    }
+
+    Ok((version, user_agent, start_height))
+}
+
+//=============================================================================
+// END ASYNC VERSION HANDSHAKE
 //=============================================================================
 
 /// Represents a single encrypted peer connection.
@@ -491,6 +706,44 @@ impl Peer {
             version: None,
             user_agent: None,
             start_height: None,
+            last_seen: SystemTime::now(),
+            message_count: 0,
+            rate_limit_window: SystemTime::now(),
+            ban_score: 0,
+            magic,
+        }
+    }
+
+    /// Creates a new peer from pre-completed handshake with version information.
+    ///
+    /// This is used when both the Noise handshake and version handshake have
+    /// been completed and we now have the peer's version information.
+    ///
+    /// # Arguments
+    /// * `addr` - Peer's socket address
+    /// * `stream` - The Noise transport (already handshaked)
+    /// * `remote_public_key` - The authenticated remote public key
+    /// * `magic` - Network magic bytes
+    /// * `version` - Protocol version from peer
+    /// * `user_agent` - User agent string from peer
+    /// * `start_height` - Starting block height from peer
+    pub fn from_handshaked_with_version(
+        addr: SocketAddr,
+        stream: NoiseTransport,
+        remote_public_key: [u8; 32],
+        magic: [u8; 4],
+        version: u32,
+        user_agent: String,
+        start_height: u64,
+    ) -> Self {
+        Self {
+            addr,
+            state: PeerState::Ready,
+            stream,
+            remote_public_key,
+            version: Some(version),
+            user_agent: Some(user_agent),
+            start_height: Some(start_height),
             last_seen: SystemTime::now(),
             message_count: 0,
             rate_limit_window: SystemTime::now(),
@@ -757,6 +1010,14 @@ impl Peer {
     pub fn send_pong(&mut self, nonce: u64) -> Result<(), P2pError> {
         self.send_message(Message::Pong { nonce })
     }
+
+    /// Extract the NoiseTransport stream from this Peer.
+    ///
+    /// This is used when the peer was created temporarily for handshake purposes
+    /// and we now need the transport back to create the final Peer struct.
+    pub fn into_stream(self) -> NoiseTransport {
+        self.stream
+    }
 }
 
 /// Eclipse attack mitigation configuration
@@ -943,7 +1204,11 @@ impl PeerManager {
     ///
     /// Uses tokio I/O throughout the Noise handshake.
     /// Never blocks the executor.
-    pub async fn add_peer_inbound(&self, stream: TokioTcpStream, addr: SocketAddr) -> Result<(), P2pError> {
+    pub async fn add_peer_inbound(
+        &self,
+        stream: TokioTcpStream,
+        addr: SocketAddr,
+    ) -> Result<(), P2pError> {
         let mut peers = self.lock_peers().await;
 
         if peers.len() >= self.max_peers {
@@ -963,10 +1228,14 @@ impl PeerManager {
             }
         }
 
-        log::debug!("Incoming TCP from {}, starting async Noise handshake...", addr);
+        log::debug!(
+            "Incoming TCP from {}, starting async Noise handshake...",
+            addr
+        );
 
         // ASYNC: Perform Noise handshake using tokio I/O (as responder)
-        let (std_stream, transport, remote_public_key) =
+        // Note: Returns TokioTcpStream now (changed from std::net::TcpStream)
+        let (tokio_stream, transport, remote_public_key) =
             async_noise_handshake_responder(stream, &self.noise_config).await?;
 
         // Check for duplicate peer by public key AFTER handshake
@@ -976,6 +1245,11 @@ impl PeerManager {
                 hex::encode(remote_public_key)
             )));
         }
+
+        // Convert TokioTcpStream to std TcpStream for NoiseTransport compatibility
+        let std_stream = tokio_stream
+            .into_std()
+            .map_err(|e| P2pError::ConnectionError(format!("stream conversion failed: {e}")))?;
 
         // Create Peer from handshaked transport
         let mut peer = Peer {
@@ -1012,34 +1286,37 @@ impl PeerManager {
     /// Uses tokio I/O throughout the connection and Noise handshake.
     /// Never blocks the executor.
     pub async fn connect_peer(&self, addr: SocketAddr) -> Result<(), P2pError> {
-        let mut peers = self.lock_peers().await;
-
-        if peers.len() >= self.max_peers {
-            return Err(P2pError::ConnectionError("max peers reached".into()));
-        }
+        // Check max peers first (with short lock)
+        {
+            let peers = self.lock_peers().await;
+            if peers.len() >= self.max_peers {
+                return Err(P2pError::ConnectionError("max peers reached".into()));
+            }
+        } // Lock dropped here
 
         // BORN BLOCKING: Create socket as BLOCKING in thread pool, then convert to async
         // This avoids the problematic set_nonblocking(false) hang on macOS
-        let addr = addr; // Move capture for closure
-        let std_stream = tokio::task::spawn_blocking(move || {
-            std::net::TcpStream::connect(addr)
-        })
-        .await
-        .map_err(|e| P2pError::ConnectionError(format!("join error: {e}")))?
-        .map_err(|e| P2pError::ConnectionError(format!("connect failed: {e}")))?;
+        let std_stream = tokio::task::spawn_blocking(move || std::net::TcpStream::connect(addr))
+            .await
+            .map_err(|e| P2pError::ConnectionError(format!("join error: {e}")))?
+            .map_err(|e| P2pError::ConnectionError(format!("connect failed: {e}")))?;
 
         // Set non-blocking explicitly before converting to Tokio
-        std_stream.set_nonblocking(true)
+        std_stream
+            .set_nonblocking(true)
             .map_err(|e| P2pError::ConnectionError(format!("set_nonblocking failed: {e}")))?;
 
         // Convert to Tokio Stream for async handshake
         let tokio_stream = TokioTcpStream::from_std(std_stream)
             .map_err(|e| P2pError::ConnectionError(format!("from_std failed: {e}")))?;
 
-        log::debug!("TCP connected to {}, starting async Noise handshake...", addr);
+        log::debug!(
+            "TCP connected to {}, starting async Noise handshake...",
+            addr
+        );
 
         // ASYNC: Perform Noise handshake using tokio I/O
-        let (std_stream, transport, remote_public_key) =
+        let (tokio_stream, transport, remote_public_key) =
             async_noise_handshake_initiator(tokio_stream, &self.noise_config).await?;
 
         // Check for duplicate peer by public key AFTER handshake
@@ -1050,32 +1327,74 @@ impl PeerManager {
             )));
         }
 
-        // Create Peer from handshaked transport
-        let mut peer = Peer {
-            addr,
-            state: PeerState::Connected,
-            stream: NoiseTransport::from_parts(std_stream, transport, remote_public_key),
-            remote_public_key,
-            version: None,
-            user_agent: None,
-            start_height: None,
-            last_seen: SystemTime::now(),
-            message_count: 0,
-            rate_limit_window: SystemTime::now(),
-            ban_score: 0,
-            magic: self.magic,
+        // Get our current height for version message
+        let our_height = *self.current_height.lock().await;
+        let magic = self.magic;
+
+        // Convert TokioTcpStream to std TcpStream for NoiseTransport compatibility
+        // Set socket back to blocking mode for sync version handshake
+        let std_stream = {
+            #[allow(unused_mut)]
+            let mut stream = tokio_stream
+                .into_std()
+                .map_err(|e| P2pError::ConnectionError(format!("stream conversion failed: {e}")))?;
+            // CRITICAL: Tokio sets it non-blocking, but sync I/O requires blocking mode
+            stream.set_nonblocking(false).map_err(|e| {
+                P2pError::ConnectionError(format!("set_nonblocking(false) failed: {e}"))
+            })?;
+            stream
         };
 
-        // EXPERIMENTAL: Skip version handshake for now (socket is non-blocking, causes EAGAIN)
-        println!("🔧 [DEBUG] connect_peer: Skipping version handshake (socket is non-blocking)");
-        // TODO: Make version handshake async-aware or fix set_nonblocking
+        // Perform version handshake using sync I/O through NoiseTransport (encrypted)
+        // Run in spawn_blocking to avoid blocking async runtime
+        let (version, user_agent, start_height, final_transport) =
+            tokio::task::spawn_blocking(move || {
+                // Create NoiseTransport with encrypted channel
+                let noise_transport =
+                    NoiseTransport::from_parts(std_stream, transport, remote_public_key);
+
+                // Create a temporary Peer for version handshake
+                let mut peer =
+                    Peer::from_handshaked(addr, noise_transport, remote_public_key, magic);
+                peer.handshake_outbound(our_height)?;
+
+                let version = peer.version.unwrap_or(PROTOCOL_VERSION);
+                let user_agent = peer.user_agent.clone().unwrap_or_default();
+                let start_height = peer.start_height.unwrap_or(0);
+                let transport = peer.into_stream();
+
+                Ok::<(u32, String, u64, NoiseTransport), P2pError>((
+                    version,
+                    user_agent,
+                    start_height,
+                    transport,
+                ))
+            })
+            .await
+            .map_err(|e| P2pError::ConnectionError(format!("join error: {e}")))?
+            .map_err(|e| P2pError::ConnectionError(format!("version handshake failed: {e}")))?;
 
         log::info!(
-            "Async outbound peer connected: {} (key: {})",
+            "Async outbound peer connected: {} (key: {}, version: {}, height: {})",
             addr,
-            peer.remote_public_key_hex()
+            hex::encode(remote_public_key),
+            version,
+            start_height
         );
 
+        // Create peer from the completed handshake with version info
+        let peer = Peer::from_handshaked_with_version(
+            addr,
+            final_transport,
+            remote_public_key,
+            self.magic,
+            version,
+            user_agent,
+            start_height,
+        );
+
+        // Re-acquire lock to add peer to list
+        let mut peers = self.lock_peers().await;
         peers.push(peer);
         Ok(())
     }
@@ -1235,7 +1554,10 @@ impl PeerManager {
     }
 
     /// Add peer addresses to the address book.
-    pub fn add_peer_addresses(&self, addrs: Vec<crate::protocol::PeerAddr>) -> Result<(), P2pError> {
+    pub fn add_peer_addresses(
+        &self,
+        addrs: Vec<crate::protocol::PeerAddr>,
+    ) -> Result<(), P2pError> {
         // Note: This is a placeholder. In a real implementation, you would:
         // 1. Add the addresses to the address book
         // 2. Update timestamps and scores
@@ -1283,14 +1605,17 @@ impl P2PListener {
             Ok((stream, addr)) => {
                 // Convert std::net::TcpStream to tokio::net::TcpStream
                 // CRITICAL: Must set non-blocking mode before conversion!
-                stream
-                    .set_nonblocking(true)
-                    .map_err(|e| P2pError::ConnectionError(format!("set_nonblocking failed: {e}")))?;
-                
-                let tokio_stream = TokioTcpStream::from_std(stream)
-                    .map_err(|e| P2pError::ConnectionError(format!("tokio stream conversion failed: {e}")))?;
-                
-                self.peer_manager.add_peer_inbound(tokio_stream, addr).await?;
+                stream.set_nonblocking(true).map_err(|e| {
+                    P2pError::ConnectionError(format!("set_nonblocking failed: {e}"))
+                })?;
+
+                let tokio_stream = TokioTcpStream::from_std(stream).map_err(|e| {
+                    P2pError::ConnectionError(format!("tokio stream conversion failed: {e}"))
+                })?;
+
+                self.peer_manager
+                    .add_peer_inbound(tokio_stream, addr)
+                    .await?;
                 Ok(())
             }
             Err(e) => Err(P2pError::ConnectionError(e.to_string())),
@@ -1327,9 +1652,7 @@ mod tests {
         let noise_config = test_noise_config();
         let pm = PeerManager::new(10, bitquan_types::NetworkId::Mainnet, noise_config);
         pm.update_height(42).await;
-        assert_eq!(
-            *pm.current_height.lock().await, 42
-        );
+        assert_eq!(*pm.current_height.lock().await, 42);
     }
 
     #[test]
