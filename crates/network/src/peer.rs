@@ -853,10 +853,11 @@ impl PeerManager {
             .any(|anchor| anchor == addr)
     }
 
-    /// Adds a new encrypted peer connection (inbound).
+    /// Adds a new encrypted peer connection (inbound) - FULLY ASYNC.
     ///
-    /// Performs Noise Protocol handshake as responder, then version handshake.
-    pub async fn add_peer_inbound(&self, stream: TcpStream, addr: SocketAddr) -> Result<(), P2pError> {
+    /// Uses tokio I/O throughout the Noise handshake.
+    /// Never blocks the executor.
+    pub async fn add_peer_inbound(&self, stream: TokioTcpStream, addr: SocketAddr) -> Result<(), P2pError> {
         let mut peers = self.lock_peers().await;
 
         if peers.len() >= self.max_peers {
@@ -876,23 +877,42 @@ impl PeerManager {
             }
         }
 
-        // Create encrypted peer (Noise handshake happens here)
-        let mut peer = Peer::new_inbound(stream, addr, self.magic, &self.noise_config)?;
+        log::debug!("Incoming TCP from {}, starting async Noise handshake...", addr);
 
-        // CRITICAL: Check for duplicate peer by public key AFTER handshake
-        // This prevents the same peer from connecting multiple times via different IPs
-        if self.has_peer_with_public_key(&peer.remote_public_key).await {
+        // ASYNC: Perform Noise handshake using tokio I/O (as responder)
+        let (std_stream, transport, remote_public_key) =
+            async_noise_handshake_responder(stream, &self.noise_config).await?;
+
+        // Check for duplicate peer by public key AFTER handshake
+        if self.has_peer_with_public_key(&remote_public_key).await {
             return Err(P2pError::ConnectionError(format!(
                 "duplicate peer connection: peer with key {} is already connected",
-                peer.remote_public_key_hex()
+                hex::encode(remote_public_key)
             )));
         }
 
+        // Create Peer from handshaked transport
+        let mut peer = Peer {
+            addr,
+            state: PeerState::Connected,
+            stream: NoiseTransport::from_parts(std_stream, transport, remote_public_key),
+            remote_public_key,
+            version: None,
+            user_agent: None,
+            start_height: None,
+            last_seen: SystemTime::now(),
+            message_count: 0,
+            rate_limit_window: SystemTime::now(),
+            ban_score: 0,
+            magic: self.magic,
+        };
+
+        // Perform version handshake (sync, but on blocking socket now)
         let height = *self.lock_height().await;
         peer.handshake_inbound(height)?;
 
         log::info!(
-            "Inbound peer connected: {} (key: {})",
+            "Async inbound peer connected: {} (key: {})",
             addr,
             peer.remote_public_key_hex()
         );
@@ -1162,7 +1182,16 @@ impl P2PListener {
     pub async fn accept_one(&self) -> Result<(), P2pError> {
         match self.listener.accept() {
             Ok((stream, addr)) => {
-                self.peer_manager.add_peer_inbound(stream, addr).await?;
+                // Convert std::net::TcpStream to tokio::net::TcpStream
+                // CRITICAL: Must set non-blocking mode before conversion!
+                stream
+                    .set_nonblocking(true)
+                    .map_err(|e| P2pError::ConnectionError(format!("set_nonblocking failed: {e}")))?;
+                
+                let tokio_stream = TokioTcpStream::from_std(stream)
+                    .map_err(|e| P2pError::ConnectionError(format!("tokio stream conversion failed: {e}")))?;
+                
+                self.peer_manager.add_peer_inbound(tokio_stream, addr).await?;
                 Ok(())
             }
             Err(e) => Err(P2pError::ConnectionError(e.to_string())),

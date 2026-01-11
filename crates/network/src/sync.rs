@@ -4,7 +4,6 @@ use crate::{discovery::PeerBook, peer::PeerManager, protocol::Message};
 use bitquan_types::{BlockHeader, Result};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 #[allow(unused_variables)]
 /// Chain sync status.
@@ -411,14 +410,14 @@ pub fn request_blocks_from_peer(
     // 3. Wait for headers response with timeout
     // 4. Parse and return headers
 
-    // For now, simulate network communication with a delay
-    println!(
+    // TODO: Implement actual network communication
+    // For now, this is a stub that returns empty headers
+    log::debug!(
         "Requesting blocks {} to {} from peer: {}",
-        start_height, end_height, peer_id
+        start_height,
+        end_height,
+        peer_id
     );
-
-    // Simulate network latency
-    std::thread::sleep(Duration::from_millis(100));
 
     // Return empty vector for now - in production this would contain actual headers
     // In a full implementation, we would:
