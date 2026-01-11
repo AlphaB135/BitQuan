@@ -94,6 +94,11 @@ pub fn validate_message(msg: &Message) -> Result<(), P2pError> {
                 return Err(P2pError::MessageTooLarge(locator_hashes.len()));
             }
         }
+        Message::GetBlocks { locator_hashes, .. } => {
+            if locator_hashes.len() > MAX_HEADERS {
+                return Err(P2pError::MessageTooLarge(locator_hashes.len()));
+            }
+        }
         Message::Block { block } => {
             if block.transactions.len() > MAX_BLOCK_TXS {
                 return Err(P2pError::MessageTooLarge(block.transactions.len()));
@@ -177,6 +182,16 @@ pub enum Message {
         /// Block locator hashes
         locator_hashes: Vec<[u8; 32]>,
         /// Stop hash
+        stop_hash: [u8; 32],
+    },
+
+    /// Request blocks (full block data, not just headers).
+    GetBlocks {
+        /// Protocol version
+        version: u32,
+        /// Block locator hashes (list of known block hashes, newest first)
+        locator_hashes: Vec<[u8; 32]>,
+        /// Hash to stop at (zero for "as many as possible")
         stop_hash: [u8; 32],
     },
 

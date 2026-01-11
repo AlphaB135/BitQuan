@@ -105,6 +105,62 @@ impl ChainState {
     pub fn set_height(&self, height: u64) {
         self.height.store(height, Ordering::SeqCst);
     }
+
+    /// Get block locator hashes for IBD (Initial Block Download).
+    ///
+    /// Returns a list of block hashes from tip backwards (exponentially spaced)
+    /// to genesis. This is used by clients to say "this is what I have" when
+    /// requesting blocks from a peer.
+    ///
+    /// # Returns
+    /// Vector of block hashes, newest first. Empty if chain is empty.
+    ///
+    /// # Note
+    /// This is a stub implementation. Once ChainState is integrated with
+    /// ChainStore, this will return actual block hashes from the chain.
+    /// For now, returns the current tip if height > 0.
+    pub fn get_locator(&self) -> Vec<[u8; 32]> {
+        let mut locator = Vec::new();
+        let height = self.get_height();
+
+        if height > 0 {
+            // For now, just return the tip hash
+            // TODO: Implement exponential backoff locator once ChainStore is integrated
+            // Pattern: tip, tip-1, tip-2, tip-4, tip-8, ..., genesis
+            locator.push(self.get_tip());
+        }
+
+        locator
+    }
+
+    /// Find block headers after a given locator point.
+    ///
+    /// Used by servers to answer GetBlocks requests. Finds the first hash
+    /// in `locators` that matches our chain, then returns headers *after*
+    /// that point (up to `limit`).
+    ///
+    /// # Arguments
+    /// * `locators` - List of hashes to search for (client's known blocks)
+    /// * `limit` - Maximum number of headers to return
+    ///
+    /// # Returns
+    /// Vector of block headers that come after the locator point.
+    ///
+    /// # Note
+    /// This is a stub implementation. Once ChainState is integrated with
+    /// ChainStore, this will query actual blocks from the chain.
+    /// For now, returns empty vec.
+    pub fn find_headers_after(
+        &self,
+        _locators: &[[u8; 32]],
+        _limit: usize,
+    ) -> Vec<bitquan_types::BlockHeader> {
+        // TODO: Implement once ChainStore is integrated
+        // 1. Find first locator that exists in our chain
+        // 2. Fetch blocks after that point (up to limit)
+        // 3. Return their headers
+        Vec::new()
+    }
 }
 
 impl Default for ChainState {

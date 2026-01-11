@@ -267,6 +267,25 @@ async fn handle_message(
             Ok(true)
         }
 
+        // === Block Sync ===
+        Message::GetBlocks {
+            version: _,
+            locator_hashes,
+            stop_hash,
+        } => {
+            log::info!(
+                "📥 Received GetBlocks from {} ({} locators, stop: {:?})",
+                peer.addr,
+                locator_hashes.len(),
+                stop_hash
+            );
+            // TODO: Implement IBD response
+            // 1. Find common ancestor using locator_hashes
+            // 2. Get block headers after that point (up to limit)
+            // 3. Send Inv message with available blocks
+            Ok(true)
+        }
+
         // === Mempool ===
         Message::GetMempool => {
             // TODO: Send mempool inventory
