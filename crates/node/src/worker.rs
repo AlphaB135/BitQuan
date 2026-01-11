@@ -272,19 +272,7 @@ async fn handle_message(
             version: _,
             locator_hashes,
             stop_hash,
-        } => {
-            log::info!(
-                "📥 Received GetBlocks from {} ({} locators, stop: {:?})",
-                peer.addr,
-                locator_hashes.len(),
-                stop_hash
-            );
-            // TODO: Implement IBD response
-            // 1. Find common ancestor using locator_hashes
-            // 2. Get block headers after that point (up to limit)
-            // 3. Send Inv message with available blocks
-            Ok(true)
-        }
+        } => handle_getblocks(peer, ctx, locator_hashes, stop_hash).await,
 
         // === Mempool ===
         Message::GetMempool => {
@@ -928,6 +916,69 @@ async fn handle_get_headers(
     peer.send_message(Message::Headers { headers: vec![] })?;
 
     log::debug!("📤 Sent empty Headers response to {}", peer.addr);
+
+    Ok(true)
+}
+
+/// Handle GetBlocks request from a peer.
+///
+/// This is the server-side of IBD (Initial Block Download).
+///
+/// Logic:
+/// 1. Find the common ancestor by checking each locator hash
+/// 2. Get block headers after the common ancestor (up to 500 blocks)
+/// 3. Send Inv message announcing available blocks
+async fn handle_getblocks(
+    peer: &mut Peer,
+    ctx: &WorkerContext,
+    locator_hashes: Vec<[u8; 32]>,
+    stop_hash: [u8; 32],
+) -> Result<bool, WorkerError> {
+    log::debug!(
+        "📥 GetBlocks: {} locators, stop={}",
+        locator_hashes.len(),
+        hex::encode(&stop_hash[..8])
+    );
+
+    // Find the first locator hash that exists in our chain
+    for (i, locator_hash) in locator_hashes.iter().enumerate() {
+        log::trace!("Checking locator {}/{}: {}", i + 1, locator_hashes.len(), hex::encode(&locator_hash[..8]));
+
+        // Check if this block exists in our chain
+        match ctx.storage.get_block(locator_hash).await {
+            Ok(Some(_block)) => {
+                log::info!("✅ Found common ancestor at index: {} (hash: {})", i, hex::encode(&locator_hash[..8]));
+                // For now, just log that we found it
+                // TODO: Get actual block height when ChainStore supports it
+                // TODO: Use this as starting point to fetch subsequent blocks
+                break;
+            }
+            Ok(None) => {
+                log::trace!("❌ Locator not found: {}", hex::encode(&locator_hash[..8]));
+            }
+            Err(e) => {
+                log::error!("Storage error checking locator: {}", e);
+            }
+        }
+    }
+
+    // Get blocks after the common ancestor
+    // For now, we'll send an empty Inv because we need:
+    // 1. ChainStore to support get_block_by_height()
+    // 2. Or we need to iterate through the chain from the tip
+    //
+    // This is a stub implementation that will be enhanced when
+    // ChainState is properly integrated with ChainStore
+
+    let inv: Vec<bitquan_network::protocol::InvVector> = vec![];
+
+    if !inv.is_empty() {
+        let inv_count = inv.len();
+        peer.send_message(Message::Inv { inventory: inv })?;
+        log::debug!("📤 Sent Inv with {} blocks to {}", inv_count, peer.addr);
+    } else {
+        log::debug!("📤 No blocks to announce to {} (chain state not fully integrated)", peer.addr);
+    }
 
     Ok(true)
 }
