@@ -322,18 +322,20 @@ fn test_metrics_integration() {
         .record_block(&block, hash, 100, "miner1")
         .expect("Failed to record block");
 
-    metrics.record_block_persisted();
+    metrics.record_block_persisted(100); // height from dummy_block(100)
     metrics.set_total_rewards(engine.total_distributed());
     metrics.set_pool_balance(engine.total_distributed());
     metrics.set_reward_per_block(reward);
 
     // Update metrics manually referenced in assertions
-    metrics.record_block_mined(PowAlgo::Sha256d);
-    metrics.record_hash_attempts(PowAlgo::Sha256d, 1);
+    // Note: MiningMetrics is a placeholder, these methods don't take PowAlgo arg anymore
+    metrics.record_block_mined();
+    metrics.record_hash_attempts(1);
 
     // Verify metrics
-    assert_eq!(metrics.get_blocks_mined(PowAlgo::Sha256d), 1);
-    assert_eq!(metrics.get_hash_attempts(PowAlgo::Sha256d), 1);
+    // Note: MiningMetrics is a placeholder, these methods don't take PowAlgo arg anymore
+    assert_eq!(metrics.get_blocks_mined(), 1);
+    assert_eq!(metrics.get_hash_attempts(), 1);
     assert!(reward > 0, "Reward should be positive");
 }
 

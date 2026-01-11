@@ -12,10 +12,12 @@ use warp::Filter;
 /// Mining metrics (stub for test compatibility)
 /// TODO: Implement actual mining metrics tracking
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Placeholder for future implementation
 pub struct MiningMetrics {
     _phantom: std::marker::PhantomData<()>,
 }
 
+#[allow(dead_code)] // Placeholder for future implementation
 impl MiningMetrics {
     pub fn new(_algos: &[bitquan_consensus::pow::PowAlgo]) -> Self {
         Self {
@@ -82,7 +84,7 @@ pub fn start_metrics_server(port: u16) -> tokio::task::JoinHandle<()> {
         warp::http::Response::builder()
             .header("content-type", "text/plain; version=0.0.4; charset=utf-8")
             .body(metric_string)
-            .unwrap()
+            .expect("failed to build HTTP response for metrics endpoint")
     });
 
     tokio::spawn(async move {

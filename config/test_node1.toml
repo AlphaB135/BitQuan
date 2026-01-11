@@ -1,0 +1,59 @@
+# BitQuan Node 1 Configuration (Local Test)
+[network]
+id = "devnet"
+genesis_hash = "13e3dccb1ae24cf988a9c18d444d532ec65510116931b8059f72568fea7f4ff3"
+p2p_port = 18444
+rpc_port = 8333
+bootstrap_nodes = []
+difficulty_bits = "0x207fffff"
+block_interval_seconds = 120
+
+[consensus]
+asert_half_life = 7200
+burst_guard_enabled = true
+burst_guard_threshold = 2.0
+max_block_weight = 4000000
+hybrid_pow_activation_height = 0
+allowed_algos = ["sha256d", "randomx", "ethash"]
+
+[mempool]
+max_size_bytes = 52428800
+min_relay_fee_per_wu = 1
+max_tx_size = 100000
+
+[rpc]
+bind = "0.0.0.0:8333"
+auth_enabled = false
+
+[mining]
+coinbase_maturity = 10
+initial_block_reward = 5000000000
+halving_interval = 210000
+
+[wallet]
+keystore_kdf_mem_kib = 32768
+keystore_kdf_time_cost = 2
+keystore_kdf_parallelism = 1
+
+[logging]
+level = "debug"
+log_file = "/tmp/node1/node.log"
+max_log_size_mb = 50
+max_log_files = 5
+
+[storage]
+db_path = "/tmp/node1/chainstate"
+cache_size_mb = 256
+
+[network.limits]
+max_inbound_peers = 50
+max_outbound_peers = 4
+max_message_size = 33554432
+max_upload_bytes_per_sec = 10485760
+max_download_bytes_per_sec = 52428800
+
+[devnet]
+allow_mining_without_peers = true
+fast_sync_enabled = true
+checkpoint_enabled = false
+instant_deposit = true

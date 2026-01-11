@@ -791,7 +791,7 @@ async fn main() -> Result<()> {
             p2p_bind,
         } => {
             let network = load_network_from_config(&config)?;
-            run_node(&config, rpc_bind.as_deref(), p2p_bind.as_deref(), network)
+            run_node(&config, rpc_bind.as_deref(), p2p_bind.as_deref(), network).await
         }
         Commands::MineGenesis { max_tries, output } => mine_genesis(max_tries, &output),
         Commands::CheckBlock { path } => check_block(&path),
@@ -1014,6 +1014,7 @@ async fn main() -> Result<()> {
                         jwt_secret: jwt_secret.as_deref(),
                     },
                     network_id,
+                    None, // bootstrap_peers: will use cached peers.json or TESTNET_SEEDS
                 )
                 .await
             }
@@ -1031,6 +1032,7 @@ async fn main() -> Result<()> {
                         password: None,
                     },
                     network_id,
+                    None, // bootstrap_peers: will use cached peers.json or TESTNET_SEEDS
                 )
                 .await
             }
@@ -1041,7 +1043,7 @@ async fn main() -> Result<()> {
             network,
         } => {
             let network_id = parse_network_id(&network)?;
-            p2p_connect(&peer, height, network_id)
+            p2p_connect(&peer, height, network_id).await
         }
         Commands::StratumServer {
             stratum_bind,
@@ -1101,35 +1103,56 @@ fn load_network_from_config(path: &str) -> Result<NetworkId> {
     Ok(NetworkId::Mainnet)
 }
 
-fn run_node(
+async fn run_node(
     config_path: &str,
     rpc_bind: Option<&str>,
     p2p_bind: Option<&str>,
     network: NetworkId,
 ) -> Result<()> {
-    let p2p_addr = p2p_bind.unwrap_or("0.0.0.0:18444");
-    let rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332");
+    // Parse config file for settings
+    let config_content = std::fs::read_to_string(config_path).unwrap_or_default();
+    
+    // Extract db_path from config (default to ./data/chainstate)
+    let datadir = extract_config_value(&config_content, "db_path")
+        .unwrap_or_else(|| "./data/chainstate".to_string());
+    
+    // Extract p2p_port from config for deriving metrics port
+    let config_p2p_port: u16 = extract_config_value(&config_content, "p2p_port")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(18444);
+    
+    // Use CLI override or config value for P2P address
+    let p2p_addr = p2p_bind
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("0.0.0.0:{}", config_p2p_port));
+    
+    let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332"); // Currently unused
 
     println!(
-        "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}"
+        "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}\nData directory: {datadir}"
     );
 
-    // Extract datadir from config (default to ./data/chainstate)
-    let datadir = "./data/chainstate"; // TODO: Load from config file
+    // Create data directory if it doesn't exist
+    if let Err(e) = std::fs::create_dir_all(&datadir) {
+        eprintln!("Warning: Failed to create data directory {}: {}", datadir, e);
+    }
 
-    // Use the full p2p_server implementation with RocksDB storage
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| Error::Invalid(format!("failed to create runtime: {e}")))?;
-
-    rt.block_on(async {
-        // Start metrics server on port 9615
-        let _metrics_handle = metrics::start_metrics_server(9615);
-        p2p_server(
-            p2p_addr,
+    // Metrics server will be started by p2p_server() with proper port derivation
+    
+    // Extract bootstrap_nodes from config
+    let bootstrap_peers = extract_config_array(&config_content, "bootstrap_nodes");
+    let bootstrap_peers_opt = if bootstrap_peers.is_empty() {
+        None
+    } else {
+        Some(bootstrap_peers)
+    };
+    
+    p2p_server(
+            &p2p_addr,
             50, // max_peers
-            datadir,
+            &datadir,
             RpcServerOptions {
-                listen: Some(rpc_addr),
+                listen: None, // Disabled for P2P testing
                 username: None,
                 password: None,
                 #[cfg(feature = "rocksdb-backend")]
@@ -1160,10 +1183,47 @@ fn run_node(
                 allow_insecure: false,
             },
             network,
+            bootstrap_peers_opt,
         )
         .await
-    })
 }
+
+/// Extract a simple key = "value" or key = value from TOML content
+fn extract_config_value(content: &str, key: &str) -> Option<String> {
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with(key) {
+            if let Some((_, value)) = line.split_once('=') {
+                let val = value.trim().trim_matches('"').trim();
+                return Some(val.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Extract an array value like bootstrap_nodes = ["addr1", "addr2"]
+fn extract_config_array(content: &str, key: &str) -> Vec<String> {
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with(key) {
+            if let Some((_, value)) = line.split_once('=') {
+                let val = value.trim();
+                // Parse simple array: ["a", "b"]
+                if val.starts_with('[') && val.ends_with(']') {
+                    let inner = &val[1..val.len()-1];
+                    return inner
+                        .split(',')
+                        .map(|s| s.trim().trim_matches('"').trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                }
+            }
+        }
+    }
+    Vec::new()
+}
+
 
 /// Mine the genesis block
 fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
@@ -1551,18 +1611,13 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
     // Initialize PeerManager (with automatic seed bootstrap if no peers specified)
     let peer_manager = {
         use bitquan_network::{NoiseConfig, PeerManager};
+        use std::path::PathBuf;
 
-        // Use seed peers if none specified, otherwise use provided peers
-        let bootstrap_peers: Vec<String> = if peers.is_empty() {
-            // Automatic bootstrap: use hardcoded seed node for testnet
-            println!("\n=== P2P Auto-Bootstrap ===");
-            println!("No peers specified, using seed node...");
-            vec!["127.0.0.1:18444".to_string()]
-        } else {
-            println!("\n=== P2P Network Configuration ===");
-            println!("Connecting to {} peer(s)...", peers.len());
-            peers.clone()
-        };
+        // Path for peers.json persistence
+        let peers_json = PathBuf::from("peers.json");
+        let peers_file_exists = peers_json.exists();
+
+        println!("\n=== P2P Network Configuration ===");
 
         // Generate Noise Protocol keypair for P2P encryption
         let noise_config = Arc::new(
@@ -1575,10 +1630,53 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         );
 
         let pm = Arc::new(PeerManager::new(
-            bootstrap_peers.len(),
+            125, // max_peers
             network,
             noise_config,
         ));
+
+        // Load existing peers from file if available
+        if peers_file_exists {
+            match pm.load_address_book(&peers_json) {
+                Ok(()) => {
+                    // peer_count() returns usize directly, use block_on in sync context
+                    let rt = tokio::runtime::Handle::try_current();
+                    if let Ok(handle) = rt {
+                        let count = handle.block_on(pm.peer_count());
+                        println!("📖 Loaded {} peers from peers.json", count);
+                    }
+                }
+                Err(e) => {
+                    println!("⚠️  Failed to load peers.json: {}, starting fresh", e);
+                }
+            }
+        }
+
+        // Determine bootstrap peers: CLI args > cached peers > TESTNET_SEEDS
+        let bootstrap_peers: Vec<String> = if !peers.is_empty() {
+            // CLI-provided peers take priority
+            println!("Connecting to {} peer(s) from CLI...", peers.len());
+            peers.clone()
+        } else {
+            // No CLI peers: check if we have cached peers
+            let known_count = pm.known_peers_count().unwrap_or(0);
+            if known_count > 0 {
+                println!("Using {} cached peers from address book", known_count);
+                pm.get_known_peers()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .take(10) // Connect to top 10 cached peers
+                    .map(|addr| format!("{}:{}", addr.ip, addr.port))
+                    .collect()
+            } else {
+                // No cached peers: use TESTNET_SEEDS
+                println!("No cached peers, using TESTNET_SEEDS...");
+                bitquan_network::TESTNET_SEEDS
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            }
+        };
 
         // Update peer manager with current chain height
         let current_height = {
@@ -1588,11 +1686,13 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             s.height()
                 .map_err(|e| Error::Invalid(format!("storage height error: {e}")))?
         };
-        if let Err(e) = pm.update_height(current_height) {
-            eprintln!("⚠️  Failed to update peer height: {}", e);
+
+        // update_height() is async and returns (), use block_on in sync context
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.block_on(pm.update_height(current_height));
         }
 
-        // Connect to all bootstrap peers
+        // Connect to bootstrap peers
         let mut connected_count = 0;
         for peer_addr in &bootstrap_peers {
             let addr: SocketAddr = match peer_addr.parse() {
@@ -1604,13 +1704,17 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             };
 
             print!("  Connecting to {}... ", peer_addr);
-            match pm.connect_peer(addr) {
-                Ok(()) => {
-                    println!("✅ Connected");
-                    connected_count += 1;
-                }
-                Err(e) => {
-                    eprintln!("❌ Failed: {}", e);
+            // connect_peer() is async, use block_on in sync context
+            let rt = tokio::runtime::Handle::try_current();
+            if let Ok(handle) = rt {
+                match handle.block_on(pm.connect_peer(addr)) {
+                    Ok(()) => {
+                        println!("✅ Connected");
+                        connected_count += 1;
+                    }
+                    Err(e) => {
+                        eprintln!("❌ Failed: {}", e);
+                    }
                 }
             }
         }
@@ -1621,12 +1725,17 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                 connected_count,
                 bootstrap_peers.len()
             );
-            println!("Ready peers: {}", pm.ready_peer_count().unwrap_or(0));
+            // ready_peer_count() is async and returns usize directly
+            let rt = tokio::runtime::Handle::try_current();
+            if let Ok(handle) = rt {
+                let ready = handle.block_on(pm.ready_peer_count());
+                println!("Ready peers: {}", ready);
+            }
             println!("================================\n");
             Some(pm)
         } else {
             eprintln!("⚠️  Warning: Failed to connect to any peers. Mining will continue without network connectivity.\n");
-            None
+            Some(pm) // Return pm anyway for future peer discovery
         }
     };
 
@@ -1985,20 +2094,25 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         // Broadcast block to connected peers
         if let Some(ref pm) = peer_manager {
-            let ready_peers = pm.ready_peer_count().unwrap_or(0);
-            if ready_peers > 0 {
-                print!(" | Broadcasting to {} peer(s)...", ready_peers);
+            // ready_peer_count() is async, use block_on in sync context
+            let rt = tokio::runtime::Handle::try_current();
+            if let Ok(handle) = rt {
+                let ready_peers = handle.block_on(pm.ready_peer_count());
+                if ready_peers > 0 {
+                    print!(" | Broadcasting to {} peer(s)...", ready_peers);
 
-                // Create block message for broadcasting
-                let msg = Message::Block {
-                    block: block.clone(),
-                };
-                match pm.broadcast(msg) {
-                    Ok(_count) => {
-                        print!(" ✅");
-                    }
-                    Err(e) => {
-                        print!(" ⚠️  Broadcast warning: {}", e);
+                    // Create block message for broadcasting
+                    let msg = Message::Block {
+                        block: block.clone(),
+                    };
+                    // broadcast() is async, use block_on
+                    match handle.block_on(pm.broadcast(msg)) {
+                        Ok(_count) => {
+                            print!(" ✅");
+                        }
+                        Err(e) => {
+                            print!(" ⚠️  Broadcast warning: {}", e);
+                        }
                     }
                 }
             }
@@ -2708,6 +2822,7 @@ async fn p2p_server(
     datadir: &str,
     rpc: RpcServerOptions<'_>,
     network: NetworkId,
+    bootstrap_peers: Option<Vec<String>>,
 ) -> Result<()> {
     use bitquan_mempool::Mempool;
     use bitquan_network::PeerManager;
@@ -2956,9 +3071,57 @@ async fn p2p_server(
         network,
         noise_config.clone(),
     ));
-    if let Err(e) = peer_manager.update_height(height) {
-        eprintln!("⚠️  Failed to update peer height: {}", e);
+    // update_height() is async and returns ()
+    peer_manager.update_height(height).await;
+
+    // Load peers.json if exists and show cached peer count
+    let peers_json_path = std::path::PathBuf::from("peers.json");
+    if peers_json_path.exists() {
+        match peer_manager.load_address_book(&peers_json_path) {
+            Ok(()) => {
+                match peer_manager.known_peers_count() {
+                    Ok(count) => println!("📖 Loaded {} peers from peers.json", count),
+                    Err(e) => println!("⚠️  Loaded peers.json but couldn't count: {}", e),
+                }
+            }
+            Err(e) => {
+                println!("⚠️  Failed to load peers.json: {}, starting fresh", e);
+            }
+        }
     }
+
+    // Determine bootstrap peers: parameter > cached peers > TESTNET_SEEDS
+    // We'll save this for later - bootstrap happens AFTER server is ready
+    let bootstrap_peers_final: Vec<String> = if let Some(peers) = bootstrap_peers {
+        // Explicitly provided peers (from CLI or config)
+        peers
+    } else {
+        // No explicit peers: check if we have cached peers
+        let known_count = peer_manager.known_peers_count().unwrap_or(0);
+        if known_count > 0 {
+            // Use cached peers from peers.json
+            peer_manager
+                .get_known_peers()
+                .unwrap_or_default()
+                .into_iter()
+                .take(10) // Connect to top 10 cached peers
+                .map(|addr| format!("{}:{}", addr.ip, addr.port))
+                .collect()
+        } else {
+            // No cached peers: use TESTNET_SEEDS
+            bitquan_network::TESTNET_SEEDS
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        }
+    };
+
+    // Store bootstrap peers for later use (after server is ready)
+    let bootstrap_peers_for_later = if !bootstrap_peers_final.is_empty() {
+        Some(bootstrap_peers_final)
+    } else {
+        None
+    };
 
     // Create mempool for transaction relay
     let mempool =
@@ -2977,9 +3140,28 @@ async fn p2p_server(
     // For now, ForkChoice starts empty - will build up as blocks arrive
     // In production, should load existing chain tips into ForkChoice
 
-    // Start metrics server on port 9615
-    let _metrics_handle = metrics::start_metrics_server(9615);
-    println!("📊 Metrics server started on http://127.0.0.1:9615/metrics");
+    // Derive metrics port from P2P port to allow multiple nodes on same machine
+    // e.g., P2P 18444 -> Metrics 9615, P2P 18445 -> Metrics 9616
+    let p2p_port: u16 = listen
+        .split(':')
+        .last()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(18444);
+    let metrics_port = 9615 + p2p_port.saturating_sub(18444);
+    
+    // Only start metrics if run_node() didn't already start it
+    // (check by trying to bind - if it fails, it's already running)
+    let metrics_addr = format!("127.0.0.1:{}", metrics_port);
+    match std::net::TcpListener::bind(&metrics_addr) {
+        Ok(listener) => {
+            drop(listener); // Release the port
+            let _metrics_handle = metrics::start_metrics_server(metrics_port);
+            println!("📊 Metrics server started on http://{}/metrics", metrics_addr);
+        }
+        Err(_) => {
+            // Metrics server already running on this port, skip
+        }
+    }
 
     // Set initial block height metric
     metrics::update_block_height(height);
@@ -2994,14 +3176,55 @@ async fn p2p_server(
             interval.tick().await;
 
             // Update connected peers metric
-            if let Ok(count) = peer_manager_for_metrics.peer_count() {
-                metrics::update_connected_peers(count);
-            }
+            let count = peer_manager_for_metrics.peer_count().await;
+            metrics::update_connected_peers(count);
 
             // Update mempool size metric
             let mempool_lock = mempool_for_metrics.lock().await;
             metrics::update_mempool_size(mempool_lock.len());
             drop(mempool_lock);
+        }
+    });
+
+    // Spawn peer discovery loop
+    // Periodically sends GetAddr requests to connected peers for peer discovery
+    let peer_manager_for_discovery = peer_manager.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+
+            // Check if we have connected peers
+            let peer_count = peer_manager_for_discovery.peer_count().await;
+
+            if peer_count == 0 {
+                log::debug!("No peers connected, skipping discovery");
+                continue;
+            }
+
+            // Broadcast GetAddr to all ready peers for peer discovery
+            if let Err(e) = peer_manager_for_discovery.broadcast(bitquan_network::protocol::Message::GetAddr).await {
+                log::warn!("Failed to broadcast GetAddr for discovery: {}", e);
+            } else {
+                log::debug!("🔍 Broadcast GetAddr to {} peers for discovery", peer_count);
+            }
+        }
+    });
+
+    // Spawn peer address book persistence loop
+    // Periodically saves known peers to peers.json (every 5 minutes)
+    let peer_manager_for_save = peer_manager.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // 5 minutes
+        loop {
+            interval.tick().await;
+
+            let peers_path = std::path::PathBuf::from("peers.json");
+            if let Err(e) = peer_manager_for_save.save_address_book(&peers_path) {
+                log::warn!("Failed to save peers.json: {}", e);
+            } else {
+                log::debug!("💾 Saved peer address book to peers.json");
+            }
         }
     });
 
@@ -3048,6 +3271,56 @@ async fn p2p_server(
     let ban_manager = Arc::new(TokioMutex::new(BanManager::new(
         bitquan_network::ban_manager::BanConfig::default(),
     )));
+
+    // CRITICAL FIX: Bootstrap AFTER server is ready
+    // Previously bootstrap happened before TcpListener bind, causing Connection Refused
+    if let Some(bootstrap_peers) = bootstrap_peers_for_later {
+        let peer_manager_for_bootstrap = peer_manager.clone();
+        let local_addr_copy = local_addr;
+
+        tokio::spawn(async move {
+            // Small delay to ensure server is fully ready
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+            println!("\n=== P2P Bootstrap ===");
+            println!("Server ready at {}, connecting to {} peer(s)...", local_addr_copy, bootstrap_peers.len());
+
+            let mut connected_count = 0;
+            for peer_str in &bootstrap_peers {
+                // Skip connecting to ourselves
+                if peer_str.contains("127.0.0.1") || peer_str.contains("localhost") {
+                    if let Ok(addr) = peer_str.parse::<std::net::SocketAddr>() {
+                        if addr.port() == local_addr_copy.port() {
+                            log::debug!("Skipping bootstrap to self: {}", peer_str);
+                            continue;
+                        }
+                    }
+                }
+
+                let addr: std::net::SocketAddr = match peer_str.parse() {
+                    Ok(a) => a,
+                    Err(e) => {
+                        println!("  ⚠️  Invalid peer address '{}': {}", peer_str, e);
+                        continue;
+                    }
+                };
+
+                print!("  Connecting to {}... ", peer_str);
+                match peer_manager_for_bootstrap.connect_peer(addr).await {
+                    Ok(()) => {
+                        println!("✅ Connected");
+                        connected_count += 1;
+                    }
+                    Err(e) => {
+                        println!("❌ Failed: {}", e);
+                    }
+                }
+            }
+
+            println!("\n📊 Bootstrap result: {} / {} peers connected", connected_count, bootstrap_peers.len());
+            println!("======================\n");
+        });
+    }
 
     // Accept connections loop - spawn worker task for each peer
     loop {
@@ -3121,7 +3394,7 @@ async fn p2p_server(
 }
 
 /// Connect to a peer as a client
-fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> {
+async fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> {
     use bitquan_network::{NoiseConfig, PeerManager};
     use std::sync::Arc;
 
@@ -3141,26 +3414,25 @@ fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> {
     );
 
     let peer_manager = Arc::new(PeerManager::new(1, network, noise_config));
-    if let Err(e) = peer_manager.update_height(height) {
-        eprintln!("⚠️  Failed to update peer height: {}", e);
-    }
+    // update_height() is async and returns ()
+    peer_manager.update_height(height).await;
 
     let addr: SocketAddr = peer
         .parse()
         .map_err(|e| Error::Invalid(format!("invalid peer address: {e}")))?;
 
     println!("⏳ Connecting...");
-    match peer_manager.connect_peer(addr) {
+    match peer_manager.connect_peer(addr).await {
         Ok(()) => {
             println!("✅ Connected and handshake complete!");
             println!(
                 "Ready peers: {}",
-                peer_manager.ready_peer_count().unwrap_or(0)
+                peer_manager.ready_peer_count().await
             );
 
             // Keep connection alive for a bit
             for i in 1..=5 {
-                thread::sleep(Duration::from_secs(1));
+                tokio::time::sleep(Duration::from_secs(1)).await;
                 println!("Connection alive... {}/5", i);
             }
 

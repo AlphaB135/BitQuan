@@ -37,8 +37,8 @@ const NOISE_PATTERN: &str = "Noise_XX_25519_ChaChaPoly_BLAKE2s";
 /// Maximum Noise message size (65535 bytes per spec)
 const MAX_NOISE_MSG_LEN: usize = 65535;
 
-/// Handshake message buffer size
-const HANDSHAKE_BUF_SIZE: usize = 256;
+/// Handshake message buffer size (64KB for PQC support - Kyber-1024)
+const HANDSHAKE_BUF_SIZE: usize = 65536;
 
 /// Errors that can occur during Noise operations.
 #[derive(Debug, Error)]
@@ -172,7 +172,7 @@ impl NoiseConfig {
     }
 
     /// Build initiator handshake state.
-    fn build_initiator(&self) -> Result<HandshakeState> {
+    pub fn build_initiator(&self) -> Result<HandshakeState> {
         let builder = Builder::new(NOISE_PATTERN.parse()?);
         Ok(builder
             .local_private_key(self.private_key.as_ref())
@@ -180,7 +180,7 @@ impl NoiseConfig {
     }
 
     /// Build responder handshake state.
-    fn build_responder(&self) -> Result<HandshakeState> {
+    pub fn build_responder(&self) -> Result<HandshakeState> {
         let builder = Builder::new(NOISE_PATTERN.parse()?);
         Ok(builder
             .local_private_key(self.private_key.as_ref())
@@ -205,6 +205,29 @@ pub struct NoiseTransport {
 }
 
 impl NoiseTransport {
+    /// Creates a NoiseTransport from pre-completed handshake components.
+    ///
+    /// This is used when the handshake was performed asynchronously
+    /// (e.g., using tokio I/O) and we now have the raw components.
+    ///
+    /// # Arguments
+    /// * `stream` - The TCP stream (now converted to std after async handshake)
+    /// * `transport` - The Noise transport state from the completed handshake
+    /// * `remote_public_key` - The authenticated remote public key (32 bytes)
+    pub fn from_parts(
+        stream: TcpStream,
+        transport: TransportState,
+        remote_public_key: [u8; 32],
+    ) -> Self {
+        Self {
+            stream,
+            transport,
+            remote_public_key,
+            read_buf: Vec::new(),
+            read_pos: 0,
+        }
+    }
+
     /// Upgrade a TCP stream to encrypted transport (initiator/client side).
     ///
     /// Performs the Noise XX handshake as initiator:

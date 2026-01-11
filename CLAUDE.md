@@ -699,6 +699,11 @@ Closes #[issue-number]
 -   **Parallel Agent Velocity** (2026-01-05): Launching 5 agents simultaneously reduces analysis time by 66% (10 min vs 30 min sequential); Synthesis agent combines findings into actionable plan; Force multiplier for complex systems
 -   **Suicide Switch Pattern** (2026-01-05): `panic!()` is appropriate when state is irrecoverably corrupted; "Better Dead than Wrong" philosophy; Continuing with corrupted blockchain state causes consensus failures and double spends
 -   **Disconnect with Resurrection** (2026-01-05): When removing blocks from chain (reorg), MUST resurrect transactions to mempool (except coinbase); Pattern: `for tx in block.transactions { if !is_coinbase(tx) { mempool.insert(tx); } }`
+-   **P2P Bootstrap Priority Pattern** (2026-01-10): CLI args > cached peers > hardcoded seeds ensures user control while maintaining fallbacks; Load peers.json on startup; Save every 5 minutes with 24h pruning
+-   **Async Runtime Nesting Forbidden** (2026-01-10): Functions called from `#[tokio::main]` must be async, NOT create their own runtime; `Runtime::new()` + `block_on()` inside async main = panic "Cannot start a runtime from within a runtime"
+-   **Method Name Disambiguation** (2026-01-10): Use descriptive names when multiple methods track similar metrics; `peer_count()` = active connections, `known_peers_count()` = cached peers; Prevents duplicate definition errors
+-   **exFAT Build Workaround** (2026-01-10): exFAT lacks hard linking needed for Cargo incremental compilation; Use `export CARGO_TARGET_DIR=/tmp` to build on APFS; 10x faster builds on SSD
+-   **Protocol Handshake Debugging** (2026-01-10): "failed to fill whole buffer" = TCP connected but protocol failed; Socket-level success doesn't mean P2P handshake (Noise/magic) succeeded; Check both layers
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*
@@ -816,6 +821,35 @@ Three pillars:
 1. **Nothing is Deleted** - Append only, timestamps = truth
 2. **Patterns Over Intentions** - Observe behavior, not promises
 3. **External Brain, Not Command** - Mirror reality, don't decide
+
+### Oracle MCP Integration
+
+BitQuan uses oracle-mcp for semantic search and knowledge management of retrospectives, learnings, and patterns.
+
+**Installation:**
+```bash
+# Located in tools/oracle-mcp/
+# Dependencies installed via npm
+# MCP server configured in ~/.claude/mcp.json
+```
+
+**MCP Tools Available:**
+- `oracle_search` - Hybrid search (FTS5 keywords + vectors) across knowledge base
+- `oracle_consult` - Get guidance based on stored principles
+- `oracle_reflect` - Random wisdom for reflection
+
+**Data Storage:**
+- Database: `.oracle-data/oracle.db` (SQLite with FTS5)
+- Config: `tools/oracle-mcp/config.bitquan.json`
+- Sources: `ψ/memory/retrospectives/`, `ψ/memory/learnings/`
+
+**Usage:**
+The MCP server auto-starts when Claude Code initializes. Use tools directly:
+```
+oracle_search: "How should I handle force push?"
+oracle_search: "Chain reorg recovery patterns" type: "pattern"
+oracle_consult: "Should I use HashMap in consensus code?"
+```
 
 ## Appendices
 

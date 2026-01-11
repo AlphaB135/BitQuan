@@ -125,12 +125,18 @@ async fn test_mempool_transaction_relay() {
     let alice_fork_choice = Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new()));
     let bob_fork_choice = Arc::new(TokioMutex::new(bitquan_consensus::fork::ForkChoice::new()));
 
+    // Create BanManager for each context
+    use bitquan_network::BanConfig;
+    let alice_ban_manager = Arc::new(TokioMutex::new(bitquan_network::BanManager::new(BanConfig::default())));
+    let bob_ban_manager = Arc::new(TokioMutex::new(bitquan_network::BanManager::new(BanConfig::default())));
+
     let alice_ctx = Arc::new(WorkerContext::new(
         alice_peer_manager.clone(),
         storage.clone(),
         alice_mempool.clone(),
         consensus.clone(),
         alice_fork_choice,
+        alice_ban_manager,
         NetworkId::Regtest,
         [0u8; 32],
     ));
@@ -141,6 +147,7 @@ async fn test_mempool_transaction_relay() {
         bob_mempool.clone(),
         consensus,
         bob_fork_choice,
+        bob_ban_manager,
         NetworkId::Regtest,
         [0u8; 32],
     ));
@@ -191,7 +198,7 @@ async fn test_mempool_transaction_relay() {
     println!("📢 Alice broadcasting Inv(Tx) to Bob");
 
     // Simulate Alice's broadcast_inv call
-    let _ = alice_ctx.peer_manager.broadcast_inv(inv.clone());
+    drop(alice_ctx.peer_manager.broadcast_inv(inv.clone())); // Explicitly drop the future
 
     println!("✅ Broadcast complete");
 

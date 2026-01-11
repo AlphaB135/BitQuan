@@ -205,16 +205,41 @@ async fn handle_message(
 
         // === Peer Discovery ===
         Message::GetAddr => {
-            // TODO: Send known peer addresses
-            // For now, send empty list
-            peer.send_message(Message::Addr { addrs: vec![] })?;
-            Ok(true)
+            // Send known peer addresses from address book
+            match ctx.peer_manager.get_known_peers() {
+                Ok(peers) => {
+                    // Limit to 1000 addresses per protocol spec
+                    let addrs: Vec<bitquan_network::protocol::PeerAddr> =
+                        peers.into_iter().take(1000).collect();
+                    let addr_count = addrs.len();
+
+                    peer.send_message(Message::Addr { addrs })?;
+                    log::debug!("📤 Sent {} addresses to {}", addr_count, peer.addr);
+                    Ok(true)
+                }
+                Err(e) => {
+                    log::warn!("Failed to get known peers: {}", e);
+                    // Send empty list on error
+                    peer.send_message(Message::Addr { addrs: vec![] })?;
+                    Ok(true)
+                }
+            }
         }
 
         Message::Addr { addrs } => {
             log::info!("📬 Received {} addresses from {}", addrs.len(), peer.addr);
-            // TODO: Add addresses to peer manager's address book
-            Ok(true)
+
+            // Add addresses to peer manager's address book
+            match ctx.peer_manager.add_peer_addresses(addrs) {
+                Ok(()) => {
+                    log::debug!("✅ Added addresses to book");
+                    Ok(true)
+                }
+                Err(e) => {
+                    log::warn!("Failed to add addresses: {}", e);
+                    Ok(true) // Don't disconnect on address book errors
+                }
+            }
         }
 
         // === Inventory Announcements ===
@@ -748,7 +773,7 @@ async fn handle_block(
         hash: block_hash,
     }];
 
-    match ctx.peer_manager.broadcast_inv(inv[0].clone()) {
+    match ctx.peer_manager.broadcast_inv(inv[0].clone()).await {
         Ok(count) => {
             log::info!(
                 "📢 Broadcast Block {} to {} peers",
@@ -836,7 +861,7 @@ async fn handle_tx(
             hash: tx_hash,
         }];
 
-        match ctx.peer_manager.broadcast_inv(inv[0].clone()) {
+        match ctx.peer_manager.broadcast_inv(inv[0].clone()).await {
             Ok(count) => {
                 log::info!(
                     "📢 Broadcast Tx {} to {} peers",

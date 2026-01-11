@@ -46,18 +46,18 @@ fn test_anchor_peers_config() {
     assert_eq!(anchors[0], anchor);
 }
 
-#[test]
-fn test_subnet_stats_empty() {
+#[tokio::test]
+async fn test_subnet_stats_empty() {
     let noise_config = test_noise_config();
     let pm = PeerManager::new(10, NetworkId::Regtest, noise_config);
-    let stats = pm.get_subnet_stats().unwrap();
+    let stats = pm.get_subnet_stats().await;
     assert!(stats.is_empty());
 }
 
-#[test]
-fn test_evict_no_peers() {
+#[tokio::test]
+async fn test_evict_no_peers() {
     let noise_config = test_noise_config();
     let pm = PeerManager::new(10, NetworkId::Regtest, noise_config);
-    let result = pm.evict_lowest_reputation_peer().unwrap();
+    let result = pm.evict_lowest_reputation_peer().await;
     assert!(result.is_none());
 }
