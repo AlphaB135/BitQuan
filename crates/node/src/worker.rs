@@ -947,10 +947,7 @@ async fn handle_getblocks(
         // Check if this block exists in our chain
         match ctx.storage.get_block(locator_hash).await {
             Ok(Some(_block)) => {
-                log::info!("✅ Found common ancestor at index: {} (hash: {})", i, hex::encode(&locator_hash[..8]));
-                // For now, just log that we found it
-                // TODO: Get actual block height when ChainStore supports it
-                // TODO: Use this as starting point to fetch subsequent blocks
+                log::info!("✅ Found common ancestor at locator {}: {}", i, hex::encode(&locator_hash[..8]));
                 break;
             }
             Ok(None) => {
@@ -962,22 +959,53 @@ async fn handle_getblocks(
         }
     }
 
-    // Get blocks after the common ancestor
-    // For now, we'll send an empty Inv because we need:
-    // 1. ChainStore to support get_block_by_height()
-    // 2. Or we need to iterate through the chain from the tip
-    //
-    // This is a stub implementation that will be enhanced when
-    // ChainState is properly integrated with ChainStore
+    // Build inventory of blocks to announce
+    let mut inv: Vec<bitquan_network::protocol::InvVector> = Vec::new();
 
-    let inv: Vec<bitquan_network::protocol::InvVector> = vec![];
+    // For now, announce blocks from height 0 up to our tip
+    // In a full implementation, we would:
+    // 1. Get the height of the common ancestor
+    // 2. Fetch blocks from (ancestor_height + 1) to tip
+    // 3. Limit to 500 blocks per message
+
+    let mut height = 0u64;
+    let limit = 500; // Max blocks to announce per GetBlocks response
+
+    while inv.len() < limit {
+        match ctx.storage.get_block_by_height(height).await {
+            Ok(Some(block)) => {
+                let block_hash = header_hash(&block.header);
+
+                // Check if we should stop
+                if stop_hash != [0u8; 32] && block_hash == stop_hash {
+                    log::debug!("🛑 Reached stop_hash at height {}", height);
+                    break;
+                }
+
+                inv.push(bitquan_network::protocol::InvVector {
+                    inv_type: bitquan_network::protocol::InvType::Block,
+                    hash: block_hash,
+                });
+            }
+            Ok(None) => {
+                // No more blocks at this height
+                break;
+            }
+            Err(e) => {
+                log::error!("Error fetching block at height {}: {}", height, e);
+                break;
+            }
+        }
+
+        height += 1;
+    }
 
     if !inv.is_empty() {
         let inv_count = inv.len();
         peer.send_message(Message::Inv { inventory: inv })?;
-        log::debug!("📤 Sent Inv with {} blocks to {}", inv_count, peer.addr);
+        log::info!("📤 Sent Inv with {} blocks to {}", inv_count, peer.addr);
     } else {
-        log::debug!("📤 No blocks to announce to {} (chain state not fully integrated)", peer.addr);
+        log::debug!("📤 No blocks to announce to {}", peer.addr);
     }
 
     Ok(true)

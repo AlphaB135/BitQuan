@@ -78,6 +78,7 @@ pub trait ChainStore {
 /// In-memory chain store for prototyping and tests.
 pub struct InMemoryChainStore {
     blocks: HashMap<[u8; 32], Block>,
+    by_height: Vec<Block>,  // Track blocks by height for IBD
     tip: Option<BlockHeader>,
     times: Vec<u32>,
     height: u64,
@@ -88,6 +89,7 @@ impl InMemoryChainStore {
     pub fn new() -> Self {
         Self {
             blocks: HashMap::new(),
+            by_height: Vec::new(),
             tip: None,
             times: Vec::new(),
             height: 0,
@@ -110,7 +112,11 @@ impl ChainStore for InMemoryChainStore {
         }
         self.height = self.height.saturating_add(1);
         self.tip = Some(block.header.clone());
-        self.blocks.insert(id, block);
+
+        // Store by hash and by height
+        self.blocks.insert(id, block.clone());
+        self.by_height.push(block);
+
         Ok(())
     }
 
@@ -129,9 +135,13 @@ impl ChainStore for InMemoryChainStore {
         Ok(self.tip.clone())
     }
 
-    fn get_block_by_height(&self, _height: u64) -> Result<Option<Block>, StorageError> {
-        // InMemory store doesn't index by height efficiently
-        Ok(None)
+    fn get_block_by_height(&self, height: u64) -> Result<Option<Block>, StorageError> {
+        // by_height is 0-indexed (height 0 is at index 0)
+        if height < self.by_height.len() as u64 {
+            Ok(Some(self.by_height[height as usize].clone()))
+        } else {
+            Ok(None)
+        }
     }
 
     fn get_transaction(&self, _txid: &[u8; 32]) -> Result<Option<Transaction>, StorageError> {
