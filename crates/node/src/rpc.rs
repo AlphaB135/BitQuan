@@ -304,6 +304,120 @@ impl RpcMethods for NodeRpcHandler {
             })
         }
     }
+
+    async fn generate(&self, n_blocks: u64, _address: Option<String>) -> Result<Vec<String>, RpcError> {
+        use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
+        use bitquan_types::{Block, BlockHeader, Transaction, TxOut, SigAlgorithm};
+
+        let mut generated_hashes = Vec::new();
+
+        // Get current chain state
+        let _height = self.store.height().await.map_err(Self::storage_error_to_rpc)?;
+        let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
+
+        // For regtest/devnet, use very easy difficulty
+        let bits = if self.chain_name == "regtest" || self.chain_name == "devnet" {
+            0x2200ffff // Ultra-easy target for CPU mining (65536x easier than mainnet)
+        } else {
+            tip.as_ref()
+                .map(|h| h.bits)
+                .unwrap_or(bitquan_types::GENESIS_BITS)
+        };
+
+        // Get previous block hash
+        let prev_block = match tip {
+            Some(header) => header,
+            None => {
+                // Use genesis block header if no tip
+                bitquan_types::BlockHeader {
+                    version: bitquan_types::GENESIS_VERSION,
+                    prev_block: [0u8; 32],
+                    merkle_root: bitquan_types::GENESIS_HASH_BYTES,
+                    pqc_agg_hint: [0u8; 32],
+                    time: bitquan_types::GENESIS_TIME,
+                    bits: bitquan_types::GENESIS_BITS,
+                    nonce: bitquan_types::GENESIS_NONCE,
+                    algo_id: 0,
+                }
+            }
+        };
+
+        let prev_hash = bitquan_consensus::header_hash(&prev_block);
+
+        // Mine n_blocks
+        for i in 0..n_blocks {
+            // Create coinbase transaction
+            let coinbase_tx = Transaction {
+                version: 1,
+                network: bitquan_types::NetworkId::Regtest,
+                genesis_hash: bitquan_types::GENESIS_HASH_BYTES,
+                lock_time: 0,
+                inputs: vec![],
+                outputs: vec![TxOut {
+                    value: bitquan_types::GENESIS_REWARD, // 50 BQ in qbits
+                    script_pubkey: vec![0x51], // Simple OP_1 for now
+                }],
+                sig_algo: SigAlgorithm::Dilithium5,
+                witnesses: vec![],
+            };
+
+            // Calculate merkle root (just coinbase txid for now)
+            let txid = coinbase_tx.txid();
+            let mut merkle_root = [0u8; 32];
+            merkle_root.copy_from_slice(&txid);
+
+            // Create block header template
+            let mut header = BlockHeader {
+                version: bitquan_types::GENESIS_VERSION,
+                prev_block: prev_hash,
+                merkle_root,
+                pqc_agg_hint: [0u8; 32],
+                time: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as u32,
+                bits,
+                nonce: 0,
+                algo_id: 0, // SHA256d
+            };
+
+            // Mine the block using simple SHA256d PoW
+            let engine = Sha256dEngine;
+            let max_nonce = 1_000_000; // Reasonable limit for CPU mining
+
+            let mut found = false;
+            for nonce in 0..max_nonce {
+                header.nonce = nonce;
+
+                // Verify if this nonce meets the target
+                if engine.verify(&header).is_ok() {
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                return Err(RpcError::InternalError(
+                    format!("Failed to mine block {} after {} attempts", i, max_nonce)
+                ));
+            }
+
+            // Create full block
+            let block = Block {
+                header: header.clone(),
+                transactions: vec![coinbase_tx],
+            };
+
+            // Insert block into storage
+            self.store.insert_block(block).await
+                .map_err(Self::storage_error_to_rpc)?;
+
+            let block_hash = bitquan_consensus::header_hash(&header);
+            generated_hashes.push(hex::encode(block_hash));
+        }
+
+        Ok(generated_hashes)
+    }
 }
 
 fn storage_to_rpc(err: StorageError) -> RpcError {

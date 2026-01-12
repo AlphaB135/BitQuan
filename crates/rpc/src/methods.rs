@@ -227,6 +227,13 @@ pub trait RpcMethods: Send + Sync {
 
     /// Get sync status or trigger sync
     async fn sync(&self) -> Result<SyncResponse, RpcError>;
+
+    /// Mine blocks immediately (for testing/regtest)
+    ///
+    /// # Arguments
+    /// * `n_blocks` - Number of blocks to mine
+    /// * `address` - Optional address for coinbase output (uses default if None)
+    async fn generate(&self, n_blocks: u64, address: Option<String>) -> Result<Vec<String>, RpcError>;
 }
 
 /// Dispatch RPC call to appropriate method
@@ -505,6 +512,37 @@ pub async fn dispatch_call<T: RpcMethods>(
             },
             Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
         },
+
+        "generate" => {
+            // Parse params: [n_blocks, address?] or [n_blocks]
+            let n_blocks = match params.as_array() {
+                Some(arr) if !arr.is_empty() => {
+                    match arr[0].as_u64() {
+                        Some(n) => n,
+                        None => return JsonRpcResponse::error(
+                            id,
+                            error_codes::INVALID_PARAMS,
+                            "n_blocks must be a number".to_string(),
+                        ),
+                    }
+                }
+                _ => return JsonRpcResponse::error(
+                    id,
+                    error_codes::INVALID_PARAMS,
+                    "generate requires at least n_blocks parameter".to_string(),
+                ),
+            };
+
+            let address = match params.as_array() {
+                Some(arr) if arr.len() > 1 => arr.get(1).and_then(|v| v.as_str()).map(|s| s.to_string()),
+                _ => None,
+            };
+
+            match handler.generate(n_blocks, address).await {
+                Ok(block_hashes) => JsonRpcResponse::success(id, serde_json::json!(block_hashes)),
+                Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+            }
+        }
 
         _ => JsonRpcResponse::error(
             id,

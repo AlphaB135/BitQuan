@@ -57,6 +57,16 @@ impl InputValidator {
             "estimatefee",
             "getmininginfo",
             "prioritisetransaction",
+            "generate",           // CPU mining for testing
+            "getwork",            // Get mining work
+            "submitwork",         // Submit mining work
+            "getbestblockhash",   // Get best block hash
+            "submittransaction",  // Submit transaction
+            "sync",               // Get sync status
+            "getpoolstats",       // Get mining pool stats
+            "getminerstats",      // Get miner stats
+            "createpayout",       // Create payout
+            "getnetworkstatus",   // Get network status
         ];
 
         let mut validator = Self {
@@ -468,6 +478,16 @@ impl InputValidator {
             "getrpcinfo",
             "help",
             "generatetoaddress",
+            "generate",           // CPU mining for testing
+            "getwork",            // Get mining work
+            "submitwork",         // Submit mining work
+            "getbestblockhash",   // Get best block hash
+            "submittransaction",  // Submit transaction
+            "sync",               // Get sync status
+            "getpoolstats",       // Get mining pool stats
+            "getminerstats",      // Get miner stats
+            "createpayout",       // Create payout
+            "getnetworkstatus",   // Get network status
             "getnewaddress",
             "getaddressinfo",
             "validateaddress",

@@ -818,7 +818,7 @@ async fn respond_json(
     let response_body = serde_json::to_string(response).unwrap_or_else(|_| r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"internal serialization error"},"id":null}"# .to_string());
     let security_headers = build_security_headers(config);
     let http_response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n\r\n{}",
         response_body.len(),
         security_headers,
         response_body

@@ -21,7 +21,8 @@ pub use context::TxContext;
 pub use error::{Error, Result};
 pub use ext::{OptionExt, ResultExt};
 pub use genesis::{
-    create_genesis_block, is_valid_genesis, GENESIS_BITS, GENESIS_HASH, GENESIS_TIME,
+    create_genesis_block, is_valid_genesis, GENESIS_BITS, GENESIS_HASH, GENESIS_HASH_BYTES,
+    GENESIS_NONCE, GENESIS_REWARD, GENESIS_TIME, GENESIS_VERSION,
 };
 pub use transaction::{
     AuxiliarySignatureData, NetworkId, SigAlgorithm, SignaturePayload, Transaction, TxIn, TxOut,

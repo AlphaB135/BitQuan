@@ -3479,11 +3479,18 @@ async fn p2p_server(
     use bitquan_network::peer::{async_noise_handshake_responder, Peer};
     use tokio::net::TcpListener as TokioTcpListener;
 
-    let tokio_listener = TokioTcpListener::from_std(listener)
-        .map_err(|e| Error::Net(format!("failed to convert to tokio listener: {e}")))?;
+    // DIRTY FIX: Comment out P2P listener to test RPC generate
+    // let tokio_listener = TokioTcpListener::from_std(listener)
+    //     .map_err(|e| Error::Net(format!("failed to convert to tokio listener: {e}")))?;
 
-    println!("🔄 Converted to async listener mode");
+    println!("🔄 P2P listener DISABLED (testing RPC only)");
 
+    // Keep node running indefinitely
+    println!("🎯 Node running in RPC-only mode. Press Ctrl+C to stop.");
+    tokio::time::sleep(tokio::time::Duration::from_secs(u64::MAX)).await;
+    Ok(()) // Never reached, but needed for type signature
+
+    /*
     loop {
         // ASYNC: Use tokio accept() which doesn't block the executor
         match tokio_listener.accept().await {
@@ -3608,6 +3615,7 @@ async fn p2p_server(
             }
         }
     }
+    */ // END DIRTY FIX: P2P listener disabled
 }
 
 /// Connect to a peer as a client
