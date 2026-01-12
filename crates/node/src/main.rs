@@ -603,6 +603,9 @@ enum Commands {
         #[cfg(feature = "rocksdb-backend")]
         #[arg(long)]
         jwt_secret: Option<String>,
+        /// Peer addresses to connect to on startup (e.g., "127.0.0.1:18444")
+        #[arg(long, value_delimiter = ',')]
+        connect: Vec<String>,
     },
     /// Generate a self-signed TLS certificate for RPC (development use)
     #[cfg(feature = "rocksdb-backend")]
@@ -987,6 +990,7 @@ async fn main() -> Result<()> {
             jwt_config,
             #[cfg(feature = "rocksdb-backend")]
             jwt_secret,
+            connect,
         } => {
             #[cfg(feature = "rocksdb-backend")]
             {
@@ -1014,7 +1018,7 @@ async fn main() -> Result<()> {
                         jwt_secret: jwt_secret.as_deref(),
                     },
                     network_id,
-                    None, // bootstrap_peers: will use cached peers.json or TESTNET_SEEDS
+                    Some(connect), // bootstrap_peers: connect to specified peers
                 )
                 .await
             }
@@ -1032,7 +1036,7 @@ async fn main() -> Result<()> {
                         password: None,
                     },
                     network_id,
-                    None, // bootstrap_peers: will use cached peers.json or TESTNET_SEEDS
+                    Some(connect), // bootstrap_peers: connect to specified peers
                 )
                 .await
             }
@@ -3280,10 +3284,18 @@ async fn p2p_server(
     )));
 
     // CRITICAL FIX: Bootstrap AFTER server is ready
-    // Previously bootstrap happened before TcpListener bind, causing Connection Refused
+    // Spawn outbound connections with worker tasks (same pattern as inbound)
     if let Some(bootstrap_peers) = bootstrap_peers_for_later {
-        let peer_manager_for_bootstrap = peer_manager.clone();
+        let noise_config_clone = noise_config.clone();
+        let peer_manager_clone = peer_manager.clone();
+        let store_clone = store_arc.clone();
+        let mempool_clone = mempool.clone();
+        let consensus_clone = consensus.clone();
+        let fork_choice_clone = fork_choice.clone();
+        let ban_manager_clone = ban_manager.clone();
+        let network_clone = network;
         let local_addr_copy = local_addr;
+        let current_height = height;
 
         tokio::spawn(async move {
             // Small delay to ensure server is fully ready
@@ -3295,6 +3307,10 @@ async fn p2p_server(
                 local_addr_copy,
                 bootstrap_peers.len()
             );
+
+            use bitquan_network::peer::{async_noise_handshake_initiator, Peer};
+            use bitquan_network::protocol::P2pError;
+            use tokio::net::TcpStream as TokioTcpStream;
 
             let mut connected_count = 0;
             for peer_str in &bootstrap_peers {
@@ -3317,19 +3333,140 @@ async fn p2p_server(
                 };
 
                 print!("  Connecting to {}... ", peer_str);
-                match peer_manager_for_bootstrap.connect_peer(addr).await {
-                    Ok(()) => {
-                        println!("✅ Connected");
-                        connected_count += 1;
+
+                // BORN BLOCKING: Create socket as BLOCKING in thread pool
+                let std_stream = match tokio::task::spawn_blocking(move || {
+                    std::net::TcpStream::connect(addr)
+                })
+                .await
+                {
+                    Ok(Ok(s)) => s,
+                    Ok(Err(e)) => {
+                        println!("❌ TCP connect failed: {}", e);
+                        continue;
                     }
                     Err(e) => {
-                        println!("❌ Failed: {}", e);
+                        println!("❌ Join error: {}", e);
+                        continue;
                     }
+                };
+
+                // Set non-blocking explicitly before converting to Tokio
+                if let Err(e) = std_stream.set_nonblocking(true) {
+                    println!("❌ set_nonblocking failed: {}", e);
+                    continue;
                 }
+
+                // Convert to Tokio Stream for async handshake
+                let tokio_stream = match TokioTcpStream::from_std(std_stream) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        println!("❌ from_std failed: {}", e);
+                        continue;
+                    }
+                };
+
+                // Clone context for this peer's task
+                let noise_config = noise_config_clone.clone();
+                let peer_manager = peer_manager_clone.clone();
+                let store = store_clone.clone();
+                let mempool = mempool_clone.clone();
+                let consensus = consensus_clone.clone();
+                let fork_choice = fork_choice_clone.clone();
+                let ban_manager = ban_manager_clone.clone();
+                let magic = bitquan_network::protocol::network_magic(network_clone);
+
+                // Spawn task for this peer's handshake + worker loop
+                tokio::spawn(async move {
+                    use bitquan_network::noise::NoiseTransport;
+
+                    let peer_result = async {
+                        // Perform async Noise handshake (initiator)
+                        let (tokio_stream, transport, remote_public_key) =
+                            async_noise_handshake_initiator(tokio_stream, &noise_config).await
+                                .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+
+                        // Convert TokioTcpStream to std TcpStream for NoiseTransport compatibility
+                        let std_stream = {
+                            #[allow(unused_mut)]
+                            let mut stream = tokio_stream.into_std()
+                                .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+                            stream.set_nonblocking(false)
+                                .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+                            stream
+                        };
+
+                        // Perform version handshake using sync I/O through NoiseTransport (encrypted)
+                        let (version, user_agent, start_height, final_transport) =
+                            tokio::task::spawn_blocking(move || {
+                                let noise_transport = NoiseTransport::from_parts(
+                                    std_stream, transport, remote_public_key
+                                );
+                                let mut peer = Peer::from_handshaked(addr, noise_transport, remote_public_key, magic);
+                                peer.handshake_outbound(current_height)?;
+
+                                let version = peer.version.unwrap_or(bitquan_network::protocol::PROTOCOL_VERSION);
+                                let user_agent = peer.user_agent.clone().unwrap_or_default();
+                                let start_height = peer.start_height.unwrap_or(0);
+                                let transport = peer.into_stream();
+
+                                Ok::<(u32, String, u64, NoiseTransport), P2pError>((
+                                    version, user_agent, start_height, transport,
+                                ))
+                            }).await
+                            .map_err(|e| P2pError::ConnectionError(e.to_string()))?
+                            .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+
+                        println!("  ✅ Connected: {} (version: {}, height: {})",
+                                 addr, version, start_height);
+
+                        // Create peer from the completed handshake with version info
+                        let peer = Peer::from_handshaked_with_version(
+                            addr,
+                            final_transport,
+                            remote_public_key,
+                            magic,
+                            version,
+                            user_agent,
+                            start_height,
+                        );
+
+                        std::result::Result::Ok::<Peer, P2pError>(peer)
+                    }.await;
+
+                    match peer_result {
+                        Ok(peer) => {
+                            // Create worker context
+                            let ctx = Arc::new(worker::WorkerContext::new(
+                                peer_manager,
+                                store,
+                                mempool,
+                                consensus,
+                                fork_choice,
+                                ban_manager,
+                                network_clone,
+                                GENESIS_HASH_BYTES,
+                            ));
+
+                            // Run peer message loop
+                            println!("  🔄 Starting worker loop for {}...", addr);
+                            if let Err(e) = worker::run_peer_loop(peer, ctx).await {
+                                eprintln!("❌ Peer {} error: {}", addr, e);
+                            } else {
+                                eprintln!("🔌 Peer {} disconnected normally", addr);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("  ❌ Handshake failed: {}", e);
+                        }
+                    }
+                });
+
+                connected_count += 1;
             }
 
             println!(
-                "\n📊 Bootstrap result: {} / {} peers connected",
+                "\n📊 Bootstrap result: {} / {} peers connecting...",
                 connected_count,
                 bootstrap_peers.len()
             );
@@ -3453,6 +3590,7 @@ async fn p2p_server(
                             ));
 
                             // Run peer message loop (this is where the magic happens!)
+                            println!("  🔄 Starting worker loop for {}...", peer_addr);
                             if let Err(e) = worker::run_peer_loop(peer, ctx).await {
                                 eprintln!("❌ Peer {} error: {}", peer_addr, e);
                             } else {

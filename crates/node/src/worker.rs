@@ -107,7 +107,17 @@ impl WorkerContext {
 /// - Validates all data before accepting
 /// - Never panics - returns error on failure
 pub async fn run_peer_loop(mut peer: Peer, ctx: Arc<WorkerContext>) -> Result<(), WorkerError> {
+    println!("🔄 [WORKER] Starting peer loop for {}", peer.addr);
     log::info!("🔄 Starting peer loop for {}", peer.addr);
+
+    // Send GetBlocks after handshake to request blocks (IBD initiator)
+    // Only outbound connections should request blocks
+    if peer.start_height.unwrap_or(0) > 0 || ctx.storage.height().await.unwrap_or(0) == 0 {
+        println!("📤 [WORKER] Sending GetBlocks to {} for IBD", peer.addr);
+        if let Err(e) = send_getblocks(&mut peer, &ctx).await {
+            println!("⚠️  Failed to send GetBlocks: {}", e);
+        }
+    }
 
     loop {
         // Receive message from peer (with timeout for slow loris protection)
@@ -307,6 +317,51 @@ async fn handle_message(
             Ok(true)
         }
     }
+}
+
+/// Send GetBlocks message to initiate IBD.
+///
+/// After handshake completes, nodes with lower height should send GetBlocks
+/// to request block inventory from peers.
+async fn send_getblocks(peer: &mut Peer, ctx: &WorkerContext) -> Result<(), WorkerError> {
+    use sha2::{Digest, Sha256};
+
+    // Get our current tip and build locator
+    let our_height = ctx.storage.height().await.unwrap_or(0);
+
+    // Build block locator - start from tip and work backwards exponentially
+    let mut locator_hashes: Vec<[u8; 32]> = Vec::new();
+
+    // For now, just use the tip as locator (TODO: implement exponential backoff)
+    if let Ok(Some(tip)) = ctx.storage.tip().await {
+        // Calculate header hash (double SHA256)
+        let bytes = tip.to_bytes();
+        let first = Sha256::digest(&bytes);
+        let second = Sha256::digest(&first);
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&second);
+        locator_hashes.push(hash);
+    } else {
+        // No tip yet - use zero hash
+        locator_hashes.push([0u8; 32]);
+    }
+
+    // Stop hash is zero (get as many as possible)
+    let stop_hash = [0u8; 32];
+
+    let msg = bitquan_network::protocol::Message::GetBlocks {
+        version: bitquan_network::protocol::PROTOCOL_VERSION,
+        locator_hashes,
+        stop_hash,
+    };
+
+    peer.send_message(msg)
+        .map_err(|e| WorkerError::Network(format!("send GetBlocks failed: {}", e)))?;
+
+    println!("📤 Sent GetBlocks to {} (height: {})", peer.addr, our_height);
+    log::info!("📤 Sent GetBlocks to {} (height: {})", peer.addr, our_height);
+
+    Ok(())
 }
 
 /// Handle inventory announcement.
