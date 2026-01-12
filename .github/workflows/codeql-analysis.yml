@@ -29,7 +29,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: 🦀 Initialize CodeQL for Rust
       if: matrix.language == 'javascript'
@@ -67,7 +67,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: 🦀 Setup Rust Toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -155,7 +155,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -193,7 +193,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: 🔍 OSSF Scorecard Analysis
       uses: ossf/scorecard-action@v2.3.1

@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0 # Full history for better analysis
 
@@ -118,7 +118,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: 🦀 Setup Rust Toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -166,7 +166,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: 🔍 Supply Chain Analysis
       run: |
@@ -206,7 +206,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: 🔍 Malware Scan
       run: |
@@ -275,7 +275,7 @@ jobs:
 
     steps:
     - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: 🔍 Fuzz Testing
       run: |

@@ -19,7 +19,7 @@ jobs:
       BITQUAN_SKIP_PQC_TESTS: "1"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 

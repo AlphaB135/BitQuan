@@ -42,7 +42,7 @@ jobs:
       security-passed: ${{ steps.scan.outputs.passed }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run security audit
         id: scan
@@ -80,7 +80,7 @@ jobs:
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -137,7 +137,7 @@ jobs:
     environment: ${{ github.event.inputs.environment || 'staging' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -177,7 +177,7 @@ jobs:
       url: https://staging.bitquan.network
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Deploy to Kubernetes
         run: |
@@ -218,7 +218,7 @@ jobs:
       url: https://testnet.bitquan.network
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Deploy to Testnet
         run: |
@@ -257,7 +257,7 @@ jobs:
       url: https://mainnet.bitquan.network
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Pre-deployment checklist
         run: |
