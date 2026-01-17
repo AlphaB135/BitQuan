@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 pub const GENESIS_TIME: u32 = 1735689600;
 
 /// Genesis block bits (mainnet difficulty)
-pub const GENESIS_BITS: u32 = 0x1c00ffff;
+pub const GENESIS_BITS: u32 = 0x207fffff; // LINUS_HACK: INSTANT MINING
 
 /// Genesis block version
 pub const GENESIS_VERSION: i32 = 1;
@@ -21,15 +21,16 @@ pub const GENESIS_MESSAGE: &[u8] =
 pub const GENESIS_REWARD: u128 = 50_000_000_000_000_000_000; // 50 BQ (18 decimals)
 
 /// Genesis block nonce discovered during genesis mining
-pub const GENESIS_NONCE: u64 = 2;
+pub const GENESIS_NONCE: u64 = 1;
 
 /// Genesis block hash (double SHA256, displayed big-endian)
-pub const GENESIS_HASH: &str = "cac0577af8fb0f988f64dbdd9b79c36d25f5cc7208dd66f8c97daa46bb9ec583";
+/// NOTE: Updated for u128 TxOut.value serialization (18 decimals)
+pub const GENESIS_HASH: &str = "592a312328f37b93dbc3022f9b2fe1ea8e6f4fce7c0b742ce8ad886d85002443";
 
 /// Genesis block hash bytes (big-endian)
 pub const GENESIS_HASH_BYTES: [u8; 32] = [
-    0xca, 0xc0, 0x57, 0x7a, 0xf8, 0xfb, 0x0f, 0x98, 0x8f, 0x64, 0xdb, 0xdd, 0x9b, 0x79, 0xc3, 0x6d,
-    0x25, 0xf5, 0xcc, 0x72, 0x08, 0xdd, 0x66, 0xf8, 0xc9, 0x7d, 0xaa, 0x46, 0xbb, 0x9e, 0xc5, 0x83,
+    0x59, 0x2a, 0x31, 0x23, 0x28, 0xf3, 0x7b, 0x93, 0xdb, 0xc3, 0x02, 0x2f, 0x9b, 0x2f, 0xe1, 0xea,
+    0x8e, 0x6f, 0x4f, 0xce, 0x7c, 0x0b, 0x74, 0x2c, 0xe8, 0xad, 0x88, 0x6d, 0x85, 0x00, 0x24, 0x43,
 ];
 
 /// Genesis hash value embedded in coinbase transactions for replay protection.

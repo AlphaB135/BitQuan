@@ -1289,6 +1289,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             println!();
 
             // Validate genesis
+            // Validate genesis
             if !is_valid_genesis(&genesis) {
                 return Err(bitquan_types::Error::Invalid(
                     "Invalid genesis block".into(),
