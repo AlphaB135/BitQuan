@@ -2595,7 +2595,9 @@ async fn wallet_send(
         println!("🔍 Scanning chain (height {}) for funds...", height);
 
         let target_amount = amount as u128;
-        let fee = fee_rate as u128 * 250;
+        // Dilithium Tx is HUGE (Sig ~4.6KB, PubKey ~2.6KB). 
+        // 250 is for Bitcoin. We need ~8000+. Using 10000 for safety.
+        let fee = fee_rate as u128 * 10_000;
         let total_needed = target_amount.saturating_add(fee);
 
         let mut collected_value: u128 = 0;
