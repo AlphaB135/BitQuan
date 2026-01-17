@@ -5,8 +5,6 @@
 //! - Total supply and difficulty
 //! - Network statistics
 
-#[cfg(feature = "pool")]
-use crate::pool_db::PoolDatabase;
 use bitquan_types::{Block, Result};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -19,9 +17,6 @@ pub struct ChainState {
     height: Arc<AtomicU64>,
     /// Current tip hash.
     tip_hash: Arc<Mutex<[u8; 32]>>,
-    /// Pool database for persistence.
-    #[cfg(feature = "pool")]
-    db: Option<PoolDatabase>,
 }
 
 #[allow(dead_code)] // Phase 8 pool/RPC metrics integration
@@ -31,50 +26,7 @@ impl ChainState {
         Self {
             height: Arc::new(AtomicU64::new(0)),
             tip_hash: Arc::new(Mutex::new([0u8; 32])),
-            #[cfg(feature = "pool")]
-            db: None,
         }
-    }
-
-    /// Create chain state with database backend.
-    #[cfg(feature = "pool")]
-    pub fn with_db(db: PoolDatabase) -> Result<Self> {
-        let state = Self {
-            height: Arc::new(AtomicU64::new(0)),
-            tip_hash: Arc::new(Mutex::new([0u8; 32])),
-            db: Some(db),
-        };
-
-        // Load from database
-        state.load_from_db()?;
-        Ok(state)
-    }
-
-    /// Load chain state from database.
-    #[cfg(feature = "pool")]
-    fn load_from_db(&self) -> Result<()> {
-        if let Some(ref db) = self.db {
-            if let Some(latest) = db
-                .get_latest_block()
-                .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))?
-            {
-                self.height.store(latest.height, Ordering::SeqCst);
-
-                // Parse hash from hex
-                let hash_bytes = hex::decode(&latest.hash)
-                    .map_err(|e| bitquan_types::Error::Invalid(format!("Invalid hash: {}", e)))?;
-
-                if hash_bytes.len() == 32 {
-                    let mut hash = [0u8; 32];
-                    hash.copy_from_slice(&hash_bytes);
-                    *self
-                        .tip_hash
-                        .lock()
-                        .map_err(|_| bitquan_types::Error::Invalid("lock poisoned".into()))? = hash;
-                }
-            }
-        }
-        Ok(())
     }
 
     /// Append a new block to the chain.

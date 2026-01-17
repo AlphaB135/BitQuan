@@ -209,7 +209,7 @@ pub struct MempoolPolicy {
     /// Maximum number of in-mempool descendants allowed.
     pub descendant_limit: u32,
     /// Dust threshold in qbits (satoshis).
-    pub dust_threshold: u64,
+    pub dust_threshold: u128,
 }
 
 impl MempoolPolicy {
@@ -277,32 +277,33 @@ impl NetworkParams {
 /// Describes the block reward schedule (halvings + tail emission).
 #[derive(Clone, Debug)]
 pub struct RewardSchedule {
-    /// Initial subsidy in the smallest unit (1 BQ = 10^8 units).
-    pub initial_subsidy: u64,
+    /// Initial subsidy in the smallest unit (1 BQ = 10^18 qbits).
+    pub initial_subsidy: u128,
     /// Number of blocks between halvings.
     pub halving_interval: u64,
     /// Tail emission paid per block once halvings decay beneath this value.
-    pub tail_emission_per_block: u64,
+    pub tail_emission_per_block: u128,
 }
 
 impl RewardSchedule {
     /// Returns the default Phase 3 reward parameters.
     pub fn phase3_defaults() -> Self {
         Self {
-            initial_subsidy: 5_000_000_000, // 50 BQ
+            initial_subsidy: 50_000_000_000_000_000_000, // 50 BQ (18 decimals)
             halving_interval: 210_000,
-            tail_emission_per_block: 50_000_000, // 0.5 BQ
+            tail_emission_per_block: 500_000_000_000_000_000, // 0.5 BQ (18 decimals)
         }
     }
 
     /// Calculates the subsidy for the given block height (zero-indexed).
-    pub fn subsidy_at_height(&self, height: u64) -> u64 {
+    pub fn subsidy_at_height(&self, height: u64) -> u128 {
         if self.halving_interval == 0 {
             return self.tail_emission_per_block.max(self.initial_subsidy);
         }
 
         let halvings = height / self.halving_interval;
-        if halvings >= 63 {
+        if halvings >= 127 {
+            // u128 supports up to 127 shifts (vs 63 for u64)
             return self.tail_emission_per_block;
         }
 
@@ -323,7 +324,7 @@ pub struct BlockValidationReport {
     /// Number of signatures encountered.
     pub signature_count: u64,
     /// Subsidy scheduled for the validated block height.
-    pub block_subsidy: u64,
+    pub block_subsidy: u128,
 }
 
 /// Errors emitted when consensus validation fails.
@@ -367,9 +368,9 @@ pub enum ConsensusError {
         /// Index of the output
         index: usize,
         /// Value of the output
-        value: u64,
+        value: u128,
         /// Dust threshold
-        threshold: u64,
+        threshold: u128,
     },
 }
 
@@ -468,7 +469,7 @@ pub fn validate_block(
     registry: &CryptoRegistry,
     network_id: bitquan_types::NetworkId,
     genesis_hash: [u8; 32],
-    total_fees: Option<u64>,
+    total_fees: Option<u128>,
     median_time_past: u64,
 ) -> Result<BlockValidationReport, ConsensusError> {
     // Bitcoin-style block header validation
@@ -640,15 +641,15 @@ fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), Cons
 /// Validates transaction fees and block reward
 fn validate_transaction_fees(
     block: &Block,
-    block_subsidy: u64,
-    total_fees: Option<u64>,
+    block_subsidy: u128,
+    total_fees: Option<u128>,
 ) -> Result<(), ConsensusError> {
     // SECURITY: Use checked arithmetic to prevent integer overflow attacks.
     // An attacker could craft outputs that sum to > u64::MAX, causing wrap-around.
     let coinbase_output = block.transactions[0]
         .outputs
         .iter()
-        .try_fold(0u64, |acc, o| acc.checked_add(o.value))
+        .try_fold(0u128, |acc, o| acc.checked_add(o.value))
         .ok_or(ConsensusError::WeightOverflow("coinbase output sum"))?;
 
     // 🔴 CRITICAL: STRICT VALIDATION - NO BUFFER ALLOWED
@@ -870,7 +871,7 @@ impl ConsensusEngine {
         &mut self,
         block: &Block,
         height: u64,
-        total_fees: u64,
+        total_fees: u128,
         median_time_past: u64,
     ) -> Result<BlockValidationReport, ConsensusError> {
         validate_block(
@@ -887,7 +888,7 @@ impl ConsensusEngine {
 }
 
 /// Standard dust threshold in qbits (satoshis).
-pub const DUST_THRESHOLD_QBITS: u64 = 546;
+pub const DUST_THRESHOLD_QBITS: u128 = 546;
 
 /// Validates a single transaction against consensus rules (e.g. dust).
 pub fn validate_transaction(tx: &bitquan_types::Transaction) -> Result<(), ConsensusError> {

@@ -78,7 +78,7 @@ pub trait ChainStore {
 /// In-memory chain store for prototyping and tests.
 pub struct InMemoryChainStore {
     blocks: HashMap<[u8; 32], Block>,
-    by_height: Vec<Block>,  // Track blocks by height for IBD
+    by_height: Vec<Block>, // Track blocks by height for IBD
     tip: Option<BlockHeader>,
     times: Vec<u32>,
     height: u64,

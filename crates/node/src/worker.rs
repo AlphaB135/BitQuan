@@ -337,7 +337,7 @@ async fn send_getblocks(peer: &mut Peer, ctx: &WorkerContext) -> Result<(), Work
         // Calculate header hash (double SHA256)
         let bytes = tip.to_bytes();
         let first = Sha256::digest(&bytes);
-        let second = Sha256::digest(&first);
+        let second = Sha256::digest(first);
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&second);
         locator_hashes.push(hash);
@@ -358,8 +358,15 @@ async fn send_getblocks(peer: &mut Peer, ctx: &WorkerContext) -> Result<(), Work
     peer.send_message(msg)
         .map_err(|e| WorkerError::Network(format!("send GetBlocks failed: {}", e)))?;
 
-    println!("📤 Sent GetBlocks to {} (height: {})", peer.addr, our_height);
-    log::info!("📤 Sent GetBlocks to {} (height: {})", peer.addr, our_height);
+    println!(
+        "📤 Sent GetBlocks to {} (height: {})",
+        peer.addr, our_height
+    );
+    log::info!(
+        "📤 Sent GetBlocks to {} (height: {})",
+        peer.addr,
+        our_height
+    );
 
     Ok(())
 }
@@ -997,12 +1004,21 @@ async fn handle_getblocks(
 
     // Find the first locator hash that exists in our chain
     for (i, locator_hash) in locator_hashes.iter().enumerate() {
-        log::trace!("Checking locator {}/{}: {}", i + 1, locator_hashes.len(), hex::encode(&locator_hash[..8]));
+        log::trace!(
+            "Checking locator {}/{}: {}",
+            i + 1,
+            locator_hashes.len(),
+            hex::encode(&locator_hash[..8])
+        );
 
         // Check if this block exists in our chain
         match ctx.storage.get_block(locator_hash).await {
             Ok(Some(_block)) => {
-                log::info!("✅ Found common ancestor at locator {}: {}", i, hex::encode(&locator_hash[..8]));
+                log::info!(
+                    "✅ Found common ancestor at locator {}: {}",
+                    i,
+                    hex::encode(&locator_hash[..8])
+                );
                 break;
             }
             Ok(None) => {
@@ -1105,11 +1121,11 @@ pub(crate) async fn validate_block_utxos(
     ctx: &WorkerContext,
     block: &Block,
     _height: u64,
-) -> Result<u64, WorkerError> {
+) -> Result<u128, WorkerError> {
     use bitquan_consensus::utxo::OutPoint;
     use std::collections::HashSet;
 
-    let mut total_fees = 0u64;
+    let mut total_fees = 0u128;
     // Track inputs spent within this block to prevent internal double spends
     let mut spent_in_block = HashSet::new();
 
@@ -1127,8 +1143,8 @@ pub(crate) async fn validate_block_utxos(
             continue;
         }
 
-        let mut inputs_value = 0u64;
-        let mut outputs_value = 0u64;
+        let mut inputs_value = 0u128;
+        let mut outputs_value = 0u128;
 
         // 1. Validate Inputs
         for input in &tx.inputs {
@@ -1329,7 +1345,7 @@ mod tests {
             let outpoint_key = [&prev_txid[..], &prev_vout.to_le_bytes()[..]].concat();
 
             let utxo = TxOut {
-                value: 100_000_000, // 1 BQ
+                value: 1_000_000_000_000_000_000, // 1 BQ (18 decimals)
                 script_pubkey: vec![
                     0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac,
@@ -1498,7 +1514,7 @@ mod tests {
                 script_sig: b"coinbase".to_vec(),
             }],
             outputs: vec![TxOut {
-                value: 100_000_000, // 1 BQ block reward
+                value: 1_000_000_000_000_000_000, // 1 BQ block reward (18 decimals)
                 script_pubkey: vec![],
             }],
             lock_time: 0,
@@ -1582,7 +1598,7 @@ mod tests {
                 script_sig: vec![],
             }],
             outputs: vec![TxOut {
-                value: u64::MAX, // ATTEMPT OVERFLOW
+                value: u128::MAX, // ATTEMPT OVERFLOW
                 script_pubkey: vec![],
             }],
             lock_time: 0,
@@ -1601,7 +1617,7 @@ mod tests {
                 script_sig: b"coinbase".to_vec(),
             }],
             outputs: vec![TxOut {
-                value: 100_000_000,
+                value: 1_000_000_000_000_000_000, // 1 BQ (18 decimals)
                 script_pubkey: vec![],
             }],
             lock_time: 0,

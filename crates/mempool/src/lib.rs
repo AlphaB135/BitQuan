@@ -464,7 +464,7 @@ mod tests {
 
         let outputs = (0..outputs)
             .map(|i| TxOut {
-                value: 1000 + i as u64,
+                value: 1000 + i as u128,
                 script_pubkey: vec![0x76, 0xa9],
             })
             .collect();

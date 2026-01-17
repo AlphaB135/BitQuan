@@ -18,7 +18,7 @@ pub const GENESIS_MESSAGE: &[u8] =
     b"The Quantum Age Begins - 1 Jan 2025. Ownerless. Verifiable. For everyone.";
 
 /// Genesis block reward (50 BQ)
-pub const GENESIS_REWARD: u64 = 5_000_000_000; // 50 BQ in qbits
+pub const GENESIS_REWARD: u128 = 50_000_000_000_000_000_000; // 50 BQ (18 decimals)
 
 /// Genesis block nonce discovered during genesis mining
 pub const GENESIS_NONCE: u64 = 2;

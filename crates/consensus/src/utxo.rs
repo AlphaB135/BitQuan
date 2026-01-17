@@ -21,7 +21,7 @@ pub enum UtxoError {
 
     /// Transaction creates outputs with total value greater than inputs.
     #[error("outputs exceed inputs: inputs={0}, outputs={1}")]
-    OutputsExceedInputs(u64, u64),
+    OutputsExceedInputs(u128, u128),
 
     /// Coinbase transaction is not the first transaction in block.
     #[error("coinbase must be first transaction")]
@@ -115,7 +115,7 @@ pub struct UtxoSet {
     /// Total number of UTXOs.
     count: usize,
     /// Total value of all UTXOs (in base units).
-    total_value: u64,
+    total_value: u128,
 }
 
 impl UtxoSet {
@@ -139,7 +139,7 @@ impl UtxoSet {
     }
 
     /// Returns the total value of all UTXOs.
-    pub fn total_value(&self) -> u64 {
+    pub fn total_value(&self) -> u128 {
         self.total_value
     }
 
@@ -198,7 +198,7 @@ impl UtxoSet {
         tx: &Transaction,
         height: u64,
         is_coinbase: bool,
-    ) -> Result<(u64, u64, u64), UtxoError> {
+    ) -> Result<(u128, u128, u128), UtxoError> {
         // Handle coinbase separately
         if is_coinbase {
             return self.apply_coinbase(tx, height);
@@ -213,7 +213,7 @@ impl UtxoSet {
         }
 
         // Collect and validate inputs
-        let mut inputs_value = 0u64;
+        let mut inputs_value = 0u128;
         let mut spent_outpoints = Vec::new();
 
         for input in &tx.inputs {
@@ -237,7 +237,7 @@ impl UtxoSet {
         }
 
         // Calculate outputs value
-        let mut outputs_value = 0u64;
+        let mut outputs_value = 0u128;
         for output in &tx.outputs {
             outputs_value = outputs_value
                 .checked_add(output.value)
@@ -270,12 +270,12 @@ impl UtxoSet {
         &mut self,
         tx: &Transaction,
         height: u64,
-    ) -> Result<(u64, u64, u64), UtxoError> {
+    ) -> Result<(u128, u128, u128), UtxoError> {
         // Coinbase has no inputs (or one null input)
-        let inputs_value = 0u64;
+        let inputs_value = 0u128;
 
         // Calculate outputs
-        let mut outputs_value = 0u64;
+        let mut outputs_value = 0u128;
         for output in &tx.outputs {
             outputs_value = outputs_value
                 .checked_add(output.value)
@@ -291,7 +291,7 @@ impl UtxoSet {
         }
 
         // Coinbase has no fee (subsidy is validated separately)
-        Ok((inputs_value, outputs_value, 0))
+        Ok((inputs_value, outputs_value, 0u128))
     }
 
     /// Validates a transaction without applying it (dry run).
@@ -300,20 +300,20 @@ impl UtxoSet {
         tx: &Transaction,
         height: u64,
         is_coinbase: bool,
-    ) -> Result<(u64, u64, u64), UtxoError> {
+    ) -> Result<(u128, u128, u128), UtxoError> {
         if is_coinbase {
             // Coinbase validation
-            let mut outputs_value = 0u64;
+            let mut outputs_value = 0u128;
             for output in &tx.outputs {
                 outputs_value = outputs_value
                     .checked_add(output.value)
                     .ok_or(UtxoError::Overflow)?;
             }
-            return Ok((0, outputs_value, 0));
+            return Ok((0u128, outputs_value, 0u128));
         }
 
         // Regular transaction validation
-        let mut inputs_value = 0u64;
+        let mut inputs_value = 0u128;
 
         for input in &tx.inputs {
             let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
@@ -335,7 +335,7 @@ impl UtxoSet {
                 .ok_or(UtxoError::Overflow)?;
         }
 
-        let mut outputs_value = 0u64;
+        let mut outputs_value = 0u128;
         for output in &tx.outputs {
             outputs_value = outputs_value
                 .checked_add(output.value)
@@ -363,7 +363,7 @@ mod tests {
     use super::*;
     use bitquan_types::{genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, TxIn};
 
-    fn create_test_tx(inputs: Vec<([u8; 32], u32)>, outputs: Vec<u64>) -> Transaction {
+    fn create_test_tx(inputs: Vec<([u8; 32], u32)>, outputs: Vec<u128>) -> Transaction {
         Transaction {
             version: 1,
             network: NetworkId::Devnet,
@@ -518,7 +518,7 @@ mod tests {
         let mut utxo_set = UtxoSet::new();
 
         // Force total_value to near max
-        utxo_set.total_value = u64::MAX - 500;
+        utxo_set.total_value = u128::MAX - 500;
 
         // Try to add UTXO that would overflow
         let outpoint = OutPoint::new([1u8; 32], 0);
@@ -606,7 +606,7 @@ mod tests {
         let entry1 = UtxoEntry::new(
             outpoint1,
             TxOut {
-                value: u64::MAX / 2 + 100,
+                value: u128::MAX / 2 + 100,
                 script_pubkey: vec![0x51],
             },
             100,
@@ -618,7 +618,7 @@ mod tests {
         let entry2 = UtxoEntry::new(
             outpoint2,
             TxOut {
-                value: u64::MAX / 2 + 100,
+                value: u128::MAX / 2 + 100,
                 script_pubkey: vec![0x51],
             },
             100,
@@ -648,7 +648,7 @@ mod tests {
             .add_utxo(UtxoEntry::new(
                 outpoint,
                 TxOut {
-                    value: u64::MAX,
+                    value: u128::MAX,
                     script_pubkey: vec![0x51],
                 },
                 100,
@@ -657,7 +657,7 @@ mod tests {
             .expect("Failed to add UTXO entry with max value");
 
         // Create transaction with outputs that overflow
-        let tx = create_test_tx(vec![(txid, 0)], vec![u64::MAX / 2 + 1, u64::MAX / 2 + 1]);
+        let tx = create_test_tx(vec![(txid, 0)], vec![u128::MAX / 2 + 1, u128::MAX / 2 + 1]);
 
         let result = utxo_set.apply_transaction(&tx, 101, false);
 
@@ -704,7 +704,7 @@ mod tests {
         let entry1 = UtxoEntry::new(
             outpoint1,
             TxOut {
-                value: u64::MAX / 2 + 100,
+                value: u128::MAX / 2 + 100,
                 script_pubkey: vec![0x51],
             },
             100,
@@ -716,7 +716,7 @@ mod tests {
         let entry2 = UtxoEntry::new(
             outpoint2,
             TxOut {
-                value: u64::MAX / 2 + 100,
+                value: u128::MAX / 2 + 100,
                 script_pubkey: vec![0x51],
             },
             100,

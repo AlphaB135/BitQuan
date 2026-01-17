@@ -142,7 +142,7 @@ pub fn validate_transaction(tx: &Transaction) -> Result<(), ValidationError> {
     }
 
     // Validate scripts and outputs
-    let mut total_output: u64 = 0;
+    let mut total_output: u128 = 0;
     for output in &tx.outputs {
         // Check script size
         if output.script_pubkey.len() > MAX_SCRIPT_SIZE {

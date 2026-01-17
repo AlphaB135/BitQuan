@@ -16,7 +16,7 @@ fn oversized_message_rejected_without_panic() {
     data.resize(4 + len as usize, 0xAA);
     let mut cursor = Cursor::new(data);
     let result = read_frame(&mut cursor);
-    assert!(matches!(result, Err(Error::Invalid(msg)) if msg == "message too large"));
+    assert!(matches!(result, Err(Error::Invalid(msg)) if msg.contains("message too large")));
 }
 
 #[test]

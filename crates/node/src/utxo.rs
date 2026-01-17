@@ -34,7 +34,7 @@ impl Utxo {
     }
 
     /// Returns the value of this UTXO.
-    pub fn value(&self) -> u64 {
+    pub fn value(&self) -> u128 {
         self.output.value
     }
 
@@ -98,10 +98,10 @@ impl UtxoSet {
 
     /// Calculates the total value for a script pubkey.
     /// Uses saturating arithmetic to prevent overflow.
-    pub fn balance(&self, script_pubkey: &[u8]) -> u64 {
+    pub fn balance(&self, script_pubkey: &[u8]) -> u128 {
         self.get_by_script(script_pubkey)
             .iter()
-            .fold(0u64, |acc, utxo| acc.saturating_add(utxo.value()))
+            .fold(0u128, |acc, utxo| acc.saturating_add(utxo.value()))
     }
 
     /// Applies a transaction to the UTXO set.
@@ -138,8 +138,8 @@ impl UtxoSet {
 
     /// Validates that all inputs in a transaction are spendable.
     pub fn validate_transaction(&self, tx: &Transaction, height: u64) -> Result<()> {
-        let mut total_input_value = 0u64;
-        let mut total_output_value = 0u64;
+        let mut total_input_value = 0u128;
+        let mut total_output_value = 0u128;
 
         // Check inputs
         for input in &tx.inputs {
@@ -209,7 +209,7 @@ mod tests {
     fn create_test_tx(
         prev_txid: [u8; 32],
         prev_vout: u32,
-        outputs: Vec<(u64, Vec<u8>)>,
+        outputs: Vec<(u128, Vec<u8>)>,
     ) -> Transaction {
         let inputs = vec![TxIn {
             prev_txid,

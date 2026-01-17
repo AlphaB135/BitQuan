@@ -48,8 +48,10 @@ pub use discovery::{
 pub use dns_bootstrap::{load_default_seeds, DnsBootstrap, DnsSeed};
 #[allow(deprecated)] // Re-export deprecated items for backwards compatibility
 pub use peer::{
-    handshake, read_frame, EclipseConfig, P2PListener, Peer, PeerManager, PeerState,
-    HANDSHAKE_TIMEOUT_MS, MAX_MSG_BYTES, SOCKET_TIMEOUT_SECS,
+    async_noise_handshake_initiator, async_noise_handshake_responder,
+    async_version_handshake_inbound, async_version_handshake_outbound, handshake, read_frame,
+    EclipseConfig, P2PListener, Peer, PeerManager, PeerState, HANDSHAKE_TIMEOUT_MS, MAX_MSG_BYTES,
+    SOCKET_TIMEOUT_SECS,
 };
 pub use propagation::{
     broadcast_block_inv, create_envelope, BlockPropagator, PropagationStats, SeenFilter,

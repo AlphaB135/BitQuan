@@ -6,17 +6,23 @@ use bitquan_types::{NetworkId, SigAlgorithm, Transaction, TxIn, TxOut};
 #[test]
 fn subsidy_initial_and_halving() {
     let rs = RewardSchedule::phase3_defaults();
-    assert_eq!(rs.subsidy_at_height(0), 5_000_000_000);
-    assert_eq!(rs.subsidy_at_height(210_000 - 1), 5_000_000_000);
-    assert_eq!(rs.subsidy_at_height(210_000), 2_500_000_000);
-    assert_eq!(rs.subsidy_at_height(210_000 * 6), 78_125_000);
+    assert_eq!(rs.subsidy_at_height(0), 50_000_000_000_000_000_000); // 50 BQ
+    assert_eq!(
+        rs.subsidy_at_height(210_000 - 1),
+        50_000_000_000_000_000_000
+    ); // 50 BQ
+    assert_eq!(rs.subsidy_at_height(210_000), 25_000_000_000_000_000_000); // 25 BQ
+    assert_eq!(rs.subsidy_at_height(210_000 * 6), 781_250_000_000_000_000); // 0.78125 BQ
 }
 
 #[test]
 fn subsidy_tail_emission_after_seven_halvings() {
     let rs = RewardSchedule::phase3_defaults();
-    assert_eq!(rs.subsidy_at_height(210_000 * 7), 50_000_000);
-    assert_eq!(rs.subsidy_at_height(210_000 * 1000), 50_000_000);
+    assert_eq!(rs.subsidy_at_height(210_000 * 7), 500_000_000_000_000_000); // 0.5 BQ
+    assert_eq!(
+        rs.subsidy_at_height(210_000 * 1000),
+        500_000_000_000_000_000
+    ); // 0.5 BQ
 }
 
 fn mtp(timestamps: &[u64]) -> u64 {
@@ -424,7 +430,7 @@ mod property_tests {
                     sequence: 0xffffffff,
                 }).collect(),
                 outputs: (0..num_outputs).map(|i| TxOut {
-                    value: 1000 * (i as u64 + 1),
+                    value: 1000 * (i as u128 + 1),
                     script_pubkey: vec![0x76, 0xa9],
                 }).collect(),
                 sig_algo: SigAlgorithm::Dilithium5,

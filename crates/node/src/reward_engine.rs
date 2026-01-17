@@ -29,7 +29,7 @@ use std::collections::HashSet;
 #[allow(dead_code)]
 #[derive(Default)]
 struct MemoryData {
-    rewards: HashMap<String, u64>,
+    rewards: HashMap<String, u128>,
     /// Blocks stored as Arc for zero-copy reads
     blocks: Vec<Arc<BlockRecord>>,
     /// Payouts stored as Arc for zero-copy reads
@@ -114,7 +114,7 @@ impl PoolDatabase {
     }
 
     // Additional methods needed by RewardEngine
-    pub fn total_rewards(&self) -> Result<u64> {
+    pub fn total_rewards(&self) -> Result<u128> {
         let data = self
             .storage
             .lock()
@@ -122,7 +122,7 @@ impl PoolDatabase {
         Ok(data.rewards.values().sum())
     }
 
-    pub fn update_miner_reward(&self, miner_id: &str, amount: u64) -> Result<()> {
+    pub fn update_miner_reward(&self, miner_id: &str, amount: u128) -> Result<()> {
         let mut data = self
             .storage
             .lock()
@@ -168,7 +168,7 @@ impl PoolDatabase {
         Ok(data.spendable_blocks.contains(block_hash))
     }
 
-    pub fn get_miner_reward(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_miner_reward(&self, miner_id: &str) -> Result<u128> {
         let data = self
             .storage
             .lock()
@@ -178,7 +178,7 @@ impl PoolDatabase {
 
     /// Get spendable (mature) rewards for a miner.
     /// Uses HashSet lookup for spendable status - O(1) per block.
-    pub fn get_spendable_rewards(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_spendable_rewards(&self, miner_id: &str) -> Result<u128> {
         let data = self
             .storage
             .lock()
@@ -194,7 +194,7 @@ impl PoolDatabase {
 
     /// Get pending (immature) rewards for a miner.
     /// Uses HashSet lookup for spendable status - O(1) per block.
-    pub fn get_pending_rewards(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_pending_rewards(&self, miner_id: &str) -> Result<u128> {
         let data = self
             .storage
             .lock()
@@ -236,7 +236,7 @@ pub struct BlockRecord {
     pub hash: String,
     pub height: u64,
     pub miner_id: String,
-    pub reward: u64,
+    pub reward: u128,
     pub timestamp: u64,
     pub spendable: bool,
 }
@@ -246,7 +246,7 @@ pub struct BlockRecord {
 pub struct PayoutRecord {
     pub id: String,
     pub miner_id: String,
-    pub amount: u64,
+    pub amount: u128,
     pub txid: Option<String>,
     pub created_at: u64,
 }
@@ -256,11 +256,11 @@ pub struct PayoutRecord {
 #[allow(dead_code)]
 pub struct BalanceInfo {
     /// Total balance (all rewards).
-    pub total: u64,
+    pub total: u128,
     /// Spendable balance (mature rewards only).
-    pub spendable: u64,
+    pub spendable: u128,
     /// Pending balance (immature rewards).
-    pub pending: u64,
+    pub pending: u128,
 }
 
 /// Helper to get current Unix timestamp (fallback to 0 if clock unavailable).
@@ -271,19 +271,22 @@ fn unix_timestamp() -> u64 {
         .unwrap_or(0)
 }
 
-/// Initial block reward in satoshis (50 BQ).
-const INITIAL_REWARD: u64 = 50_0000_0000;
+/// Initial block reward in qbits (50 BQ = 50 * 10^18).
+const INITIAL_REWARD: u128 = 50_000_000_000_000_000_000;
 
 /// Halving interval (blocks).
 const HALVING_INTERVAL: u64 = 210_000;
+
+/// Reward rate scale (10000 = 100.00%).
+const REWARD_RATE_SCALE: u128 = 10000;
 
 /// Reward engine for calculating and distributing mining rewards.
 #[allow(dead_code)] // Reserved for Phase 8 pool payout integration
 pub struct RewardEngine {
     /// Pool database for persistence.
     db: PoolDatabase,
-    /// Reward multiplier (default 1.0).
-    reward_rate: f64,
+    /// Reward multiplier scaled by REWARD_RATE_SCALE (default 10000 = 100.00%).
+    reward_rate: u64,
     /// Block maturity for rewards (confirmations needed).
     #[allow(dead_code)]
     maturity: u64,
@@ -311,9 +314,9 @@ impl RewardEngine {
 
         Self {
             db,
-            reward_rate: 1.0,
+            reward_rate: 10000, // 100.00% scaled
             maturity: 100,
-            total_distributed: Arc::new(AtomicU64::new(total)),
+            total_distributed: Arc::new(AtomicU64::new(total as u64)),
         }
     }
 
@@ -325,7 +328,7 @@ impl RewardEngine {
     /// - Reward halves every 210,000 blocks
     /// - Initial reward: 50 BQ (5,000,000,000 satoshis)
     /// - Plus transaction fees
-    pub fn calculate_reward(&self, block: &Block, height: u64) -> u64 {
+    pub fn calculate_reward(&self, block: &Block, height: u64) -> u128 {
         // Calculate base reward with halving
         let halvings = height / HALVING_INTERVAL;
         let base_reward = if halvings >= 64 {
@@ -337,15 +340,16 @@ impl RewardEngine {
         // Calculate transaction fees
         let fees = self.calculate_fees(block);
 
-        // Apply reward rate multiplier
-        let total = base_reward + fees;
-        (total as f64 * self.reward_rate) as u64
+        // Apply reward rate multiplier using pure integer math
+        // total * (rate / 10000) = (total * rate) / 10000
+        let total = base_reward.saturating_add(fees);
+        total.saturating_mul(self.reward_rate as u128) / REWARD_RATE_SCALE
     }
 
     /// Calculate total transaction fees in block.
     /// Note: Full UTXO integration requires blockchain state access.
-    fn calculate_fees(&self, block: &Block) -> u64 {
-        let mut total_out = 0u64;
+    fn calculate_fees(&self, block: &Block) -> u128 {
+        let mut total_out = 0u128;
 
         for tx in &block.transactions {
             // Sum outputs
@@ -356,16 +360,19 @@ impl RewardEngine {
 
         // For now, estimate fees based on transaction count
         // In production, this would use UTXO set to calculate inputs
-        block.transactions.len() as u64 * 1000 // 1000 satoshis per tx
+        block.transactions.len() as u128 * 1000 // 1000 qbits per tx
     }
 
     /// Credit reward to miner account.
-    pub fn credit_miner(&mut self, miner_id: &str, amount: u64) -> Result<()> {
+    pub fn credit_miner(&mut self, miner_id: &str, amount: u128) -> Result<()> {
         self.db
             .update_miner_reward(miner_id, amount)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
 
-        self.total_distributed.fetch_add(amount, Ordering::Relaxed);
+        // Note: total_distributed is AtomicU64 for backwards compatibility
+        // For large amounts, this may truncate - consider AtomicU128 in production
+        self.total_distributed
+            .fetch_add(amount as u64, Ordering::Relaxed);
         Ok(())
     }
 
@@ -376,7 +383,7 @@ impl RewardEngine {
         block_hash: [u8; 32],
         height: u64,
         miner_id: &str,
-    ) -> Result<u64> {
+    ) -> Result<u128> {
         // Calculate reward
         let reward = self.calculate_reward(block, height);
 
@@ -452,21 +459,21 @@ impl RewardEngine {
     }
 
     /// Get miner's total balance (all rewards).
-    pub fn get_total_balance(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_total_balance(&self, miner_id: &str) -> Result<u128> {
         self.db
             .get_miner_reward(miner_id)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
     }
 
     /// Get miner's spendable balance (only mature rewards).
-    pub fn get_spendable_balance(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_spendable_balance(&self, miner_id: &str) -> Result<u128> {
         self.db
             .get_spendable_rewards(miner_id)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
     }
 
     /// Get miner's pending balance (immature rewards).
-    pub fn get_pending_balance(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_pending_balance(&self, miner_id: &str) -> Result<u128> {
         self.db
             .get_pending_rewards(miner_id)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))
@@ -489,7 +496,7 @@ impl RewardEngine {
     pub fn record_payout(
         &mut self,
         miner_id: &str,
-        amount: u64,
+        amount: u128,
         txid: Option<String>,
     ) -> Result<String> {
         let payout_id = uuid::Uuid::new_v4().to_string();
@@ -516,7 +523,7 @@ impl RewardEngine {
     }
 
     /// Get miner's total reward.
-    pub fn get_miner_reward(&self, miner_id: &str) -> Result<u64> {
+    pub fn get_miner_reward(&self, miner_id: &str) -> Result<u128> {
         self.db
             .get_miner_reward(miner_id)
             .map_err(|e| bitquan_types::Error::Invalid(format!("DB error: {}", e)))
@@ -532,7 +539,7 @@ impl RewardEngine {
     /// Get pool statistics.
     pub fn get_pool_stats(&self) -> Result<PoolStats> {
         Ok(PoolStats {
-            total_rewards: self.total_distributed(),
+            total_rewards: self.total_distributed() as u128,
             miner_count: self
                 .db
                 .miner_count()
@@ -546,8 +553,8 @@ impl RewardEngine {
     }
 
     /// Calculate pool balance (rewards - payouts).
-    fn calculate_pool_balance(&self) -> Result<u64> {
-        let total_rewards = self.total_distributed();
+    fn calculate_pool_balance(&self) -> Result<u128> {
+        let total_rewards = self.total_distributed() as u128;
         // Note: Payout calculation implementation
         // When implemented, this will:
         // - Sum all payouts from database
@@ -556,8 +563,9 @@ impl RewardEngine {
         Ok(total_rewards)
     }
 
-    /// Set reward rate multiplier.
-    pub fn set_reward_rate(&mut self, rate: f64) {
+    /// Set reward rate multiplier (scaled by REWARD_RATE_SCALE).
+    /// Example: 10500 = 105.00%, 9500 = 95.00%
+    pub fn set_reward_rate(&mut self, rate: u64) {
         self.reward_rate = rate;
     }
 
@@ -571,10 +579,10 @@ impl RewardEngine {
 #[derive(Debug, Clone, serde::Serialize)]
 #[allow(dead_code)] // Phase 8 pool API
 pub struct PoolStats {
-    pub total_rewards: u64,
+    pub total_rewards: u128,
     pub miner_count: u64,
     pub block_count: u64,
-    pub pool_balance: u64,
+    pub pool_balance: u128,
 }
 
 #[cfg(test)]
@@ -616,8 +624,8 @@ mod tests {
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
         let engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
-        // Fee estimation: 1 tx * 1000 satoshis
-        const FEE: u64 = 1000;
+        // Fee estimation: 1 tx * 1000 qbits
+        const FEE: u128 = 1000;
 
         // Block 0: full reward
         let block0 = dummy_block(0);

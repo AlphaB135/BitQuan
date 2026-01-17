@@ -704,6 +704,7 @@ Closes #[issue-number]
 -   **Method Name Disambiguation** (2026-01-10): Use descriptive names when multiple methods track similar metrics; `peer_count()` = active connections, `known_peers_count()` = cached peers; Prevents duplicate definition errors
 -   **exFAT Build Workaround** (2026-01-10): exFAT lacks hard linking needed for Cargo incremental compilation; Use `export CARGO_TARGET_DIR=/tmp` to build on APFS; 10x faster builds on SSD
 -   **Protocol Handshake Debugging** (2026-01-10): "failed to fill whole buffer" = TCP connected but protocol failed; Socket-level success doesn't mean P2P handshake (Noise/magic) succeeded; Check both layers
+
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
 -   *Example: The component composition pattern used for UI elements.*

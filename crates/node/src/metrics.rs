@@ -7,6 +7,7 @@ use prometheus::{
     register_int_counter, register_int_counter_vec, register_int_gauge, IntCounter, IntCounterVec,
     IntGauge,
 };
+use std::sync::OnceLock;
 use warp::Filter;
 
 /// Mining metrics (stub for test compatibility)
@@ -27,9 +28,9 @@ impl MiningMetrics {
 
     // Stub methods for test compatibility
     pub fn record_block_persisted(&self, _height: u64) {}
-    pub fn set_total_rewards(&self, _rewards: u64) {}
-    pub fn set_pool_balance(&self, _balance: u64) {}
-    pub fn set_reward_per_block(&self, _reward: u64) {}
+    pub fn set_total_rewards(&self, _rewards: u128) {}
+    pub fn set_pool_balance(&self, _balance: u128) {}
+    pub fn set_reward_per_block(&self, _reward: u128) {}
     pub fn record_block_mined(&self) {}
     pub fn record_hash_attempts(&self, _attempts: u64) {}
     pub fn get_blocks_mined(&self) -> u64 {
@@ -71,7 +72,26 @@ lazy_static! {
     ).expect("failed to register ban_score_events metric");
 }
 
-pub fn start_metrics_server(port: u16) -> tokio::task::JoinHandle<()> {
+/// Global OnceLock to track running metrics servers per port
+static METRICS_SERVERS: OnceLock<std::sync::Mutex<std::collections::HashMap<u16, bool>>> =
+    OnceLock::new();
+
+pub fn start_metrics_server(port: u16) -> Result<tokio::task::JoinHandle<()>, String> {
+    // Get or initialize the servers map
+    let servers =
+        METRICS_SERVERS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+    // Check if server is already running on this port
+    {
+        let mut running = servers
+            .lock()
+            .map_err(|e| format!("lock poisoned: {}", e))?;
+        if running.contains_key(&port) {
+            return Err(format!("Metrics server already running on port {}", port));
+        }
+        running.insert(port, true);
+    }
+
     let metrics_route = warp::path!("metrics").map(|| {
         use prometheus::TextEncoder;
         let encoder = TextEncoder::new();
@@ -87,9 +107,9 @@ pub fn start_metrics_server(port: u16) -> tokio::task::JoinHandle<()> {
             .expect("failed to build HTTP response for metrics endpoint")
     });
 
-    tokio::spawn(async move {
+    Ok(tokio::spawn(async move {
         warp::serve(metrics_route).run(([127, 0, 0, 1], port)).await;
-    })
+    }))
 }
 
 // Helper functions for updating metrics

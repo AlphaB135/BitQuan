@@ -25,7 +25,7 @@ fn dummy_block(height: u64) -> Block {
             lock_time: 0,
             inputs: vec![],
             outputs: vec![TxOut {
-                value: 5000000000,
+                value: 5_000_000_000_000_000_000, // 50 BQ in 18 decimals
                 script_pubkey: vec![],
             }],
             sig_algo: SigAlgorithm::Dilithium5,
@@ -59,15 +59,15 @@ fn test_reward_halving_logic() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
     let engine = RewardEngine::new();
 
-    // Fee is 1000 satoshis per transaction
-    const FEE: u64 = 1000;
+    // Fee is 1000 qbits per transaction
+    const FEE: u128 = 1000;
 
     // Block 0: full reward (50 BQ + fees)
     let block0 = dummy_block(0);
     let reward0 = engine.calculate_reward(&block0, 0);
     assert_eq!(
         reward0,
-        50_0000_0000 + FEE,
+        50_000_000_000_000_000_000 + FEE,
         "Initial reward should be 50 BQ + fees"
     );
 
@@ -76,7 +76,7 @@ fn test_reward_halving_logic() {
     let reward1 = engine.calculate_reward(&block1, 210_000);
     assert_eq!(
         reward1,
-        25_0000_0000 + FEE,
+        25_000_000_000_000_000_000 + FEE,
         "First halving should be 25 BQ + fees"
     );
 
@@ -85,7 +85,7 @@ fn test_reward_halving_logic() {
     let reward2 = engine.calculate_reward(&block2, 420_000);
     assert_eq!(
         reward2,
-        12_5000_0000 + FEE,
+        12_500_000_000_000_000_000 + FEE,
         "Second halving should be 12.5 BQ + fees"
     );
 
@@ -184,7 +184,7 @@ fn test_miner_reward_accumulation() {
     let mut engine = RewardEngine::new();
 
     // Fee is 1000 satoshis per transaction
-    const FEE: u64 = 1000;
+    const FEE: u128 = 1000;
 
     // Mine 3 blocks for the same miner
     for i in 0..3 {
@@ -200,7 +200,7 @@ fn test_miner_reward_accumulation() {
         .expect("Failed to get miner reward");
     assert_eq!(
         reward,
-        (50_0000_0000 + FEE) * 3,
+        (50_000_000_000_000_000_000 + FEE) * 3,
         "Miner should have 3x rewards"
     );
 
@@ -208,7 +208,7 @@ fn test_miner_reward_accumulation() {
     let total_rewards = engine.total_distributed();
     assert_eq!(
         total_rewards,
-        3 * 50_0000_0000 + 3 * FEE,
+        (3 * 50_000_000_000_000_000_000 + 3 * FEE) as u64,
         "Should have distributed rewards for 3 blocks"
     );
 }
@@ -236,13 +236,17 @@ fn test_multiple_miners() {
         .get_miner_reward("bob")
         .expect("Failed to get bob reward");
 
-    const FEE: u64 = 1000;
+    const FEE: u128 = 1000;
     assert_eq!(
         alice_reward,
-        (50_0000_0000 + FEE) * 2,
+        (50_000_000_000_000_000_000 + FEE) * 2,
         "Alice should have 2x rewards"
     );
-    assert_eq!(bob_reward, 50_0000_0000 + FEE, "Bob should have 1x reward");
+    assert_eq!(
+        bob_reward,
+        50_000_000_000_000_000_000 + FEE,
+        "Bob should have 1x reward"
+    );
 
     let stats = engine.get_pool_stats().expect("Failed to get pool stats");
     assert_eq!(stats.miner_count, 2, "Should have 2 miners");
@@ -290,14 +294,14 @@ fn test_database_persistence() {
     // Note: Converted from persistence test to retention test for Phase 1 Memory DB implementation.
     // Real persistence will be tested in Phase 8.
 
-    const FEE: u64 = 1000;
+    const FEE: u128 = 1000;
     let reward = engine
         .get_miner_reward("miner1")
         .expect("Failed to get miner reward");
 
     assert_eq!(
         reward,
-        (50_0000_0000 + FEE) * 2,
+        (50_000_000_000_000_000_000 + FEE) * 2,
         "Rewards should be retained in memory"
     );
 
@@ -323,8 +327,8 @@ fn test_metrics_integration() {
         .expect("Failed to record block");
 
     metrics.record_block_persisted(100); // height from dummy_block(100)
-    metrics.set_total_rewards(engine.total_distributed());
-    metrics.set_pool_balance(engine.total_distributed());
+    metrics.set_total_rewards(engine.total_distributed() as u128);
+    metrics.set_pool_balance(engine.total_distributed() as u128);
     metrics.set_reward_per_block(reward);
 
     // Update metrics manually referenced in assertions

@@ -305,14 +305,22 @@ impl RpcMethods for NodeRpcHandler {
         }
     }
 
-    async fn generate(&self, n_blocks: u64, _address: Option<String>) -> Result<Vec<String>, RpcError> {
+    async fn generate(
+        &self,
+        n_blocks: u64,
+        _address: Option<String>,
+    ) -> Result<Vec<String>, RpcError> {
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
-        use bitquan_types::{Block, BlockHeader, Transaction, TxOut, SigAlgorithm};
+        use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
 
         let mut generated_hashes = Vec::new();
 
         // Get current chain state
-        let _height = self.store.height().await.map_err(Self::storage_error_to_rpc)?;
+        let _height = self
+            .store
+            .height()
+            .await
+            .map_err(Self::storage_error_to_rpc)?;
         let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
 
         // For regtest/devnet, use very easy difficulty
@@ -355,7 +363,7 @@ impl RpcMethods for NodeRpcHandler {
                 inputs: vec![],
                 outputs: vec![TxOut {
                     value: bitquan_types::GENESIS_REWARD, // 50 BQ in qbits
-                    script_pubkey: vec![0x51], // Simple OP_1 for now
+                    script_pubkey: vec![0x51],            // Simple OP_1 for now
                 }],
                 sig_algo: SigAlgorithm::Dilithium5,
                 witnesses: vec![],
@@ -397,9 +405,10 @@ impl RpcMethods for NodeRpcHandler {
             }
 
             if !found {
-                return Err(RpcError::InternalError(
-                    format!("Failed to mine block {} after {} attempts", i, max_nonce)
-                ));
+                return Err(RpcError::InternalError(format!(
+                    "Failed to mine block {} after {} attempts",
+                    i, max_nonce
+                )));
             }
 
             // Create full block
@@ -409,7 +418,9 @@ impl RpcMethods for NodeRpcHandler {
             };
 
             // Insert block into storage
-            self.store.insert_block(block).await
+            self.store
+                .insert_block(block)
+                .await
                 .map_err(Self::storage_error_to_rpc)?;
 
             let block_hash = bitquan_consensus::header_hash(&header);
@@ -439,7 +450,7 @@ struct TransactionSummary {
     lock_time: u32,
     vin_count: usize,
     vout_count: usize,
-    value_out: u64,
+    value_out: u128,
 }
 
 impl From<Transaction> for TransactionSummary {
@@ -448,7 +459,7 @@ impl From<Transaction> for TransactionSummary {
         let value_out = tx
             .outputs
             .iter()
-            .fold(0u64, |acc, o| acc.saturating_add(o.value));
+            .fold(0u128, |acc, o| acc.saturating_add(o.value));
         Self {
             txid: hex::encode(tx.txid()),
             version: tx.version,

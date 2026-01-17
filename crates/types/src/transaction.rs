@@ -154,8 +154,8 @@ impl TxIn {
 /// Transaction output representing new spendable units.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TxOut {
-    /// Amount in the smallest denomination (1 BQ = 10^8 units).
-    pub value: u64,
+    /// Amount in the smallest denomination (1 BQ = 10^18 qbits).
+    pub value: u128,
     /// Locking script describing redemption conditions.
     pub script_pubkey: VarBytes,
 }
@@ -164,7 +164,7 @@ impl TxOut {
     /// Returns a heuristic byte length for serialization planning.
     pub fn serialized_size_hint(&self) -> Result<usize, crate::ValidationError> {
         let compact_len = CompactUint::from_usize(self.script_pubkey.len()).encoded_length();
-        let with_compact = 8usize
+        let with_compact = 16usize // u128 = 16 bytes (was 8 for u64)
             .checked_add(compact_len)
             .ok_or(crate::ValidationError::SizeOverflow("TxOut compact length"))?;
 

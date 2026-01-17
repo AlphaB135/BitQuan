@@ -43,7 +43,7 @@ impl TransactionBuilder {
     }
 
     /// Adds an input to the transaction.
-    pub fn add_input(mut self, prev_txid: [u8; 32], prev_vout: u32, _value: u64) -> Self {
+    pub fn add_input(mut self, prev_txid: [u8; 32], prev_vout: u32, _value: u128) -> Self {
         let input = TxIn {
             prev_txid,
             prev_vout,
@@ -55,7 +55,7 @@ impl TransactionBuilder {
     }
 
     /// Adds an output to the transaction.
-    pub fn add_output(mut self, script_pubkey: Vec<u8>, value: u64) -> Self {
+    pub fn add_output(mut self, script_pubkey: Vec<u8>, value: u128) -> Self {
         let output = TxOut {
             value,
             script_pubkey,
@@ -158,8 +158,8 @@ impl Default for TransactionBuilder {
 /// Convenience helper for building a simple unsigned transaction.
 pub fn build_simple_tx(
     ctx: &TxContext,
-    inputs: &[([u8; 32], u32, u64)],
-    outputs: &[(Vec<u8>, u64)],
+    inputs: &[([u8; 32], u32, u128)],
+    outputs: &[(Vec<u8>, u128)],
 ) -> Result<Transaction> {
     if inputs.is_empty() {
         return Err(Error::Invalid("no inputs".to_string()));
@@ -170,7 +170,7 @@ pub fn build_simple_tx(
 
     let mut builder = TransactionBuilder::new().with_context(ctx.clone());
 
-    let mut total_in: u64 = 0;
+    let mut total_in: u128 = 0;
     for &(prev_txid, prev_vout, value) in inputs {
         builder = builder.add_input(prev_txid, prev_vout, value);
         total_in = total_in
@@ -178,7 +178,7 @@ pub fn build_simple_tx(
             .ok_or(Error::Overflow("input sum overflow"))?;
     }
 
-    let mut total_out: u64 = 0;
+    let mut total_out: u128 = 0;
     for (script, value) in outputs {
         builder = builder.add_output(script.clone(), *value);
         total_out = total_out
@@ -247,14 +247,14 @@ pub struct Utxo {
     /// Output index
     pub vout: u32,
     /// Value in qbits
-    pub value: u64,
+    pub value: u128,
     /// Script pubkey
     pub script_pubkey: Vec<u8>,
 }
 
 impl Utxo {
     /// Creates a new UTXO.
-    pub fn new(txid: [u8; 32], vout: u32, value: u64, script_pubkey: Vec<u8>) -> Self {
+    pub fn new(txid: [u8; 32], vout: u32, value: u128, script_pubkey: Vec<u8>) -> Self {
         Self {
             txid,
             vout,
@@ -277,7 +277,7 @@ pub enum CoinSelection {
 /// Selects UTXOs to spend for a transaction.
 pub fn select_coins(
     utxos: &[Utxo],
-    target_amount: u64,
+    target_amount: u128,
     fee_rate: u64,
     strategy: CoinSelection,
 ) -> Result<Vec<Utxo>> {
@@ -301,7 +301,7 @@ pub fn select_coins(
     }
 
     let mut selected = Vec::new();
-    let mut total = 0u64;
+    let mut total = 0u128;
 
     // Estimate fee (simplified)
     // Each input ~100 bytes + Dilithium sig ~3000 bytes
@@ -313,9 +313,10 @@ pub fn select_coins(
         total = total.saturating_add(utxo.value);
 
         // Calculate current fee estimate using saturating arithmetic
-        let input_fee = fee_rate.saturating_mul((selected.len() as u64).saturating_mul(3100));
+        let input_fee =
+            fee_rate.saturating_mul((selected.len() as u64).saturating_mul(3100)) as u128;
         let total_needed = target_amount
-            .saturating_add(base_fee)
+            .saturating_add(base_fee as u128)
             .saturating_add(input_fee);
 
         if total >= total_needed {
@@ -501,9 +502,9 @@ mod tests {
         assert!(!selected.is_empty());
 
         // Use saturating_add to prevent overflow when summing coin values
-        let total: u64 = selected
+        let total: u128 = selected
             .iter()
-            .fold(0u64, |acc, u| acc.saturating_add(u.value));
+            .fold(0u128, |acc, u| acc.saturating_add(u.value));
         assert!(total >= 25_000_000);
     }
 
@@ -525,8 +526,8 @@ mod overflow_tests {
     fn test_extreme_value_utxos() {
         // Coins with very large values should not cause overflow
         let utxos = vec![
-            Utxo::new([0xFF; 32], 0, u64::MAX - 1000, vec![]),
-            Utxo::new([0xFE; 32], 0, u64::MAX - 2000, vec![]),
+            Utxo::new([0xFF; 32], 0, (u64::MAX - 1000) as u128, vec![]),
+            Utxo::new([0xFE; 32], 0, (u64::MAX - 2000) as u128, vec![]),
         ];
 
         let result = select_coins(&utxos, 1_000_000, 1, CoinSelection::LargestFirst);
@@ -539,7 +540,12 @@ mod overflow_tests {
 
     #[test]
     fn test_extreme_fee_rate() {
-        let utxos = vec![Utxo::new([0x01; 32], 0, 100_000_000_000, vec![])];
+        let utxos = vec![Utxo::new(
+            [0x01; 32],
+            0,
+            1_000_000_000_000_000_000_000,
+            vec![],
+        )]; // 1000 BQ (18 decimals)
 
         // Very high fee rate should saturate, not overflow
         let result = select_coins(

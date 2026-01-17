@@ -6,7 +6,7 @@
 use bitquan_node::reward_engine::{BlockRecord, PoolDatabase, RewardEngine};
 
 /// Helper to create a test block record.
-fn create_test_block(height: u64, miner_id: &str, reward: u64) -> BlockRecord {
+fn create_test_block(height: u64, miner_id: &str, reward: u128) -> BlockRecord {
     BlockRecord {
         hash: format!("block_{}", height),
         height,
@@ -24,7 +24,7 @@ fn test_reward_becomes_spendable_after_100_blocks() {
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Mine block at height 0
-    let block = create_test_block(0, "miner1", 50_0000_0000);
+    let block = create_test_block(0, "miner1", 50_000_000_000_000_000_000);
     engine.db().insert_block(&block).expect("insert");
     engine.credit_miner("miner1", block.reward).expect("credit");
 
@@ -65,7 +65,7 @@ fn test_balance_tracking_total_spendable_pending() {
 
     // Mine 10 blocks for miner1
     for height in 0..10 {
-        let block = create_test_block(height, "miner1", 50_0000_0000);
+        let block = create_test_block(height, "miner1", 50_000_000_000_000_000_000);
         engine.db().insert_block(&block).expect("insert");
         engine.credit_miner("miner1", block.reward).expect("credit");
     }
@@ -94,8 +94,14 @@ fn test_balance_tracking_total_spendable_pending() {
         .expect("Failed to get balance");
 
     assert_eq!(balance.total, 500_0000_0000, "Total unchanged");
-    assert_eq!(balance.spendable, 50_0000_0000, "One block mature");
-    assert_eq!(balance.pending, 450_0000_0000, "Nine blocks still pending");
+    assert_eq!(
+        balance.spendable, 50_000_000_000_000_000_000,
+        "One block mature"
+    );
+    assert_eq!(
+        balance.pending, 450_000_000_000_000_000_000,
+        "Nine blocks still pending"
+    );
 }
 
 #[test]
@@ -105,14 +111,14 @@ fn test_multiple_miners_independent_balances() {
 
     // Miner1 mines blocks 0-4
     for height in 0..5 {
-        let block = create_test_block(height, "miner1", 50_0000_0000);
+        let block = create_test_block(height, "miner1", 50_000_000_000_000_000_000);
         engine.db().insert_block(&block).expect("insert");
         engine.credit_miner("miner1", block.reward).expect("credit");
     }
 
     // Miner2 mines blocks 5-9
     for height in 5..10 {
-        let block = create_test_block(height, "miner2", 50_0000_0000);
+        let block = create_test_block(height, "miner2", 50_000_000_000_000_000_000);
         engine.db().insert_block(&block).expect("insert");
         engine.credit_miner("miner2", block.reward).expect("credit");
     }
@@ -126,16 +132,16 @@ fn test_multiple_miners_independent_balances() {
     let balance1 = engine
         .get_balance_info("miner1")
         .expect("Failed to get miner1 balance");
-    assert_eq!(balance1.total, 250_0000_0000);
-    assert_eq!(balance1.spendable, 250_0000_0000);
+    assert_eq!(balance1.total, 250_000_000_000_000_000_000);
+    assert_eq!(balance1.spendable, 250_000_000_000_000_000_000);
     assert_eq!(balance1.pending, 0);
 
     // Miner2 should have 5 mature blocks
     let balance2 = engine
         .get_balance_info("miner2")
         .expect("Failed to get miner2 balance");
-    assert_eq!(balance2.total, 250_0000_0000);
-    assert_eq!(balance2.spendable, 250_0000_0000);
+    assert_eq!(balance2.total, 250_000_000_000_000_000_000);
+    assert_eq!(balance2.spendable, 250_000_000_000_000_000_000);
     assert_eq!(balance2.pending, 0);
 }
 
@@ -145,7 +151,7 @@ fn test_settlement_at_exact_maturity_height() {
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Mine block at height 50
-    let block = create_test_block(50, "miner1", 50_0000_0000);
+    let block = create_test_block(50, "miner1", 50_000_000_000_000_000_000);
     engine.db().insert_block(&block).expect("insert");
     engine.credit_miner("miner1", block.reward).expect("credit");
 
@@ -176,7 +182,7 @@ fn test_edge_case_height_zero() {
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
     // Genesis block at height 0
-    let block = create_test_block(0, "genesis", 50_0000_0000);
+    let block = create_test_block(0, "genesis", 50_000_000_000_000_000_000);
     engine.db().insert_block(&block).expect("insert");
     engine
         .credit_miner("genesis", block.reward)
@@ -204,7 +210,7 @@ fn test_progressive_settlement() {
 
     // Mine blocks 0-9
     for height in 0..10 {
-        let block = create_test_block(height, "miner1", 50_0000_0000);
+        let block = create_test_block(height, "miner1", 50_000_000_000_000_000_000);
         engine.db().insert_block(&block).expect("insert");
         engine.credit_miner("miner1", block.reward).expect("credit");
     }
@@ -250,7 +256,7 @@ fn test_settlement_idempotent() {
     let _db = PoolDatabase::memory().expect("Failed to create database");
     let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
-    let block = create_test_block(0, "miner1", 50_0000_0000);
+    let block = create_test_block(0, "miner1", 50_000_000_000_000_000_000);
     engine.db().insert_block(&block).expect("insert");
     engine.credit_miner("miner1", block.reward).expect("credit");
 
@@ -268,5 +274,5 @@ fn test_settlement_idempotent() {
     let balance = engine
         .get_balance_info("miner1")
         .expect("Failed to get balance");
-    assert_eq!(balance.spendable, 50_0000_0000);
+    assert_eq!(balance.spendable, 50_000_000_000_000_000_000);
 }

@@ -65,6 +65,11 @@ fn write_u64_le<W: Write>(writer: &mut W, value: u64) -> Result<(), WireError> {
     Ok(())
 }
 
+fn write_u128_le<W: Write>(writer: &mut W, value: u128) -> Result<(), WireError> {
+    writer.write_all(&value.to_le_bytes())?;
+    Ok(())
+}
+
 fn write_bytes<W: Write>(writer: &mut W, bytes: &[u8]) -> Result<(), WireError> {
     writer.write_all(bytes)?;
     Ok(())
@@ -99,6 +104,12 @@ fn read_u64_le<R: Read>(reader: &mut R) -> Result<u64, WireError> {
     let mut buf = [0u8; 8];
     reader.read_exact(&mut buf)?;
     Ok(u64::from_le_bytes(buf))
+}
+
+fn read_u128_le<R: Read>(reader: &mut R) -> Result<u128, WireError> {
+    let mut buf = [0u8; 16];
+    reader.read_exact(&mut buf)?;
+    Ok(u128::from_le_bytes(buf))
 }
 
 fn read_bytes<R: Read>(reader: &mut R, len: usize) -> Result<Vec<u8>, WireError> {
@@ -234,20 +245,20 @@ impl WireDecode for TxIn {
 
 impl WireEncode for TxOut {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), WireError> {
-        write_u64_le(writer, self.value)?;
+        write_u128_le(writer, self.value)?;
         write_var_bytes(writer, &self.script_pubkey)?;
         Ok(())
     }
 
     fn encoded_size(&self) -> usize {
-        8 + CompactUint::from(self.script_pubkey.len() as u64).encoded_length()
+        16 + CompactUint::from(self.script_pubkey.len() as u64).encoded_length()
             + self.script_pubkey.len()
     }
 }
 
 impl WireDecode for TxOut {
     fn decode<R: Read>(reader: &mut R) -> Result<Self, WireError> {
-        let value = read_u64_le(reader)?;
+        let value = read_u128_le(reader)?;
         let script_pubkey = read_var_bytes(reader, 10_000)?;
 
         Ok(TxOut {

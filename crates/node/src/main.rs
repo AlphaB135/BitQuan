@@ -4,14 +4,12 @@
 #![warn(missing_docs)]
 
 mod address;
-mod alert_system;
 mod block_submit;
 mod chainstate;
 mod keystore;
 mod metrics;
 mod miner;
 mod mnemonic;
-mod pool_db;
 mod pool_template;
 mod reward_engine;
 #[cfg(feature = "rocksdb-backend")]
@@ -61,6 +59,18 @@ use rpc::NodeRpcHandler;
 #[inline]
 fn invalid<T>(msg: impl Into<String>) -> Result<T> {
     Err(Error::Invalid(msg.into()))
+}
+
+/// 1 BQ = 10^18 qbits (like wei to ETH)
+const QBITS_PER_BQ: u128 = 1_000_000_000_000_000_000;
+
+/// Format qbits as BQ using pure integer arithmetic.
+/// SECURITY: Never use f64 for money! Floating point causes precision loss.
+/// Example: 1_500_000_000_000_000_000 -> "1.500000000000000000"
+fn format_bq(qbits: u128) -> String {
+    let whole = qbits / QBITS_PER_BQ;
+    let frac = qbits % QBITS_PER_BQ;
+    format!("{}.{:018}", whole, frac)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -512,9 +522,9 @@ enum Commands {
         /// Previous output index
         #[arg(long)]
         prev_vout: u32,
-        /// Output value in qbits (1 BQ = 10^8 qbits)
+        /// Output value in qbits (1 BQ = 10^18 qbits)
         #[arg(long)]
-        value: u64,
+        value: u128,
         /// Hex-encoded script_pubkey for recipient
         #[arg(long)]
         to_script_hex: String,
@@ -1133,8 +1143,8 @@ async fn run_node(
     let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332"); // Currently unused
 
     println!(
-        "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}\nData directory: {datadir}"
-    );
+    "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}\nData directory: {datadir}"
+  );
 
     // Create data directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&datadir) {
@@ -1238,14 +1248,14 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
     use std::time::Instant;
 
     println!("╔══════════════════════════════════════════════════╗");
-    println!("║      BitQuan Genesis Block Miner                ║");
+    println!("║   BitQuan Genesis Block Miner        ║");
     println!("╚══════════════════════════════════════════════════╝");
     println!();
     println!("Parameters:");
-    println!("  Time:       {}", GENESIS_TIME);
-    println!("  Bits:       0x{:08x}", GENESIS_BITS);
-    println!("  Max tries:  {}", max_tries);
-    println!("  Output:     {}", output);
+    println!(" Time:    {}", GENESIS_TIME);
+    println!(" Bits:    0x{:08x}", GENESIS_BITS);
+    println!(" Max tries: {}", max_tries);
+    println!(" Output:   {}", output);
     println!();
 
     // Create genesis block template
@@ -1253,7 +1263,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
 
     println!("Genesis Message:");
     let msg = &genesis.transactions[0].inputs[0].script_sig;
-    println!("  {}", String::from_utf8_lossy(msg));
+    println!(" {}", String::from_utf8_lossy(msg));
     println!();
 
     println!("🔨 Mining genesis block...");
@@ -1270,12 +1280,12 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             let elapsed = start_time.elapsed();
             let hashrate = (nonce as f64) / elapsed.as_secs_f64();
 
-            println!("✅ GENESIS BLOCK FOUND!");
+            println!("GENESIS BLOCK FOUND!");
             println!();
-            println!("Nonce:      {}", nonce);
-            println!("Hash:       {}", hex_encode(hash));
-            println!("Time:       {:.2}s", elapsed.as_secs_f64());
-            println!("Hashrate:   {:.2} H/s", hashrate);
+            println!("Nonce:   {}", nonce);
+            println!("Hash:    {}", hex_encode(hash));
+            println!("Time:    {:.2}s", elapsed.as_secs_f64());
+            println!("Hashrate:  {:.2} H/s", hashrate);
             println!();
 
             // Validate genesis
@@ -1289,12 +1299,12 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             let json = serde_json::to_string_pretty(&genesis)?;
             fs::write(output, json)?;
 
-            println!("💾 Genesis block saved to: {}", output);
+            println!("Genesis block saved to: {}", output);
             println!();
             println!("Next steps:");
-            println!("  1. Update GENESIS_HASH in crates/types/src/genesis.rs");
-            println!("  2. Commit genesis block to repository");
-            println!("  3. Use this block to initialize blockchain");
+            println!(" 1. Update GENESIS_HASH in crates/types/src/genesis.rs");
+            println!(" 2. Commit genesis block to repository");
+            println!(" 3. Use this block to initialize blockchain");
             println!();
 
             found = true;
@@ -1306,7 +1316,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             let hashrate = (nonce as f64) / elapsed;
             let hash = header_hash(&genesis.header);
             println!(
-                "  ... {} attempts ({:.2} H/s) | Hash: {}",
+                " ... {} attempts ({:.2} H/s) | Hash: {}",
                 nonce,
                 hashrate,
                 &hex_encode(hash)[..16]
@@ -1316,7 +1326,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
 
     if !found {
         println!(
-            "❌ Failed to find valid genesis block in {} attempts",
+            "Failed to find valid genesis block in {} attempts",
             max_tries
         );
         println!("Try increasing --max-tries or adjusting difficulty");
@@ -1328,7 +1338,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
 fn check_block(path: &str) -> Result<()> {
     println!(
         "Block validation placeholder invoked for file: {path}. \
-         Actual parsing logic will be implemented in Phase 4."
+     Actual parsing logic will be implemented in Phase 4."
     );
 
     let params = ConsensusParams::phase3_defaults();
@@ -1338,10 +1348,10 @@ fn check_block(path: &str) -> Result<()> {
 
     match engine.validate_block(&block, 0, 0) {
         Ok(report) => {
-            println!("✅ Block validation successful!");
-            println!("   Weight: {} WU", report.block_weight);
-            println!("   Signatures: {}", report.signature_count);
-            println!("   Subsidy: {} qbits", report.block_subsidy);
+            println!("Block validation successful!");
+            println!("  Weight: {} WU", report.block_weight);
+            println!("  Signatures: {}", report.signature_count);
+            println!("  Subsidy: {} qbits", report.block_subsidy);
         }
         Err(e) => {
             return invalid(format!("Block validation failed: {}", e));
@@ -1369,7 +1379,7 @@ fn rng_demo(label: &str, length: usize) -> Result<()> {
         .map_err(|e| Error::Invalid(format!("rng bytes failed: {e}")))?;
 
     println!(
-        "Master stream sample  ({length} bytes): {}",
+        "Master stream sample ({length} bytes): {}",
         hex_encode(master_bytes)
     );
     println!(
@@ -1598,7 +1608,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
     struct BlockLog {
         height: u64,
         timestamp: i64,
-        target: f64,
+        bits: u32, // Correct: Store exact bits from header
     }
 
     let params = ConsensusParams::phase3_defaults();
@@ -1631,7 +1641,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                 .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?,
         );
         println!(
-            "🔐 P2P Encryption enabled (public key: {})",
+            "P2P Encryption enabled (public key: {})",
             noise_config.public_key_hex()
         );
 
@@ -1649,11 +1659,11 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                     let rt = tokio::runtime::Handle::try_current();
                     if let Ok(handle) = rt {
                         let count = handle.block_on(pm.peer_count());
-                        println!("📖 Loaded {} peers from peers.json", count);
+                        println!("Loaded {} peers from peers.json", count);
                     }
                 }
                 Err(e) => {
-                    println!("⚠️  Failed to load peers.json: {}, starting fresh", e);
+                    println!("Failed to load peers.json: {}, starting fresh", e);
                 }
             }
         }
@@ -1704,22 +1714,22 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             let addr: SocketAddr = match peer_addr.parse() {
                 Ok(a) => a,
                 Err(e) => {
-                    eprintln!("⚠️  Invalid peer address '{}': {}", peer_addr, e);
+                    eprintln!("Invalid peer address '{}': {}", peer_addr, e);
                     continue;
                 }
             };
 
-            print!("  Connecting to {}... ", peer_addr);
+            print!(" Connecting to {}... ", peer_addr);
             // connect_peer() is async, use block_on in sync context
             let rt = tokio::runtime::Handle::try_current();
             if let Ok(handle) = rt {
                 match handle.block_on(pm.connect_peer(addr)) {
                     Ok(()) => {
-                        println!("✅ Connected");
+                        println!("Connected");
                         connected_count += 1;
                     }
                     Err(e) => {
-                        eprintln!("❌ Failed: {}", e);
+                        eprintln!("Failed: {}", e);
                     }
                 }
             }
@@ -1727,7 +1737,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         if connected_count > 0 {
             println!(
-                "\n✅ Connected to {}/{} peers",
+                "\nConnected to {}/{} peers",
                 connected_count,
                 bootstrap_peers.len()
             );
@@ -1740,7 +1750,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             println!("================================\n");
             Some(pm)
         } else {
-            eprintln!("⚠️  Warning: Failed to connect to any peers. Mining will continue without network connectivity.\n");
+            eprintln!("Warning: Failed to connect to any peers. Mining will continue without network connectivity.\n");
             Some(pm) // Return pm anyway for future peer discovery
         }
     };
@@ -1792,7 +1802,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         println!("\n=== Hybrid Mining Enabled ===");
         println!("Algorithms:");
         for (algo, weight) in &weights {
-            println!("  - {} (weight: {:.1})", algo.name(), weight);
+            println!(" - {} (weight: {:.1})", algo.name(), weight);
         }
         println!("=============================\n");
 
@@ -1821,7 +1831,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                     let log = BlockLog {
                         height: h,
                         timestamp: block.header.time as i64,
-                        target: compact_to_target(block.header.bits) as f64,
+                        bits: block.header.bits, // Correct: No conversion to f64
                     };
                     last_timestamp = Some(log.timestamp);
                     history.push_back(log);
@@ -1834,7 +1844,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         bits = clamp_bits_within_bounds(bits);
     }
 
-    let mut total_intervals = 0.0;
+    let mut total_intervals = 0u64;
     let mut interval_count = 0u64;
     let mut guard_total = 0u64;
 
@@ -1932,7 +1942,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         // Initial display
         print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: 0 | H/s: 0.00\x1b[0m",
-               height + 1, bits, subsidy);
+        height + 1, bits, subsidy);
         let _ = std::io::Write::flush(&mut std::io::stdout());
 
         // Hybrid mining path
@@ -1943,7 +1953,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
 
             // Update display for hybrid mining
             print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Algo: {} | Hashes: 0 | H/s: 0.00\x1b[0m",
-                   height + 1, bits, subsidy, algo.name());
+          height + 1, bits, subsidy, algo.name());
             let _ = std::io::Write::flush(&mut std::io::stdout());
 
             match hybrid_miner.mine_block_attempt(header.clone(), max_nonce, algo)? {
@@ -1990,7 +2000,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                     let elapsed = start_time.elapsed();
                     let hashrate = (n as f64) / elapsed.as_secs_f64();
                     print!("\r\x1b[36mMining Block #{} | Target: 0x{:08x} | Reward: {} qbits | Hashes: {} | H/s: {:.2}\x1b[0m",
-                           height + 1, bits, subsidy, n, hashrate);
+              height + 1, bits, subsidy, n, hashrate);
                     let _ = std::io::Write::flush(&mut std::io::stdout());
                     last_update = std::time::Instant::now();
                 }
@@ -2114,10 +2124,10 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                     // broadcast() is async, use block_on
                     match handle.block_on(pm.broadcast(msg)) {
                         Ok(_count) => {
-                            print!(" ✅");
+                            print!(" [OK]");
                         }
                         Err(e) => {
-                            print!(" ⚠️  Broadcast warning: {}", e);
+                            print!(" [WARN] Broadcast: {}", e);
                         }
                     }
                 }
@@ -2127,11 +2137,11 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         let block_height = height + 1;
         let block_time = header.time as i64;
         let block_bits = header.bits;
-        let block_target = compact_to_target(block_bits);
+        let _block_target = compact_to_target(block_bits); // Kept for other uses, not stored in BlockLog
 
         if let Some(prev_ts) = last_timestamp {
-            let interval = (block_time - prev_ts).max(0) as f64;
-            total_intervals += interval;
+            let interval = (block_time - prev_ts).max(0) as u64;
+            total_intervals = total_intervals.saturating_add(interval);
             interval_count = interval_count
                 .checked_add(1)
                 .ok_or(Error::Overflow("interval count overflow"))?;
@@ -2141,7 +2151,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         history.push_back(BlockLog {
             height: block_height,
             timestamp: block_time,
-            target: block_target as f64,
+            bits: block_bits, // Correct: Store exact bits, not converted target
         });
         if history.len() > window + 1 {
             history.pop_front();
@@ -2150,31 +2160,31 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         let anchor = if block_height as usize > window && history.len() > window {
             history[history.len() - 1 - window]
         } else {
-            // SAFETY: history always contains at least the mined block (pushed above on line 1677)
-            #[allow(clippy::expect_used)]
-            *history
-                .front()
-                .expect("history always contains at least the mined block")
+            // Get anchor from history - handle empty case gracefully
+            *history.front().ok_or_else(|| {
+                Error::Invalid("empty block history - cannot determine anchor block".to_string())
+            })?
         };
 
         let height_delta = block_height as i64 - anchor.height as i64;
         let time_delta = block_time - anchor.timestamp;
-        let expected_time = params.difficulty.target_block_time as f64 * height_delta.max(1) as f64;
-        let _average = if height_delta > 0 {
-            time_delta as f64 / height_delta as f64
-        } else {
-            params.difficulty.target_block_time as f64
-        };
-        let ratio = if expected_time > 0.0 {
-            time_delta as f64 / expected_time
-        } else {
-            1.0
-        };
-        let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window
-            && time_delta > 0
-            && ratio
-                < (params.difficulty.burst_guard_floor_ratio_fp as f64
-                    / bitquan_consensus::FP_SCALE as f64);
+
+        // Deterministic fixed-point arithmetic for guard trigger (NO f64 in consensus!)
+        // Follow the same pattern as asert.rs::calculate_burst_guard_trigger_fp
+        let guard_triggered =
+            if height_delta as u64 >= params.difficulty.burst_guard_window && time_delta > 0 {
+                let height_delta_abs = height_delta.max(1) as u128;
+                let expected_time_fp = height_delta_abs
+                    * params.difficulty.target_block_time as u128
+                    * bitquan_consensus::FP_SCALE as u128;
+                let floor_threshold_fp = (expected_time_fp
+                    * params.difficulty.burst_guard_floor_ratio_fp as u128)
+                    / bitquan_consensus::FP_SCALE as u128;
+                let actual_time_fp = time_delta as u128 * bitquan_consensus::FP_SCALE as u128;
+                actual_time_fp < floor_threshold_fp
+            } else {
+                false
+            };
         if guard_triggered {
             guard_total = guard_total
                 .checked_add(1)
@@ -2191,13 +2201,10 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             bits = config_bits;
         } else {
             // Use ASERT difficulty adjustment after sufficient history
-            let next_target = asert_next_target(
-                anchor.target as u64,
-                height_delta,
-                time_delta,
-                &params,
-                None,
-            );
+            // Convert anchor.bits to target for ASERT calculation
+            let anchor_target = compact_to_target(anchor.bits);
+            let next_target =
+                asert_next_target(anchor_target, height_delta, time_delta, &params, None);
             let mut next_bits = target_to_compact_u64(next_target);
             if next_bits == 0 {
                 next_bits = block_bits;
@@ -2230,16 +2237,23 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
     }
 }
 
-fn print_session_summary(interval_count: u64, total_intervals: f64, guard_total: u64) {
+fn print_session_summary(interval_count: u64, total_intervals: u64, guard_total: u64) {
     if interval_count == 0 {
         println!("Session summary -> insufficient interval data to compute averages.");
         return;
     }
-    let average = total_intervals / interval_count as f64;
-    let guard_rate = guard_total as f64 * 100.0 / interval_count as f64;
+    // Integer arithmetic for average (whole seconds)
+    let average = total_intervals / interval_count;
+    // Integer arithmetic for guard rate (percentage * 100)
+    let guard_rate = guard_total * 10000 / interval_count;
+    // Display as XX.XX%
     println!(
-        "Session summary -> avg {:.2}s across {} intervals | guard {} activations ({:.2}/100)",
-        average, interval_count, guard_total, guard_rate
+        "Session summary -> avg {}s across {} intervals | guard {} activations ({}.{:02}/100)",
+        average,
+        interval_count,
+        guard_total,
+        guard_rate / 100,
+        guard_rate % 100
     );
 }
 
@@ -2276,7 +2290,7 @@ fn wallet_gen(
 
     use pqc_dilithium_seeded::{PUBLICKEYBYTES, SECRETKEYBYTES};
 
-    println!("\n✅ Keypair generated successfully!");
+    println!("\nKeypair generated successfully!");
     println!("\n📍 Address: {}", address_str);
     println!("🔑 Public key hash: {}", hex::encode(pubkey_hash));
     println!("📏 Public key: {} bytes", PUBLICKEYBYTES);
@@ -2317,13 +2331,13 @@ fn wallet_gen(
     keystore::save_keystore(&keystore_file, Path::new(path))
         .map_err(|e| Error::Invalid(format!("keystore save failed: {e}")))?;
 
-    println!("\n💾 Encrypted keystore saved to: {}", path);
-    println!("\n⚠️  IMPORTANT:");
-    println!("   - Keep this file safe!");
-    println!("   - Remember your password!");
-    println!("   - Make backups!");
-    println!("\n⚠️  Note: Keypair metadata persisted (address, pubkey hash)");
-    println!("   Full signing requires session keypair due to pqc_dilithium 0.2 limitations");
+    println!("\nEncrypted keystore saved to: {}", path);
+    println!("\nIMPORTANT:");
+    println!("  - Keep this file safe!");
+    println!("  - Remember your password!");
+    println!("  - Make backups!");
+    println!("\nNote: Keypair metadata persisted (address, pubkey hash)");
+    println!("  Full signing requires session keypair due to pqc_dilithium 0.2 limitations");
 
     Ok(())
 }
@@ -2378,11 +2392,11 @@ fn script_from_address(addr: &str) -> Result<()> {
     let trimmed = addr.trim();
 
     eprintln!("Bech32m checksum: OK");
-    eprintln!("Network         : {}", address_network_label(info.network));
+    eprintln!("Network     : {}", address_network_label(info.network));
     if trimmed != info.normalized {
-        eprintln!("Normalized      : {}", info.normalized);
+        eprintln!("Normalized   : {}", info.normalized);
     }
-    eprintln!("Pubkey hash     : {}", hex::encode(info.payload));
+    eprintln!("Pubkey hash   : {}", hex::encode(info.payload));
     println!("{script_hex}");
 
     Ok(())
@@ -2395,17 +2409,17 @@ fn address_validate(addr: &str) -> Result<()> {
     let trimmed = addr.trim();
 
     println!("BitQuan Address Validation");
-    println!("Input      : {}", trimmed);
+    println!("Input   : {}", trimmed);
     if trimmed != info.normalized {
-        println!("Normalized  : {}", info.normalized);
+        println!("Normalized : {}", info.normalized);
     }
-    println!("Network     : {}", address_network_label(info.network));
-    println!("HRP         : {}", info.hrp);
-    println!("Checksum    : OK (Bech32m)");
+    println!("Network   : {}", address_network_label(info.network));
+    println!("HRP     : {}", info.hrp);
+    println!("Checksum  : OK (Bech32m)");
     println!("Payload size: {} bytes", info.payload.len());
     println!("Pubkey hash : {}", hex::encode(info.payload));
     println!(
-        "Script hex  : {}",
+        "Script hex : {}",
         hex::encode(address::script_from_pubkey_hash(&info.payload))
     );
 
@@ -2442,7 +2456,7 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
         .map_err(|e| Error::Invalid(format!("keystore decrypt failed: {e}")))?;
     let data: wallet::SerializableKeypair = serde_json::from_str(&json)?;
 
-    println!("✅ Keystore decrypted!");
+    println!("Keystore decrypted!");
     println!("📍 Address: {}", data.address);
     println!("🔑 Public key hash: {}", data.public_key_hash);
 
@@ -2455,9 +2469,9 @@ fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str>) -
         .sign(&message)
         .map_err(|e| Error::Invalid(format!("signing failed: {e}")))?;
 
-    println!("\n✅ Message signed successfully!");
+    println!("\nMessage signed successfully!");
     println!("📝 Message: {}", message_hex);
-    println!("✍️  Signature: {}", hex::encode(&signature));
+    println!("Signature: {}", hex::encode(&signature));
     println!("🔑 Public key: {}", data.public_key);
 
     Ok(())
@@ -2522,9 +2536,9 @@ async fn wallet_send(
     println!("BitQuan Wallet Send");
     println!("To: {}", to_address);
     println!(
-        "Amount: {} qbits ({:.8} BQ)",
+        "Amount: {} qbits ({} BQ)",
         amount,
-        amount as f64 / 100_000_000.0
+        format_bq(amount as u128)
     );
     println!("Fee rate: {} qbits/WU", fee_rate);
     println!();
@@ -2576,15 +2590,15 @@ async fn wallet_send(
 
         // For now, use a fixed balance from mining (simplified)
         // In production, this would query UTXOs from storage
-        let balance = 10000000000; // 100 BQ from mining
+        let balance: u128 = 100_000_000_000_000_000_000; // 100 BQ from mining (18 decimals)
 
         if balance == 0 {
             return invalid("No balance found for this address");
         }
 
         let total_available = balance;
-        let fee = fee_rate * 250; // Estimated weight units
-        let send_amount = amount;
+        let fee = fee_rate as u128 * 250; // Estimated weight units
+        let send_amount = amount as u128;
 
         if send_amount + fee > total_available {
             return invalid(format!(
@@ -2609,7 +2623,7 @@ async fn wallet_send(
 
         // Add change output if needed
         let mut outputs = vec![output];
-        let change_amount = total_available - send_amount - fee;
+        let change_amount: u128 = total_available - send_amount - fee;
         if change_amount > 0 {
             outputs.push(bitquan_types::TxOut {
                 value: change_amount,
@@ -2650,15 +2664,15 @@ async fn wallet_send(
         }];
 
         println!();
-        println!("✅ Transaction created and signed!");
-        println!("📤 To: {}", to_address);
+        println!("Transaction created and signed!");
+        println!("To: {}", to_address);
         println!(
-            "💰 Amount: {} qbits ({:.8} BQ)",
+            "Amount: {} qbits ({} BQ)",
             amount,
-            amount as f64 / 100_000_000.0
+            format_bq(amount as u128)
         );
-        println!("🔧 Fee: {} qbits", fee);
-        println!("🔄 Change: {} qbits", change_amount);
+        println!("Fee: {} qbits", fee);
+        println!("Change: {} qbits", change_amount);
         println!();
         println!("📋 Transaction JSON:");
         let tx_json = serde_json::to_string_pretty(&signed_tx)
@@ -2675,19 +2689,19 @@ async fn wallet_send(
         // Create RPC client and submit transaction
         match submit_transaction_rpc(&tx_hex).await {
             Ok(txid) => {
-                println!("✅ Transaction broadcast successfully!");
+                println!("Transaction broadcast successfully!");
                 println!("🔗 Transaction ID: {}", txid);
                 println!(
-                    "📊 View on explorer (when available): https://explorer.bitquan.org/tx/{}",
+                    "View on explorer (when available): https://explorer.bitquan.org/tx/{}",
                     txid
                 );
             }
             Err(e) => {
-                println!("❌ Failed to broadcast transaction: {}", e);
-                println!("💡 You can try manual broadcast using RPC:");
-                println!("   curl -X POST -H 'Content-Type: application/json' \\");
-                println!("        -d '{{\"jsonrpc\":\"2.0\",\"method\":\"submittransaction\",\"params\":[\"{}\"],\"id\":1}}' \\", tx_hex);
-                println!("        http://127.0.0.1:8332");
+                println!("Failed to broadcast transaction: {}", e);
+                println!("You can try manual broadcast using RPC:");
+                println!("  curl -X POST -H 'Content-Type: application/json' \\");
+                println!("    -d '{{\"jsonrpc\":\"2.0\",\"method\":\"submittransaction\",\"params\":[\"{}\"],\"id\":1}}' \\", tx_hex);
+                println!("    http://127.0.0.1:8332");
             }
         }
 
@@ -2699,18 +2713,18 @@ async fn wallet_send(
         println!();
         println!("Note: Transaction sending requires 'rocksdb-backend' feature");
         println!("Missing components:");
-        println!("  - UTXO lookup from blockchain");
-        println!("  - Transaction broadcast to network");
+        println!(" - UTXO lookup from blockchain");
+        println!(" - Transaction broadcast to network");
         println!();
         println!("Current capabilities:");
-        println!("  - Transaction building: use 'build-tx' command");
-        println!("  - Message signing: use 'wallet-sign' command");
+        println!(" - Transaction building: use 'build-tx' command");
+        println!(" - Message signing: use 'wallet-sign' command");
 
         Ok(())
     }
 }
 
-fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u64, to_script_hex: &str) -> Result<()> {
+fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u128, to_script_hex: &str) -> Result<()> {
     let mut prev = [0u8; 32];
     let prev_vec = hex::decode(prev_txid_hex)
         .map_err(|e| Error::Invalid(format!("invalid prev_txid hex: {e}")))?;
@@ -2820,6 +2834,112 @@ fn p2p_demo(addr: &str) -> Result<()> {
     Ok(())
 }
 
+// ---------------------------------------------------------
+// REFACTORING HELPER FUNCTIONS
+// ---------------------------------------------------------
+
+/// Setup and verify storage backend (RocksDB/Memory)
+#[cfg(feature = "rocksdb-backend")]
+fn setup_storage(
+    datadir: &str,
+) -> Result<(
+    u64,
+    std::sync::Arc<
+        bitquan_storage::async_store::AsyncStoreWrapper<
+            bitquan_storage::rocksdb_store::RocksDBStore,
+        >,
+    >,
+)> {
+    use bitquan_storage::async_store::AsyncStoreWrapper;
+    use bitquan_storage::rocksdb_store::RocksDBStore;
+
+    println!("Initializing storage at: {}", datadir);
+    let rocksdb_store = RocksDBStore::open(datadir)
+        .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
+
+    // Sync check
+    let height = rocksdb_store.height().unwrap_or(0);
+    println!("Current chain height: {}", height);
+
+    let async_store = std::sync::Arc::new(AsyncStoreWrapper::new(rocksdb_store));
+    Ok((height, async_store))
+}
+
+/// Setup P2P Networking (PeerManager, Noise, Relay)
+async fn setup_p2p_network(
+    max_peers: usize,
+    network: NetworkId,
+    height: u64,
+) -> Result<(
+    std::sync::Arc<bitquan_network::PeerManager>,
+    std::net::SocketAddr,
+    std::sync::Arc<bitquan_network::noise::NoiseConfig>,
+)> {
+    use bitquan_network::{NoiseConfig, PeerManager, RelayManager};
+
+    // 1. Setup Noise keys
+    let noise_config = std::sync::Arc::new(
+        NoiseConfig::generate()
+            .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?,
+    );
+    println!("P2P Identity: {}", noise_config.public_key_hex());
+
+    // 2. Setup Relay Manager
+    let relay_manager = std::sync::Arc::new(RelayManager::new(10000));
+
+    // 3. Setup Peer Manager
+    let peer_manager = std::sync::Arc::new(PeerManager::with_relay(
+        max_peers,
+        relay_manager,
+        network,
+        noise_config.clone(),
+    ));
+
+    // Initial state sync
+    peer_manager.update_height(height).await;
+
+    // 4. Load persistent peers
+    let peers_json_path = std::path::PathBuf::from("peers.json");
+    if peers_json_path.exists() {
+        if let Err(e) = peer_manager.load_address_book(&peers_json_path) {
+            log::warn!("Failed to load peers.json: {}", e);
+        } else {
+            let count = peer_manager.known_peers_count().unwrap_or(0);
+            println!("Loaded {} peers from disk", count);
+        }
+    }
+
+    Ok((
+        peer_manager,
+        std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
+        noise_config,
+    ))
+}
+
+/// Start Metrics Server (Clean implementation without Bind/Drop hack)
+fn start_metrics_service(p2p_listen_addr: &str) {
+    let p2p_port: u16 = p2p_listen_addr
+        .split(':')
+        .next_back()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(18444);
+
+    // Convention: Metrics port = 9615 + offset from default P2P port
+    let metrics_port = 9615 + p2p_port.saturating_sub(18444);
+    let metrics_addr = format!("127.0.0.1:{}", metrics_port);
+
+    println!(
+        "Starting metrics server on http://{}/metrics ...",
+        metrics_addr
+    );
+
+    // Fix: Just spawn it. If it fails to bind, it will log internally or panic safely in its own thread.
+    // No more "bind -> drop -> start" race condition.
+    let _ = std::thread::spawn(move || {
+        let _ = crate::metrics::start_metrics_server(metrics_port);
+    });
+}
+
 /// P2P Server that accepts incoming connections
 #[allow(unused_variables)]
 async fn p2p_server(
@@ -2831,8 +2951,6 @@ async fn p2p_server(
     bootstrap_peers: Option<Vec<String>>,
 ) -> Result<()> {
     use bitquan_mempool::Mempool;
-    use bitquan_network::PeerManager;
-    use bitquan_storage::AsyncChainStore;
     #[cfg(feature = "rocksdb-backend")]
     use std::path::Path;
     use std::sync::Arc;
@@ -2869,17 +2987,11 @@ async fn p2p_server(
         password: rpc_password,
     } = rpc;
 
-    // Load current height from storage
+    // Load current height from storage (using helper)
     #[cfg(feature = "rocksdb-backend")]
     let (height, store) = {
-        use bitquan_storage::async_store::AsyncStoreWrapper;
-        use bitquan_storage::rocksdb_store::RocksDBStore;
-        let rocksdb_store = RocksDBStore::open(datadir)
-            .map_err(|e| Error::Invalid(format!("failed to open RocksDB: {e}")))?;
-        let h = rocksdb_store.height().unwrap_or(0);
-        // Wrap in AsyncStoreWrapper for async P2P worker + RPC use
-        let async_store = Arc::new(AsyncStoreWrapper::new(rocksdb_store));
-        (h, Some(async_store))
+        let (h, s) = setup_storage(datadir)?;
+        (h, Some(s))
     };
 
     #[cfg(not(feature = "rocksdb-backend"))]
@@ -2897,6 +3009,8 @@ async fn p2p_server(
 
     #[cfg(feature = "rocksdb-backend")]
     if let Some(addr) = rpc_listen {
+        use bitquan_storage::AsyncChainStore;
+
         let username = rpc_username.ok_or_else(|| {
             Error::Invalid("--rpc-username is required when enabling RPC server".to_string())
         })?;
@@ -2922,9 +3036,9 @@ async fn p2p_server(
 
         if !addr.starts_with("127.") && !addr.starts_with("localhost") {
             println!(
-                "Warning: RPC server binding to '{}'. Ensure firewall and authentication are configured.",
-                addr
-            );
+        "Warning: RPC server binding to '{}'. Ensure firewall and authentication are configured.",
+        addr
+      );
         }
 
         let Some(store_arc) = store.clone() else {
@@ -2984,9 +3098,9 @@ async fn p2p_server(
 
         if require_tls && tls_config.is_none() {
             return invalid(
-                "RPC TLS is required. Provide --rpc-tls-cert/--rpc-tls-key or pass --rpc-allow-insecure for development."
-                    .to_string(),
-            );
+        "RPC TLS is required. Provide --rpc-tls-cert/--rpc-tls-key or pass --rpc-allow-insecure for development."
+          .to_string(),
+      );
         }
 
         let rpc_config = RpcConfig {
@@ -3006,18 +3120,18 @@ async fn p2p_server(
             ..RpcConfig::default()
         };
         println!(
-            "RPC starting with max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} max_header_bytes={} header_timeout_ms={} trust_proxy={} trusted_cidr={:?} require_tls={} tls_configured={}",
-            rpc_config.max_body_bytes,
-            rpc_config.rl_burst,
-            rpc_config.rl_refill_per_sec,
-            rpc_config.conn_cooldown_ms,
-            rpc_config.max_header_bytes,
-            rpc_config.header_read_timeout_ms,
-            rpc_config.trust_proxy,
-            rpc_config.trusted_proxies,
-            rpc_config.require_tls,
-            tls_config.is_some()
-        );
+      "RPC starting with max_body_bytes={} rl_burst={} rl_refill_per_sec={} conn_cooldown_ms={} max_header_bytes={} header_timeout_ms={} trust_proxy={} trusted_cidr={:?} require_tls={} tls_configured={}",
+      rpc_config.max_body_bytes,
+      rpc_config.rl_burst,
+      rpc_config.rl_refill_per_sec,
+      rpc_config.conn_cooldown_ms,
+      rpc_config.max_header_bytes,
+      rpc_config.header_read_timeout_ms,
+      rpc_config.trust_proxy,
+      rpc_config.trusted_proxies,
+      rpc_config.require_tls,
+      tls_config.is_some()
+    );
 
         if let Some(cert_path) = rpc_tls_cert {
             println!("RPC TLS certificate: {}", cert_path);
@@ -3052,46 +3166,9 @@ async fn p2p_server(
     }
 
     // === P2P SERVER SETUP ===
-    use bitquan_network::noise::NoiseConfig;
-    use bitquan_network::RelayManager;
-    use std::net::TcpListener;
-
-    // Create relay manager for transaction relay
-    let relay_manager = Arc::new(RelayManager::new(10000));
-
-    // Generate Noise Protocol keypair for P2P encryption (ephemeral, V1)
-    let noise_config = Arc::new(
-        NoiseConfig::generate()
-            .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?,
-    );
-    println!(
-        "🔐 P2P Encryption enabled (public key: {})",
-        noise_config.public_key_hex()
-    );
-
-    // Create peer manager with relay support
-    let peer_manager = Arc::new(PeerManager::with_relay(
-        max_peers,
-        relay_manager.clone(),
-        network,
-        noise_config.clone(),
-    ));
-    // update_height() is async and returns ()
-    peer_manager.update_height(height).await;
-
-    // Load peers.json if exists and show cached peer count
-    let peers_json_path = std::path::PathBuf::from("peers.json");
-    if peers_json_path.exists() {
-        match peer_manager.load_address_book(&peers_json_path) {
-            Ok(()) => match peer_manager.known_peers_count() {
-                Ok(count) => println!("📖 Loaded {} peers from peers.json", count),
-                Err(e) => println!("⚠️  Loaded peers.json but couldn't count: {}", e),
-            },
-            Err(e) => {
-                println!("⚠️  Failed to load peers.json: {}, starting fresh", e);
-            }
-        }
-    }
+    // Setup P2P networking using helper (Noise, PeerManager, Relay, Peers.json)
+    let (peer_manager, _listen_addr, noise_config) =
+        setup_p2p_network(max_peers, network, height).await?;
 
     // Determine bootstrap peers: parameter > cached peers > TESTNET_SEEDS
     // We'll save this for later - bootstrap happens AFTER server is ready
@@ -3131,45 +3208,20 @@ async fn p2p_server(
         Arc::new(tokio::sync::Mutex::new(Mempool::new().map_err(|e| {
             Error::Invalid(format!("failed to create mempool: {e}"))
         })?));
-    println!("💾 Mempool initialized (max 300 MB)");
+    println!("Mempool initialized (max 300 MB)");
 
     // Create fork choice manager for chain reorganization
     let fork_choice = Arc::new(tokio::sync::Mutex::new(
         bitquan_consensus::fork::ForkChoice::new(),
     ));
-    println!("🔀 ForkChoice initialized");
+    println!("ForkChoice initialized");
 
     // TODO: Sync ForkChoice with current chain state
     // For now, ForkChoice starts empty - will build up as blocks arrive
     // In production, should load existing chain tips into ForkChoice
 
-    // Derive metrics port from P2P port to allow multiple nodes on same machine
-    // e.g., P2P 18444 -> Metrics 9615, P2P 18445 -> Metrics 9616
-    let p2p_port: u16 = listen
-        .split(':')
-        .next_back()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(18444);
-    let metrics_port = 9615 + p2p_port.saturating_sub(18444);
-
-    // FIXME: (Linus) This block is a DIRTY HACK to prevent double-bind panic.
-    // Ideally, we should NOT attempt to start metrics here at all.
-    // Only the 'run' command in main.rs should own the metrics server.
-    // (check by trying to bind - if it fails, it's already running)
-    let metrics_addr = format!("127.0.0.1:{}", metrics_port);
-    match std::net::TcpListener::bind(&metrics_addr) {
-        Ok(listener) => {
-            drop(listener); // Release the port
-            let _metrics_handle = metrics::start_metrics_server(metrics_port);
-            println!(
-                "📊 Metrics server started on http://{}/metrics",
-                metrics_addr
-            );
-        }
-        Err(_) => {
-            // Metrics server already running on this port, skip
-        }
-    }
+    // Start metrics server (clean implementation using helper)
+    start_metrics_service(listen);
 
     // Set initial block height metric
     metrics::update_block_height(height);
@@ -3234,7 +3286,7 @@ async fn p2p_server(
             if let Err(e) = peer_manager_for_save.save_address_book(&peers_path) {
                 log::warn!("Failed to save peers.json: {}", e);
             } else {
-                log::debug!("💾 Saved peer address book to peers.json");
+                log::debug!("Saved peer address book to peers.json");
             }
         }
     });
@@ -3247,15 +3299,15 @@ async fn p2p_server(
         .local_addr()
         .map_err(|e| Error::Invalid(format!("p2p local addr failed: {e}")))?;
 
-    println!("🌐 P2P Server started at {}", local_addr);
-    println!("📊 Current height: {}", height);
+    println!("P2P Server started at {}", local_addr);
+    println!("Current height: {}", height);
     println!("⏳ Waiting for peer connections...");
     println!();
 
     // Show tip info when we have storage
     if height > 0 {
-        println!("💡 Tip: Use 'mine' command to mine blocks");
-        println!("💡 New blocks will be broadcast to peers automatically");
+        println!("Tip: Use 'mine' command to mine blocks");
+        println!("New blocks will be broadcast to peers automatically");
         println!();
     }
 
@@ -3327,33 +3379,32 @@ async fn p2p_server(
                 let addr: std::net::SocketAddr = match peer_str.parse() {
                     Ok(a) => a,
                     Err(e) => {
-                        println!("  ⚠️  Invalid peer address '{}': {}", peer_str, e);
+                        println!(" Invalid peer address '{}': {}", peer_str, e);
                         continue;
                     }
                 };
 
-                print!("  Connecting to {}... ", peer_str);
+                print!(" Connecting to {}... ", peer_str);
 
                 // BORN BLOCKING: Create socket as BLOCKING in thread pool
-                let std_stream = match tokio::task::spawn_blocking(move || {
-                    std::net::TcpStream::connect(addr)
-                })
-                .await
-                {
-                    Ok(Ok(s)) => s,
-                    Ok(Err(e)) => {
-                        println!("❌ TCP connect failed: {}", e);
-                        continue;
-                    }
-                    Err(e) => {
-                        println!("❌ Join error: {}", e);
-                        continue;
-                    }
-                };
+                let std_stream =
+                    match tokio::task::spawn_blocking(move || std::net::TcpStream::connect(addr))
+                        .await
+                    {
+                        Ok(Ok(s)) => s,
+                        Ok(Err(e)) => {
+                            println!("TCP connect failed: {}", e);
+                            continue;
+                        }
+                        Err(e) => {
+                            println!("Join error: {}", e);
+                            continue;
+                        }
+                    };
 
                 // Set non-blocking explicitly before converting to Tokio
                 if let Err(e) = std_stream.set_nonblocking(true) {
-                    println!("❌ set_nonblocking failed: {}", e);
+                    println!("set_nonblocking failed: {}", e);
                     continue;
                 }
 
@@ -3361,7 +3412,7 @@ async fn p2p_server(
                 let tokio_stream = match TokioTcpStream::from_std(std_stream) {
                     Ok(s) => s,
                     Err(e) => {
-                        println!("❌ from_std failed: {}", e);
+                        println!("from_std failed: {}", e);
                         continue;
                     }
                 };
@@ -3383,15 +3434,18 @@ async fn p2p_server(
                     let peer_result = async {
                         // Perform async Noise handshake (initiator)
                         let (tokio_stream, transport, remote_public_key) =
-                            async_noise_handshake_initiator(tokio_stream, &noise_config).await
+                            async_noise_handshake_initiator(tokio_stream, &noise_config)
+                                .await
                                 .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
                         // Convert TokioTcpStream to std TcpStream for NoiseTransport compatibility
                         let std_stream = {
                             #[allow(unused_mut)]
-                            let mut stream = tokio_stream.into_std()
+                            let mut stream = tokio_stream
+                                .into_std()
                                 .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-                            stream.set_nonblocking(false)
+                            stream
+                                .set_nonblocking(false)
                                 .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
                             stream
                         };
@@ -3400,25 +3454,40 @@ async fn p2p_server(
                         let (version, user_agent, start_height, final_transport) =
                             tokio::task::spawn_blocking(move || {
                                 let noise_transport = NoiseTransport::from_parts(
-                                    std_stream, transport, remote_public_key
+                                    std_stream,
+                                    transport,
+                                    remote_public_key,
                                 );
-                                let mut peer = Peer::from_handshaked(addr, noise_transport, remote_public_key, magic);
+                                let mut peer = Peer::from_handshaked(
+                                    addr,
+                                    noise_transport,
+                                    remote_public_key,
+                                    magic,
+                                );
                                 peer.handshake_outbound(current_height)?;
 
-                                let version = peer.version.unwrap_or(bitquan_network::protocol::PROTOCOL_VERSION);
+                                let version = peer
+                                    .version
+                                    .unwrap_or(bitquan_network::protocol::PROTOCOL_VERSION);
                                 let user_agent = peer.user_agent.clone().unwrap_or_default();
                                 let start_height = peer.start_height.unwrap_or(0);
                                 let transport = peer.into_stream();
 
                                 Ok::<(u32, String, u64, NoiseTransport), P2pError>((
-                                    version, user_agent, start_height, transport,
+                                    version,
+                                    user_agent,
+                                    start_height,
+                                    transport,
                                 ))
-                            }).await
+                            })
+                            .await
                             .map_err(|e| P2pError::ConnectionError(e.to_string()))?
                             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
-                        println!("  ✅ Connected: {} (version: {}, height: {})",
-                                 addr, version, start_height);
+                        println!(
+                            " Connected: {} (version: {}, height: {})",
+                            addr, version, start_height
+                        );
 
                         // Create peer from the completed handshake with version info
                         let peer = Peer::from_handshaked_with_version(
@@ -3432,7 +3501,8 @@ async fn p2p_server(
                         );
 
                         std::result::Result::Ok::<Peer, P2pError>(peer)
-                    }.await;
+                    }
+                    .await;
 
                     match peer_result {
                         Ok(peer) => {
@@ -3449,15 +3519,15 @@ async fn p2p_server(
                             ));
 
                             // Run peer message loop
-                            println!("  🔄 Starting worker loop for {}...", addr);
+                            println!(" Starting worker loop for {}...", addr);
                             if let Err(e) = worker::run_peer_loop(peer, ctx).await {
-                                eprintln!("❌ Peer {} error: {}", addr, e);
+                                eprintln!("Peer {} error: {}", addr, e);
                             } else {
-                                eprintln!("🔌 Peer {} disconnected normally", addr);
+                                eprintln!("Peer {} disconnected normally", addr);
                             }
                         }
                         Err(e) => {
-                            eprintln!("  ❌ Handshake failed: {}", e);
+                            eprintln!(" Handshake failed: {}", e);
                         }
                     }
                 });
@@ -3466,7 +3536,7 @@ async fn p2p_server(
             }
 
             println!(
-                "\n📊 Bootstrap result: {} / {} peers connecting...",
+                "\nBootstrap result: {} / {} peers connecting...",
                 connected_count,
                 bootstrap_peers.len()
             );
@@ -3474,28 +3544,19 @@ async fn p2p_server(
         });
     }
 
-    // Accept connections loop - spawn worker task for each peer
-    // ASYNC: Convert std TcpListener to tokio TcpListener for async accept
-    use bitquan_network::peer::{async_noise_handshake_responder, Peer};
-    use tokio::net::TcpListener as TokioTcpListener;
+    // P2P Accept Loop - Async Noise Protocol handshake
+    use bitquan_network::{async_noise_handshake_responder, Peer};
 
-    // DIRTY FIX: Comment out P2P listener to test RPC generate
-    // let tokio_listener = TokioTcpListener::from_std(listener)
-    //     .map_err(|e| Error::Net(format!("failed to convert to tokio listener: {e}")))?;
+    let tokio_listener = tokio::net::TcpListener::from_std(listener)
+        .map_err(|e| Error::Net(format!("failed to convert to tokio listener: {e}")))?;
 
-    println!("🔄 P2P listener DISABLED (testing RPC only)");
+    println!("P2P Server accepting connections on {}", listen);
 
-    // Keep node running indefinitely
-    println!("🎯 Node running in RPC-only mode. Press Ctrl+C to stop.");
-    tokio::time::sleep(tokio::time::Duration::from_secs(u64::MAX)).await;
-    Ok(()) // Never reached, but needed for type signature
-
-    /*
+    // Main accept loop
     loop {
-        // ASYNC: Use tokio accept() which doesn't block the executor
         match tokio_listener.accept().await {
             Ok((tokio_stream, peer_addr)) => {
-                println!("📥 Incoming connection from {}", peer_addr);
+                println!("Incoming connection from {}", peer_addr);
 
                 // Clone shared state for this peer's task
                 let noise_config_clone = noise_config.clone();
@@ -3507,66 +3568,74 @@ async fn p2p_server(
                 let fork_choice_clone = fork_choice.clone();
                 let ban_manager_clone = ban_manager.clone();
                 let magic = bitquan_network::protocol::network_magic(network);
-                let current_height = height; // Height is a plain u64, can be copied directly
+                let current_height = height;
 
-                // Spawn async task for this peer - FULLY ASYNC HANDSHAKE
+                // Spawn async task for this peer
                 tokio::spawn(async move {
                     use bitquan_network::protocol::P2pError;
 
-                    println!("🔧 [DEBUG] Task spawned, starting async Noise handshake...");
-
-                    // ASYNC: Perform Noise Protocol handshake using tokio I/O
                     let peer_result = async {
-                        println!("🔧 [DEBUG] Inside async block, calling async_noise_handshake_responder...");
-
-                        // Perform async Noise handshake (returns TokioTcpStream now)
+                        // Perform async Noise handshake (responder side)
                         let (tokio_stream, transport, remote_public_key) =
-                            async_noise_handshake_responder(tokio_stream, &noise_config_clone).await
+                            async_noise_handshake_responder(tokio_stream, &noise_config_clone)
+                                .await
                                 .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
-                        // Convert TokioTcpStream to std TcpStream for NoiseTransport compatibility
-                        // Set socket back to blocking mode for sync version handshake
+                        // Convert to std TcpStream for NoiseTransport
                         let std_stream = {
-                            #[allow(unused_mut)]
-                            let mut stream = tokio_stream.into_std()
+                            let stream = tokio_stream
+                                .into_std()
                                 .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-                            // CRITICAL: Tokio sets it non-blocking, but sync I/O requires blocking mode
-                            stream.set_nonblocking(false)
+                            stream
+                                .set_nonblocking(false)
                                 .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
                             stream
                         };
 
-                        // Perform version handshake using sync I/O through NoiseTransport (encrypted)
-                        // Run in spawn_blocking to avoid blocking async runtime
-                        let (version, user_agent, start_height, final_transport) = tokio::task::spawn_blocking(move || {
-                            // Create NoiseTransport with encrypted channel
-                            let noise_transport = bitquan_network::noise::NoiseTransport::from_parts(
-                                std_stream, transport, remote_public_key
-                            );
+                        // Version handshake in blocking context
+                        let (version, user_agent, start_height, final_transport) =
+                            tokio::task::spawn_blocking(move || {
+                                let noise_transport =
+                                    bitquan_network::noise::NoiseTransport::from_parts(
+                                        std_stream,
+                                        transport,
+                                        remote_public_key,
+                                    );
 
-                            // Create a temporary Peer for version handshake
-                            let mut peer = Peer::from_handshaked(peer_addr, noise_transport, remote_public_key, magic);
-                            peer.handshake_inbound(current_height)?;
+                                let mut peer = Peer::from_handshaked(
+                                    peer_addr,
+                                    noise_transport,
+                                    remote_public_key,
+                                    magic,
+                                );
+                                peer.handshake_inbound(current_height)?;
 
-                            let version = peer.version.unwrap_or(bitquan_network::protocol::PROTOCOL_VERSION);
-                            let user_agent = peer.user_agent.clone().unwrap_or_default();
-                            let start_height = peer.start_height.unwrap_or(0);
-                            let transport = peer.into_stream();
+                                let version = peer
+                                    .version
+                                    .unwrap_or(bitquan_network::protocol::PROTOCOL_VERSION);
+                                let user_agent = peer.user_agent.clone().unwrap_or_default();
+                                let start_height = peer.start_height.unwrap_or(0);
+                                let transport = peer.into_stream();
 
-                            Ok::<(u32, String, u64, bitquan_network::noise::NoiseTransport), P2pError>((
-                                version,
-                                user_agent,
-                                start_height,
-                                transport,
-                            ))
-                        }).await
-                        .map_err(|e| P2pError::ConnectionError(e.to_string()))?
-                        .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+                                Ok::<
+                                    (u32, String, u64, bitquan_network::noise::NoiseTransport),
+                                    P2pError,
+                                >((
+                                    version,
+                                    user_agent,
+                                    start_height,
+                                    transport,
+                                ))
+                            })
+                            .await
+                            .map_err(|e| P2pError::ConnectionError(e.to_string()))?
+                            .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
-                        println!("✅ Async inbound peer connected: {} (version: {}, height: {})",
-                                 peer_addr, version, start_height);
+                        println!(
+                            "Inbound peer connected: {} (v{}, h:{})",
+                            peer_addr, version, start_height
+                        );
 
-                        // Create peer from the completed handshake with version info
                         let peer = Peer::from_handshaked_with_version(
                             peer_addr,
                             final_transport,
@@ -3578,13 +3647,11 @@ async fn p2p_server(
                         );
 
                         std::result::Result::Ok::<Peer, P2pError>(peer)
-                    }.await;
+                    }
+                    .await;
 
                     match peer_result {
                         Ok(peer) => {
-                            // Note: Connection info already printed inside async block
-
-                            // Create worker context
                             let ctx = Arc::new(worker::WorkerContext::new(
                                 peer_manager_clone,
                                 store_clone,
@@ -3596,26 +3663,23 @@ async fn p2p_server(
                                 GENESIS_HASH_BYTES,
                             ));
 
-                            // Run peer message loop (this is where the magic happens!)
-                            println!("  🔄 Starting worker loop for {}...", peer_addr);
                             if let Err(e) = worker::run_peer_loop(peer, ctx).await {
-                                eprintln!("❌ Peer {} error: {}", peer_addr, e);
+                                eprintln!("Peer {} error: {}", peer_addr, e);
                             } else {
-                                eprintln!("🔌 Peer {} disconnected normally", peer_addr);
+                                eprintln!("Peer {} disconnected", peer_addr);
                             }
                         }
                         Err(e) => {
-                            eprintln!("❌ Peer {} connection failed: {}", peer_addr, e);
+                            eprintln!("Peer {} handshake failed: {}", peer_addr, e);
                         }
                     }
                 });
             }
             Err(e) => {
-                eprintln!("❌ Accept error: {}", e);
+                eprintln!("Accept error: {}", e);
             }
         }
     }
-    */ // END DIRTY FIX: P2P listener disabled
 }
 
 /// Connect to a peer as a client
@@ -3634,7 +3698,7 @@ async fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> 
             .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?,
     );
     println!(
-        "🔐 P2P Encryption enabled (public key: {})",
+        "P2P Encryption enabled (public key: {})",
         noise_config.public_key_hex()
     );
 
@@ -3649,7 +3713,7 @@ async fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> 
     println!("⏳ Connecting...");
     match peer_manager.connect_peer(addr).await {
         Ok(()) => {
-            println!("✅ Connected and handshake complete!");
+            println!("Connected and handshake complete!");
             println!("Ready peers: {}", peer_manager.ready_peer_count().await);
 
             // Keep connection alive for a bit
@@ -3658,11 +3722,11 @@ async fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> 
                 println!("Connection alive... {}/5", i);
             }
 
-            println!("✅ Test complete");
+            println!("Test complete");
             Ok(())
         }
         Err(e) => {
-            eprintln!("❌ Connection failed: {}", e);
+            eprintln!("Connection failed: {}", e);
             Err(Error::Invalid(format!("connection failed: {e}")))
         }
     }
@@ -3700,7 +3764,7 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
     println!("Script: {}", hex::encode(&target_script));
     println!("\nScanning blockchain for UTXOs...");
 
-    let mut balance: u64 = 0;
+    let mut balance: u128 = 0;
     let mut utxo_count: u64 = 0;
 
     // Scan all blocks (simple implementation)
@@ -3717,7 +3781,7 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
                             .checked_add(1)
                             .ok_or(Error::Overflow("UTXO count overflow"))?;
                         println!(
-                            "  Block #{} TX {} vout={} amount={}",
+                            " Block #{} TX {} vout={} amount={}",
                             h,
                             hex::encode(tx.txid()),
                             vout,
@@ -3731,7 +3795,7 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
 
     println!("\nUTXO count: {}", utxo_count);
     println!("Balance: {} qbits", balance);
-    println!("Balance: {:.8} BQ", balance as f64 / 100_000_000.0);
+    println!("Balance: {} BQ", format_bq(balance));
 
     Ok(())
 }
@@ -3742,10 +3806,10 @@ async fn submit_transaction_rpc(tx_hex: &str) -> Result<String> {
 
     let rpc_url = "http://127.0.0.1:29443";
     let payload = json!({
-        "jsonrpc": "2.0",
-        "method": "submittransaction",
-        "params": [tx_hex],
-        "id": 1
+      "jsonrpc": "2.0",
+      "method": "submittransaction",
+      "params": [tx_hex],
+      "id": 1
     });
 
     let client = reqwest::Client::new();
@@ -3805,16 +3869,16 @@ fn generate_self_signed_cert_cli(output_dir: &str) -> Result<()> {
         Error::Invalid(format!("failed to generate self-signed certificate: {err}"))
     })?;
 
-    println!("✅ Generated self-signed certificate:");
-    println!("   cert: {}/cert.pem", path.display());
-    println!("   key:  {}/key.pem", path.display());
+    println!("Generated self-signed certificate:");
+    println!("  cert: {}/cert.pem", path.display());
+    println!("  key: {}/key.pem", path.display());
     println!();
     println!(
-        "⚠️  Development only. For production, obtain a trusted certificate (e.g. Let's Encrypt)."
+        "Development only. For production, obtain a trusted certificate (e.g. Let's Encrypt)."
     );
     println!();
     println!("To start the node with TLS:");
-    println!("  bitquan-node p2p-server \\\n    --rpc-listen 127.0.0.1:8332 \\\n    --rpc-username admin \\\n    --rpc-password <YOUR_PASSWORD> \\\n    --rpc-tls-cert {}/cert.pem \\\n    --rpc-tls-key {}/key.pem", path.display(), path.display()); // Safe: example placeholder
+    println!(" bitquan-node p2p-server \\\n  --rpc-listen 127.0.0.1:8332 \\\n  --rpc-username admin \\\n  --rpc-password <YOUR_PASSWORD> \\\n  --rpc-tls-cert {}/cert.pem \\\n  --rpc-tls-key {}/key.pem", path.display(), path.display()); // Safe: example placeholder
 
     Ok(())
 }
@@ -3922,7 +3986,7 @@ fn jwt_user_add(
         .map_err(|e| Error::Invalid(format!("Failed to save config: {}", e)))?;
 
     println!(
-        "✅ User '{}' added successfully with role '{}'",
+        "User '{}' added successfully with role '{}'",
         username, role
     );
     println!("📄 Config saved to: {}", config_path);
@@ -3957,7 +4021,7 @@ fn jwt_user_remove(config_path: &str, username: &str) -> Result<()> {
         .save_to_file(config_path)
         .map_err(|e| Error::Invalid(format!("Failed to save config: {}", e)))?;
 
-    println!("✅ User '{}' removed successfully", username);
+    println!("User '{}' removed successfully", username);
     println!("📄 Config saved to: {}", config_path);
 
     Ok(())
@@ -3994,17 +4058,17 @@ fn verify_database(
         .map_err(|e| Error::Invalid(format!("failed to open RocksDB with options: {e}")))?;
 
     println!();
-    println!("📊 Database Statistics:");
+    println!("Database Statistics:");
     let stats = store
         .get_stats()
         .map_err(|e| Error::Invalid(format!("storage stats error: {e}")))?;
-    println!("  Chain height: {}", stats.height);
-    println!("  Total blocks: {}", stats.num_blocks);
-    println!("  Transactions: {}", stats.num_transactions);
-    println!("  UTXOs: {}", stats.num_utxos);
+    println!(" Chain height: {}", stats.height);
+    println!(" Total blocks: {}", stats.num_blocks);
+    println!(" Transactions: {}", stats.num_transactions);
+    println!(" UTXOs: {}", stats.num_utxos);
 
     println!();
-    println!("✅ Database verification complete!");
+    println!("Database verification complete!");
 
     Ok(())
 }
@@ -4056,25 +4120,25 @@ fn wallet_gen_mnemonic(
 
     // Show mnemonic to user
     if show_mnemonic {
-        eprintln!("\n⚠️  SECURITY WARNING: Mnemonic phrase will be displayed!");
-        eprintln!("   - Do NOT log terminal output");
-        eprintln!("   - Do NOT screenshot this");
-        eprintln!("   - Ensure nobody is watching your screen\n");
+        eprintln!("\nSECURITY WARNING: Mnemonic phrase will be displayed!");
+        eprintln!("  - Do NOT log terminal output");
+        eprintln!("  - Do NOT screenshot this");
+        eprintln!("  - Ensure nobody is watching your screen\n");
 
         println!("\n🔑 Your BIP39 Mnemonic Phrase:");
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         println!("{}", mnemonic_phrase);
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("\n⚠️  CRITICAL SECURITY:");
-        println!("   - Write down these words in order on paper");
-        println!("   - Store them in a safe place (NOT digitally)");
-        println!("   - Never share them with anyone");
-        println!("   - Never enter them on websites or apps");
-        println!("   - You need these words to recover your wallet");
+        println!("\nCRITICAL SECURITY:");
+        println!("  - Write down these words in order on paper");
+        println!("  - Store them in a safe place (NOT digitally)");
+        println!("  - Never share them with anyone");
+        println!("  - Never enter them on websites or apps");
+        println!("  - You need these words to recover your wallet");
         println!();
     } else {
-        println!("✅ Mnemonic generated (hidden for security)");
-        println!("   Use --show-mnemonic flag to display (NOT recommended in production)");
+        println!("Mnemonic generated (hidden for security)");
+        println!("  Use --show-mnemonic flag to display (NOT recommended in production)");
     }
 
     // Derive keypair
@@ -4102,11 +4166,11 @@ fn wallet_gen_mnemonic(
     keystore::save_keystore(&keystore_file, Path::new(output_file))
         .map_err(|e| Error::Invalid(format!("keystore save failed: {e}")))?;
 
-    println!("\n✅ Wallet created successfully!");
+    println!("\nWallet created successfully!");
     println!("📄 Keystore saved to: {}", output_file);
-    println!("🔐 Address: {}", serializable.address);
-    println!("\n💡 To recover this wallet later, use:");
-    println!("   bitquan-node wallet-from-mnemonic");
+    println!("Address: {}", serializable.address);
+    println!("\nTo recover this wallet later, use:");
+    println!("  bitquan-node wallet-from-mnemonic");
     Ok(())
 }
 
@@ -4139,7 +4203,7 @@ fn wallet_from_mnemonic(
     // Validate and parse mnemonic
     let helper = MnemonicHelper::from_phrase(&mnemonic_phrase, passphrase)?;
 
-    println!("✅ Mnemonic validated successfully!");
+    println!("Mnemonic validated successfully!");
 
     // Derive keypair
     let keypair = helper.to_keypair()?;
@@ -4166,9 +4230,9 @@ fn wallet_from_mnemonic(
     keystore::save_keystore(&keystore_file, Path::new(output_file))
         .map_err(|e| Error::Invalid(format!("keystore save failed: {e}")))?;
 
-    println!("\n✅ Wallet recovered successfully!");
+    println!("\nWallet recovered successfully!");
     println!("📄 Keystore saved to: {}", output_file);
-    println!("🔐 Address: {}", serializable.address);
+    println!("Address: {}", serializable.address);
 
     Ok(())
 }
@@ -4188,7 +4252,7 @@ fn wallet_gen_multisig(
     }
 
     println!(
-        "\n🔐 Creating {}-of-{} Multi-signature Wallet",
+        "\nCreating {}-of-{} Multi-signature Wallet",
         threshold,
         keystores.len()
     );
@@ -4198,7 +4262,7 @@ fn wallet_gen_multisig(
     let mut public_keys = Vec::new();
     for (i, keystore_path) in keystores.iter().enumerate() {
         println!(
-            "📂 Loading keystore {} of {}: {}",
+            "Loading keystore {} of {}: {}",
             i + 1,
             keystores.len(),
             keystore_path
@@ -4235,17 +4299,17 @@ fn wallet_gen_multisig(
     let config_json = serde_json::to_string_pretty(&config)?;
     std::fs::write(output, config_json)?;
 
-    println!("\n✅ Multi-signature wallet created successfully!");
+    println!("\nMulti-signature wallet created successfully!");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("📋 Configuration:");
-    println!("   Type: {}", config.config_type());
-    println!("   Address: {}", address);
-    println!("   Config saved to: {}", output);
+    println!("  Type: {}", config.config_type());
+    println!("  Address: {}", address);
+    println!("  Config saved to: {}", output);
     println!("\n👥 Signers: {}", config.total_signers);
-    println!("\n💡 Next steps:");
-    println!("   1. Share this address with all signers");
-    println!("   2. Distribute the config file: {}", output);
-    println!("   3. Use 'tx-sign-partial' to sign transactions");
+    println!("\nNext steps:");
+    println!("  1. Share this address with all signers");
+    println!("  2. Distribute the config file: {}", output);
+    println!("  3. Use 'tx-sign-partial' to sign transactions");
 
     Ok(())
 }
@@ -4263,16 +4327,16 @@ fn multisig_info(config_path: &str) -> Result<()> {
 
     println!("\n📋 Multi-signature Wallet Information");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("Address:   {}", address);
-    println!("Type:      {}", config.config_type());
+    println!("Address:  {}", address);
+    println!("Type:   {}", config.config_type());
     println!(
-        "Created:   {}",
+        "Created:  {}",
         chrono::DateTime::from_timestamp(config.created_at as i64, 0)
             .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
             .unwrap_or_else(|| "Unknown".to_string())
     );
     if let Some(label) = &config.label {
-        println!("Label:     {}", label);
+        println!("Label:   {}", label);
     }
     println!("\n👥 Signers: {}", config.total_signers);
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -4282,7 +4346,7 @@ fn multisig_info(config_path: &str) -> Result<()> {
         } else {
             pk.clone()
         };
-        println!("   {}. {}", i + 1, pk_preview);
+        println!("  {}. {}", i + 1, pk_preview);
     }
     println!("━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
@@ -4299,10 +4363,10 @@ fn tx_sign_partial(
 ) -> Result<()> {
     // Transaction signing implementation pending final format
     println!("📝 Transaction signing uses the multisig module:");
-    println!("   - Use MultiSigManager for multi-signature transactions");
-    println!("   - Transaction format is stable and ready for use");
-    println!("\n💡 Example: See multisig module documentation for usage");
-    println!("   use wallet::multisig::{{MultisigWallet, PendingMultisigTx}};");
+    println!("  - Use MultiSigManager for multi-signature transactions");
+    println!("  - Transaction format is stable and ready for use");
+    println!("\nExample: See multisig module documentation for usage");
+    println!("  use wallet::multisig::{{MultisigWallet, PendingMultisigTx}};");
 
     invalid("Feature coming soon: partial transaction signing")
 }
@@ -4316,11 +4380,11 @@ fn tx_combine_signatures(
 ) -> Result<()> {
     // Signature combination using multisig module
     println!("🔗 Signature combination uses the multisig module:");
-    println!("   - MultiSigManager handles signature collection");
-    println!("   - Transaction format supports partial signatures");
-    println!("   - See multisig documentation for implementation");
-    println!("\n💡 For now, use the multisig module directly in your code:");
-    println!("   use wallet::multisig::{{MultisigWallet, FinalizedMultisigTx}};");
+    println!("  - MultiSigManager handles signature collection");
+    println!("  - Transaction format supports partial signatures");
+    println!("  - See multisig documentation for implementation");
+    println!("\nFor now, use the multisig module directly in your code:");
+    println!("  use wallet::multisig::{{MultisigWallet, FinalizedMultisigTx}};");
 
     invalid("Feature coming soon: signature combination")
 }
@@ -4373,14 +4437,14 @@ fn wallet_backup(
         .save(output_path)
         .map_err(|e| Error::Invalid(format!("Failed to save backup {}: {e}", output_path)))?;
 
-    println!("✅ Backup created successfully: {}", output_path);
-    println!("   Version: {}", backup.version);
-    println!("   Network: {:?}", backup.network);
-    println!("   Timestamp: {}", backup.timestamp);
+    println!("Backup created successfully: {}", output_path);
+    println!("  Version: {}", backup.version);
+    println!("  Network: {:?}", backup.network);
+    println!("  Timestamp: {}", backup.timestamp);
     if let Some(lbl) = backup.label {
-        println!("   Label: {}", lbl);
+        println!("  Label: {}", lbl);
     }
-    println!("\n⚠️  IMPORTANT: Store backup password separately and securely!");
+    println!("\nIMPORTANT: Store backup password separately and securely!");
 
     Ok(())
 }
@@ -4400,11 +4464,11 @@ fn wallet_restore(
         .map_err(|e| Error::Invalid(format!("Failed to load backup {}: {e}", backup_path)))?;
 
     println!("Backup information:");
-    println!("   Version: {}", backup.version);
-    println!("   Network: {:?}", backup.network);
-    println!("   Timestamp: {}", backup.timestamp);
+    println!("  Version: {}", backup.version);
+    println!("  Network: {:?}", backup.network);
+    println!("  Timestamp: {}", backup.timestamp);
     if let Some(ref label) = backup.label {
-        println!("   Label: {}", label);
+        println!("  Label: {}", label);
     }
 
     // Get backup password
@@ -4425,7 +4489,7 @@ fn wallet_restore(
 
     // Check if output exists
     if std::path::Path::new(output_path).exists() {
-        print!("⚠️  Output file exists. Overwrite? (y/N): ");
+        print!("Output file exists. Overwrite? (y/N): ");
         std::io::stdout().flush()?;
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -4438,8 +4502,8 @@ fn wallet_restore(
     fs::write(output_path, keystore_data)
         .map_err(|e| Error::Invalid(format!("Failed to write keystore {}: {e}", output_path)))?;
 
-    println!("✅ Wallet restored successfully: {}", output_path);
-    println!("\n⚠️  Remember to use your original wallet password to access this keystore.");
+    println!("Wallet restored successfully: {}", output_path);
+    println!("\nRemember to use your original wallet password to access this keystore.");
 
     Ok(())
 }
@@ -4466,12 +4530,12 @@ fn install_panic_hook() {
             eprintln!("Message: {}", msg);
         }
 
-        eprintln!("\n🔧 Please report this issue:");
-        eprintln!("   https://github.com/your-org/bitquan/issues");
-        eprintln!("\n💡 Include:");
-        eprintln!("   - This error message");
-        eprintln!("   - Steps to reproduce");
-        eprintln!("   - Your configuration (without secrets)");
+        eprintln!("\nPlease report this issue:");
+        eprintln!("  https://github.com/your-org/bitquan/issues");
+        eprintln!("\nInclude:");
+        eprintln!("  - This error message");
+        eprintln!("  - Steps to reproduce");
+        eprintln!("  - Your configuration (without secrets)");
         eprintln!("════════════════════════════════════════════════════════════\n");
     }));
 }
@@ -4496,9 +4560,9 @@ fn run_stratum_server(
     };
 
     println!("Starting BitQuan Stratum Mining Server");
-    println!("  Bind address: {}", bind_addr);
-    println!("  Network: {:?}", network);
-    println!("  Default difficulty: {}", default_difficulty);
+    println!(" Bind address: {}", bind_addr);
+    println!(" Network: {:?}", network);
+    println!(" Default difficulty: {}", default_difficulty);
     println!();
 
     // Create runtime for async server
@@ -4566,35 +4630,35 @@ fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
     if let Some(params) = genesis["consensus_params"].as_object() {
         println!("\n📋 Consensus Parameters:");
         println!(
-            "   Target block time: {}s",
+            "  Target block time: {}s",
             params
                 .get("target_block_time")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0)
         );
         println!(
-            "   Max block size: {} bytes",
+            "  Max block size: {} bytes",
             params
                 .get("max_block_size")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0)
         );
         println!(
-            "   Coinbase maturity: {} blocks",
+            "  Coinbase maturity: {} blocks",
             params
                 .get("coinbase_maturity")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0)
         );
         println!(
-            "   Initial subsidy: {} satoshis",
+            "  Initial subsidy: {} satoshis",
             params
                 .get("initial_subsidy")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0)
         );
         println!(
-            "   PoW algorithm: {}",
+            "  PoW algorithm: {}",
             params
                 .get("pow_algo")
                 .and_then(|v| v.as_str())
@@ -4604,14 +4668,14 @@ fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
 
     // Extract DNS seeds
     if let Some(seeds) = genesis["dns_seeds"].as_array() {
-        println!("\n🌐 DNS Seeds:");
+        println!("\nDNS Seeds:");
         for seed in seeds.iter().take(10) {
             if let Some(s) = seed.as_str() {
-                println!("   {}", s);
+                println!("  {}", s);
             }
         }
         if seeds.len() > 10 {
-            println!("   ... and {} more", seeds.len() - 10);
+            println!("  ... and {} more", seeds.len() - 10);
         }
     }
 
@@ -4620,26 +4684,26 @@ fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
         println!("\n🔗 Bootstrap Peers:");
         for peer in peers.iter().take(10) {
             if let Some(p) = peer.as_str() {
-                println!("   {}", p);
+                println!("  {}", p);
             }
         }
         if peers.len() > 10 {
-            println!("   ... and {} more", peers.len() - 10);
+            println!("  ... and {} more", peers.len() - 10);
         }
     }
 
     // Extract PQC signature info
     if let Some(pqc) = genesis["pqc_signature"].as_object() {
-        println!("\n🔐 PQC Signature:");
+        println!("\nPQC Signature:");
         println!(
-            "   Algorithm: {}",
+            "  Algorithm: {}",
             pqc.get("algorithm")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown")
         );
         if let Some(pubkey) = pqc.get("public_key").and_then(|v| v.as_str()) {
             println!(
-                "   Public key: {}...",
+                "  Public key: {}...",
                 &pubkey[..std::cmp::min(40, pubkey.len())]
             );
         }
@@ -4653,18 +4717,18 @@ fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
                 if let Some(cp) = checkpoint.as_object() {
                     let height = cp.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
                     let hash = cp.get("hash").and_then(|v| v.as_str()).unwrap_or("unknown");
-                    println!("   Height {}: {}", height, hash);
+                    println!("  Height {}: {}", height, hash);
                 }
             }
             if checkpoints.len() > 5 {
-                println!("   ... and {} more", checkpoints.len() - 5);
+                println!("  ... and {} more", checkpoints.len() - 5);
             }
         }
     }
 
-    println!("\n✅ Genesis verification complete!");
-    println!("\n💡 Expected genesis hash for {} network:", network);
-    println!("   {}", genesis_hash);
+    println!("\nGenesis verification complete!");
+    println!("\nExpected genesis hash for {} network:", network);
+    println!("  {}", genesis_hash);
 
     Ok(())
 }

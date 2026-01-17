@@ -77,7 +77,7 @@ pub struct TxInfo {
     /// Outputs count
     pub vout_count: usize,
     /// Total output value
-    pub value_out: u64,
+    pub value_out: u128,
 }
 
 /// Pool statistics
@@ -233,7 +233,11 @@ pub trait RpcMethods: Send + Sync {
     /// # Arguments
     /// * `n_blocks` - Number of blocks to mine
     /// * `address` - Optional address for coinbase output (uses default if None)
-    async fn generate(&self, n_blocks: u64, address: Option<String>) -> Result<Vec<String>, RpcError>;
+    async fn generate(
+        &self,
+        n_blocks: u64,
+        address: Option<String>,
+    ) -> Result<Vec<String>, RpcError>;
 }
 
 /// Dispatch RPC call to appropriate method
@@ -516,25 +520,29 @@ pub async fn dispatch_call<T: RpcMethods>(
         "generate" => {
             // Parse params: [n_blocks, address?] or [n_blocks]
             let n_blocks = match params.as_array() {
-                Some(arr) if !arr.is_empty() => {
-                    match arr[0].as_u64() {
-                        Some(n) => n,
-                        None => return JsonRpcResponse::error(
+                Some(arr) if !arr.is_empty() => match arr[0].as_u64() {
+                    Some(n) => n,
+                    None => {
+                        return JsonRpcResponse::error(
                             id,
                             error_codes::INVALID_PARAMS,
                             "n_blocks must be a number".to_string(),
-                        ),
+                        )
                     }
+                },
+                _ => {
+                    return JsonRpcResponse::error(
+                        id,
+                        error_codes::INVALID_PARAMS,
+                        "generate requires at least n_blocks parameter".to_string(),
+                    )
                 }
-                _ => return JsonRpcResponse::error(
-                    id,
-                    error_codes::INVALID_PARAMS,
-                    "generate requires at least n_blocks parameter".to_string(),
-                ),
             };
 
             let address = match params.as_array() {
-                Some(arr) if arr.len() > 1 => arr.get(1).and_then(|v| v.as_str()).map(|s| s.to_string()),
+                Some(arr) if arr.len() > 1 => {
+                    arr.get(1).and_then(|v| v.as_str()).map(|s| s.to_string())
+                }
                 _ => None,
             };
 
