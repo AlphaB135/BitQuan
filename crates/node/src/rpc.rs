@@ -312,6 +312,7 @@ impl RpcMethods for NodeRpcHandler {
     ) -> Result<Vec<String>, RpcError> {
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
         use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
+        use std::path::Path;
 
         let mut generated_hashes = Vec::new();
 
