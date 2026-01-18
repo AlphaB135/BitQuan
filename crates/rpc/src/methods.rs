@@ -238,6 +238,30 @@ pub trait RpcMethods: Send + Sync {
         n_blocks: u64,
         address: Option<String>,
     ) -> Result<Vec<String>, RpcError>;
+
+    /// Mine blocks to a specific address (for testing/regtest)
+    ///
+    /// # Arguments
+    /// * `n_blocks` - Number of blocks to mine
+    /// * `address` - Address for coinbase output
+    async fn generatetoaddress(
+        &self,
+        n_blocks: u64,
+        address: String,
+    ) -> Result<Vec<String>, RpcError>;
+
+    /// Send to an address (wallet operation)
+    ///
+    /// # Arguments
+    /// * `address` - Recipient address
+    /// * `amount` - Amount to send in satoshis
+    /// * `comment` - Optional comment
+    async fn sendtoaddress(
+        &self,
+        address: String,
+        amount: u64,
+        comment: Option<String>,
+    ) -> Result<String, RpcError>;
 }
 
 /// Dispatch RPC call to appropriate method
@@ -548,6 +572,90 @@ pub async fn dispatch_call<T: RpcMethods>(
 
             match handler.generate(n_blocks, address).await {
                 Ok(block_hashes) => JsonRpcResponse::success(id, serde_json::json!(block_hashes)),
+                Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+            }
+        }
+
+        "generatetoaddress" => {
+            // Parse params: [n_blocks, address]
+            let arr = match params.as_array() {
+                Some(a) if !a.is_empty() => a,
+                _ => {
+                    return JsonRpcResponse::error(
+                        id,
+                        error_codes::INVALID_PARAMS,
+                        "generatetoaddress requires [n_blocks, address] parameters".to_string(),
+                    )
+                }
+            };
+
+            let n_blocks = match arr.first().and_then(|v| v.as_u64()) {
+                Some(n) => n,
+                None => {
+                    return JsonRpcResponse::error(
+                        id,
+                        error_codes::INVALID_PARAMS,
+                        "n_blocks must be a number".to_string(),
+                    )
+                }
+            };
+
+            let address = match arr.get(1).and_then(|v| v.as_str()) {
+                Some(addr) => addr.to_string(),
+                None => {
+                    return JsonRpcResponse::error(
+                        id,
+                        error_codes::INVALID_PARAMS,
+                        "address parameter is required".to_string(),
+                    )
+                }
+            };
+
+            match handler.generatetoaddress(n_blocks, address).await {
+                Ok(block_hashes) => JsonRpcResponse::success(id, serde_json::json!(block_hashes)),
+                Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
+            }
+        }
+
+        "sendtoaddress" => {
+            // Parse params: [address, amount, comment?]
+            let arr = match params.as_array() {
+                Some(a) if a.len() >= 2 => a,
+                _ => {
+                    return JsonRpcResponse::error(
+                        id,
+                        error_codes::INVALID_PARAMS,
+                        "sendtoaddress requires [address, amount] parameters".to_string(),
+                    )
+                }
+            };
+
+            let address = match arr.first().and_then(|v| v.as_str()) {
+                Some(addr) => addr.to_string(),
+                None => {
+                    return JsonRpcResponse::error(
+                        id,
+                        error_codes::INVALID_PARAMS,
+                        "address parameter is required".to_string(),
+                    )
+                }
+            };
+
+            let amount = match arr.get(1).and_then(|v| v.as_u64()) {
+                Some(amt) => amt,
+                None => {
+                    return JsonRpcResponse::error(
+                        id,
+                        error_codes::INVALID_PARAMS,
+                        "amount parameter is required (u64)".to_string(),
+                    )
+                }
+            };
+
+            let comment = arr.get(2).and_then(|v| v.as_str()).map(|s| s.to_string());
+
+            match handler.sendtoaddress(address, amount, comment).await {
+                Ok(txid) => JsonRpcResponse::success(id, serde_json::json!(txid)),
                 Err(e) => JsonRpcResponse::error(id, error_codes::INTERNAL_ERROR, e.to_string()),
             }
         }

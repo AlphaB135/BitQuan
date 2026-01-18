@@ -73,9 +73,11 @@ lazy_static! {
 }
 
 /// Global OnceLock to track running metrics servers per port
+#[allow(dead_code)]
 static METRICS_SERVERS: OnceLock<std::sync::Mutex<std::collections::HashMap<u16, bool>>> =
     OnceLock::new();
 
+#[allow(dead_code)]
 pub fn start_metrics_server(port: u16) -> Result<tokio::task::JoinHandle<()>, String> {
     // Get or initialize the servers map
     let servers =

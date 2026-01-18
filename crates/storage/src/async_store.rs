@@ -44,7 +44,7 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncStoreWrapper<T> {
     }
 
     /// Get the current height of the chain
-    async fn calculate_height(&self) -> AsyncResult<u64> {
+    async fn calculate_height(&self) -> std::result::Result<u64, AsyncStoreError> {
         let store = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
@@ -52,8 +52,7 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncStoreWrapper<T> {
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("height calculation"))?;
 
-            // For InMemoryChainStore, try to use height method if available
-            // For other stores, approximate by counting blocks
+            // Count blocks by height index
             let mut height = 0u64;
             loop {
                 match guard.get_block_by_height(height) {
