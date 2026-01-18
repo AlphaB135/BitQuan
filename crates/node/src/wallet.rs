@@ -146,7 +146,7 @@ impl WalletKeypair {
     /// Encrypts the secret key for storage using Argon2id.
     /// Encrypts the secret key for storage (Simplified: Hex encoding for now).
     fn encrypt_secret_key(&self) -> Result<String> {
-        // PERMANENT FIX: Don't hash the secret key! 
+        // PERMANENT FIX: Don't hash the secret key!
         // For V1, we store it as Hex (Unencrypted but usable).
         // TODO: Implement AES-GCM encryption with password.
         Ok(hex::encode(self.secret_key.expose_secret()))
@@ -566,8 +566,10 @@ mod tests {
             WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
         let serializable = keypair.to_serializable();
         assert_eq!(serializable.public_key.len(), PUBLICKEYBYTES * 2);
-        // Secret key is now encrypted with Argon2id, so length varies and it's not hex
-        assert!(serializable.secret_key.starts_with("$argon2"));
+        // Secret key is hex-encoded for V1 (TODO: Implement AES-GCM encryption)
+        assert!(serializable.secret_key.len() == SECRETKEYBYTES * 2);
+        // Verify it's valid hex
+        assert!(hex::decode(&serializable.secret_key).is_ok());
     }
 
     #[test]

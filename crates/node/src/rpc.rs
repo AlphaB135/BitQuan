@@ -7,6 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use bitquan_consensus::header_hash;
+use bitquan_mempool::Mempool;
 use bitquan_network::async_sync::AsyncSyncManager;
 use bitquan_rpc::{
     methods::{
@@ -19,12 +20,19 @@ use bitquan_rpc::{
 use bitquan_storage::{async_store::AsyncChainStore, StorageError};
 use bitquan_types::{Transaction, GENESIS_BITS};
 use hex::FromHex;
+use tokio::sync::Mutex;
+
+// Import address utilities for generatetoaddress
+use crate::address::{decode_bech32m, script_from_pubkey_hash};
+use crate::tx_builder::TransactionBuilder;
+use crate::wallet::WalletKeypair;
 
 /// Node RPC handler backed by an async chain store.
 pub struct NodeRpcHandler {
     store: Arc<dyn AsyncChainStore>,
     chain_name: String,
     sync_manager: Option<Arc<AsyncSyncManager>>,
+    mempool: Option<Arc<Mutex<Mempool>>>,
 }
 
 impl NodeRpcHandler {
@@ -34,19 +42,22 @@ impl NodeRpcHandler {
             store,
             chain_name: chain_name.into(),
             sync_manager: None,
+            mempool: None,
         }
     }
 
-    /// Create a new RPC handler with sync manager.
-    pub fn with_sync_manager(
+    /// Create a new RPC handler with sync manager and mempool.
+    pub fn with_components(
         store: Arc<dyn AsyncChainStore>,
         chain_name: impl Into<String>,
         sync_manager: Arc<AsyncSyncManager>,
+        mempool: Option<Arc<Mutex<Mempool>>>,
     ) -> Self {
         Self {
             store,
             chain_name: chain_name.into(),
             sync_manager: Some(sync_manager),
+            mempool,
         }
     }
 
@@ -72,10 +83,12 @@ impl NodeRpcHandler {
 #[async_trait]
 impl RpcMethods for NodeRpcHandler {
     async fn getblockcount(&self) -> Result<u64, RpcError> {
-        self.store
+        let height = self
+            .store
             .height()
             .await
-            .map_err(Self::storage_error_to_rpc)
+            .map_err(Self::storage_error_to_rpc)?;
+        Ok(height)
     }
 
     async fn getblockchaininfo(&self) -> Result<BlockchainInfo, RpcError> {
@@ -312,7 +325,6 @@ impl RpcMethods for NodeRpcHandler {
     ) -> Result<Vec<String>, RpcError> {
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
         use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
-        use std::path::Path;
 
         let mut generated_hashes = Vec::new();
 
@@ -326,7 +338,7 @@ impl RpcMethods for NodeRpcHandler {
 
         // For regtest/devnet, use very easy difficulty
         let bits = if self.chain_name == "regtest" || self.chain_name == "devnet" {
-            0x2200ffff // Ultra-easy target for CPU mining (65536x easier than mainnet)
+            0x207fffff // Ultra-easy target (16 million x easier than mainnet)
         } else {
             tip.as_ref()
                 .map(|h| h.bits)
@@ -351,7 +363,7 @@ impl RpcMethods for NodeRpcHandler {
             }
         };
 
-        let prev_hash = bitquan_consensus::header_hash(&prev_block);
+        let mut prev_hash = bitquan_consensus::header_hash(&prev_block);
 
         // Mine n_blocks
         for i in 0..n_blocks {
@@ -392,7 +404,12 @@ impl RpcMethods for NodeRpcHandler {
 
             // Mine the block using simple SHA256d PoW
             let engine = Sha256dEngine;
-            let max_nonce = 1_000_000; // Reasonable limit for CPU mining
+            // Use higher limit for regtest/devnet (easy difficulty still needs many attempts)
+            let max_nonce = if self.chain_name == "regtest" || self.chain_name == "devnet" {
+                100_000_000 // 100M attempts for testing
+            } else {
+                1_000_000 // 1M for production
+            };
 
             let mut found = false;
             for nonce in 0..max_nonce {
@@ -426,9 +443,274 @@ impl RpcMethods for NodeRpcHandler {
 
             let block_hash = bitquan_consensus::header_hash(&header);
             generated_hashes.push(hex::encode(block_hash));
+
+            // Update prev_hash for next block
+            prev_hash = block_hash;
         }
 
         Ok(generated_hashes)
+    }
+
+    async fn generatetoaddress(
+        &self,
+        n_blocks: u64,
+        address: String,
+    ) -> Result<Vec<String>, RpcError> {
+        use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
+        use bitquan_types::{Block, BlockHeader, SigAlgorithm, TxOut};
+
+        // Parse address and extract pubkey hash
+        let pubkey_hash = decode_bech32m(&address)
+            .map_err(|e| RpcError::InvalidParams(format!("Invalid address: {}", e)))?;
+
+        // Create script_pubkey from address
+        let script_pubkey = script_from_pubkey_hash(&pubkey_hash);
+
+        let mut generated_hashes = Vec::new();
+
+        // Get current chain state
+        let _height = self
+            .store
+            .height()
+            .await
+            .map_err(Self::storage_error_to_rpc)?;
+        let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
+
+        // For regtest/devnet, use very easy difficulty
+        let bits = if self.chain_name == "regtest" || self.chain_name == "devnet" {
+            0x207fffff // Ultra-easy target (16 million x easier than mainnet)
+        } else {
+            tip.as_ref()
+                .map(|h| h.bits)
+                .unwrap_or(bitquan_types::GENESIS_BITS)
+        };
+
+        // Get previous block hash
+        let prev_block = match tip {
+            Some(header) => header,
+            None => {
+                // Use genesis block header if no tip
+                bitquan_types::BlockHeader {
+                    version: bitquan_types::GENESIS_VERSION,
+                    prev_block: [0u8; 32],
+                    merkle_root: bitquan_types::GENESIS_HASH_BYTES,
+                    pqc_agg_hint: [0u8; 32],
+                    time: bitquan_types::GENESIS_TIME,
+                    bits: bitquan_types::GENESIS_BITS,
+                    nonce: bitquan_types::GENESIS_NONCE,
+                    algo_id: 0,
+                }
+            }
+        };
+
+        let mut prev_hash = bitquan_consensus::header_hash(&prev_block);
+
+        // Mine n_blocks
+        for i in 0..n_blocks {
+            // Create coinbase transaction with specified address
+            let coinbase_tx = Transaction {
+                version: 1,
+                network: bitquan_types::NetworkId::Regtest,
+                genesis_hash: bitquan_types::GENESIS_HASH_BYTES,
+                lock_time: 0,
+                inputs: vec![],
+                outputs: vec![TxOut {
+                    value: bitquan_types::GENESIS_REWARD, // 50 BQ in qbits
+                    script_pubkey: script_pubkey.clone(), // Use address script
+                }],
+                sig_algo: SigAlgorithm::Dilithium5,
+                witnesses: vec![],
+            };
+
+            // Calculate merkle root (just coinbase txid for now)
+            let txid = coinbase_tx.txid();
+            let mut merkle_root = [0u8; 32];
+            merkle_root.copy_from_slice(&txid);
+
+            // Create block header template
+            let mut header = BlockHeader {
+                version: bitquan_types::GENESIS_VERSION,
+                prev_block: prev_hash,
+                merkle_root,
+                pqc_agg_hint: [0u8; 32],
+                time: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as u32,
+                bits,
+                nonce: 0,
+                algo_id: 0, // SHA256d
+            };
+
+            // Mine the block using simple SHA256d PoW
+            let engine = Sha256dEngine;
+            // Use higher limit for regtest/devnet (easy difficulty still needs many attempts)
+            let max_nonce = if self.chain_name == "regtest" || self.chain_name == "devnet" {
+                100_000_000 // 100M attempts for testing
+            } else {
+                1_000_000 // 1M for production
+            };
+
+            let mut found = false;
+            for nonce in 0..max_nonce {
+                header.nonce = nonce;
+
+                // Verify if this nonce meets the target
+                if engine.verify(&header).is_ok() {
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                return Err(RpcError::InternalError(format!(
+                    "Failed to mine block {} after {} attempts",
+                    i, max_nonce
+                )));
+            }
+
+            // Fetch pending transactions from mempool (if available)
+            let mut transactions = vec![coinbase_tx];
+
+            if let Some(mempool) = &self.mempool {
+                let mut mp = mempool.lock().await;
+                // Select transactions up to 4M weight units (standard block weight)
+                let selected = mp.select_for_block(4_000_000);
+                if !selected.is_empty() {
+                    println!("Mining block with {} mempool transactions", selected.len());
+                    transactions.extend(selected);
+                }
+            } else {
+                println!("Warning: No mempool available for mining");
+            }
+
+            // Recalculate merkle root including all transactions
+            let merkle_root = bitquan_consensus::calculate_merkle_root(&transactions)
+                .map_err(|e| RpcError::InternalError(format!("merkle root: {}", e)))?;
+            header.merkle_root = merkle_root;
+
+            // Create full block
+            let block = Block {
+                header: header.clone(),
+                transactions,
+            };
+
+            // Insert block into storage
+            self.store
+                .insert_block(block)
+                .await
+                .map_err(Self::storage_error_to_rpc)?;
+
+            let block_hash = bitquan_consensus::header_hash(&header);
+            generated_hashes.push(hex::encode(block_hash));
+
+            // Update prev_hash for next block
+            prev_hash = block_hash;
+        }
+
+        Ok(generated_hashes)
+    }
+
+    async fn sendtoaddress(
+        &self,
+        address: String,
+        amount: u64,
+        _comment: Option<String>,
+    ) -> Result<String, RpcError> {
+        use bitquan_types::NetworkId;
+        use std::path::Path;
+
+        // For testing: load miner wallet from default location
+        let wallet_path = Path::new("miner_wallet.json");
+        let wallet = WalletKeypair::load_from_file(wallet_path)
+            .map_err(|e| RpcError::InternalError(format!("Failed to load wallet: {}", e)))?;
+
+        // Parse recipient address
+        let recipient_pubkey_hash = decode_bech32m(&address)
+            .map_err(|e| RpcError::InvalidParams(format!("Invalid recipient address: {}", e)))?;
+        let recipient_script = script_from_pubkey_hash(&recipient_pubkey_hash);
+
+        // Find a spendable UTXO (coinbase from block >= 2, since maturity is 100 blocks)
+        let height = self
+            .store
+            .height()
+            .await
+            .map_err(Self::storage_error_to_rpc)?;
+        if height < 101 {
+            return Err(RpcError::InternalError(
+                "Coinbase maturity not reached (need 101 blocks)".to_string(),
+            ));
+        }
+
+        // Get block 2 (first mature coinbase)
+        let block = self
+            .store
+            .get_block_by_height(2)
+            .await
+            .map_err(Self::storage_error_to_rpc)?
+            .ok_or_else(|| RpcError::InternalError("Block 2 not found".to_string()))?;
+
+        if block.transactions.is_empty() {
+            return Err(RpcError::InternalError(
+                "No transactions in block 2".to_string(),
+            ));
+        }
+
+        let coinbase_tx = &block.transactions[0];
+        let coinbase_txid = coinbase_tx.txid();
+
+        if coinbase_tx.outputs.is_empty() {
+            return Err(RpcError::InternalError(
+                "Coinbase has no outputs".to_string(),
+            ));
+        }
+
+        // Get the coinbase output value (50 BQ = 5,000,000,000 satoshis)
+        let input_value = coinbase_tx.outputs[0].value;
+        let output_value = amount as u128;
+
+        if output_value > input_value {
+            return Err(RpcError::InternalError(format!(
+                "Insufficient funds: have {} qbits, need {}",
+                input_value, output_value
+            )));
+        }
+
+        // Calculate change (for simplicity, send change back to sender)
+        // Estimate fee: ~10KB for Dilithium transaction @ 1 sat/byte = 10,000 satoshis
+        let estimated_fee = 10_000u64;
+        let change_value = input_value - output_value - (estimated_fee as u128);
+        let sender_pubkey_hash = wallet.public_key_hash();
+        let change_script = script_from_pubkey_hash(&sender_pubkey_hash);
+
+        // Build transaction
+        let tx = TransactionBuilder::new()
+            .network(NetworkId::Regtest)
+            .add_input(coinbase_txid, 0, input_value)
+            .add_output(recipient_script, output_value)
+            .add_output(change_script, change_value);
+
+        // Sign transaction with wallet
+        let tx = tx
+            .build_and_sign(|msg| {
+                wallet.sign(msg).map_err(|e| {
+                    bitquan_types::error::Error::Invalid(format!("Signing failed: {}", e))
+                })
+            })
+            .map_err(|e| RpcError::InternalError(format!("Failed to build transaction: {}", e)))?;
+
+        let txid = tx.txid();
+
+        // Submit to mempool if available
+        if let Some(mempool) = &self.mempool {
+            let mut mp = mempool.lock().await;
+            mp.insert(tx.clone(), estimated_fee)
+                .map_err(|e| RpcError::InternalError(format!("Failed to add to mempool: {}", e)))?;
+        } else {
+            return Err(RpcError::InternalError("No mempool available".to_string()));
+        }
+
+        Ok(hex::encode(txid))
     }
 }
 

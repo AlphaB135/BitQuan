@@ -36,7 +36,7 @@ pub struct AddressInfo {
 
 /// Encodes a public key hash as a Bech32m address using witness version 1.
 #[allow(clippy::expect_used)]
-pub fn encode_bech32m(pubkey_hash: &[u8; 32]) -> String {
+pub fn encode(pubkey_hash: &[u8; 32]) -> String {
     // SAFETY: HRP constants are validated at compile-time via const assertion
     let hrp = Hrp::parse(HRP_MAINNET).expect("built-in HRP is valid");
     let mut data = Vec::with_capacity(33);
@@ -44,12 +44,6 @@ pub fn encode_bech32m(pubkey_hash: &[u8; 32]) -> String {
     data.extend_from_slice(pubkey_hash);
     // SAFETY: encoding with valid HRP and valid data cannot fail
     bech32::encode::<Bech32m>(hrp, &data).expect("encoding with valid HRP/data")
-}
-
-/// Alias for `encode_bech32m`.
-#[allow(dead_code)]
-pub fn encode(pubkey_hash: &[u8; 32]) -> String {
-    encode_bech32m(pubkey_hash)
 }
 
 /// Returns decoded metadata for a BitQuan Bech32m address.
@@ -162,7 +156,7 @@ mod tests {
     #[test]
     fn test_encode_decode_roundtrip() {
         let hash = [0x42; 32];
-        let address = encode_bech32m(&hash);
+        let address = encode(&hash);
         assert!(address.starts_with("bq1"));
 
         let decoded_result = decode_bech32m(&address);
@@ -177,7 +171,7 @@ mod tests {
     #[test]
     fn test_inspect_valid_address() {
         let hash = [0x11; 32];
-        let address = encode_bech32m(&hash);
+        let address = encode(&hash);
         let info = inspect(&address).expect("address should validate");
 
         assert_eq!(info.network, AddressNetwork::Mainnet);

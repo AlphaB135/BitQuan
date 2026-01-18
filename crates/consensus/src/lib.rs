@@ -694,7 +694,7 @@ fn validate_transaction_fees(
 }
 
 /// Calculates merkle root from transactions
-fn calculate_merkle_root(
+pub fn calculate_merkle_root(
     transactions: &[bitquan_types::Transaction],
 ) -> Result<[u8; 32], ConsensusError> {
     if transactions.is_empty() {

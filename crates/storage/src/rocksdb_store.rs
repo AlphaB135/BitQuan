@@ -437,9 +437,12 @@ impl RocksDBStore {
             .cf_handle(CF_META)
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
 
-        self.db
+        let result = self
+            .db
             .get_cf(&cf, key)
-            .map_err(|e| StorageError::DatabaseError(e.to_string()))
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+        Ok(result)
     }
 
     /// Put metadata value
@@ -753,8 +756,8 @@ impl ChainStore for RocksDBStore {
         batch.put_cf(&cf_blocks, block_id, block_json);
         batch.put_cf(&cf_headers, block_id, &header_json);
 
-        // Index by height
-        batch.put_cf(&cf_height, height.to_le_bytes(), block_id);
+        // Index by height (BUG FIX: blocks are 0-indexed, height starts at 0)
+        batch.put_cf(&cf_height, (height - 1).to_le_bytes(), block_id);
 
         // Index transactions
         for tx in &block.transactions {
@@ -1193,9 +1196,9 @@ mod tests {
             .expect("Tip is None");
         assert_eq!(tip.time, header.time);
 
-        // Get block by height
+        // Get block by height (first block is at height 0)
         let retrieved = store
-            .get_block_by_height(1)
+            .get_block_by_height(0)
             .expect("Failed to get block by height")
             .expect("Block is None");
         assert_eq!(retrieved.header.time, header.time);

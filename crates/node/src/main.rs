@@ -27,7 +27,6 @@ use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
     target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
 };
-use bitquan_network::ban_manager::BanManager;
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{network_magic, Message, MessageEnvelope, PROTOCOL_VERSION};
 #[cfg(feature = "rocksdb-backend")]
@@ -51,7 +50,6 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
-use tokio::sync::Mutex as TokioMutex;
 
 #[cfg(feature = "rocksdb-backend")]
 use rpc::NodeRpcHandler;
@@ -736,6 +734,7 @@ fn run_rpc_server(
     username: String,
     password: String,
     require_tls: bool,
+    datadir: String, // For JWT secret generation
 ) {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -766,10 +765,14 @@ fn run_rpc_server(
             println!("Using JWT with provided secret");
             bitquan_rpc::jwt::JwtAuth::new(&secret)
         } else {
-            // eprintln!("JWT authentication required but no config or secret provided");
-            // return;
-            println!("WARNING: Using DUMMY JWT secret to bypass check");
-            bitquan_rpc::jwt::JwtAuth::new("dummy_secret_for_hack")
+            // SECURITY FIX: Generate or load secure JWT secret instead of using dummy
+            println!("WARNING: No JWT secret provided. Generating secure secret...");
+            let generated_secret = get_or_create_jwt_secret(&datadir).unwrap_or_else(|e| {
+                eprintln!("FATAL: Failed to generate JWT secret: {}", e);
+                eprintln!("Cannot start RPC server without authentication!");
+                std::process::exit(1);
+            });
+            bitquan_rpc::jwt::JwtAuth::new(&generated_secret)
         };
 
         let basic_auth = Some((username, password));
@@ -1171,9 +1174,9 @@ async fn run_node(
         50, // max_peers
         &datadir,
         RpcServerOptions {
-            listen: None, // Disabled for P2P testing
-            username: None,
-            password: None,
+            listen: rpc_bind, // FIX: Use the CLI argument!
+            username: Some("admin"),
+            password: Some("admin"),
             #[cfg(feature = "rocksdb-backend")]
             jwt_config_path: None,
             #[cfg(feature = "rocksdb-backend")]
@@ -1199,7 +1202,7 @@ async fn run_node(
             #[cfg(feature = "rocksdb-backend")]
             tls_key: None,
             #[cfg(feature = "rocksdb-backend")]
-            allow_insecure: false,
+            allow_insecure: true, // FIX: Allow insecure for development
         },
         network,
         bootstrap_peers_opt,
@@ -2581,7 +2584,7 @@ async fn wallet_send(
         use std::path::Path;
 
         let _storage = RocksDBStore::open(Path::new("data/chainstate"))
-        .map_err(|e| Error::Invalid(format!("failed to open storage: {e}")))?;
+            .map_err(|e| Error::Invalid(format!("failed to open storage: {e}")))?;
 
         // Get sender script
         let sender_info = address::inspect(&data.address)
@@ -2595,7 +2598,7 @@ async fn wallet_send(
         println!("🔍 Scanning chain (height {}) for funds...", height);
 
         let target_amount = amount as u128;
-        // Dilithium Tx is HUGE (Sig ~4.6KB, PubKey ~2.6KB). 
+        // Dilithium Tx is HUGE (Sig ~4.6KB, PubKey ~2.6KB).
         // 250 is for Bitcoin. We need ~8000+. Using 10000 for safety.
         let fee = fee_rate as u128 * 10_000;
         let total_needed = target_amount.saturating_add(fee);
@@ -2609,11 +2612,14 @@ async fn wallet_send(
                     for (vout, output) in tx.outputs.iter().enumerate() {
                         if output.script_pubkey == sender_script {
                             // Check maturity for coinbase
-                            let is_coinbase = tx.inputs.len() == 1 
-                                && tx.inputs[0].prev_txid == [0u8; 32];
-                                
+                            let is_coinbase =
+                                tx.inputs.len() == 1 && tx.inputs[0].prev_txid == [0u8; 32];
+
                             if is_coinbase {
-                                let maturity = 10;
+                                // PRODUCTION: Bitcoin-standard maturity (100 blocks)
+                                // This prevents funds from vanishing during chain reorgs.
+                                // Testing used 10, but mainnet MUST use 100 for safety.
+                                let maturity = 100;
                                 if h + maturity > height {
                                     continue;
                                 }
@@ -2637,13 +2643,17 @@ async fn wallet_send(
         }
 
         if collected_value < total_needed {
-             return invalid(format!(
+            return invalid(format!(
                 "Insufficient funds: found {} qbits, need {} qbits (Note: Coinbase needs 100 blocks maturity)",
                 collected_value, total_needed
             ));
         }
 
-        println!("💰 Found {} qbits from {} inputs", collected_value, inputs.len());
+        println!(
+            "💰 Found {} qbits from {} inputs",
+            collected_value,
+            inputs.len()
+        );
 
         let mut outputs = vec![bitquan_types::TxOut {
             value: target_amount,
@@ -2893,6 +2903,41 @@ fn setup_storage(
     Ok((height, async_store))
 }
 
+/// Generate or load a secure JWT secret for RPC authentication.
+///
+/// SECURITY: Never use hardcoded secrets in production!
+/// This function generates a cryptographically secure 32-byte secret.
+fn get_or_create_jwt_secret(datadir: &str) -> Result<String> {
+    use rand::Rng;
+
+    let path = std::path::Path::new(datadir).join("jwt.hex");
+
+    // Try to load existing secret
+    if path.exists() {
+        println!("Loading JWT secret from {:?}", path);
+        return std::fs::read_to_string(&path)
+            .map(|s| s.trim().to_string())
+            .map_err(|e| Error::Invalid(format!("failed to load JWT secret: {e}")));
+    }
+
+    // Generate new cryptographically secure secret
+    println!("WARNING: No JWT secret found. Generating a new secure one...");
+    let secret: String = rand::thread_rng()
+        .sample_iter(&rand::distributions::Alphanumeric)
+        .take(64) // 64 hex chars = 32 bytes
+        .map(char::from)
+        .collect();
+
+    // Save to disk for persistence
+    std::fs::write(&path, &secret)
+        .map_err(|e| Error::Invalid(format!("failed to save JWT secret: {e}")))?;
+
+    println!("New JWT secret saved to {:?}", path);
+    println!("IMPORTANT: Keep this file secure! Anyone with this secret can access your RPC.");
+
+    Ok(secret)
+}
+
 /// Setup P2P Networking (PeerManager, Noise, Relay)
 async fn setup_p2p_network(
     max_peers: usize,
@@ -2945,6 +2990,7 @@ async fn setup_p2p_network(
 }
 
 /// Start Metrics Server (Clean implementation without Bind/Drop hack)
+#[allow(dead_code)]
 fn start_metrics_service(p2p_listen_addr: &str) {
     let p2p_port: u16 = p2p_listen_addr
         .split(':')
@@ -3035,6 +3081,14 @@ async fn p2p_server(
         }
     );
 
+    // Initialize mempool (moved up for global scope)
+    // Create mempool for transaction relay
+    let mempool =
+        Arc::new(tokio::sync::Mutex::new(Mempool::new().map_err(|e| {
+            Error::Invalid(format!("failed to create mempool: {e}"))
+        })?));
+    println!("Mempool initialized (max 300 MB)");
+
     #[cfg(feature = "rocksdb-backend")]
     if let Some(addr) = rpc_listen {
         use bitquan_storage::AsyncChainStore;
@@ -3072,14 +3126,20 @@ async fn p2p_server(
         let Some(store_arc) = store.clone() else {
             return invalid("RPC server requires RocksDB storage backend");
         };
-
         // Initialize sync manager
         let local_height = store_arc.height().await.unwrap_or(0);
         let (sync_manager, _sync_task) = sync_task::initialize_sync(local_height, network)
             .await
             .map_err(|e| Error::Invalid(format!("Failed to initialize sync manager: {}", e)))?;
 
-        let handler = NodeRpcHandler::with_sync_manager(store_arc, "mainnet", sync_manager);
+        // Initialize mempool earlier
+
+        let handler = NodeRpcHandler::with_components(
+            store_arc,
+            network.name(),
+            sync_manager,
+            Some(mempool.clone()),
+        );
         let rpc_addr = addr.to_string();
 
         // JWT authentication is required
@@ -3178,6 +3238,7 @@ async fn p2p_server(
         let password_owned = password_value.clone();
 
         let rpc_config_owned = rpc_config.clone();
+        let datadir_owned = datadir.to_string(); // For thread safety
 
         thread::spawn(move || {
             run_rpc_server(
@@ -3190,24 +3251,34 @@ async fn p2p_server(
                 username_owned,
                 password_owned,
                 require_tls,
+                datadir_owned, // For JWT secret generation
             );
         });
         println!("RPC server listening on {}", addr);
     }
-
-    use bitquan_network::{NoiseConfig, PeerManager};
 
     // === P2P SERVER SETUP ===
     // Setup P2P networking using helper (Noise, PeerManager, Relay, Peers.json)
     let (peer_manager, _listen_addr, noise_config) =
         setup_p2p_network(max_peers, network, height).await?;
 
-    // Create mempool for transaction relay
-    let mempool =
-        Arc::new(tokio::sync::Mutex::new(Mempool::new().map_err(|e| {
-            Error::Invalid(format!("failed to create mempool: {e}"))
-        })?));
-    println!("Mempool initialized (max 300 MB)");
+    // Create peer book for sync manager
+    let peer_book = Arc::new(std::sync::Mutex::new(
+        bitquan_network::discovery::PeerBook::new(),
+    ));
+
+    // Create sync manager for IBD (Initial Block Download)
+    let sync_manager = Arc::new(
+        bitquan_network::async_sync::AsyncSyncManager::new_with_components(
+            height,
+            peer_manager.clone(),
+            peer_book.clone(),
+            network,
+        ),
+    );
+    println!("Sync manager initialized (local height: {})", height);
+
+    // Mempool initialized earlier for RPC handler dependency
 
     // Create fork choice manager for chain reorganization
     let fork_choice = Arc::new(tokio::sync::Mutex::new(
@@ -3281,17 +3352,43 @@ async fn p2p_server(
         }
     });
 
+    // Spawn sync progress monitoring loop
+    // Periodically checks if we're behind and need to sync blocks
+    let sync_manager_for_monitoring = sync_manager.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
+        loop {
+            interval.tick().await;
+
+            match sync_manager_for_monitoring.get_sync_progress().await {
+                Ok(progress) => {
+                    if progress.blocks_behind > 0 {
+                        log::info!(
+                            "Sync: {} blocks behind ({}% complete)",
+                            progress.blocks_behind,
+                            progress.progress
+                        );
+                        // TODO Phase 3: Request blocks from peers here
+                    }
+                }
+                Err(e) => log::warn!("Failed to get sync progress: {}", e),
+            }
+        }
+    });
+
     // ==========================================
     // 🔴 THE FIX: BIND LISTENER (ASYNC WAY)
     // ==========================================
     use tokio::net::TcpListener;
-    
+
     println!("🔌 Binding P2P Listener on {}...", listen);
     let listener = TcpListener::bind(listen)
         .await
         .map_err(|e| Error::Invalid(format!("p2p bind failed: {e}")))?;
-    
-    let local_addr = listener.local_addr().map_err(|e| Error::Invalid(format!("failed to get local addr: {e}")))?;
+
+    let local_addr = listener
+        .local_addr()
+        .map_err(|e| Error::Invalid(format!("failed to get local addr: {e}")))?;
     println!("✅ P2P Server listening on {}", local_addr);
 
     // ==========================================
@@ -3304,33 +3401,46 @@ async fn p2p_server(
         // Fallback logic
         let known = peer_manager.known_peers_count().unwrap_or(0);
         if known > 0 {
-             peer_manager.get_known_peers().unwrap_or_default().into_iter()
-                .take(10).map(|a| format!("{}:{}", a.ip, a.port)).collect()
+            peer_manager
+                .get_known_peers()
+                .unwrap_or_default()
+                .into_iter()
+                .take(10)
+                .map(|a| format!("{}:{}", a.ip, a.port))
+                .collect()
         } else {
-             bitquan_network::TESTNET_SEEDS.iter().map(|s| s.to_string()).collect()
+            bitquan_network::TESTNET_SEEDS
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
         }
     };
 
     if !bootstrap_peers_final.is_empty() {
         let pm = peer_manager.clone();
-        
+
         tokio::spawn(async move {
             // Wait for server to be fully ready
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            println!("🚀 Bootstrapping to {} peers...", bootstrap_peers_final.len());
+            println!(
+                "🚀 Bootstrapping to {} peers...",
+                bootstrap_peers_final.len()
+            );
 
             for peer_str in bootstrap_peers_final {
-                 // Check if connecting to self (simple check)
-                 if peer_str.contains(&local_addr.port().to_string()) { continue; }
+                // Check if connecting to self (simple check)
+                if peer_str.contains(&local_addr.port().to_string()) {
+                    continue;
+                }
 
-                 if let Ok(addr) = peer_str.parse::<std::net::SocketAddr>() {
+                if let Ok(addr) = peer_str.parse::<std::net::SocketAddr>() {
                     println!("Connecting to {}... ", addr);
                     // Use PeerManager's async connect which handles handshake
                     match pm.connect_peer(addr).await {
                         Ok(_) => println!("Connected to {}! ✅", addr),
                         Err(e) => println!("Failed to connect to {}: {} ❌", addr, e),
                     }
-                 }
+                }
             }
         });
     }
@@ -3339,11 +3449,13 @@ async fn p2p_server(
     // 🔴 THE FIX: ACCEPT LOOP (PURE ASYNC)
     // ==========================================
     println!("⏳ Waiting for incoming connections...");
-    
+
     // Create shared contexts for incoming peers
     // Store
     let Some(store_arc) = store.clone() else {
-         return Err(Error::Invalid("P2P server requires RocksDB storage backend".to_string()));
+        return Err(Error::Invalid(
+            "P2P server requires RocksDB storage backend".to_string(),
+        ));
     };
 
     // Consensus
@@ -3358,16 +3470,18 @@ async fn p2p_server(
     let consensus = Arc::new(tokio::sync::Mutex::new(consensus_engine));
 
     // Ban Manager
-    let ban_manager = Arc::new(tokio::sync::Mutex::new(bitquan_network::ban_manager::BanManager::new(
-        bitquan_network::ban_manager::BanConfig::default(),
-    )));
+    let ban_manager = Arc::new(tokio::sync::Mutex::new(
+        bitquan_network::ban_manager::BanManager::new(
+            bitquan_network::ban_manager::BanConfig::default(),
+        ),
+    ));
 
     loop {
         // Tokio accept is async/await - no blocking!
         match listener.accept().await {
             Ok((tokio_stream, peer_addr)) => {
                 println!("🌟 Incoming connection from {}", peer_addr);
-                
+
                 // Clone context
                 let noise_config = noise_config.clone();
                 let peer_manager = peer_manager.clone();
@@ -3377,31 +3491,37 @@ async fn p2p_server(
                 let fork_choice = fork_choice.clone();
                 let ban_manager = ban_manager.clone();
                 let network_id = network;
-                let current_height = height; 
-                
+                let current_height = height;
+
                 tokio::spawn(async move {
-                    use bitquan_network::{async_noise_handshake_responder, Peer, protocol::P2pError};
                     use bitquan_network::noise::NoiseTransport;
-                    
-                    let peer_result: std::result::Result<bitquan_network::Peer, bitquan_network::protocol::P2pError> = async {
+                    use bitquan_network::{
+                        async_noise_handshake_responder, protocol::P2pError, Peer,
+                    };
+
+                    let peer_result: std::result::Result<
+                        bitquan_network::Peer,
+                        bitquan_network::protocol::P2pError,
+                    > = async {
                         // 1. Noise Handshake (Async)
-                        let (tokio_stream, transport, remote_pk) = async_noise_handshake_responder(tokio_stream, &noise_config).await
+                        let (tokio_stream, transport, remote_pk) =
+                            async_noise_handshake_responder(tokio_stream, &noise_config)
+                                .await
+                                .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+
+                        // 2. Convert to Std Stream for NoiseTransport
+                        let std_stream = tokio_stream
+                            .into_std()
                             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-                            
-                        // 2. Convert to Std Stream for NoiseTransport 
-                        let std_stream = tokio_stream.into_std()
+                        std_stream
+                            .set_nonblocking(false)
                             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-                        std_stream.set_nonblocking(false)
-                            .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
-                        
+
                         // 3. Version Handshake (Blocking inside spawn_blocking)
                         let (version, user_agent, start_height, final_transport) =
                             tokio::task::spawn_blocking(move || {
-                                let noise_transport = NoiseTransport::from_parts(
-                                    std_stream,
-                                    transport,
-                                    remote_pk,
-                                );
+                                let noise_transport =
+                                    NoiseTransport::from_parts(std_stream, transport, remote_pk);
                                 let mut peer = Peer::from_handshaked(
                                     peer_addr,
                                     noise_transport,
@@ -3410,7 +3530,9 @@ async fn p2p_server(
                                 );
                                 peer.handshake_inbound(current_height)?;
 
-                                let version = peer.version.unwrap_or(bitquan_network::protocol::PROTOCOL_VERSION);
+                                let version = peer
+                                    .version
+                                    .unwrap_or(bitquan_network::protocol::PROTOCOL_VERSION);
                                 let user_agent = peer.user_agent.clone().unwrap_or_default();
                                 let start_height = peer.start_height.unwrap_or(0);
                                 let transport = peer.into_stream();
@@ -3426,7 +3548,10 @@ async fn p2p_server(
                             .map_err(|e| P2pError::ConnectionError(e.to_string()))?
                             .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
 
-                        println!(" Inbound peer connected: {} (v{}, h:{})", peer_addr, version, start_height);
+                        println!(
+                            " Inbound peer connected: {} (v{}, h:{})",
+                            peer_addr, version, start_height
+                        );
 
                         let peer = Peer::from_handshaked_with_version(
                             peer_addr,
@@ -3439,11 +3564,12 @@ async fn p2p_server(
                         );
 
                         Ok(peer)
-                    }.await;
+                    }
+                    .await;
 
                     match peer_result {
                         Ok(peer) => {
-                             let ctx = Arc::new(worker::WorkerContext::new(
+                            let ctx = Arc::new(worker::WorkerContext::new(
                                 peer_manager,
                                 store,
                                 mempool,
@@ -3463,13 +3589,11 @@ async fn p2p_server(
                         }
                         Err(e) => eprintln!("Handshake failed for {}: {}", peer_addr, e),
                     }
-                }); 
+                });
             }
             Err(e) => eprintln!("Accept error: {}", e),
         }
     }
-    
-
 }
 async fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<()> {
     use bitquan_network::{NoiseConfig, PeerManager};

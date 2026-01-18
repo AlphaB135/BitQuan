@@ -58,6 +58,8 @@ impl InputValidator {
             "getmininginfo",
             "prioritisetransaction",
             "generate",          // CPU mining for testing
+            "generatetoaddress", // Mine to specific address
+            "sendtoaddress",     // Send to address (wallet)
             "getwork",           // Get mining work
             "submitwork",        // Submit mining work
             "getbestblockhash",  // Get best block hash
