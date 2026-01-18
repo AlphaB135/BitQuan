@@ -24,6 +24,8 @@ pub enum WorkerError {
     Storage(String),
     /// Network I/O error.
     Network(String),
+    /// Critical error requiring immediate shutdown (e.g., corrupted chain state)
+    Critical(String),
 }
 
 impl std::fmt::Display for WorkerError {
@@ -32,6 +34,7 @@ impl std::fmt::Display for WorkerError {
             Self::InvalidData(msg) => write!(f, "Invalid data: {}", msg),
             Self::Storage(msg) => write!(f, "Storage error: {}", msg),
             Self::Network(msg) => write!(f, "Network error: {}", msg),
+            Self::Critical(msg) => write!(f, "CRITICAL: {}", msg),
         }
     }
 }
@@ -727,8 +730,11 @@ async fn handle_block(
                     log::error!("🔥 CHAIN STATE IS CORRUPTED. Node must shutdown to prevent consensus failure.");
                     log::error!("🔥 Please restart and resync from trusted peers.");
 
-                    // PANIC to stop the node immediately
-                    panic!("CRITICAL STORAGE FAILURE: Cannot rollback chain during reorg. Node shutdown required.");
+                    // Return critical error - caller should initiate graceful shutdown
+                    // This prevents consensus violations (double spends, wrong chain)
+                    return Err(WorkerError::Critical(
+                        "CRITICAL STORAGE FAILURE: Cannot rollback chain during reorg. Node shutdown required.".into()
+                    ));
                 }
                 // Resurrect non-coinbase transactions back to mempool
                 for (i, tx) in old_block.transactions.iter().enumerate() {
