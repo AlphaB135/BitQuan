@@ -3679,26 +3679,35 @@ fn check_balance(datadir: &str, script_hex: Option<&str>, address: Option<&str>)
     let mut balance: u128 = 0;
     let mut utxo_count: u64 = 0;
 
-    // Scan all blocks (simple implementation)
+    // Scan all blocks and check UTXO set for unspent outputs
     for h in 0..=height {
         if let Ok(Some(block)) = store.get_block_by_height(h) {
             for tx in &block.transactions {
                 for (vout, output) in tx.outputs.iter().enumerate() {
                     if output.script_pubkey == target_script {
-                        // Check if spent (simplified - should check UTXO set)
-                        balance = balance
-                            .checked_add(output.value)
-                            .ok_or(Error::Overflow("balance accumulation overflow"))?;
-                        utxo_count = utxo_count
-                            .checked_add(1)
-                            .ok_or(Error::Overflow("UTXO count overflow"))?;
-                        println!(
-                            " Block #{} TX {} vout={} amount={}",
-                            h,
-                            hex::encode(tx.txid()),
-                            vout,
-                            output.value
-                        );
+                        // Create outpoint (txid + vout)
+                        let mut outpoint = Vec::with_capacity(32 + 4);
+                        outpoint.extend_from_slice(&tx.txid());
+                        outpoint.extend_from_slice(&(vout as u32).to_le_bytes());
+
+                        // CRITICAL FIX: Check UTXO set to see if output is still unspent
+                        // This prevents counting spent outputs as balance
+                        if store.get_utxo(&outpoint).ok().flatten().is_some() {
+                            balance = balance
+                                .checked_add(output.value)
+                                .ok_or(Error::Overflow("balance accumulation overflow"))?;
+                            utxo_count = utxo_count
+                                .checked_add(1)
+                                .ok_or(Error::Overflow("UTXO count overflow"))?;
+                            println!(
+                                " Block #{} TX {} vout={} amount={}",
+                                h,
+                                hex::encode(tx.txid()),
+                                vout,
+                                output.value
+                            );
+                        }
+                        // If get_utxo returns None, this output was spent - don't count it
                     }
                 }
             }
