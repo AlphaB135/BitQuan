@@ -311,3 +311,12 @@ skill
 ψ/
 templates/
 tools/
+
+# Development artifacts (root directory garbage)
+gen_*.rs
+!crates/*/examples/gen_*.rs
+*.hex
+launch_*.sh
+mine_*.py
+run_*.sh
+tx.hex
