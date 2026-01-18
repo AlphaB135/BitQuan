@@ -9,6 +9,23 @@ use rocksdb::{Options, WriteBatch, WriteOptions, DB};
 use crate::{ChainStore, StorageError};
 use bitquan_types::{Block, BlockHeader, Transaction};
 
+/// Binary serialization using bincode (10x faster than JSON)
+mod serialize {
+    use super::*;
+
+    /// Serialize to bytes using bincode
+    pub fn to_bytes<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, StorageError> {
+        bincode::serialize(value)
+            .map_err(|e| StorageError::SerializationError(e.to_string()))
+    }
+
+    /// Deserialize from bytes using bincode
+    pub fn from_bytes<'a, T: serde::Deserialize<'a>>(bytes: &'a [u8]) -> Result<T, StorageError> {
+        bincode::deserialize(bytes)
+            .map_err(|e| StorageError::SerializationError(e.to_string()))
+    }
+}
+
 /// Column family names
 const CF_BLOCKS: &str = "blocks";
 const CF_HEADERS: &str = "headers";
@@ -746,15 +763,13 @@ impl ChainStore for RocksDBStore {
 
         let mut batch = WriteBatch::default();
 
-        // Serialize block (JSON for simplicity, can use bincode for production)
-        let block_json = serde_json::to_vec(&block)
-            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
-        let header_json = serde_json::to_vec(&block.header)
-            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+        // Serialize block using bincode (10x faster than JSON)
+        let block_bytes = serialize::to_bytes(&block)?;
+        let header_bytes = serialize::to_bytes(&block.header)?;
 
         // Store block and header
-        batch.put_cf(&cf_blocks, block_id, block_json);
-        batch.put_cf(&cf_headers, block_id, &header_json);
+        batch.put_cf(&cf_blocks, block_id, block_bytes);
+        batch.put_cf(&cf_headers, block_id, &header_bytes);
 
         // Index by height (BUG FIX: blocks are 0-indexed, height starts at 0)
         batch.put_cf(&cf_height, (height - 1).to_le_bytes(), block_id);
@@ -762,9 +777,8 @@ impl ChainStore for RocksDBStore {
         // Index transactions
         for tx in &block.transactions {
             let txid = tx.txid();
-            let tx_json = serde_json::to_vec(tx)
-                .map_err(|e| StorageError::SerializationError(e.to_string()))?;
-            batch.put_cf(&cf_tx, txid, tx_json);
+            let tx_bytes = serialize::to_bytes(tx)?;
+            batch.put_cf(&cf_tx, txid, tx_bytes);
         }
 
         // Collect undo data: save spent outputs before they're removed from UTXO set
@@ -787,8 +801,7 @@ impl ChainStore for RocksDBStore {
                     .get_cf(&cf_utxo, &outpoint_key)
                     .map_err(|e| StorageError::DatabaseError(e.to_string()))?
                 {
-                    let output: bitquan_types::TxOut = serde_json::from_slice(&utxo_data)
-                        .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+                    let output: bitquan_types::TxOut = serialize::from_bytes(&utxo_data)?;
 
                     undo_block.add_spent_output(output, input.prev_txid, input.prev_vout);
                 }
@@ -803,23 +816,21 @@ impl ChainStore for RocksDBStore {
             let txid = tx.txid();
             for (vout, output) in tx.outputs.iter().enumerate() {
                 let outpoint_key = [&txid[..], &(vout as u32).to_le_bytes()[..]].concat();
-                let utxo_data = serde_json::to_vec(output)
-                    .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+                let utxo_data = serialize::to_bytes(output)?;
                 batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
             }
         }
 
         // Save undo data indexed by block hash
-        let undo_json = serde_json::to_vec(&undo_block)
-            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
-        batch.put_cf(&cf_undo, block_id, undo_json);
+        let undo_bytes = serialize::to_bytes(&undo_block)?;
+        batch.put_cf(&cf_undo, block_id, undo_bytes);
 
         // Update metadata
         let cf_meta = self
             .db
             .cf_handle(CF_META)
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
-        batch.put_cf(&cf_meta, KEY_TIP, header_json.clone());
+        batch.put_cf(&cf_meta, KEY_TIP, header_bytes.clone());
         batch.put_cf(&cf_meta, KEY_HEIGHT, height.to_le_bytes());
 
         // Write batch atomically with sync for durability
@@ -854,8 +865,7 @@ impl ChainStore for RocksDBStore {
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
 
         let undo_block: crate::undo_block::UndoBlock = match undo_data {
-            Some(data) => serde_json::from_slice(&data)
-                .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+            Some(data) => serialize::from_bytes(&data)?,
             None => {
                 // No undo data found - this might be an old block from before undo was implemented
                 // Fall back to the old method (less efficient but works)
@@ -871,8 +881,7 @@ impl ChainStore for RocksDBStore {
             ]
             .concat();
 
-            let utxo_data = serde_json::to_vec(&spent_output.output)
-                .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+            let utxo_data = serialize::to_bytes(&spent_output.output)?;
 
             batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
         }
@@ -888,16 +897,15 @@ impl ChainStore for RocksDBStore {
 
         // Update tip and height
         let new_height = self.height()?.saturating_sub(1);
-        let prev_header_json = match self.get_block(&block.header.prev_block)? {
+        let prev_header_bytes = match self.get_block(&block.header.prev_block)? {
             Some(prev_block) => Some(
-                serde_json::to_vec(&prev_block.header)
-                    .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+                serialize::to_bytes(&prev_block.header)?,
             ),
             None => None,
         };
 
-        if let Some(header_json) = prev_header_json {
-            batch.put_cf(&cf_meta, KEY_TIP, header_json);
+        if let Some(header_bytes) = prev_header_bytes {
+            batch.put_cf(&cf_meta, KEY_TIP, header_bytes);
         } else {
             // Genesis block is being disconnected
             batch.delete_cf(&cf_meta, KEY_TIP);
@@ -922,8 +930,7 @@ impl ChainStore for RocksDBStore {
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?
         {
             Some(bytes) => {
-                let block: Block = serde_json::from_slice(&bytes)
-                    .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+                let block: Block = serialize::from_bytes(&bytes)?;
                 Ok(Some(block))
             }
             None => Ok(None),
@@ -933,8 +940,7 @@ impl ChainStore for RocksDBStore {
     fn tip(&self) -> Result<Option<BlockHeader>, StorageError> {
         match self.get_meta(KEY_TIP)? {
             Some(bytes) => {
-                let header: BlockHeader = serde_json::from_slice(&bytes)
-                    .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+                let header: BlockHeader = serialize::from_bytes(&bytes)?;
                 Ok(Some(header))
             }
             None => Ok(None),
@@ -973,8 +979,7 @@ impl ChainStore for RocksDBStore {
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?
         {
             Some(bytes) => {
-                let tx: Transaction = serde_json::from_slice(&bytes)
-                    .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+                let tx: Transaction = serialize::from_bytes(&bytes)?;
                 Ok(Some(tx))
             }
             None => Ok(None),
@@ -1045,8 +1050,7 @@ impl RocksDBStore {
 
                     let outpoint_key =
                         [&input.prev_txid[..], &input.prev_vout.to_le_bytes()[..]].concat();
-                    let utxo_data = serde_json::to_vec(spent_output)
-                        .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+                    let utxo_data = serialize::to_bytes(spent_output)?;
 
                     batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
                 }
@@ -1062,16 +1066,15 @@ impl RocksDBStore {
 
         // Update tip and height
         let new_height = self.height()?.saturating_sub(1);
-        let prev_header_json = match self.get_block(&block.header.prev_block)? {
+        let prev_header_bytes = match self.get_block(&block.header.prev_block)? {
             Some(prev_block) => Some(
-                serde_json::to_vec(&prev_block.header)
-                    .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+                serialize::to_bytes(&prev_block.header)?,
             ),
             None => None,
         };
 
-        if let Some(header_json) = prev_header_json {
-            batch.put_cf(&cf_meta, KEY_TIP, header_json);
+        if let Some(header_bytes) = prev_header_bytes {
+            batch.put_cf(&cf_meta, KEY_TIP, header_bytes);
         } else {
             batch.delete_cf(&cf_meta, KEY_TIP);
         }

@@ -477,6 +477,7 @@ name = "bitquan-storage"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bincode",
  "bitquan-types",
  "hex",
  "rocksdb",
