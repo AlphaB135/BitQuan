@@ -553,7 +553,7 @@ async fn handle_connection<T: methods::RpcMethods>(
             .find(|h| h.name.eq_ignore_ascii_case("authorization"))
             .and_then(|h| std::str::from_utf8(h.value).ok());
 
-        let _authorized = if let Some(header_val) = auth_header {
+        let authorized = if let Some(header_val) = auth_header {
             if let Some(base64_creds) = header_val.strip_prefix("Basic ") {
                 if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(base64_creds)
                 {
@@ -576,9 +576,8 @@ async fn handle_connection<T: methods::RpcMethods>(
             false
         };
 
-        // BYPASS FOR TESTING: Always proceed even if unauthorized
-        if false {
-            // !authorized
+        // CRITICAL: Authorization check - MUST be enabled for production
+        if !authorized {
             // Log authentication failure
             let auth_event = SecurityEvent::new(
                 peer_ip.to_string(),
@@ -606,11 +605,9 @@ async fn handle_connection<T: methods::RpcMethods>(
     // --- End Basic Authentication Check ---
 
     // --- JWT Bearer Token Authentication ---
-    // --- JWT Bearer Token Authentication ---
-    // Fix: Don't check JWT if Basic Auth is enabled and succeeded (since Basic Auth block returns 401 on failure)
-    // BYPASS FOR TESTING: Disable JWT check entirely
-    if false {
-        // config.require_jwt_auth && options.basic_auth.is_none() {
+    // CRITICAL: JWT check - MUST be enabled for production when Basic Auth is not used
+    // Skip JWT if Basic Auth succeeded (mutual exclusivity)
+    if config.require_jwt_auth && options.basic_auth.is_none() {
         let auth_header = req
             .headers
             .iter()
