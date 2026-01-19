@@ -274,6 +274,9 @@ fn unix_timestamp() -> u64 {
 /// Initial block reward in qbits (50 BQ = 50 * 10^18).
 const INITIAL_REWARD: u128 = 50_000_000_000_000_000_000;
 
+/// Qbits per BQ (10^18).
+const QBITS_PER_BQ: u128 = 1_000_000_000_000_000_000;
+
 /// Halving interval (blocks).
 const HALVING_INTERVAL: u64 = 210_000;
 
@@ -290,7 +293,8 @@ pub struct RewardEngine {
     /// Block maturity for rewards (confirmations needed).
     #[allow(dead_code)]
     maturity: u64,
-    /// Total rewards distributed counter.
+    /// Total rewards distributed counter (in BQ, not qbits, to fit in u64).
+    /// Stored as BQ to avoid u64 overflow (u64::MAX = ~18.4 billion BQ).
     total_distributed: Arc<AtomicU64>,
 }
 
@@ -316,7 +320,9 @@ impl RewardEngine {
             db,
             reward_rate: 10000, // 100.00% scaled
             maturity: 100,
-            total_distributed: Arc::new(AtomicU64::new(total as u64)),
+            total_distributed: Arc::new(AtomicU64::new(
+                (total / QBITS_PER_BQ) as u64
+            )),
         }
     }
 
@@ -369,10 +375,10 @@ impl RewardEngine {
             .update_miner_reward(miner_id, amount)
             .map_err(|e| Error::Invalid(format!("DB error: {}", e)))?;
 
-        // Note: total_distributed is AtomicU64 for backwards compatibility
-        // For large amounts, this may truncate - consider AtomicU128 in production
+        // Update total distributed counter (convert qbits to BQ for storage)
+        let amount_bq = amount / QBITS_PER_BQ;
         self.total_distributed
-            .fetch_add(amount as u64, Ordering::Relaxed);
+            .fetch_add(amount_bq as u64, Ordering::Relaxed);
         Ok(())
     }
 
@@ -517,9 +523,10 @@ impl RewardEngine {
         Ok(payout_id)
     }
 
-    /// Get total rewards distributed.
-    pub fn total_distributed(&self) -> u64 {
-        self.total_distributed.load(Ordering::Relaxed)
+    /// Get total rewards distributed (in qbits).
+    /// Queries DB for exact value instead of using scaled counter to avoid precision loss.
+    pub fn total_distributed(&self) -> u128 {
+        self.db.total_rewards().unwrap_or(0)
     }
 
     /// Get miner's total reward.
@@ -539,7 +546,7 @@ impl RewardEngine {
     /// Get pool statistics.
     pub fn get_pool_stats(&self) -> Result<PoolStats> {
         Ok(PoolStats {
-            total_rewards: self.total_distributed() as u128,
+            total_rewards: self.total_distributed(),
             miner_count: self
                 .db
                 .miner_count()
@@ -554,7 +561,7 @@ impl RewardEngine {
 
     /// Calculate pool balance (rewards - payouts).
     fn calculate_pool_balance(&self) -> Result<u128> {
-        let total_rewards = self.total_distributed() as u128;
+        let total_rewards = self.total_distributed();
         // Note: Payout calculation implementation
         // When implemented, this will:
         // - Sum all payouts from database
@@ -648,19 +655,21 @@ mod tests {
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
         let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
 
+        // Credit miner with realistic BQ amounts (not qbits)
+        // 1 BQ = 10^18 qbits
         engine
-            .credit_miner("miner1", 1000)
-            .expect("Failed to credit miner1 with 1000");
+            .credit_miner("miner1", 1_000_000_000_000_000_000)
+            .expect("Failed to credit miner1 with 1 BQ");
         engine
-            .credit_miner("miner1", 2000)
-            .expect("Failed to credit miner1 with 2000");
+            .credit_miner("miner1", 2_000_000_000_000_000_000)
+            .expect("Failed to credit miner1 with 2 BQ");
 
         let total = engine
             .get_miner_reward("miner1")
             .expect("Failed to get miner1 reward");
-        assert_eq!(total, 3000);
+        assert_eq!(total, 3_000_000_000_000_000_000);
 
-        assert_eq!(engine.total_distributed(), 3000);
+        assert_eq!(engine.total_distributed(), 3_000_000_000_000_000_000);
     }
 
     #[test]

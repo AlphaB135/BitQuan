@@ -43,7 +43,7 @@ pub struct BlockSubmitter {
     /// Mock mode for testing (doesn't actually broadcast).
     pub mock_mode: bool,
     /// Chain state tracker (optional).
-    pub chain_state: Option<Arc<()>>, // TODO: Replace with ChainState when implemented
+    pub chain_state: Option<Arc<crate::chainstate::ChainState>>,
     /// Reward engine (optional).
     pub reward_engine: Option<Arc<std::sync::Mutex<RewardEngine>>>,
     /// Mining metrics (optional).
@@ -75,8 +75,7 @@ impl BlockSubmitter {
     }
 
     /// Set chain state.
-    pub fn with_chain_state(mut self, state: Arc<()>) -> Self {
-        // TODO: Replace with ChainState when implemented
+    pub fn with_chain_state(mut self, state: Arc<crate::chainstate::ChainState>) -> Self {
         self.chain_state = Some(state);
         self
     }
@@ -145,11 +144,11 @@ impl BlockSubmitter {
 
         // 4. If accepted, persist and credit reward
         if let SubmitResult::Accepted { height, .. } = result {
-            if let (Some(_chain_state), Some(reward_engine)) =
+            if let (Some(chain_state), Some(reward_engine)) =
                 (&self.chain_state, &self.reward_engine)
             {
                 // Append to chain
-                // let height = chain_state.append_block(block, hash)?; // TODO: Implement when ChainState is ready
+                let _height = chain_state.append_block(block, hash)?;
 
                 // Record block and credit reward
                 let miner = miner_id.unwrap_or("unknown");

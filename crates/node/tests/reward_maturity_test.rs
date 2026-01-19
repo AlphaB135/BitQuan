@@ -79,10 +79,10 @@ fn test_balance_tracking_total_spendable_pending() {
         .get_balance_info("miner1")
         .expect("Failed to get balance");
 
-    assert_eq!(balance.total, 500_0000_0000, "Total should be 10 blocks");
+    assert_eq!(balance.total, 500_000_000_000_000_000_000, "Total should be 10 blocks × 50 BQ");
     assert_eq!(balance.spendable, 0, "No blocks mature at height 50");
     assert_eq!(
-        balance.pending, 500_0000_0000,
+        balance.pending, 500_000_000_000_000_000_000,
         "All rewards pending at height 50"
     );
 
@@ -93,7 +93,7 @@ fn test_balance_tracking_total_spendable_pending() {
         .get_balance_info("miner1")
         .expect("Failed to get balance");
 
-    assert_eq!(balance.total, 500_0000_0000, "Total unchanged");
+    assert_eq!(balance.total, 500_000_000_000_000_000_000, "Total unchanged");
     assert_eq!(
         balance.spendable, 50_000_000_000_000_000_000,
         "One block mature"
@@ -229,11 +229,11 @@ fn test_progressive_settlement() {
         );
     }
 
-    // All should be spendable now
+    // All should be spendable now (10 blocks × 50 BQ = 500 BQ)
     let balance = engine
         .get_balance_info("miner1")
         .expect("Failed to get balance");
-    assert_eq!(balance.spendable, 500_0000_0000);
+    assert_eq!(balance.spendable, 500_000_000_000_000_000_000);
     assert_eq!(balance.pending, 0);
 }
 

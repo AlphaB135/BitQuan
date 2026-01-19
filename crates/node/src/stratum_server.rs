@@ -198,8 +198,7 @@ impl MinerSession {
     pub fn new(algo: PowAlgo, address: String, difficulty: f64) -> Result<Self> {
         // Duplicate cache: keep last 4096 nonces
         // SAFETY: 4096 is a non-zero constant
-        #[allow(clippy::unwrap_used)]
-        let cache_size = NonZeroUsize::new(4096).unwrap();
+        let cache_size = NonZeroUsize::new(4096).expect("4096 is non-zero");
         let duplicate_cache = Arc::new(Mutex::new(LruCache::new(cache_size)));
 
         // Assign cryptographically secure extranonce1
