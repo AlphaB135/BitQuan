@@ -261,6 +261,19 @@ impl WalletKeypair {
         let data = self.to_serializable(password);
         let json = serde_json::to_string_pretty(&data)?;
         fs::write(path, json)?;
+
+        // SECURITY: Set restrictive file permissions (owner read/write only)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(path)
+                .map_err(|e| Error::Invalid(format!("failed to get file metadata: {e}")))?
+                .permissions();
+            perms.set_mode(0o600); // Owner read/write only
+            fs::set_permissions(path, perms)
+                .map_err(|e| Error::Invalid(format!("failed to set file permissions: {e}")))?;
+        }
+
         log::info!("⚠️  WARNING: Keypair saved to file (secret key is encrypted, but file is not)!");
         log::info!("⚠️  For production, use the encrypted keystore system!");
         Ok(())

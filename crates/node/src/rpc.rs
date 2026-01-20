@@ -638,6 +638,21 @@ impl RpcMethods for NodeRpcHandler {
             ));
         }
 
+        // SECURITY: Input validation for address and amount
+        if address.trim().is_empty() || address.len() > 500 {
+            return Err(RpcError::InvalidParams("Invalid address".to_string()));
+        }
+
+        if amount == 0 {
+            return Err(RpcError::InvalidParams("Amount must be greater than zero".to_string()));
+        }
+
+        // Maximum reasonable amount (prevent overflow attacks)
+        const MAX_SEND_AMOUNT: u128 = 1_000_000_000_000_000; // 1 trillion BQ (very high limit)
+        if amount > MAX_SEND_AMOUNT {
+            return Err(RpcError::InvalidParams("Amount exceeds maximum allowed".to_string()));
+        }
+
         // Log warning if using insecure default password
         if wallet_password == "miner_dev_password" {
             log::warn!(
@@ -676,7 +691,7 @@ impl RpcMethods for NodeRpcHandler {
 
         if block.transactions.is_empty() {
             return Err(RpcError::InternalError(
-                "No transactions in block 2".to_string(),
+                "Invalid block state".to_string(),
             ));
         }
 
@@ -685,7 +700,7 @@ impl RpcMethods for NodeRpcHandler {
 
         if coinbase_tx.outputs.is_empty() {
             return Err(RpcError::InternalError(
-                "Coinbase has no outputs".to_string(),
+                "Invalid transaction state".to_string(),
             ));
         }
 
