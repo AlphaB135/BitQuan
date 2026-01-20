@@ -710,6 +710,10 @@ Closes #[issue-number]
 -   **Method Name Disambiguation** (2026-01-10): Use descriptive names when multiple methods track similar metrics; `peer_count()` = active connections, `known_peers_count()` = cached peers; Prevents duplicate definition errors
 -   **exFAT Build Workaround** (2026-01-10): exFAT lacks hard linking needed for Cargo incremental compilation; Use `export CARGO_TARGET_DIR=/tmp` to build on APFS; 10x faster builds on SSD
 -   **Protocol Handshake Debugging** (2026-01-10): "failed to fill whole buffer" = TCP connected but protocol failed; Socket-level success doesn't mean P2P handshake (Noise/magic) succeeded; Check both layers
+-   **Clippy Suggestions Are Hints Not Commands** (2026-01-20): Clippy suggested `filter_map(...).flatten()` but compiler rejected with type inference errors; Fixed with explicit for-loop; Working code > clever broken code; Abandon clippy suggestions faster when they fail
+-   **Issue Tracking vs Code Reality** (2026-01-20): Tracked "Phase 2 Part 2: Async Mining" as TODO but code was already implemented with spawn_blocking; Always verify source code before confirming task status; Issues can be stale, code never lies
+-   **Type Inference Failures on Nested Iterators** (2026-01-20): `flatten()` on `Iterator<Item=Result<Vec<T>>>` causes "str is not Sized" errors; Use explicit for-loops with match when type inference fails; Ugly but type-safe
+-   **Self-Graded Security Scores Are Misleading** (2026-01-20): README claimed "Security: B+" and "Production Readiness: 90%" based on cargo audit output; Removed speculative metrics, changed to "IN DEVELOPMENT"; Honest status > aspirational marketing
 
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*

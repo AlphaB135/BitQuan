@@ -9,10 +9,9 @@
 //! - wallet_gen_multisig, multisig_info
 
 use crate::address::{self};
-use crate::cli::{invalid, format_bq};
+use crate::cli::{format_bq, invalid};
 use crate::keystore;
 use crate::wallet::{SerializableKeypair, WalletKeypair};
-use crate::commands::rpc::submit_transaction_rpc;
 use bitquan_storage::ChainStore;
 use bitquan_types::error::{Error, Result};
 use pqc_dilithium_seeded::{PUBLICKEYBYTES, SECRETKEYBYTES};
@@ -59,8 +58,8 @@ pub fn wallet_gen(
         return invalid("Password must be at least 8 characters");
     }
 
-    // Serialize keypair metadata for encryption
-    let serializable = keypair.to_serializable();
+    // Serialize keypair metadata with encrypted secret key
+    let serializable = keypair.to_serializable(&password);
     let json = serde_json::to_string_pretty(&serializable)?;
 
     // Add network prefix to address for clear identification
@@ -155,7 +154,7 @@ pub fn wallet_sign(keystore_path: &str, message_hex: &str, password: Option<&str
     println!("🔑 Public key hash: {}", data.public_key_hash);
 
     // Reconstruct keypair from serialized data
-    let keypair = WalletKeypair::from_serializable(&data)
+    let keypair = WalletKeypair::from_serializable(&data, &password)
         .map_err(|e| Error::Invalid(format!("keypair reconstruction failed: {e}")))?;
 
     // Sign the message
@@ -204,22 +203,31 @@ pub fn wallet_verify(pubkey_hex: &str, message_hex: &str, signature_hex: &str) -
     }
 }
 
+/// Sends funds from a wallet to a specified address.
+///
+/// Creates a signed transaction and saves it to the pending transactions file
+/// for inclusion in the next mined block.
+///
+/// # Arguments
+/// * `keystore_path` - Path to the wallet keystore file
+/// * `to_address` - Recipient's BitQuan address (bech32 format)
+/// * `amount` - Amount to send in qbits
+/// * `fee_rate` - Fee rate in qbits per virtual byte
+/// * `password` - Optional password to decrypt the keystore
+/// * `datadir` - Data directory containing the blockchain data
 pub async fn wallet_send(
     keystore_path: &str,
     to_address: &str,
-    amount: u64,
+    amount: u128,
     fee_rate: u64,
     password: Option<&str>,
+    datadir: &str,
 ) -> Result<()> {
     use std::path::Path;
 
     println!("BitQuan Wallet Send");
     println!("To: {}", to_address);
-    println!(
-        "Amount: {} qbits ({} BQ)",
-        amount,
-        format_bq(amount as u128)
-    );
+    println!("Amount: {} qbits ({} BQ)", amount, format_bq(amount));
     println!("Fee rate: {} qbits/WU", fee_rate);
     println!();
 
@@ -243,7 +251,7 @@ pub async fn wallet_send(
     let data: SerializableKeypair = serde_json::from_str(&json)?;
 
     // Reconstruct keypair for signing
-    let keypair = WalletKeypair::from_serializable(&data)
+    let keypair = WalletKeypair::from_serializable(&data, &password)
         .map_err(|e| Error::Invalid(format!("keypair reconstruction failed: {e}")))?;
 
     // Get recipient script
@@ -256,7 +264,7 @@ pub async fn wallet_send(
     {
         use bitquan_storage::RocksDBStore;
 
-        let _storage = RocksDBStore::open(Path::new("data/chainstate"))
+        let _storage = RocksDBStore::open(Path::new(datadir))
             .map_err(|e| Error::Invalid(format!("failed to open storage: {e}")))?;
 
         // Get sender script
@@ -269,7 +277,7 @@ pub async fn wallet_send(
         let height = _storage.height().unwrap_or(0);
         println!("🔍 Scanning chain (height {}) for funds...", height);
 
-        let target_amount = amount as u128;
+        let target_amount = amount;
         let fee = fee_rate as u128 * 10_000;
         let total_needed = target_amount.saturating_add(fee);
 
@@ -371,11 +379,7 @@ pub async fn wallet_send(
         println!();
         println!("Transaction created and signed!");
         println!("To: {}", to_address);
-        println!(
-            "Amount: {} qbits ({} BQ)",
-            amount,
-            format_bq(amount as u128)
-        );
+        println!("Amount: {} qbits ({} BQ)", amount, format_bq(amount));
         println!("Fee: {} qbits", fee);
         println!("Change: {} qbits", change_amount);
         println!();
@@ -385,30 +389,44 @@ pub async fn wallet_send(
         println!("{}", tx_json);
         println!();
 
-        // Broadcast transaction via RPC
-        println!("📡 Broadcasting transaction...");
+        // Save transaction to pending file (simple local broadcast)
+        println!("📡 Saving transaction to pending pool...");
 
-        // Convert transaction to hex for RPC submission
-        let tx_hex = hex::encode(tx_json.as_bytes());
+        let data_dir = Path::new("data");
+        std::fs::create_dir_all(data_dir)
+            .map_err(|e| Error::Invalid(format!("failed to create data dir: {e}")))?;
 
-        // Create RPC client and submit transaction
-        match submit_transaction_rpc(&tx_hex).await {
-            Ok(txid) => {
-                println!("Transaction broadcast successfully!");
-                println!("🔗 Transaction ID: {}", txid);
-                println!(
-                    "View on explorer (when available): https://explorer.bitquan.org/tx/{}",
-                    txid
-                );
-            }
-            Err(e) => {
-                println!("Failed to broadcast transaction: {}", e);
-                println!("You can try manual broadcast using RPC:");
-                println!("  curl -X POST -H 'Content-Type: application/json' \\");
-                println!("    -d '{{\"jsonrpc\":\"2.0\",\"method\":\"submittransaction\",\"params\":[\"{}\"],\"id\":1}}' \\", tx_hex);
-                println!("    http://127.0.0.1:8332");
-            }
-        }
+        let pending_path = data_dir.join("pending_transactions.jsonl");
+
+        // Append transaction to pending file (JSONL format - one JSON per line)
+        let tx_id = hex::encode(signed_tx.txid());
+        // Serialize transaction as JSON string (prevents u128 overflow when embedded)
+        let tx_json = serde_json::to_string(&signed_tx)
+            .map_err(|e| Error::Invalid(format!("failed to serialize tx json: {e}")))?;
+        let pending_entry = serde_json::json!({
+            "txid": tx_id,
+            "tx": tx_json,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        });
+
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&pending_path)
+            .map_err(|e| Error::Invalid(format!("failed to open pending tx file: {e}")))?;
+
+        writeln!(file, "{}", pending_entry)
+            .map_err(|e| Error::Invalid(format!("failed to write pending tx: {e}")))?;
+
+        println!("Transaction saved to pending pool!");
+        println!("🔗 Transaction ID: {}", tx_id);
+        println!("📁 Pending file: {}", pending_path.display());
+        println!();
+        println!("⚠️  Next steps:");
+        println!("1. Mine a block to include this transaction:");
+        println!("   cargo run --release -- bin/miner mine --config config/devnet.toml");
+        println!("2. The miner will automatically include pending transactions");
 
         Ok(())
     }
@@ -465,10 +483,8 @@ pub fn wallet_gen_mnemonic(
 
     // Derive keypair
     let keypair = helper.to_keypair()?;
-    let serializable = keypair.to_serializable();
-    let json = serde_json::to_string_pretty(&serializable)?;
 
-    // Get encryption password
+    // Get encryption password FIRST (needed for secret key encryption)
     let password_value = match password {
         Some(p) => p.to_string(),
         None => {
@@ -480,6 +496,10 @@ pub fn wallet_gen_mnemonic(
     if password_value.is_empty() {
         return invalid("Password cannot be empty");
     }
+
+    // Serialize keypair with encrypted secret key
+    let serializable = keypair.to_serializable(&password_value);
+    let json = serde_json::to_string_pretty(&serializable)?;
 
     // Encrypt and save keystore
     let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)
@@ -529,10 +549,8 @@ pub fn wallet_from_mnemonic(
 
     // Derive keypair
     let keypair = helper.to_keypair()?;
-    let serializable = keypair.to_serializable();
-    let json = serde_json::to_string_pretty(&serializable)?;
 
-    // Get encryption password
+    // Get encryption password FIRST (needed for secret key encryption)
     let password_value = match password {
         Some(p) => p.to_string(),
         None => {
@@ -544,6 +562,10 @@ pub fn wallet_from_mnemonic(
     if password_value.is_empty() {
         return invalid("Password cannot be empty");
     }
+
+    // Serialize keypair with encrypted secret key
+    let serializable = keypair.to_serializable(&password_value);
+    let json = serde_json::to_string_pretty(&serializable)?;
 
     // Encrypt and save keystore
     let keystore_file = keystore::encrypt_keypair(&json, &password_value, &serializable.address)
@@ -829,4 +851,3 @@ pub fn wallet_restore(
 
     Ok(())
 }
-

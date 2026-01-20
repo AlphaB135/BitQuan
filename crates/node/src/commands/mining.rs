@@ -12,10 +12,13 @@ use bitquan_network::protocol::Message;
 use bitquan_storage::{ChainStore, InMemoryChainStore, RocksDBStore};
 use bitquan_types::{
     error::{Error, Result},
-    genesis::GENESIS_HASH_BYTES, Block, NetworkId, SigAlgorithm, Transaction, TxIn,
-    TxOut,
+    genesis::GENESIS_HASH_BYTES,
+    Block, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut,
 };
-use bq_crypto::{rng::{RandomSource, RngService}, CryptoRegistry};
+use bq_crypto::{
+    rng::{RandomSource, RngService},
+    CryptoRegistry,
+};
 use std::collections::VecDeque;
 use std::fs;
 use std::net::SocketAddr;
@@ -90,6 +93,131 @@ fn load_block_placeholder() -> Result<Block> {
         transactions: Vec::new(),
     };
     Ok(block)
+}
+
+type PendingTransactionsResult = (Vec<Transaction>, Vec<[u8; 32]>, Box<dyn FnOnce()>);
+
+/// Load and VALIDATE pending transactions from pending_transactions.jsonl file
+/// Returns (valid_transactions, included_txids, cleanup_fn)
+/// - Validates Dilithium5 signatures before inclusion
+/// - Cleanup removes only successfully included transactions
+pub fn load_pending_transactions() -> PendingTransactionsResult {
+    use std::io::BufRead;
+
+    let pending_path = PathBuf::from("data/pending_transactions.jsonl");
+    let mut valid_transactions = Vec::new();
+    let mut valid_txids = Vec::new();
+
+    if pending_path.exists() {
+        if let Ok(file) = std::fs::File::open(&pending_path) {
+            let reader = std::io::BufReader::new(file);
+            for line_result in reader.lines() {
+                let line = match line_result {
+                    Ok(l) => l,
+                    Err(_) => break,
+                };
+                if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&line) {
+                    if let Some(tx_str) = entry.get("tx").and_then(|v| v.as_str()) {
+                        // Deserialize from JSON string (avoids u128 overflow when embedded)
+                        if let Ok(tx) = serde_json::from_str::<Transaction>(tx_str) {
+                            // SECURITY: Validate Dilithium5 signature before inclusion
+                            let is_valid = validate_transaction_signature(&tx);
+
+                            if is_valid {
+                                let txid = tx.txid();
+                                valid_txids.push(txid);
+                                valid_transactions.push(tx);
+                            }
+                        } // Skip invalid transactions
+                    }
+                }
+            }
+        }
+    }
+
+    // Cleanup function: remove included transactions, keep failed ones
+    // Calculates txid from each transaction instead of relying on file's txid field
+    let cleanup_path = pending_path.clone();
+    let cleanup_txids = valid_txids.clone();
+    let cleanup = Box::new(move || {
+        if !cleanup_path.exists() {
+            return;
+        }
+
+        // Read all entries, filter out included ones by calculating txid from transaction
+        if let Ok(content) = std::fs::read_to_string(&cleanup_path) {
+            let remaining: Vec<&str> = content
+                .lines()
+                .filter(|line| {
+                    // Deserialize the entry to get the transaction
+                    if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
+                        // Extract transaction string
+                        if let Some(tx_str) = entry.get("tx").and_then(|v| v.as_str()) {
+                            // Deserialize transaction and calculate its txid
+                            if let Ok(tx) = serde_json::from_str::<Transaction>(tx_str) {
+                                let calculated_txid = tx.txid();
+                                // Keep if NOT in cleanup_txids
+                                !cleanup_txids.iter().any(|id| id == &calculated_txid)
+                            } else {
+                                true // Keep entries with invalid transactions
+                            }
+                        } else {
+                            true // Keep entries without tx field
+                        }
+                    } else {
+                        true // Keep unparseable lines
+                    }
+                })
+                .collect();
+
+            if remaining.is_empty() {
+                let _ = std::fs::remove_file(&cleanup_path);
+            } else {
+                let _ = std::fs::write(&cleanup_path, remaining.join("\n") + "\n");
+            }
+        }
+    });
+
+    (valid_transactions, valid_txids, cleanup)
+}
+
+/// Validate transaction signature using Dilithium5
+/// Returns true if signature is valid, false otherwise
+pub fn validate_transaction_signature(tx: &Transaction) -> bool {
+    use pqc_dilithium_seeded as dilithium;
+
+    // Coinbase transactions don't have signatures
+    if tx.inputs.len() == 1 && tx.inputs[0].prev_txid == [0u8; 32] {
+        return true;
+    }
+
+    // Must have at least one witness
+    if tx.witnesses.is_empty() {
+        return false;
+    }
+
+    // Get the message that was signed (transaction without witnesses)
+    // IMPORTANT: Must match wallet.rs signing: serde_json::to_string().as_bytes()
+    let mut tx_for_signing = tx.clone();
+    tx_for_signing.witnesses.clear();
+    let msg = match serde_json::to_string(&tx_for_signing) {
+        Ok(s) => s.into_bytes(),
+        Err(_) => return false,
+    };
+
+    // Verify each witness signature
+    for witness in &tx.witnesses {
+        for sig_payload in &witness.signatures {
+            // Verify Dilithium5 signature
+            if dilithium::crypto_sign_verify(&sig_payload.signature, &msg, &sig_payload.public_key)
+                .is_err()
+            {
+                return false;
+            }
+        }
+    }
+
+    true
 }
 
 /// Mine the genesis block
@@ -186,6 +314,10 @@ pub fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
     Ok(())
 }
 
+/// Validate a block provided from an external source (placeholder for Phase 4)
+///
+/// This is a placeholder command that will be implemented to parse and validate
+/// blocks from external sources. Currently demonstrates block validation logic.
 pub fn check_block(path: &str) -> Result<()> {
     println!(
         "Block validation placeholder invoked for file: {path}. \
@@ -212,6 +344,10 @@ pub fn check_block(path: &str) -> Result<()> {
     Ok(())
 }
 
+/// Generate random bytes and derived streams using the BitQuan RNG
+///
+/// Demonstrates the RNG service by generating master and derived random streams.
+/// Useful for testing cryptographic operations and randomness quality.
 pub fn rng_demo(label: &str, length: usize) -> Result<()> {
     if length == 0 {
         println!("Length must be greater than zero.");
@@ -241,6 +377,11 @@ pub fn rng_demo(label: &str, length: usize) -> Result<()> {
     Ok(())
 }
 
+/// Mine a single block template by iterating nonces up to a limit (demo CPU miner)
+///
+/// This is a simple demonstration miner that iterates through nonces to find
+/// a valid proof-of-work solution. Useful for testing but not efficient for
+/// serious mining.
 pub fn mine_once(
     max_tries: u64,
     payout_script_hex: &str,
@@ -303,9 +444,24 @@ pub fn mine_once(
         witnesses: vec![],
     };
 
-    // Merkle/witness roots for block (support multi-tx in future)
-    let merkle_root = bitquan_types::merkle_root_from_txids(&[coinbase.txid()])?;
-    let witness_root = bitquan_types::merkle_root_from_txids(&[coinbase.wtxid()])?;
+    // Load pending transactions from file (with signature validation)
+    let (pending_txs, _valid_txids, cleanup) = load_pending_transactions();
+    if !pending_txs.is_empty() {
+        println!(
+            "Found {} valid pending transaction(s) to include",
+            pending_txs.len()
+        );
+    }
+
+    // Build transactions list: coinbase + pending
+    let mut all_txs = vec![coinbase];
+    all_txs.extend(pending_txs);
+
+    // Merkle/witness roots from all transactions
+    let txids: Vec<[u8; 32]> = all_txs.iter().map(|tx| tx.txid()).collect();
+    let wtxids: Vec<[u8; 32]> = all_txs.iter().map(|tx| tx.wtxid()).collect();
+    let merkle_root = bitquan_types::merkle_root_from_txids(&txids)?;
+    let witness_root = bitquan_types::merkle_root_from_txids(&wtxids)?;
 
     // Determine prev_block from tip if any
     let mut prev = [0u8; 32];
@@ -359,10 +515,14 @@ pub fn mine_once(
             println!("FOUND nonce={n} hash={}", hex::encode(id));
             let block = Block {
                 header: header.clone(),
-                transactions: vec![coinbase],
+                transactions: all_txs,
             };
             let _ = store.insert_block(block);
             println!("Inserted block tip={}", hex::encode(id));
+
+            // Cleanup: remove included transactions from pending file
+            cleanup();
+
             return Ok(());
         }
         if n % 100_000 == 0 {
@@ -374,7 +534,8 @@ pub fn mine_once(
     Ok(())
 }
 
-struct MiningOptions {
+/// Options for continuous mining operations
+pub struct MiningOptions {
     datadir: String,
     payout_script_hex: String,
     bits_override: u32,
@@ -569,7 +730,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
         println!("Using override difficulty: 0x{:08x}", bits);
     }
 
-    println!("BitQuan Continuous Miner");
+    println!("BitQuan Continuous Miner - TESTING PENDING TX FILE");
     println!("Data directory: {}", datadir);
     println!(
         "Threads: {}",
@@ -706,9 +867,26 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
             sig_algo: SigAlgorithm::Dilithium5,
         };
 
-        // Merkle/witness roots for block
-        let merkle_root = bitquan_types::merkle_root_from_txids(&[coinbase.txid()])?;
-        let witness_root = bitquan_types::merkle_root_from_txids(&[coinbase.wtxid()])?;
+        // Load pending transactions from file (with signature validation)
+        println!("TRACE: About to load pending transactions...");
+        let (pending_txs, _valid_txids, cleanup) = load_pending_transactions();
+        println!("TRACE: Loaded {} pending transactions", pending_txs.len());
+        if !pending_txs.is_empty() {
+            println!(
+                "\nFound {} valid pending transaction(s) to include",
+                pending_txs.len()
+            );
+        }
+
+        // Build transactions list: coinbase + pending
+        let mut all_txs = vec![coinbase.clone()];
+        all_txs.extend(pending_txs);
+
+        // Merkle/witness roots from all transactions
+        let txids: Vec<[u8; 32]> = all_txs.iter().map(|tx| tx.txid()).collect();
+        let wtxids: Vec<[u8; 32]> = all_txs.iter().map(|tx| tx.wtxid()).collect();
+        let merkle_root = bitquan_types::merkle_root_from_txids(&txids)?;
+        let witness_root = bitquan_types::merkle_root_from_txids(&wtxids)?;
 
         // Determine prev_block
         let mut prev = [0u8; 32];
@@ -895,7 +1073,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         let block = Block {
             header: header.clone(),
-            transactions: vec![coinbase.clone()],
+            transactions: all_txs,
         };
 
         {
@@ -905,6 +1083,9 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
             s.insert_block(block.clone())
                 .map_err(|e| Error::Invalid(format!("failed to insert block: {e}")))?;
         }
+
+        // Cleanup: remove included transactions from pending file
+        cleanup();
 
         // Broadcast block to connected peers
         if let Some(ref pm) = peer_manager {
@@ -1042,6 +1223,10 @@ pub fn mine_continuous(_options: MiningOptions) -> Result<()> {
     Ok(())
 }
 
+/// Print mining session summary statistics
+///
+/// Displays interval count, average times, and guard activation statistics
+/// for a mining session.
 pub fn print_session_summary(interval_count: u64, total_intervals: u64, guard_total: u64) {
     if interval_count == 0 {
         println!("Session summary -> insufficient interval data to compute averages.");
@@ -1100,6 +1285,7 @@ pub fn run_stratum_server(
 }
 
 /// Parse hybrid weights from CLI string format "sha256d:1,randomx:2".
+#[allow(unexpected_cfgs)]
 pub fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowAlgo, f32)>> {
     use bitquan_consensus::pow::PowAlgo;
 
@@ -1116,9 +1302,12 @@ pub fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowA
             "sha256d" | "sha256" => PowAlgo::Sha256d,
             #[cfg(feature = "randomx")]
             "randomx" => PowAlgo::RandomX,
+            // ethash/hybrid features planned for future
             #[cfg(feature = "ethash")]
+            #[allow(unexpected_cfgs)]
             "ethash" => PowAlgo::Ethash,
             #[cfg(feature = "hybrid")]
+            #[allow(unexpected_cfgs)]
             "hybrid" => PowAlgo::Hybrid,
             _ => {
                 return Err(Error::Invalid(format!(
@@ -1134,7 +1323,10 @@ pub fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowA
             .map_err(|e| Error::Invalid(format!("invalid weight '{}': {}", value, e)))?;
 
         if weight <= 0.0 {
-            return Err(Error::Invalid(format!("weight must be positive: {}", weight)));
+            return Err(Error::Invalid(format!(
+                "weight must be positive: {}",
+                weight
+            )));
         }
 
         weights.push((algo, weight));

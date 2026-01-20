@@ -238,16 +238,12 @@ impl HybridMiner {
         // SAFETY: weights is guaranteed non-empty due to validation in new()
         // This branch only triggers due to floating-point precision edge cases
         #[allow(clippy::unwrap_used)]
-        self.weights
-            .keys()
-            .next()
-            .copied()
-            .unwrap_or_else(|| {
-                // Should NEVER happen due to validation in new()
-                // If it does (e.g., refactoring bug), use safe fallback
-                eprintln!("CRITICAL: No mining algorithms available! Using Sha256d fallback.");
-                PowAlgo::Sha256d
-            })
+        self.weights.keys().next().copied().unwrap_or_else(|| {
+            // Should NEVER happen due to validation in new()
+            // If it does (e.g., refactoring bug), use safe fallback
+            eprintln!("CRITICAL: No mining algorithms available! Using Sha256d fallback.");
+            PowAlgo::Sha256d
+        })
     }
 
     /// Get engine for given algorithm.

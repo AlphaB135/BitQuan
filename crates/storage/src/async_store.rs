@@ -117,6 +117,10 @@ pub trait AsyncChainStore: Send + Sync {
 
     /// Disconnect a block, rolling back its changes (for chain reorg).
     async fn disconnect_block(&self, block: &Block) -> std::result::Result<(), AsyncStoreError>;
+
+    /// Calculate the Median Time Past (MTP) from the last 11 blocks
+    /// Returns median timestamp for timestamp validation
+    async fn median_time_past(&self) -> std::result::Result<u64, AsyncStoreError>;
 }
 
 #[async_trait]
@@ -275,6 +279,46 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
         .map_err(AsyncStoreError::Storage)?;
 
         Ok(())
+    }
+
+    async fn median_time_past(&self) -> std::result::Result<u64, AsyncStoreError> {
+        let store = Arc::clone(&self.inner);
+
+        tokio::task::spawn_blocking(move || {
+            let guard = store
+                .lock()
+                .map_err(|_| AsyncStoreError::Poisoned("median_time_past calculation"))?;
+
+            // Count blocks to get current height (same pattern as calculate_height)
+            let mut current_height = 0u64;
+            loop {
+                match guard.get_block_by_height(current_height) {
+                    Ok(Some(_)) => current_height += 1,
+                    Ok(None) => break,
+                    Err(_) => break,
+                }
+            }
+
+            // If less than 11 blocks, return 0 as fallback
+            if current_height < 11 {
+                return Ok(0);
+            }
+
+            // Collect last 11 block timestamps
+            let mut timestamps = Vec::with_capacity(11);
+            for i in 0u64..11 {
+                let height = current_height.saturating_sub(i);
+                if let Ok(Some(block)) = guard.get_block_by_height(height) {
+                    timestamps.push(u64::from(block.header.time));
+                }
+            }
+
+            // Sort and return median (middle element)
+            timestamps.sort_unstable();
+            Ok(timestamps[5]) // 11 elements, index 5 is median
+        })
+        .await
+        .map_err(AsyncStoreError::TaskSpawn)?
     }
 }
 

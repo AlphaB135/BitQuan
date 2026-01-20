@@ -15,7 +15,7 @@ use std::path::Path;
 // Helper function to get or create JWT secret
 
 /// Run RPC server with authentication
-
+#[allow(clippy::too_many_arguments)]
 pub fn run_rpc_server(
     handler: crate::rpc::NodeRpcHandler,
     addr: String,

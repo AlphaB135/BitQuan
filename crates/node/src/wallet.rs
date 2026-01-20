@@ -4,6 +4,7 @@
 //! using post-quantum cryptography (Dilithium) with secure memory handling.
 
 use bitquan_types::error::{Error, Result};
+use bq_crypto::wallet::{EncryptedData, Encryptor, SecureString};
 use pqc_dilithium_seeded::{self as dilithium, Keypair, PUBLICKEYBYTES, SECRETKEYBYTES, SIGNBYTES};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
@@ -122,14 +123,14 @@ impl WalletKeypair {
     }
 
     /// Converts to serializable format with encrypted secret key.
-    pub fn to_serializable(&self) -> SerializableKeypair {
+    pub fn to_serializable(&self, password: &str) -> SerializableKeypair {
         use crate::wallet::address;
 
         let pubkey_hash = self.public_key_hash();
         let address_str = address::encode(&pubkey_hash);
         let pubkey_hex = hex::encode(&self.public_key);
         // Encrypt secret key before serialization
-        let secret_hex = self.encrypt_secret_key().unwrap_or_else(|_| {
+        let secret_encrypted = self.encrypt_secret_key(password).unwrap_or_else(|_| {
             log::error!("Failed to encrypt secret key for serialization");
             "ENCRYPTION_FAILED".to_string()
         });
@@ -137,33 +138,42 @@ impl WalletKeypair {
         SerializableKeypair {
             algorithm: "dilithium5".to_string(),
             public_key: pubkey_hex,
-            secret_key: secret_hex,
+            secret_key: secret_encrypted,
             address: address_str,
             public_key_hash: hex::encode(pubkey_hash),
         }
     }
 
-    /// Encrypts the secret key for storage using Argon2id.
-    /// Encrypts the secret key for storage (Simplified: Hex encoding for now).
-    fn encrypt_secret_key(&self) -> Result<String> {
-        // PERMANENT FIX: Don't hash the secret key!
-        // For V1, we store it as Hex (Unencrypted but usable).
-        // TODO: Implement AES-GCM encryption with password.
-        Ok(hex::encode(self.secret_key.expose_secret()))
+    /// Encrypts the secret key for storage using AES-256-GCM + Argon2id.
+    fn encrypt_secret_key(&self, password: &str) -> Result<String> {
+        let encryptor = Encryptor::default();
+        let secure_password = SecureString::new(password.to_owned());
+        let plaintext = self.secret_key.expose_secret();
+
+        let encrypted = encryptor
+            .encrypt(plaintext, &secure_password)
+            .map_err(|e| Error::Invalid(format!("encryption failed: {}", e)))?;
+
+        // Serialize encrypted data to JSON (includes salt, nonce, kdf_params)
+        serde_json::to_string(&encrypted)
+            .map_err(|e| Error::Invalid(format!("serialization failed: {}", e)))
     }
 
     /// Creates from serializable format with secret key decryption.
     #[allow(dead_code)]
-    pub fn from_serializable(data: &SerializableKeypair) -> Result<Self> {
+    pub fn from_serializable(data: &SerializableKeypair, password: &str) -> Result<Self> {
         // Reconstruct keypair from serialized data
         let public_key = hex::decode(&data.public_key)
             .map_err(|e| Error::Invalid(format!("invalid public key hex: {e}")))?;
 
-        // Try to decrypt secret key first, fallback to hex decode for backward compatibility
-        let secret_key = if data.secret_key.starts_with("$argon2") {
-            Self::decrypt_secret_key(&data.secret_key)?
+        // Try to decrypt secret key first (encrypted JSON format)
+        // Fallback to hex decode for backward compatibility with legacy wallets
+        let secret_key = if data.secret_key.starts_with('{') {
+            // New encrypted format (JSON)
+            Self::decrypt_secret_key(&data.secret_key, password)?
         } else {
-            // Legacy support: direct hex decode (less secure)
+            // Legacy support: direct hex decode (less secure, log warning)
+            log::warn!("Loading legacy unencrypted wallet from hex format");
             hex::decode(&data.secret_key)
                 .map_err(|e| Error::Invalid(format!("invalid secret key hex: {e}")))?
         };
@@ -197,14 +207,21 @@ impl WalletKeypair {
         })
     }
 
-    /// Decrypts an encrypted secret key.
-    fn decrypt_secret_key(_encrypted_secret: &str) -> Result<Vec<u8>> {
-        // For now, return error to indicate this needs proper implementation
-        // In production, use AES-GCM with proper key derivation
-        log::warn!("Secret key encryption not properly implemented yet.");
-        Err(Error::Invalid(
-            "Secret key encryption not properly implemented yet".to_string(),
-        ))
+    /// Decrypts an encrypted secret key using AES-256-GCM + Argon2id.
+    fn decrypt_secret_key(encrypted_secret: &str, password: &str) -> Result<Vec<u8>> {
+        let encryptor = Encryptor::default();
+        let secure_password = SecureString::new(password.to_owned());
+
+        // Deserialize encrypted data from JSON
+        let encrypted_data: EncryptedData = serde_json::from_str(encrypted_secret)
+            .map_err(|e| Error::Invalid(format!("deserialization failed: {}", e)))?;
+
+        // Decrypt using the same password
+        let decrypted = encryptor
+            .decrypt(&encrypted_data, &secure_password)
+            .map_err(|e| Error::Invalid(format!("decryption failed: {}", e)))?;
+
+        Ok(decrypted)
     }
 
     /// Returns the public key hash (for address generation).
@@ -236,27 +253,29 @@ impl WalletKeypair {
         Self::generate_dilithium5()
     }
 
-    /// Saves keypair to a file (warning: stores in JSON - not encrypted!).
+    /// Saves keypair to a file (warning: stores in JSON - file not encrypted!).
+    /// Note: The secret key field IS encrypted with the password, but the JSON file itself
+    /// is not encrypted at the file level. For production, use the keystore module.
     #[allow(dead_code)]
-    pub fn save_to_file(&self, path: &Path) -> Result<()> {
-        let data = self.to_serializable();
+    pub fn save_to_file(&self, path: &Path, password: &str) -> Result<()> {
+        let data = self.to_serializable(password);
         let json = serde_json::to_string_pretty(&data)?;
         fs::write(path, json)?;
-        println!("⚠️  WARNING: Keypair saved as unencrypted JSON!");
-        println!("⚠️  This is for development only - use encrypted keystore for production!");
+        log::info!("⚠️  WARNING: Keypair saved to file (secret key is encrypted, but file is not)!");
+        log::info!("⚠️  For production, use the encrypted keystore system!");
         Ok(())
     }
 
     /// Loads keypair from a file.
     #[allow(dead_code)]
-    pub fn load_from_file(path: &Path) -> Result<Self> {
+    pub fn load_from_file(path: &Path, password: &str) -> Result<Self> {
         let json = fs::read_to_string(path)
             .map_err(|e| Error::Invalid(format!("failed to read keypair file: {e}")))?;
 
         let data: SerializableKeypair = serde_json::from_str(&json)
             .map_err(|e| Error::Invalid(format!("failed to parse keypair file: {e}")))?;
 
-        Self::from_serializable(&data)
+        Self::from_serializable(&data, password)
     }
 
     /// Exports public key only (safe to share).
@@ -561,15 +580,18 @@ mod tests {
     }
 
     #[test]
-    fn serializable_contains_hex_keys() {
+    fn serializable_contains_encrypted_key() {
         let keypair =
             WalletKeypair::generate_dilithium5().expect("Failed to generate Dilithium5 keypair");
-        let serializable = keypair.to_serializable();
+        let serializable = keypair.to_serializable("test_password");
         assert_eq!(serializable.public_key.len(), PUBLICKEYBYTES * 2);
-        // Secret key is hex-encoded for V1 (TODO: Implement AES-GCM encryption)
-        assert!(serializable.secret_key.len() == SECRETKEYBYTES * 2);
-        // Verify it's valid hex
-        assert!(hex::decode(&serializable.secret_key).is_ok());
+        // Secret key is now encrypted JSON (AES-256-GCM + Argon2id)
+        assert!(serializable.secret_key.starts_with('{')); // JSON format
+                                                           // Verify it's valid encrypted data JSON
+        assert!(
+            serde_json::from_str::<bq_crypto::wallet::EncryptedData>(&serializable.secret_key)
+                .is_ok()
+        );
     }
 
     #[test]

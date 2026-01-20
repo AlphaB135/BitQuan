@@ -10,6 +10,7 @@ use bitquan_mempool::Mempool;
 use bitquan_network::ban_manager::{BanManager, BanReason};
 use bitquan_network::peer::{Peer, PeerManager};
 use bitquan_network::protocol::{network_magic, InvType, InvVector, Message, RejectCode};
+use bitquan_network::relay::create_block_getdata;
 use bitquan_storage::async_store::AsyncChainStore;
 use bitquan_types::{Block, NetworkId, Transaction};
 use std::sync::Arc;
@@ -65,6 +66,8 @@ pub struct WorkerContext {
     /// Genesis hash for transaction context.
     #[allow(dead_code)] // Used for future sighash context
     pub genesis_hash: [u8; 32],
+    /// Pending block requests during reorg (tracked to detect duplicates)
+    pub pending_block_requests: Arc<TokioMutex<std::collections::HashSet<[u8; 32]>>>,
 }
 
 impl WorkerContext {
@@ -89,6 +92,7 @@ impl WorkerContext {
             ban_manager,
             network_id,
             genesis_hash,
+            pending_block_requests: Arc::new(TokioMutex::new(std::collections::HashSet::new())),
         }
     }
 }
@@ -113,13 +117,10 @@ pub async fn run_peer_loop(mut peer: Peer, ctx: Arc<WorkerContext>) -> Result<()
     println!("🔄 [WORKER] Starting peer loop for {}", peer.addr);
     log::info!("🔄 Starting peer loop for {}", peer.addr);
 
-    // Send GetBlocks after handshake to request blocks (IBD initiator)
-    // Only outbound connections should request blocks
-    if peer.start_height.unwrap_or(0) > 0 || ctx.storage.height().await.unwrap_or(0) == 0 {
-        println!("📤 [WORKER] Sending GetBlocks to {} for IBD", peer.addr);
-        if let Err(e) = send_getblocks(&mut peer, &ctx).await {
-            println!("⚠️  Failed to send GetBlocks: {}", e);
-        }
+    // Send GetHeaders after handshake to initiate IBD if we're behind
+    // This replaces GetBlocks with the lighter header-first approach
+    if let Err(e) = send_getheaders_if_behind(&mut peer, &ctx).await {
+        log::warn!("⚠️  Failed to send GetHeaders: {}", e);
     }
 
     loop {
@@ -274,11 +275,7 @@ async fn handle_message(
             stop_hash,
         } => handle_get_headers(peer, ctx, locator_hashes, stop_hash).await,
 
-        Message::Headers { headers } => {
-            log::info!("📨 Received {} headers from {}", headers.len(), peer.addr);
-            // TODO: Validate headers and add to chain
-            Ok(true)
-        }
+        Message::Headers { headers } => handle_headers(peer, ctx, headers).await,
 
         // === Block Sync ===
         Message::GetBlocks {
@@ -289,7 +286,30 @@ async fn handle_message(
 
         // === Mempool ===
         Message::GetMempool => {
-            // TODO: Send mempool inventory
+            log::debug!("📋 Peer {} requested mempool inventory", peer.addr);
+
+            // Maximum inventory items per message (Bitcoin standard)
+            const MAX_INV_ITEMS: usize = 50_000;
+
+            let mempool = ctx.mempool.lock().await;
+            let tx_ids = mempool.txids();
+            drop(mempool);
+
+            let inv: Vec<InvVector> = tx_ids
+                .into_iter()
+                .take(MAX_INV_ITEMS)
+                .map(|txid| InvVector {
+                    inv_type: InvType::Tx,
+                    hash: txid,
+                })
+                .collect();
+
+            let count = inv.len();
+            if !inv.is_empty() {
+                peer.send_message(Message::Inv { inventory: inv })?;
+                log::debug!("📤 Sent {} mempool txs to {}", count, peer.addr);
+            }
+
             Ok(true)
         }
 
@@ -322,10 +342,103 @@ async fn handle_message(
     }
 }
 
+/// Send GetHeaders message to initiate IBD.
+///
+/// After handshake completes, if our chain is behind the peer's chain,
+/// send GetHeaders to request block headers from the peer.
+async fn send_getheaders_if_behind(
+    peer: &mut Peer,
+    ctx: &WorkerContext,
+) -> Result<(), WorkerError> {
+    // Get peer's claimed height
+    let peer_height = match peer.start_height {
+        Some(h) => h,
+        None => {
+            log::debug!("Peer {} hasn't sent start_height yet", peer.addr);
+            return Ok(());
+        }
+    };
+
+    // Get our current height
+    let our_height = match ctx.storage.height().await {
+        Ok(h) => h,
+        Err(e) => {
+            log::error!("Failed to get chain height: {}", e);
+            return Err(WorkerError::Storage(e.to_string()));
+        }
+    };
+
+    // Only send GetHeaders if peer is ahead
+    if peer_height <= our_height {
+        log::debug!(
+            "Peer {} (height: {}) is not ahead of us (height: {})",
+            peer.addr,
+            peer_height,
+            our_height
+        );
+        return Ok(());
+    }
+
+    log::info!(
+        "🔄 We're behind: us={} vs peer={}, initiating IBD",
+        our_height,
+        peer_height
+    );
+
+    // Build block locator hashes
+    let mut locator_hashes: Vec<[u8; 32]> = Vec::new();
+
+    // Add tip hash
+    if let Ok(Some(tip)) = ctx.storage.tip().await {
+        locator_hashes.push(header_hash(&tip));
+    } else {
+        // No tip yet - use zero hash
+        locator_hashes.push([0u8; 32]);
+    }
+
+    // Add exponential backoff hashes (every power of 2)
+    // Simplified version - TODO: optimize with proper header index
+    let mut step = 1u64;
+    while step < our_height.saturating_sub(1) {
+        let check_height = our_height.saturating_sub(step);
+        if let Ok(Some(block)) = ctx.storage.get_block_by_height(check_height).await {
+            locator_hashes.push(header_hash(&block.header));
+            step = step.saturating_mul(2);
+        } else {
+            break;
+        }
+    }
+
+    // Add genesis hash as fallback
+    locator_hashes.push(ctx.genesis_hash);
+
+    // Stop hash is zero (get as many as possible)
+    let stop_hash = [0u8; 32];
+
+    let msg = bitquan_network::protocol::Message::GetHeaders {
+        version: bitquan_network::protocol::PROTOCOL_VERSION,
+        locator_hashes,
+        stop_hash,
+    };
+
+    peer.send_message(msg)
+        .map_err(|e| WorkerError::Network(format!("send GetHeaders failed: {}", e)))?;
+
+    log::info!(
+        "📤 Sent GetHeaders to {} (our height: {}, peer height: {})",
+        peer.addr,
+        our_height,
+        peer_height
+    );
+
+    Ok(())
+}
+
 /// Send GetBlocks message to initiate IBD.
 ///
 /// After handshake completes, nodes with lower height should send GetBlocks
 /// to request block inventory from peers.
+#[allow(dead_code)]
 async fn send_getblocks(peer: &mut Peer, ctx: &WorkerContext) -> Result<(), WorkerError> {
     use sha2::{Digest, Sha256};
 
@@ -578,6 +691,16 @@ async fn handle_block(
         }
         Ok(None) => {
             // New block, proceed
+
+            // Check if this block was requested during reorg
+            let mut pending = ctx.pending_block_requests.lock().await;
+            if pending.remove(&block_hash) {
+                log::info!(
+                    "✅ Received requested block {} (was pending)",
+                    hex::encode(&block_hash[..8])
+                );
+                // Block will be processed normally below
+            }
         }
         Err(e) => {
             log::error!("Storage error checking block: {}", e);
@@ -594,9 +717,14 @@ async fn handle_block(
         }
     };
 
-    // Calculate median time past (simplified: use current block time for now)
-    // TODO: Implement proper median of past 11 blocks
-    let median_time_past = u64::from(block.header.time);
+    // Calculate median time past from last 11 blocks (prevents timestamp manipulation)
+    let median_time_past = match ctx.storage.median_time_past().await {
+        Ok(mtp) => mtp,
+        Err(e) => {
+            log::error!("❌ Failed to calculate median time past: {}", e);
+            return Err(WorkerError::Storage(e.to_string()));
+        }
+    };
 
     // Step 3: UTXO validation (CRITICAL - prevents double spends, calculates fees)
     // This MUST come before consensus validation because we need total_fees
@@ -762,7 +890,7 @@ async fn handle_block(
 
             // 5B. Connect new chain (already validated, just need to insert)
             // Note: new_block is being processed now, insert it later in Step 6
-            for new_hash in &reorg_info.connected_blocks {
+            'new_chain: for new_hash in &reorg_info.connected_blocks {
                 // Skip the current block (will be inserted in Step 6)
                 if new_hash == &block_hash {
                     continue;
@@ -773,12 +901,44 @@ async fn handle_block(
                     Ok(Some(b)) => b,
                     Ok(None) => {
                         log::warn!(
-                            "⚠️  New chain block {} not in storage yet",
+                            "⚠️  New chain block {} not in storage, requesting from peer",
                             hex::encode(&new_hash[..8])
                         );
-                        // Request this block from peer
-                        // TODO: Implement block request
-                        continue;
+
+                        // Check if already requested (avoid duplicate requests)
+                        {
+                            let mut pending = ctx.pending_block_requests.lock().await;
+                            if !pending.insert(*new_hash) {
+                                log::debug!(
+                                    "Block {} already requested, skipping",
+                                    hex::encode(&new_hash[..8])
+                                );
+                                continue;
+                            }
+                        }
+
+                        // Send GetData message to request the missing block
+                        let getdata = create_block_getdata(vec![*new_hash]);
+                        if let Err(e) = peer.send_message(getdata) {
+                            log::error!(
+                                "Failed to request block {}: {}",
+                                hex::encode(&new_hash[..8]),
+                                e
+                            );
+                            // Remove from pending since request failed
+                            let mut pending = ctx.pending_block_requests.lock().await;
+                            pending.remove(new_hash);
+                        } else {
+                            log::info!(
+                                "📤 Requested block {} from peer {}",
+                                hex::encode(&new_hash[..8]),
+                                peer.addr
+                            );
+                        }
+
+                        // Break the loop - wait for blocks to arrive via handle_block()
+                        // This prevents "stuck reorg" where we keep requesting missing blocks
+                        break 'new_chain;
                     }
                     Err(e) => {
                         log::error!(
@@ -967,6 +1127,153 @@ async fn handle_tx(
 /// Logic:
 /// 1. Find the common ancestor between locator hashes and our chain
 /// 2. Send up to 2000 headers starting from common ancestor + 1
+async fn handle_headers(
+    peer: &mut Peer,
+    ctx: &WorkerContext,
+    headers: Vec<bitquan_types::BlockHeader>,
+) -> Result<bool, WorkerError> {
+    if headers.is_empty() {
+        log::debug!("📨 Received empty Headers message from {}", peer.addr);
+        return Ok(true);
+    }
+
+    log::info!(
+        "📨 Received {} headers from {} (first: {})",
+        headers.len(),
+        peer.addr,
+        hex::encode(&header_hash(&headers[0])[..8])
+    );
+
+    // Get current chain tip
+    let tip_hash = match ctx.storage.tip().await {
+        Ok(Some(header)) => header_hash(&header),
+        Ok(None) => {
+            log::warn!("⚠️  No chain tip found (empty chain)");
+            // Empty chain - accept genesis
+            [0u8; 32]
+        }
+        Err(e) => {
+            log::error!("❌ Failed to get chain tip: {}", e);
+            return Err(WorkerError::Storage(e.to_string()));
+        }
+    };
+
+    // Validate each header and queue block download
+    let mut valid_count = 0;
+    let mut block_hashes = Vec::new();
+
+    for (idx, header) in headers.iter().enumerate() {
+        let hash = header_hash(header);
+
+        // Skip if we already have this block
+        match ctx.storage.get_block(&hash).await {
+            Ok(Some(_)) => {
+                log::debug!(
+                    "Header {}/{} already known, skipping",
+                    idx + 1,
+                    headers.len()
+                );
+                continue;
+            }
+            Ok(None) => {
+                // New header, proceed
+            }
+            Err(e) => {
+                log::error!("❌ Storage error checking header: {}", e);
+                return Err(WorkerError::Storage(e.to_string()));
+            }
+        }
+
+        // Validate header links to our chain
+        let prev_hash = header.prev_block;
+        let expected_prev = if idx == 0 {
+            // First header should link to our tip
+            tip_hash
+        } else {
+            header_hash(&headers[idx - 1])
+        };
+
+        if prev_hash != expected_prev {
+            log::warn!(
+                "⚠️  Header {}/{} has invalid prev_block (expected {}, got {})",
+                idx + 1,
+                headers.len(),
+                hex::encode(&expected_prev[..8]),
+                hex::encode(&prev_hash[..8])
+            );
+            // Invalid chain link - stop processing
+            break;
+        }
+
+        // Validate proof of work
+        let target = match bitquan_consensus::pow::target_from_bits(header.bits) {
+            Ok(t) => t,
+            Err(e) => {
+                log::warn!(
+                    "⚠️  Header {}/{} has invalid bits: {}",
+                    idx + 1,
+                    headers.len(),
+                    e
+                );
+                let _ = peer.add_ban_score(50);
+                break;
+            }
+        };
+
+        if !bitquan_consensus::pow::meets_target(&hash, &target) {
+            log::warn!(
+                "⚠️  Header {}/{} has invalid proof of work",
+                idx + 1,
+                headers.len()
+            );
+            // Invalid PoW - ban peer
+            let _ = peer.add_ban_score(100);
+            return Err(WorkerError::InvalidData(
+                "Invalid proof of work".to_string(),
+            ));
+        }
+
+        valid_count += 1;
+        block_hashes.push(hash);
+    }
+
+    log::info!(
+        "✅ Validated {} headers, queuing block downloads",
+        valid_count
+    );
+
+    // Queue block downloads using GetData
+    if !block_hashes.is_empty() {
+        // Add to pending requests
+        let mut pending = ctx.pending_block_requests.lock().await;
+        for hash in &block_hashes {
+            pending.insert(*hash);
+        }
+        drop(pending);
+
+        // Send GetData message
+        let inv: Vec<InvVector> = block_hashes
+            .iter()
+            .map(|hash| InvVector {
+                inv_type: InvType::Block,
+                hash: *hash,
+            })
+            .collect();
+
+        peer.send_message(Message::GetData { inventory: inv })?;
+        log::info!(
+            "📤 Requested {} blocks from {}",
+            block_hashes.len(),
+            peer.addr
+        );
+    }
+
+    Ok(true)
+}
+
+/// Handle GetHeaders request from a peer.
+///
+/// This is the server-side of header sync (IBD).
 async fn handle_get_headers(
     peer: &mut Peer,
     _ctx: &WorkerContext,
@@ -1431,6 +1738,11 @@ mod tests {
             // Mock implementation - does nothing
             Ok(())
         }
+
+        async fn median_time_past(&self) -> std::result::Result<u64, AsyncStoreError> {
+            // Mock implementation - returns 0 for testing
+            Ok(0)
+        }
     }
 
     /// Test that double spends within the same block are detected and rejected
@@ -1464,6 +1776,7 @@ mod tests {
             ))),
             network_id: bitquan_types::NetworkId::Devnet,
             genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
+            pending_block_requests: Arc::new(TokioMutex::new(std::collections::HashSet::new())),
         };
 
         // Create two transactions that BOTH spend the same UTXO (double spend)
@@ -1590,6 +1903,7 @@ mod tests {
             ))),
             network_id: bitquan_types::NetworkId::Devnet,
             genesis_hash: [0u8; 32],
+            pending_block_requests: Arc::new(TokioMutex::new(std::collections::HashSet::new())),
         };
 
         // Create transaction with u64::MAX value (overflow attack)

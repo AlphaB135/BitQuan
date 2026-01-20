@@ -577,11 +577,11 @@ impl RpcMethods for NodeRpcHandler {
                 // Select transactions up to 4M weight units (standard block weight)
                 let selected = mp.select_for_block(4_000_000);
                 if !selected.is_empty() {
-                    println!("Mining block with {} mempool transactions", selected.len());
+                    log::info!("Mining block with {} mempool transactions", selected.len());
                     transactions.extend(selected);
                 }
             } else {
-                println!("Warning: No mempool available for mining");
+                log::info!("Warning: No mempool available for mining");
             }
 
             // Recalculate merkle root including all transactions
@@ -614,15 +614,39 @@ impl RpcMethods for NodeRpcHandler {
     async fn sendtoaddress(
         &self,
         address: String,
-        amount: u64,
+        amount: u128,
         _comment: Option<String>,
     ) -> Result<String, RpcError> {
         use bitquan_types::NetworkId;
+        use std::env;
         use std::path::Path;
 
         // For testing: load miner wallet from default location
+        // SECURITY: Password must be provided via environment variable
         let wallet_path = Path::new("miner_wallet.json");
-        let wallet = WalletKeypair::load_from_file(wallet_path)
+        let wallet_password = env::var("BITQUAN_WALLET_PASSWORD").map_err(|_| {
+            RpcError::InternalError(
+                "BITQUAN_WALLET_PASSWORD environment variable not set. \
+                 Set with: export BITQUAN_WALLET_PASSWORD=\"your-password\""
+                    .to_string(),
+            )
+        })?;
+
+        if wallet_password.is_empty() {
+            return Err(RpcError::InternalError(
+                "BITQUAN_WALLET_PASSWORD cannot be empty".to_string(),
+            ));
+        }
+
+        // Log warning if using insecure default password
+        if wallet_password == "miner_dev_password" {
+            log::warn!(
+                "⚠️  WARNING: Using INSECURE default wallet password! \
+                       Set BITQUAN_WALLET_PASSWORD env var with a strong password."
+            );
+        }
+
+        let wallet = WalletKeypair::load_from_file(wallet_path, &wallet_password)
             .map_err(|e| RpcError::InternalError(format!("Failed to load wallet: {}", e)))?;
 
         // Parse recipient address
@@ -667,7 +691,7 @@ impl RpcMethods for NodeRpcHandler {
 
         // Get the coinbase output value (50 BQ = 5,000,000,000 satoshis)
         let input_value = coinbase_tx.outputs[0].value;
-        let output_value = amount as u128;
+        let output_value = amount;
 
         if output_value > input_value {
             return Err(RpcError::InternalError(format!(

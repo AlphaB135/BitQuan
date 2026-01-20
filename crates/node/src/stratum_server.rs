@@ -7,6 +7,7 @@ use bitquan_consensus::pow::{
 };
 use bitquan_types::{Block, Error, NetworkId, Result};
 use dashmap::DashMap;
+use log::{debug, error, info, warn};
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -198,7 +199,8 @@ impl MinerSession {
     pub fn new(algo: PowAlgo, address: String, difficulty: f64) -> Result<Self> {
         // Duplicate cache: keep last 4096 nonces
         // SAFETY: 4096 is a non-zero constant
-        let cache_size = NonZeroUsize::new(4096).expect("4096 is non-zero");
+        #[allow(clippy::unwrap_used)]
+        let cache_size = NonZeroUsize::new(4096).unwrap();
         let duplicate_cache = Arc::new(Mutex::new(LruCache::new(cache_size)));
 
         // Assign cryptographically secure extranonce1
@@ -606,7 +608,7 @@ impl StratumServer {
 
         // Spawn ShareVerifier worker pool
         let worker_count = std::cmp::max(2, num_cpus::get() / 2);
-        println!("Starting {} ShareVerifier workers...", worker_count);
+        info!("Starting {} ShareVerifier workers...", worker_count);
 
         // Wrap receiver in Arc<Mutex> for sharing among workers
         let share_rx = Arc::new(Mutex::new(share_rx));
@@ -622,7 +624,7 @@ impl StratumServer {
                         match rx_lock.recv().await {
                             Some(j) => j,
                             None => {
-                                println!(
+                                debug!(
                                     "ShareVerifier worker {}: job channel closed, exiting",
                                     worker_id
                                 );
@@ -655,21 +657,18 @@ impl StratumServer {
                             };
                             // Send result back; if channel closed, worker exits
                             if tx.send(share_result).await.is_err() {
-                                eprintln!(
-                                    "ShareVerifier worker {}: result channel closed",
-                                    worker_id
-                                );
+                                warn!("ShareVerifier worker {}: result channel closed", worker_id);
                                 break;
                             }
                         }
                         Ok(Err(e)) => {
-                            eprintln!(
+                            error!(
                                 "ShareVerifier worker {}: verification error: {}",
                                 worker_id, e
                             );
                         }
                         Err(e) => {
-                            eprintln!(
+                            error!(
                                 "ShareVerifier worker {}: spawn_blocking join error: {}",
                                 worker_id, e
                             );
@@ -702,7 +701,7 @@ impl StratumServer {
                 )
                 .await;
             }
-            println!("ShareResult handler: result channel closed, exiting");
+            debug!("ShareResult handler: result channel closed, exiting");
         });
 
         let listener = TcpListener::bind(&self.config.bind_addr)
@@ -711,16 +710,16 @@ impl StratumServer {
                 bitquan_types::Error::Invalid(format!("failed to bind Stratum server: {}", e))
             })?;
 
-        println!("Stratum server listening on {}", self.config.bind_addr);
-        println!("  Default difficulty: {}", self.config.default_difficulty);
-        println!("  Network: {:?}", self.config.network);
+        info!("Stratum server listening on {}", self.config.bind_addr);
+        info!("  Default difficulty: {}", self.config.default_difficulty);
+        info!("  Network: {:?}", self.config.network);
 
         self.listener = Some(listener);
 
         // Accept loop
         loop {
             if self.stop_flag.load(Ordering::Relaxed) {
-                println!("Stratum server shutting down...");
+                info!("Stratum server shutting down...");
                 break;
             }
 
@@ -757,12 +756,12 @@ impl StratumServer {
                         )
                         .await
                         {
-                            eprintln!("Stratum client error {}: {}", addr, e);
+                            error!("Stratum client error {}: {}", addr, e);
                         }
                     });
                 }
                 Ok(Err(e)) => {
-                    eprintln!("Error accepting connection: {}", e);
+                    error!("Error accepting connection: {}", e);
                 }
                 Err(_) => {
                     // Timeout, check stop flag
@@ -816,7 +815,7 @@ async fn handle_client(
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
 
-    println!("Stratum: New connection from {}", addr);
+    info!("Stratum: New connection from {}", addr);
 
     // Create default session
     let session = MinerSession::new(
@@ -831,14 +830,14 @@ async fn handle_client(
         match reader.read_line(&mut line).await {
             Ok(0) => {
                 // Connection closed
-                println!("Stratum: Client {} disconnected", addr);
+                info!("Stratum: Client {} disconnected", addr);
                 break;
             }
             Ok(_) => {
                 let request: JsonRpcRequest = match serde_json::from_str(&line) {
                     Ok(req) => req,
                     Err(e) => {
-                        eprintln!("Stratum: Invalid JSON from {}: {}", addr, e);
+                        warn!("Stratum: Invalid JSON from {}: {}", addr, e);
                         continue;
                     }
                 };
@@ -872,7 +871,7 @@ async fn handle_client(
                     .map_err(|e| bitquan_types::Error::Invalid(e.to_string()))?;
             }
             Err(e) => {
-                eprintln!("Stratum: Read error from {}: {}", addr, e);
+                error!("Stratum: Read error from {}: {}", addr, e);
                 break;
             }
         }
@@ -896,7 +895,7 @@ async fn handle_request(
 ) -> JsonRpcResponse {
     match request.method.as_str() {
         "mining.subscribe" => {
-            println!("Stratum: {} subscribed", peer_key);
+            debug!("Stratum: {} subscribed", peer_key);
             JsonRpcResponse {
                 id: request.id,
                 result: Some(serde_json::json!([
@@ -919,7 +918,7 @@ async fn handle_request(
                 session.address = username.to_string();
             }
 
-            println!("Stratum: {} authorized as {}", peer_key, username);
+            info!("Stratum: {} authorized as {}", peer_key, username);
             JsonRpcResponse {
                 id: request.id,
                 result: Some(serde_json::json!(true)),
@@ -947,7 +946,7 @@ async fn handle_request(
 
             match result {
                 ShareSubmitResult::Accepted => {
-                    println!("Stratum: Share enqueued from {}", peer_key);
+                    debug!("Stratum: Share enqueued from {}", peer_key);
                     JsonRpcResponse {
                         id: request.id,
                         result: Some(serde_json::json!({"accepted_for_verification": true})),
@@ -955,7 +954,7 @@ async fn handle_request(
                     }
                 }
                 ShareSubmitResult::QueueFull => {
-                    println!("Stratum: Share rejected (queue full) from {}", peer_key);
+                    warn!("Stratum: Share rejected (queue full) from {}", peer_key);
                     JsonRpcResponse {
                         id: request.id,
                         result: Some(serde_json::json!(false)),
@@ -966,7 +965,7 @@ async fn handle_request(
                     }
                 }
                 ShareSubmitResult::Error(code, msg) => {
-                    println!("Stratum: Share rejected ({}) from {}", msg, peer_key);
+                    debug!("Stratum: Share rejected ({}) from {}", msg, peer_key);
                     JsonRpcResponse {
                         id: request.id,
                         result: Some(serde_json::json!(false)),
@@ -976,7 +975,7 @@ async fn handle_request(
             }
         }
         other => {
-            eprintln!("Stratum: Unknown method {} from {}", other, peer_key);
+            warn!("Stratum: Unknown method {} from {}", other, peer_key);
             JsonRpcResponse {
                 id: request.id,
                 result: None,
@@ -1029,7 +1028,7 @@ async fn handle_submit(
     if session.check_and_mark_duplicate(nonce).await {
         session.reject_share();
         metrics.record_share_rejected(session.algo, RejectReason::Duplicate);
-        eprintln!(
+        warn!(
             "Stratum: Share DUPLICATE from {} (algo={}, nonce={})",
             session.address,
             session.algo.name(),
@@ -1045,7 +1044,7 @@ async fn handle_submit(
             None => {
                 session.reject_share();
                 metrics.record_share_rejected(session.algo, RejectReason::Stale);
-                eprintln!("Stratum: No template available for {}", session.address);
+                warn!("Stratum: No template available for {}", session.address);
                 return ShareSubmitResult::Error(21, "no template".to_string());
             }
         },
@@ -1063,7 +1062,7 @@ async fn handle_submit(
             if submit_job_id != current_job_id {
                 session.reject_share();
                 metrics.record_share_rejected(session.algo, RejectReason::Stale);
-                eprintln!(
+                warn!(
                     "Stratum: Share STALE from {} (job {} != current {})",
                     session.address, submit_job_id, current_job_id
                 );
@@ -1098,7 +1097,7 @@ async fn handle_submit(
             metrics.backpressure_total.fetch_add(1, Ordering::Relaxed);
             session.reject_share();
             metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
-            eprintln!(
+            warn!(
                 "Stratum: Share queue FULL, rejecting from {} (backpressure applied)",
                 session.address
             );
@@ -1126,7 +1125,7 @@ async fn handle_share_result(
     let session = match peers.get(&result.peer_key) {
         Some(s) => s,
         None => {
-            eprintln!("ShareResult handler: session {} not found", result.peer_key);
+            warn!("ShareResult handler: session {} not found", result.peer_key);
             return;
         }
     };
@@ -1140,7 +1139,7 @@ async fn handle_share_result(
 
             // Log with hash prefix
             let hash_hex = hex::encode(&hash[..4]);
-            println!(
+            debug!(
                 "Stratum: Share VERIFIED & ACCEPTED from {} (algo={}, diff={:.2}, nonce={}, hash={}…)",
                 session.address,
                 session.algo.name(),
@@ -1153,7 +1152,7 @@ async fn handle_share_result(
             if let Ok(block_target) = target_from_bits(result.template.header.bits) {
                 if meets_target(&hash, &block_target) {
                     // This is a VALID BLOCK!
-                    println!(
+                    info!(
                         "🎉 NEW BLOCK FOUND by {} (algo={}, hash={})",
                         session.address,
                         session.algo.name(),
@@ -1190,7 +1189,7 @@ async fn handle_share_result(
                     if let Some(mut session) = peers.get_mut(&result.peer_key) {
                         let new_diff = vd.adjust(time_since, session.difficulty);
                         if (new_diff - session.difficulty).abs() > 0.01 {
-                            println!(
+                            info!(
                                 "Stratum: Adjusting difficulty for {} from {:.2} to {:.2}",
                                 session.address, session.difficulty, new_diff
                             );
@@ -1206,7 +1205,7 @@ async fn handle_share_result(
             session.reject_share();
             metrics.record_share_rejected(session.algo, reason);
 
-            eprintln!(
+            debug!(
                 "Stratum: Share REJECTED from {} (reason={}, algo={}, nonce={})",
                 session.address,
                 reason.as_str(),
@@ -1227,22 +1226,22 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
         Ok(BlockSubmitResult::Accepted { hash, height }) => {
             metrics.record_block_accepted();
             let hash_hex = hex::encode(hash);
-            println!(
+            info!(
                 "[INFO] ✅ Block ACCEPTED by network! hash={} height={:?}",
                 hash_hex, height
             );
         }
         Ok(BlockSubmitResult::Rejected { reason }) => {
             metrics.record_block_rejected();
-            eprintln!("[WARN] ❌ Block REJECTED by network: reason={}", reason);
+            warn!("[WARN] ❌ Block REJECTED by network: reason={}", reason);
         }
         Ok(BlockSubmitResult::Error { message }) => {
             metrics.record_block_rejected();
-            eprintln!("[ERROR] Block submission ERROR: {}", message);
+            error!("[ERROR] Block submission ERROR: {}", message);
         }
         Err(e) => {
             metrics.record_block_rejected();
-            eprintln!("[ERROR] Block submission failed: {}", e);
+            error!("[ERROR] Block submission failed: {}", e);
         }
     }
 }

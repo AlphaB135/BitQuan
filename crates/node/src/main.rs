@@ -2,6 +2,7 @@
 #![warn(clippy::unwrap_used)]
 #![warn(clippy::expect_used)]
 #![warn(missing_docs)]
+#![allow(dead_code)] // Allow utility functions/constants for future use
 
 mod address;
 mod block_submit;
@@ -31,17 +32,20 @@ pub mod commands;
 
 // Import moved command functions
 // Note: MiningOptions and PowMode are defined locally in main.rs
-use commands::node::{build_tx, check_balance, genesis_verify, script_from_address, verify_database};
+use commands::mining::load_pending_transactions;
+use commands::node::{
+    build_tx, check_balance, genesis_verify, script_from_address, verify_database,
+};
 use commands::p2p::RpcServerOptions;
-use commands::rpc::{generate_self_signed_cert_cli, hash_password_cli, jwt_user_add, jwt_user_list, jwt_user_remove};
+use commands::rpc::{
+    generate_self_signed_cert_cli, hash_password_cli, jwt_user_add, jwt_user_list, jwt_user_remove,
+};
 use commands::wallet::{
-    multisig_info, tx_combine_signatures, tx_sign_partial, wallet_address,
-    wallet_backup, wallet_from_mnemonic, wallet_gen, wallet_gen_mnemonic, wallet_gen_multisig,
-    wallet_restore, wallet_send, wallet_sign, wallet_verify,
+    multisig_info, tx_combine_signatures, tx_sign_partial, wallet_address, wallet_backup,
+    wallet_from_mnemonic, wallet_gen, wallet_gen_mnemonic, wallet_gen_multisig, wallet_restore,
+    wallet_send, wallet_sign, wallet_verify,
 };
 // Import for address validation (moved to commands/node)
-use commands::node::address_validate;
-use hex::encode as hex_encode;
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
     target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
@@ -59,29 +63,40 @@ use bq_crypto::{
     CryptoRegistry,
 };
 use clap::{Parser, Subcommand};
+use commands::node::address_validate;
+use hex::encode as hex_encode;
+use log::error;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 
 /// 1 BQ = 10^18 qbits (like wei to ETH)
+#[allow(dead_code)]
 const QBITS_PER_BQ: u128 = 1_000_000_000_000_000_000;
 
 /// Format qbits as BQ using pure integer arithmetic.
 /// SECURITY: Never use f64 for money! Floating point causes precision loss.
 /// Example: 1_500_000_000_000_000_000 -> "1.500000000000000000"
+#[allow(dead_code)]
 fn format_bq(qbits: u128) -> String {
     let whole = qbits / QBITS_PER_BQ;
     let frac = qbits % QBITS_PER_BQ;
     format!("{}.{:018}", whole, frac)
 }
 
+/// Proof-of-Work algorithm mode
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PowMode {
+pub enum PowMode {
+    /// Standard SHA-256d hashcash (Bitcoin-style)
     Hashcash,
+    /// Mock mode for testing (debug builds only)
     #[allow(dead_code)]
     Mock,
+    /// RandomX algorithm (memory-hard)
     #[cfg(feature = "randomx")]
     RandomX,
+    /// Hybrid mode combining multiple algorithms
     Hybrid,
+    /// Ethash algorithm (Ethereum-style)
     Ethash,
 }
 
@@ -89,15 +104,16 @@ impl PowMode {
     fn parse(value: &str) -> Result<Self> {
         match value.to_ascii_lowercase().as_str() {
             "hashcash" | "sha256d" | "real" => Ok(PowMode::Hashcash),
-            #[cfg(not(feature = "mainnet"))]
             "mock" | "dev-fast-pow" => {
-                #[cfg(debug_assertions)]
+                #[cfg(feature = "testing")]
                 return Ok(PowMode::Mock);
-                #[cfg(not(debug_assertions))]
-                return crate::cli::invalid("mock PoW is only available in debug builds");
+
+                #[cfg(not(feature = "testing"))]
+                return crate::cli::invalid(
+                    "Mock PoW is only available with '--features testing'. \
+                     Use 'hashcash' for real proof-of-work mining.",
+                );
             }
-            #[cfg(feature = "mainnet")]
-            "mock" | "dev-fast-pow" => crate::cli::invalid("mock PoW is disabled in mainnet builds"),
             #[cfg(feature = "randomx")]
             "randomx" => Ok(PowMode::RandomX),
             #[cfg(feature = "randomx")]
@@ -220,6 +236,13 @@ fn parse_hybrid_weights(s: &str) -> Result<Vec<(bitquan_consensus::pow::PowAlgo,
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+/// Custom parser for u128 values in CLI arguments
+/// Clap doesn't have built-in u128 support, so we use string parsing
+fn parse_u128(s: &str) -> std::result::Result<u128, String> {
+    s.parse::<u128>()
+        .map_err(|e| format!("Invalid u128 amount: {}", e))
 }
 
 #[derive(Subcommand)]
@@ -506,14 +529,17 @@ enum Commands {
         #[arg(long)]
         to: String,
         /// Amount to send (in qbits)
-        #[arg(long)]
-        amount: u64,
+        #[arg(long, value_parser = parse_u128)]
+        amount: u128,
         /// Fee rate (qbits per weight unit)
         #[arg(long, default_value_t = 1)]
         fee_rate: u64,
         /// Password to decrypt the keystore
         #[arg(long)]
         password: Option<String>,
+        /// Data directory for blockchain storage
+        #[arg(long, default_value = "data/chainstate")]
+        datadir: String,
     },
     /// Builds a simple unsigned transaction (1-in, 1-out) and prints JSON.
     BuildTx {
@@ -729,21 +755,25 @@ enum Commands {
 /// Install panic hook for better crash reporting
 fn install_panic_hook() {
     std::panic::set_hook(Box::new(|panic_info| {
-        eprintln!("\n=== PANIC ===");
+        error!("\n=== PANIC ===");
         if let Some(location) = panic_info.location() {
-            eprintln!("Location: {}:{}:{}", location.file(), location.line(), location.column());
+            error!(
+                "Location: {}:{}:{}",
+                location.file(),
+                location.line(),
+                location.column()
+            );
         }
         if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
-            eprintln!("Message: {}", s);
+            error!("Message: {}", s);
         } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
-            eprintln!("Message: {}", s);
+            error!("Message: {}", s);
         }
-        eprintln!("==============\n");
+        error!("==============\n");
     }));
 }
 
 #[allow(clippy::too_many_arguments)]
-
 #[tokio::main]
 async fn main() -> Result<()> {
     // Install panic hook for better crash reporting
@@ -909,7 +939,18 @@ async fn main() -> Result<()> {
             amount,
             fee_rate,
             password,
-        } => wallet_send(&keystore, &to, amount, fee_rate, password.as_deref()).await,
+            datadir,
+        } => {
+            wallet_send(
+                &keystore,
+                &to,
+                amount,
+                fee_rate,
+                password.as_deref(),
+                &datadir,
+            )
+            .await
+        }
         Commands::BuildTx {
             prev_txid,
             prev_vout,
@@ -1096,13 +1137,13 @@ async fn run_node(
 
     let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332"); // Currently unused
 
-    println!(
+    log::info!(
     "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}\nData directory: {datadir}"
   );
 
     // Create data directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&datadir) {
-        eprintln!(
+        error!(
             "Warning: Failed to create data directory {}: {}",
             datadir, e
         );
@@ -1201,27 +1242,27 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
     use std::fs;
     use std::time::Instant;
 
-    println!("╔══════════════════════════════════════════════════╗");
-    println!("║   BitQuan Genesis Block Miner        ║");
-    println!("╚══════════════════════════════════════════════════╝");
-    println!();
-    println!("Parameters:");
-    println!(" Time:    {}", GENESIS_TIME);
-    println!(" Bits:    0x{:08x}", GENESIS_BITS);
-    println!(" Max tries: {}", max_tries);
-    println!(" Output:   {}", output);
-    println!();
+    log::info!("╔══════════════════════════════════════════════════╗");
+    log::info!("║   BitQuan Genesis Block Miner        ║");
+    log::info!("╚══════════════════════════════════════════════════╝");
+    log::info!("");
+    log::info!("Parameters:");
+    log::info!(" Time:    {}", GENESIS_TIME);
+    log::info!(" Bits:    0x{:08x}", GENESIS_BITS);
+    log::info!(" Max tries: {}", max_tries);
+    log::info!(" Output:   {}", output);
+    log::info!("");
 
     // Create genesis block template
     let mut genesis = create_genesis_block();
 
-    println!("Genesis Message:");
+    log::info!("Genesis Message:");
     let msg = &genesis.transactions[0].inputs[0].script_sig;
-    println!(" {}", String::from_utf8_lossy(msg));
-    println!();
+    log::info!(" {}", String::from_utf8_lossy(msg));
+    log::info!("");
 
-    println!("🔨 Mining genesis block...");
-    println!();
+    log::info!("🔨 Mining genesis block...");
+    log::info!("");
 
     let start_time = Instant::now();
     let mut found = false;
@@ -1234,13 +1275,13 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             let elapsed = start_time.elapsed();
             let hashrate = (nonce as f64) / elapsed.as_secs_f64();
 
-            println!("GENESIS BLOCK FOUND!");
-            println!();
-            println!("Nonce:   {}", nonce);
-            println!("Hash:    {}", hex_encode(hash));
-            println!("Time:    {:.2}s", elapsed.as_secs_f64());
-            println!("Hashrate:  {:.2} H/s", hashrate);
-            println!();
+            log::info!("GENESIS BLOCK FOUND!");
+            log::info!("");
+            log::info!("Nonce:   {}", nonce);
+            log::info!("Hash:    {}", hex_encode(hash));
+            log::info!("Time:    {:.2}s", elapsed.as_secs_f64());
+            log::info!("Hashrate:  {:.2} H/s", hashrate);
+            log::info!("");
 
             // Validate genesis
             // Validate genesis
@@ -1254,13 +1295,13 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             let json = serde_json::to_string_pretty(&genesis)?;
             fs::write(output, json)?;
 
-            println!("Genesis block saved to: {}", output);
-            println!();
-            println!("Next steps:");
-            println!(" 1. Update GENESIS_HASH in crates/types/src/genesis.rs");
-            println!(" 2. Commit genesis block to repository");
-            println!(" 3. Use this block to initialize blockchain");
-            println!();
+            log::info!("Genesis block saved to: {}", output);
+            log::info!("");
+            log::info!("Next steps:");
+            log::info!(" 1. Update GENESIS_HASH in crates/types/src/genesis.rs");
+            log::info!(" 2. Commit genesis block to repository");
+            log::info!(" 3. Use this block to initialize blockchain");
+            log::info!("");
 
             found = true;
             break;
@@ -1270,7 +1311,7 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
             let elapsed = start_time.elapsed().as_secs_f64();
             let hashrate = (nonce as f64) / elapsed;
             let hash = header_hash(&genesis.header);
-            println!(
+            log::info!(
                 " ... {} attempts ({:.2} H/s) | Hash: {}",
                 nonce,
                 hashrate,
@@ -1280,18 +1321,18 @@ fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
     }
 
     if !found {
-        println!(
+        log::info!(
             "Failed to find valid genesis block in {} attempts",
             max_tries
         );
-        println!("Try increasing --max-tries or adjusting difficulty");
+        log::info!("Try increasing --max-tries or adjusting difficulty");
     }
 
     Ok(())
 }
 
 fn check_block(path: &str) -> Result<()> {
-    println!(
+    log::info!(
         "Block validation placeholder invoked for file: {path}. \
      Actual parsing logic will be implemented in Phase 4."
     );
@@ -1303,10 +1344,10 @@ fn check_block(path: &str) -> Result<()> {
 
     match engine.validate_block(&block, 0, 0) {
         Ok(report) => {
-            println!("Block validation successful!");
-            println!("  Weight: {} WU", report.block_weight);
-            println!("  Signatures: {}", report.signature_count);
-            println!("  Subsidy: {} qbits", report.block_subsidy);
+            log::info!("Block validation successful!");
+            log::info!("  Weight: {} WU", report.block_weight);
+            log::info!("  Signatures: {}", report.signature_count);
+            log::info!("  Subsidy: {} qbits", report.block_subsidy);
         }
         Err(e) => {
             return crate::cli::invalid(format!("Block validation failed: {}", e));
@@ -1318,7 +1359,7 @@ fn check_block(path: &str) -> Result<()> {
 
 fn rng_demo(label: &str, length: usize) -> Result<()> {
     if length == 0 {
-        println!("Length must be greater than zero.");
+        log::info!("Length must be greater than zero.");
         return Ok(());
     }
 
@@ -1333,11 +1374,11 @@ fn rng_demo(label: &str, length: usize) -> Result<()> {
         .bytes(length)
         .map_err(|e| Error::Invalid(format!("rng bytes failed: {e}")))?;
 
-    println!(
+    log::info!(
         "Master stream sample ({length} bytes): {}",
         hex_encode(master_bytes)
     );
-    println!(
+    log::info!(
         "Derived stream `{label}` ({length} bytes): {}",
         hex_encode(derived_bytes)
     );
@@ -1384,7 +1425,7 @@ fn mine_once(
         .unwrap_or(0);
 
     if now == 0 {
-        eprintln!("Error: System time is before UNIX epoch");
+        error!("Error: System time is before UNIX epoch");
         return Ok(());
     }
 
@@ -1461,7 +1502,7 @@ fn mine_once(
     };
 
     if allow_mock {
-        println!(
+        log::info!(
             "[mock-pow] enabled on {:?}: nonce=0 or bits>=0x{:08x} will satisfy difficulty",
             network, DEVNET_MAX_BITS
         );
@@ -1478,21 +1519,21 @@ fn mine_once(
 
         if pow_valid {
             let id = header_hash(&header);
-            println!("FOUND nonce={n} hash={}", hex::encode(id));
+            log::info!("FOUND nonce={n} hash={}", hex::encode(id));
             let block = Block {
                 header: header.clone(),
                 transactions: vec![coinbase],
             };
             let _ = store.insert_block(block);
-            println!("Inserted block tip={}", hex::encode(id));
+            log::info!("Inserted block tip={}", hex::encode(id));
             return Ok(());
         }
         if n % 100_000 == 0 {
             let h = header_hash(&header);
-            println!("... tried {n} nonces, latest hash={} ", hex::encode(h));
+            log::info!("... tried {n} nonces, latest hash={} ", hex::encode(h));
         }
     }
-    println!("No valid nonce found within {max_tries} tries.");
+    log::info!("No valid nonce found within {max_tries} tries.");
     Ok(())
 }
 
@@ -1556,14 +1597,14 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         let peers_json = PathBuf::from("peers.json");
         let peers_file_exists = peers_json.exists();
 
-        println!("\n=== P2P Network Configuration ===");
+        log::info!("\n=== P2P Network Configuration ===");
 
         // Generate Noise Protocol keypair for P2P encryption
         let noise_config = Arc::new(
             NoiseConfig::generate()
                 .map_err(|e| Error::Invalid(format!("failed to generate noise config: {e}")))?,
         );
-        println!(
+        log::info!(
             "P2P Encryption enabled (public key: {})",
             noise_config.public_key_hex()
         );
@@ -1582,11 +1623,11 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                     let rt = tokio::runtime::Handle::try_current();
                     if let Ok(handle) = rt {
                         let count = handle.block_on(pm.peer_count());
-                        println!("Loaded {} peers from peers.json", count);
+                        log::info!("Loaded {} peers from peers.json", count);
                     }
                 }
                 Err(e) => {
-                    println!("Failed to load peers.json: {}, starting fresh", e);
+                    log::info!("Failed to load peers.json: {}, starting fresh", e);
                 }
             }
         }
@@ -1594,13 +1635,13 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         // Determine bootstrap peers: CLI args > cached peers > TESTNET_SEEDS
         let bootstrap_peers: Vec<String> = if !peers.is_empty() {
             // CLI-provided peers take priority
-            println!("Connecting to {} peer(s) from CLI...", peers.len());
+            log::info!("Connecting to {} peer(s) from CLI...", peers.len());
             peers.clone()
         } else {
             // No CLI peers: check if we have cached peers
             let known_count = pm.known_peers_count().unwrap_or(0);
             if known_count > 0 {
-                println!("Using {} cached peers from address book", known_count);
+                log::info!("Using {} cached peers from address book", known_count);
                 pm.get_known_peers()
                     .unwrap_or_default()
                     .into_iter()
@@ -1609,7 +1650,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
                     .collect()
             } else {
                 // No cached peers: use TESTNET_SEEDS
-                println!("No cached peers, using TESTNET_SEEDS...");
+                log::info!("No cached peers, using TESTNET_SEEDS...");
                 bitquan_network::TESTNET_SEEDS
                     .iter()
                     .map(|s| s.to_string())
@@ -1637,7 +1678,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             let addr: SocketAddr = match peer_addr.parse() {
                 Ok(a) => a,
                 Err(e) => {
-                    eprintln!("Invalid peer address '{}': {}", peer_addr, e);
+                    error!("Invalid peer address '{}': {}", peer_addr, e);
                     continue;
                 }
             };
@@ -1648,18 +1689,18 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             if let Ok(handle) = rt {
                 match handle.block_on(pm.connect_peer(addr)) {
                     Ok(()) => {
-                        println!("Connected");
+                        log::info!("Connected");
                         connected_count += 1;
                     }
                     Err(e) => {
-                        eprintln!("Failed: {}", e);
+                        error!("Failed: {}", e);
                     }
                 }
             }
         }
 
         if connected_count > 0 {
-            println!(
+            log::info!(
                 "\nConnected to {}/{} peers",
                 connected_count,
                 bootstrap_peers.len()
@@ -1668,12 +1709,12 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             let rt = tokio::runtime::Handle::try_current();
             if let Ok(handle) = rt {
                 let ready = handle.block_on(pm.ready_peer_count());
-                println!("Ready peers: {}", ready);
+                log::info!("Ready peers: {}", ready);
             }
-            println!("================================\n");
+            log::info!("================================\n");
             Some(pm)
         } else {
-            eprintln!("Warning: Failed to connect to any peers. Mining will continue without network connectivity.\n");
+            error!("Warning: Failed to connect to any peers. Mining will continue without network connectivity.\n");
             Some(pm) // Return pm anyway for future peer discovery
         }
     };
@@ -1686,17 +1727,17 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
     // Load difficulty from config file if not overridden
     if bits == 0 {
         bits = load_difficulty_from_config(network)?;
-        println!(
+        log::info!(
             "Loaded difficulty from config: 0x{:08x} for {:?}",
             bits, network
         );
     } else {
-        println!("Using override difficulty: 0x{:08x}", bits);
+        log::info!("Using override difficulty: 0x{:08x}", bits);
     }
 
-    println!("BitQuan Continuous Miner");
-    println!("Data directory: {}", datadir);
-    println!(
+    log::info!("BitQuan Continuous Miner");
+    log::info!("Data directory: {}", datadir);
+    log::info!(
         "Threads: {}",
         if threads == 0 {
             num_cpus::get()
@@ -1704,10 +1745,10 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             threads
         }
     );
-    println!("Network: {:?}", network);
-    println!("PoW mode: {:?}", pow_mode);
+    log::info!("Network: {:?}", network);
+    log::info!("PoW mode: {:?}", pow_mode);
     if allow_mock {
-        println!(
+        log::info!(
             "[mock-pow] enabled: nonce=0 or bits>=0x{:08x} will satisfy difficulty",
             DEVNET_MAX_BITS
         );
@@ -1722,12 +1763,12 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             vec![(PowAlgo::Sha256d, 1.0), (PowAlgo::Ethash, 2.0)]
         };
 
-        println!("\n=== Hybrid Mining Enabled ===");
-        println!("Algorithms:");
+        log::info!("\n=== Hybrid Mining Enabled ===");
+        log::info!("Algorithms:");
         for (algo, weight) in &weights {
-            println!(" - {} (weight: {:.1})", algo.name(), weight);
+            log::info!(" - {} (weight: {:.1})", algo.name(), weight);
         }
-        println!("=============================\n");
+        log::info!("=============================\n");
 
         let miner = miner::HybridMiner::new(&weights, threads, network)?;
         Some(miner)
@@ -1789,7 +1830,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             .unwrap_or(0);
 
         if now == 0 {
-            eprintln!("ERROR: System time is before UNIX epoch");
+            error!("ERROR: System time is before UNIX epoch");
             print_session_summary(interval_count, total_intervals, guard_total);
             return Ok(());
         }
@@ -1831,9 +1872,18 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             sig_algo: SigAlgorithm::Dilithium5,
         };
 
-        // Merkle/witness roots for block
-        let merkle_root = bitquan_types::merkle_root_from_txids(&[coinbase.txid()])?;
-        let witness_root = bitquan_types::merkle_root_from_txids(&[coinbase.wtxid()])?;
+        // Load pending transactions for inclusion in this block
+        let (pending_txs, _included_txids, cleanup_fn) = load_pending_transactions();
+
+        // Build complete transaction list: coinbase + pending transactions
+        let mut all_txs = vec![coinbase.clone()];
+        all_txs.extend(pending_txs);
+
+        // Merkle/witness roots for block (include all transactions)
+        let all_txids: Vec<[u8; 32]> = all_txs.iter().map(|tx| tx.txid()).collect();
+        let all_wtxids: Vec<[u8; 32]> = all_txs.iter().map(|tx| tx.wtxid()).collect();
+        let merkle_root = bitquan_types::merkle_root_from_txids(&all_txids)?;
+        let witness_root = bitquan_types::merkle_root_from_txids(&all_wtxids)?;
 
         // Determine prev_block
         let mut prev = [0u8; 32];
@@ -1882,7 +1932,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             match hybrid_miner.mine_block_attempt(header.clone(), max_nonce, algo)? {
                 Some(h) => (Some(h), Some(algo)),
                 None => {
-                    println!(
+                    log::info!(
                         "\r\x1b[31m✗ No solution found in {} attempts with {}\x1b[0m",
                         max_nonce,
                         algo.name()
@@ -1936,7 +1986,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             }
 
             if !solution_found {
-                println!(
+                log::info!(
                     "\r\x1b[31m✗ No solution found in {} attempts\x1b[0m",
                     max_nonce
                 );
@@ -2020,7 +2070,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         let block = Block {
             header: header.clone(),
-            transactions: vec![coinbase.clone()],
+            transactions: all_txs,
         };
 
         {
@@ -2030,6 +2080,9 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
             s.insert_block(block.clone())
                 .map_err(|e| Error::Invalid(format!("failed to insert block: {e}")))?;
         }
+
+        // Cleanup pending transactions that were included in this block
+        cleanup_fn();
 
         // Broadcast block to connected peers
         if let Some(ref pm) = peer_manager {
@@ -2137,13 +2190,13 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         }
 
         let total = blocks_mined.fetch_add(1, Ordering::Relaxed) + 1;
-        println!(" | Total: {}", total);
+        log::info!(" | Total: {}", total);
         found.store(true, Ordering::Relaxed);
 
         if let Some(limit) = limit_blocks {
             if total >= limit {
                 print_session_summary(interval_count, total_intervals, guard_total);
-                println!("Reached block limit ({limit}). Session complete.");
+                log::info!("Reached block limit ({limit}). Session complete.");
                 return Ok(());
             }
         }
@@ -2162,7 +2215,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
 
 fn print_session_summary(interval_count: u64, total_intervals: u64, guard_total: u64) {
     if interval_count == 0 {
-        println!("Session summary -> insufficient interval data to compute averages.");
+        log::info!("Session summary -> insufficient interval data to compute averages.");
         return;
     }
     // Integer arithmetic for average (whole seconds)
@@ -2170,7 +2223,7 @@ fn print_session_summary(interval_count: u64, total_intervals: u64, guard_total:
     // Integer arithmetic for guard rate (percentage * 100)
     let guard_rate = guard_total * 10000 / interval_count;
     // Display as XX.XX%
-    println!(
+    log::info!(
         "Session summary -> avg {}s across {} intervals | guard {} activations ({}.{:02}/100)",
         average,
         interval_count,
@@ -2182,15 +2235,14 @@ fn print_session_summary(interval_count: u64, total_intervals: u64, guard_total:
 
 #[cfg(not(feature = "rocksdb-backend"))]
 fn mine_continuous(_options: MiningOptions) -> Result<()> {
-    eprintln!("ERROR: Continuous mining requires 'rocksdb-backend' feature");
-    eprintln!("Rebuild with: cargo build --release --features rocksdb-backend");
+    error!("ERROR: Continuous mining requires 'rocksdb-backend' feature");
+    error!("Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
 }
 
 /// Generate a wallet keypair with encrypted storage
-
 /// Show wallet address from encrypted keystore
-
+#[allow(dead_code)]
 fn address_network_label(network: address::AddressNetwork) -> &'static str {
     match network {
         address::AddressNetwork::Mainnet => "mainnet",
@@ -2200,12 +2252,10 @@ fn address_network_label(network: address::AddressNetwork) -> &'static str {
 }
 
 /// Convert Bech32m address to script hex for mining/balance checks.
-
 /// Validate a Bech32m address and display decoded metadata.
-
 /// Sign a message with encrypted wallet keypair
-
 /// Helper to read password from stdin securely (no echo)
+#[allow(dead_code)]
 fn read_password_from_stdin() -> Result<String> {
     // SECURITY: Use rpassword to prompt and hide input (no terminal echo)
     // prompt_password handles flushing stdout automatically
@@ -2238,11 +2288,11 @@ fn run_stratum_server(
         vardiff_adjust_rate: 0.05,
     };
 
-    println!("Starting BitQuan Stratum Mining Server");
-    println!(" Bind address: {}", bind_addr);
-    println!(" Network: {:?}", network);
-    println!(" Default difficulty: {}", default_difficulty);
-    println!();
+    log::info!("Starting BitQuan Stratum Mining Server");
+    log::info!(" Bind address: {}", bind_addr);
+    log::info!(" Network: {:?}", network);
+    log::info!(" Default difficulty: {}", default_difficulty);
+    log::info!("");
 
     // Create runtime for async server
     let runtime = tokio::runtime::Runtime::new()
@@ -2255,4 +2305,3 @@ fn run_stratum_server(
         server.start().await
     })
 }
-

@@ -5,11 +5,10 @@
 //! - setup_p2p_network, setup_storage
 
 use bitquan_consensus::{ConsensusEngine, ConsensusParams};
-use bitquan_types::genesis::GENESIS_HASH_BYTES;
 use bitquan_network::io::{recv_envelope, send_envelope};
 use bitquan_network::protocol::{network_magic, Message, MessageEnvelope, PROTOCOL_VERSION};
-use bitquan_storage::AsyncChainStore;
 use bitquan_types::error::{Error, Result};
+use bitquan_types::genesis::GENESIS_HASH_BYTES;
 use bitquan_types::NetworkId;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::Path;
@@ -132,7 +131,9 @@ pub fn setup_storage(
     _datadir: &str,
 ) -> Result<(
     u64,
-    std::sync::Arc<bitquan_storage::async_store::AsyncStoreWrapper<bitquan_storage::InMemoryChainStore>>,
+    std::sync::Arc<
+        bitquan_storage::async_store::AsyncStoreWrapper<bitquan_storage::InMemoryChainStore>,
+    >,
 )> {
     let height = 0u64;
     let store = std::sync::Arc::new(bitquan_storage::async_store::AsyncStoreWrapper::new(
@@ -259,7 +260,7 @@ pub async fn p2p_server(
     datadir: &str,
     rpc: RpcServerOptions<'_>,
     network: NetworkId,
-    bootstrap_peers: Option<Vec<String>>,
+    _bootstrap_peers: Option<Vec<String>>, // TODO: implement bootstrap peer connections
 ) -> Result<()> {
     use bitquan_mempool::Mempool;
 
@@ -302,8 +303,6 @@ pub async fn p2p_server(
     println!("Mempool initialized (max 300 MB)");
 
     if let Some(addr) = rpc_listen {
-        
-
         let username = rpc_username.ok_or_else(|| {
             Error::Invalid("--rpc-username is required when enabling RPC server".to_string())
         })?;
@@ -337,17 +336,22 @@ pub async fn p2p_server(
         let store_arc = store.clone();
 
         // Generate noise config with proper error handling
-        let noise_config = Arc::new(bitquan_network::noise::NoiseConfig::generate().map_err(|e| {
-            Error::Invalid(format!("Failed to generate Noise config: {}", e))
-        })?);
+        let noise_config = Arc::new(
+            bitquan_network::noise::NoiseConfig::generate()
+                .map_err(|e| Error::Invalid(format!("Failed to generate Noise config: {}", e)))?,
+        );
 
         // Initialize RPC handler directly instead of using sync_task
-        let sync_mgr = Arc::new(bitquan_network::async_sync::AsyncSyncManager::new_with_components(
-            height,
-            Arc::new(bitquan_network::PeerManager::new(1, network, noise_config)),
-            Arc::new(std::sync::Mutex::new(bitquan_network::discovery::PeerBook::new())),
-            network,
-        ));
+        let sync_mgr = Arc::new(
+            bitquan_network::async_sync::AsyncSyncManager::new_with_components(
+                height,
+                Arc::new(bitquan_network::PeerManager::new(1, network, noise_config)),
+                Arc::new(std::sync::Mutex::new(
+                    bitquan_network::discovery::PeerBook::new(),
+                )),
+                network,
+            ),
+        );
         let handler = crate::rpc::NodeRpcHandler::with_components(
             store_arc,
             network.name(),
@@ -494,9 +498,10 @@ pub async fn p2p_server(
 
     // Create consensus engine for block validation
     let consensus_params = ConsensusParams::phase3_defaults();
-    let consensus = Arc::new(tokio::sync::Mutex::new(
-        ConsensusEngine::new(consensus_params, bq_crypto::CryptoRegistry::default()),
-    ));
+    let consensus = Arc::new(tokio::sync::Mutex::new(ConsensusEngine::new(
+        consensus_params,
+        bq_crypto::CryptoRegistry::default(),
+    )));
     println!("Consensus engine initialized");
 
     // Create ban manager for peer misconduct
@@ -643,19 +648,19 @@ pub async fn p2p_server(
                 let std_stream = match stream.into_std() {
                     Ok(s) => s,
                     Err(e) => {
-                        log::error!("Failed to convert tokio stream to std stream for {}: {}", peer_addr, e);
+                        log::error!(
+                            "Failed to convert tokio stream to std stream for {}: {}",
+                            peer_addr,
+                            e
+                        );
                         return;
                     }
                 };
 
                 // Create Peer from inbound stream using Noise handshake
                 let magic = bitquan_network::protocol::network_magic(ctx.network_id);
-                let peer_result = bitquan_network::Peer::new_inbound(
-                    std_stream,
-                    peer_addr,
-                    magic,
-                    &noise_config,
-                );
+                let peer_result =
+                    bitquan_network::Peer::new_inbound(std_stream, peer_addr, magic, &noise_config);
 
                 let peer = match peer_result {
                     Ok(p) => p,
@@ -730,21 +735,37 @@ pub async fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<
 /// RPC server options structure (copied from main.rs for use in p2p_server)
 #[allow(dead_code)]
 pub struct RpcServerOptions<'a> {
+    /// RPC server listen address (e.g., "127.0.0.1:18445")
     pub listen: Option<&'a str>,
+    /// RPC authentication username
     pub username: Option<&'a str>,
+    /// RPC authentication password
     pub password: Option<&'a str>,
+    /// Maximum request body size in bytes
     pub max_body_bytes: usize,
+    /// Rate limit burst size (requests per burst)
     pub rl_burst: u32,
+    /// Rate limit refill rate (requests per second)
     pub rl_refill_per_sec: u32,
+    /// Connection cooldown in milliseconds
     pub conn_cooldown_ms: u64,
+    /// Maximum header size in bytes
     pub max_header_bytes: usize,
+    /// Header read timeout in milliseconds
     pub header_timeout_ms: u64,
+    /// Trust proxy headers (X-Forwarded-For)
     pub trust_proxy: bool,
+    /// Trusted CIDR ranges for proxy connections
     pub trusted_cidr: Vec<String>,
+    /// Path to TLS certificate file
     pub tls_cert: Option<&'a str>,
+    /// Path to TLS private key file
     pub tls_key: Option<&'a str>,
+    /// Allow insecure TLS connections (development only)
     pub allow_insecure: bool,
+    /// Path to JWT configuration file
     pub jwt_config_path: Option<&'a str>,
+    /// JWT secret for authentication (overrides file)
     pub jwt_secret: Option<&'a str>,
 }
 
@@ -775,8 +796,12 @@ impl<'a> From<&'a clap::ArgMatches> for RpcServerOptions<'a> {
     fn from(matches: &'a clap::ArgMatches) -> Self {
         Self {
             listen: matches.get_one::<String>("rpc-listen").map(|s| s.as_str()),
-            username: matches.get_one::<String>("rpc-username").map(|s| s.as_str()),
-            password: matches.get_one::<String>("rpc-password").map(|s| s.as_str()),
+            username: matches
+                .get_one::<String>("rpc-username")
+                .map(|s| s.as_str()),
+            password: matches
+                .get_one::<String>("rpc-password")
+                .map(|s| s.as_str()),
             max_body_bytes: matches
                 .get_one::<usize>("rpc-max-body-bytes")
                 .copied()
@@ -812,9 +837,7 @@ impl<'a> From<&'a clap::ArgMatches> for RpcServerOptions<'a> {
                 .map(|s| s.as_str()),
             tls_key: matches.get_one::<String>("rpc-tls-key").map(|s| s.as_str()),
             allow_insecure: matches.get_flag("rpc-allow-insecure"),
-            jwt_config_path: matches
-                .get_one::<String>("jwt-config")
-                .map(|s| s.as_str()),
+            jwt_config_path: matches.get_one::<String>("jwt-config").map(|s| s.as_str()),
             jwt_secret: matches.get_one::<String>("jwt-secret").map(|s| s.as_str()),
         }
     }

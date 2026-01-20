@@ -330,8 +330,8 @@ fn test_metrics_integration() {
         .expect("Failed to record block");
 
     metrics.record_block_persisted(100); // height from dummy_block(100)
-    metrics.set_total_rewards(engine.total_distributed() as u128);
-    metrics.set_pool_balance(engine.total_distributed() as u128);
+    metrics.set_total_rewards(engine.total_distributed());
+    metrics.set_pool_balance(engine.total_distributed());
     metrics.set_reward_per_block(reward);
 
     // Update metrics manually referenced in assertions

@@ -15,14 +15,12 @@ mod serialize {
 
     /// Serialize to bytes using bincode
     pub fn to_bytes<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, StorageError> {
-        bincode::serialize(value)
-            .map_err(|e| StorageError::SerializationError(e.to_string()))
+        bincode::serialize(value).map_err(|e| StorageError::SerializationError(e.to_string()))
     }
 
     /// Deserialize from bytes using bincode
     pub fn from_bytes<'a, T: serde::Deserialize<'a>>(bytes: &'a [u8]) -> Result<T, StorageError> {
-        bincode::deserialize(bytes)
-            .map_err(|e| StorageError::SerializationError(e.to_string()))
+        bincode::deserialize(bytes).map_err(|e| StorageError::SerializationError(e.to_string()))
     }
 }
 
@@ -898,9 +896,7 @@ impl ChainStore for RocksDBStore {
         // Update tip and height
         let new_height = self.height()?.saturating_sub(1);
         let prev_header_bytes = match self.get_block(&block.header.prev_block)? {
-            Some(prev_block) => Some(
-                serialize::to_bytes(&prev_block.header)?,
-            ),
+            Some(prev_block) => Some(serialize::to_bytes(&prev_block.header)?),
             None => None,
         };
 
@@ -1067,9 +1063,7 @@ impl RocksDBStore {
         // Update tip and height
         let new_height = self.height()?.saturating_sub(1);
         let prev_header_bytes = match self.get_block(&block.header.prev_block)? {
-            Some(prev_block) => Some(
-                serialize::to_bytes(&prev_block.header)?,
-            ),
+            Some(prev_block) => Some(serialize::to_bytes(&prev_block.header)?),
             None => None,
         };
 

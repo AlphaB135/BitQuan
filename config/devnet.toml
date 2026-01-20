@@ -16,15 +16,15 @@ rpc_port = 29443
 # Bootstrap nodes (empty for devnet)
 bootstrap_nodes = []
 
-# Initial difficulty (easy for development/testing)
+# Initial difficulty (easiest allowed for CPU mining - range is [0x1c00ffff, 0x207fffff])
 difficulty_bits = "0x207fffff"
 
-# Block target time (120 seconds = 2 minutes for balanced testing)
-block_interval_seconds = 120
+# Block target time (30 seconds for faster devnet testing)
+block_interval_seconds = 30
 
 [consensus]
 # ASERT difficulty adjustment parameters
-asert_half_life = 7200  # 2 hours in seconds for balanced adjustment
+asert_half_life = 300  # 5 minutes for faster difficulty adjustment on devnet
 
 # BurstGuard parameters
 burst_guard_enabled = true

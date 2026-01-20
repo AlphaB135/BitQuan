@@ -400,6 +400,15 @@ impl Mempool {
         }
         false
     }
+
+    /// Returns all transaction IDs in the mempool (for P2P GetMempool).
+    pub fn txids(&self) -> Vec<[u8; 32]> {
+        self.entries
+            .values()
+            .flatten()
+            .map(|entry| entry.tx.txid())
+            .collect()
+    }
 }
 
 impl Default for Mempool {

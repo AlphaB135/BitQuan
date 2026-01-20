@@ -79,7 +79,10 @@ fn test_balance_tracking_total_spendable_pending() {
         .get_balance_info("miner1")
         .expect("Failed to get balance");
 
-    assert_eq!(balance.total, 500_000_000_000_000_000_000, "Total should be 10 blocks × 50 BQ");
+    assert_eq!(
+        balance.total, 500_000_000_000_000_000_000,
+        "Total should be 10 blocks × 50 BQ"
+    );
     assert_eq!(balance.spendable, 0, "No blocks mature at height 50");
     assert_eq!(
         balance.pending, 500_000_000_000_000_000_000,
@@ -93,7 +96,10 @@ fn test_balance_tracking_total_spendable_pending() {
         .get_balance_info("miner1")
         .expect("Failed to get balance");
 
-    assert_eq!(balance.total, 500_000_000_000_000_000_000, "Total unchanged");
+    assert_eq!(
+        balance.total, 500_000_000_000_000_000_000,
+        "Total unchanged"
+    );
     assert_eq!(
         balance.spendable, 50_000_000_000_000_000_000,
         "One block mature"

@@ -254,12 +254,12 @@ pub trait RpcMethods: Send + Sync {
     ///
     /// # Arguments
     /// * `address` - Recipient address
-    /// * `amount` - Amount to send in satoshis
+    /// * `amount` - Amount to send in qbits
     /// * `comment` - Optional comment
     async fn sendtoaddress(
         &self,
         address: String,
-        amount: u64,
+        amount: u128,
         comment: Option<String>,
     ) -> Result<String, RpcError>;
 }
@@ -641,13 +641,36 @@ pub async fn dispatch_call<T: RpcMethods>(
                 }
             };
 
-            let amount = match arr.get(1).and_then(|v| v.as_u64()) {
-                Some(amt) => amt,
+            let amount = match arr.get(1) {
+                Some(v) => {
+                    // Try u64 first for smaller values
+                    if let Some(amt) = v.as_u64() {
+                        amt as u128
+                    } else if let Some(s) = v.as_str() {
+                        // Parse from string for larger values (u128)
+                        match s.parse::<u128>() {
+                            Ok(val) => val,
+                            Err(_) => {
+                                return JsonRpcResponse::error(
+                                    id,
+                                    error_codes::INVALID_PARAMS,
+                                    "amount parameter must be a valid u128 number".to_string(),
+                                )
+                            }
+                        }
+                    } else {
+                        return JsonRpcResponse::error(
+                            id,
+                            error_codes::INVALID_PARAMS,
+                            "amount parameter is required (u128)".to_string(),
+                        );
+                    }
+                }
                 None => {
                     return JsonRpcResponse::error(
                         id,
                         error_codes::INVALID_PARAMS,
-                        "amount parameter is required (u64)".to_string(),
+                        "amount parameter is required (u128)".to_string(),
                     )
                 }
             };

@@ -136,8 +136,8 @@ pub enum InputKey {
 /// Output PSBT keys
 #[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 pub enum OutputKey {
-    /// Amount (8 bytes)
-    Amount(u64),
+    /// Amount (16 bytes for u128)
+    Amount(u128),
     /// ScriptPubkey (variable)
     ScriptPubkey(Vec<u8>),
     /// Proprietary data
@@ -255,7 +255,7 @@ impl PSBTOutput {
     }
 
     /// Set amount
-    pub fn set_amount(&mut self, amount: u64) {
+    pub fn set_amount(&mut self, amount: u128) {
         let mut bytes = vec![];
         bytes.extend_from_slice(&amount.to_le_bytes());
         self.add_field(OutputKey::Amount(amount), bytes);
@@ -267,7 +267,7 @@ impl PSBTOutput {
     }
 
     /// Get amount
-    pub fn get_amount(&self) -> Option<u64> {
+    pub fn get_amount(&self) -> Option<u128> {
         self.fields.iter().find_map(|(key, _value)| {
             if let OutputKey::Amount(amount) = key {
                 Some(*amount)
@@ -662,7 +662,7 @@ impl PQPSBTBuilder {
     }
 
     /// Add output
-    pub fn add_output(mut self, address: &str, amount: u64) -> Result<Self> {
+    pub fn add_output(mut self, address: &str, amount: u128) -> Result<Self> {
         let addr = Address::parse(address)?;
 
         let mut output = PSBTOutput::new();

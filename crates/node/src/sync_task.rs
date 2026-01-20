@@ -48,6 +48,7 @@ pub async fn spawn_sync_maintenance(
 }
 
 /// Initialize sync manager and background task
+#[allow(dead_code)]
 pub async fn initialize_sync(
     local_height: u64,
     _network_id: bitquan_types::NetworkId, // TODO: Use when implementing proper sync

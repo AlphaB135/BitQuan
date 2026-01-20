@@ -9,8 +9,8 @@ use std::fs;
 
 use crate::address;
 use bitquan_storage::rocksdb_store::RocksDBStore;
-use bitquan_storage::RecoveryOptions;
 use bitquan_storage::ChainStore;
+use bitquan_storage::RecoveryOptions;
 use bitquan_types::error::{Error, Result};
 use bitquan_types::{
     genesis::GENESIS_HASH_BYTES, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut,
@@ -243,7 +243,12 @@ pub fn genesis_verify(genesis_file: &str, network: &str) -> Result<()> {
 }
 
 /// Build a transaction for testing
-pub fn build_tx(prev_txid_hex: &str, prev_vout: u32, value: u128, to_script_hex: &str) -> Result<()> {
+pub fn build_tx(
+    prev_txid_hex: &str,
+    prev_vout: u32,
+    value: u128,
+    to_script_hex: &str,
+) -> Result<()> {
     let mut prev = [0u8; 32];
     let prev_vec = hex::decode(prev_txid_hex)
         .map_err(|e| Error::Invalid(format!("invalid prev_txid hex: {e}")))?;

@@ -68,6 +68,11 @@ impl AsyncChainStore for MockAsyncStore {
         // Mock implementation - does nothing
         Ok(())
     }
+
+    async fn median_time_past(&self) -> Result<u64, AsyncStoreError> {
+        // Mock implementation - returns 0 for testing
+        Ok(0)
+    }
 }
 
 /// Create a mock transaction for testing

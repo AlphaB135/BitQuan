@@ -3,6 +3,7 @@
 //! Implements Bitcoin-like halving schedule and miner reward tracking.
 
 use bitquan_types::{Block, Error, Result};
+use log::info;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -320,9 +321,7 @@ impl RewardEngine {
             db,
             reward_rate: 10000, // 100.00% scaled
             maturity: 100,
-            total_distributed: Arc::new(AtomicU64::new(
-                (total / QBITS_PER_BQ) as u64
-            )),
+            total_distributed: Arc::new(AtomicU64::new((total / QBITS_PER_BQ) as u64)),
         }
     }
 
@@ -453,7 +452,7 @@ impl RewardEngine {
 
             settled.push(block.hash.clone());
 
-            println!(
+            info!(
                 "[MATURITY] Reward settled: block {} at height {} (mature at {})",
                 &block.hash[..8.min(block.hash.len())],
                 block.height,

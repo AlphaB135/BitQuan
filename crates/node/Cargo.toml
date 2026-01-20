@@ -63,6 +63,7 @@ pool = []  # Enable pool database functionality (Phase 8)
 rocksdb-backend = ["bitquan-storage/rocksdb-backend"]
 randomx = ["bitquan-consensus/randomx"]
 mainnet = []
+testing = []  # Enable Mock PoW and other testing utilities (NOT for production)
 
 [[test]]
 name = "p2p_mempool_relay"
