@@ -644,13 +644,17 @@ impl RpcMethods for NodeRpcHandler {
         }
 
         if amount == 0 {
-            return Err(RpcError::InvalidParams("Amount must be greater than zero".to_string()));
+            return Err(RpcError::InvalidParams(
+                "Amount must be greater than zero".to_string(),
+            ));
         }
 
         // Maximum reasonable amount (prevent overflow attacks)
         const MAX_SEND_AMOUNT: u128 = 1_000_000_000_000_000; // 1 trillion BQ (very high limit)
         if amount > MAX_SEND_AMOUNT {
-            return Err(RpcError::InvalidParams("Amount exceeds maximum allowed".to_string()));
+            return Err(RpcError::InvalidParams(
+                "Amount exceeds maximum allowed".to_string(),
+            ));
         }
 
         // Log warning if using insecure default password
@@ -690,9 +694,7 @@ impl RpcMethods for NodeRpcHandler {
             .ok_or_else(|| RpcError::InternalError("Block 2 not found".to_string()))?;
 
         if block.transactions.is_empty() {
-            return Err(RpcError::InternalError(
-                "Invalid block state".to_string(),
-            ));
+            return Err(RpcError::InternalError("Invalid block state".to_string()));
         }
 
         let coinbase_tx = &block.transactions[0];

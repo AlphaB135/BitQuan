@@ -40,7 +40,14 @@ impl UndoBlock {
     }
 
     /// Add a spent output to this undo block
-    pub fn add_spent_output(&mut self, output: TxOut, prev_txid: [u8; 32], prev_vout: u32, height: u64, is_coinbase: bool) {
+    pub fn add_spent_output(
+        &mut self,
+        output: TxOut,
+        prev_txid: [u8; 32],
+        prev_vout: u32,
+        height: u64,
+        is_coinbase: bool,
+    ) {
         self.spent_outputs.push(SpentOutput {
             output,
             prev_txid,

@@ -10,7 +10,7 @@ use thiserror::Error;
 pub mod rocksdb_store;
 
 #[cfg(feature = "rocksdb-backend")]
-pub use rocksdb_store::{DatabaseStats, RecoveryOptions, RocksDBStore, StoredUtxoEntry, serialize};
+pub use rocksdb_store::{serialize, DatabaseStats, RecoveryOptions, RocksDBStore, StoredUtxoEntry};
 
 /// Undo block functionality for rolling back blockchain state
 pub mod undo_block;

@@ -1500,12 +1500,14 @@ pub(crate) async fn validate_block_utxos(
                 }
             }
 
-            inputs_value = inputs_value.checked_add(utxo_entry.output.value).ok_or_else(|| {
-                WorkerError::InvalidData(format!(
-                    "Integer overflow: tx {} input values exceed u64::MAX",
-                    hex::encode(&tx.txid()[..8])
-                ))
-            })?;
+            inputs_value = inputs_value
+                .checked_add(utxo_entry.output.value)
+                .ok_or_else(|| {
+                    WorkerError::InvalidData(format!(
+                        "Integer overflow: tx {} input values exceed u64::MAX",
+                        hex::encode(&tx.txid()[..8])
+                    ))
+                })?;
         }
 
         // 2. Validate Outputs
@@ -1651,11 +1653,12 @@ mod tests {
                 output: TxOut {
                     value: 1_000_000_000_000_000_000, // 1 BQ (18 decimals)
                     script_pubkey: vec![
-                        0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac,
+                        0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88,
+                        0xac,
                     ], // P2PKH
                 },
-                height: 100, // Already mature
+                height: 100,        // Already mature
                 is_coinbase: false, // Not a coinbase UTXO
             };
 

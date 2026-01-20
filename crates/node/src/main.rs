@@ -1504,7 +1504,8 @@ fn mine_once(
     if allow_mock {
         log::info!(
             "[mock-pow] enabled on {:?}: nonce=0 or bits>=0x{:08x} will satisfy difficulty",
-            network, DEVNET_MAX_BITS
+            network,
+            DEVNET_MAX_BITS
         );
     }
 
@@ -1729,7 +1730,8 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         bits = load_difficulty_from_config(network)?;
         log::info!(
             "Loaded difficulty from config: 0x{:08x} for {:?}",
-            bits, network
+            bits,
+            network
         );
     } else {
         log::info!("Using override difficulty: 0x{:08x}", bits);

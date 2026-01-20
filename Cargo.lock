@@ -362,6 +362,7 @@ dependencies = [
  "ethereum-types",
  "hex",
  "ipnet",
+ "log",
  "maxminddb",
  "parking_lot",
  "primitive-types",

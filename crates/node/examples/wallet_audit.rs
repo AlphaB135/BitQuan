@@ -24,7 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keypair = WalletKeypair::generate_dilithium5()?;
     println!("✓ Keypair generated successfully");
     println!("  Public key: {} bytes", keypair.public_key.len());
-    println!("  Secret key: {} bytes", keypair.secret_key.expose_secret().len());
+    println!(
+        "  Secret key: {} bytes",
+        keypair.secret_key.expose_secret().len()
+    );
     println!();
 
     // Test 2: Serialization with Encryption
@@ -35,8 +38,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Keypair serialized");
     println!("  Algorithm: {}", serializable.algorithm);
     println!("  Address: {}", serializable.address);
-    println!("  Secret key format: {} (encrypted JSON)",
-             if serializable.secret_key.starts_with('{') { "encrypted" } else { "plain" });
+    println!(
+        "  Secret key format: {} (encrypted JSON)",
+        if serializable.secret_key.starts_with('{') {
+            "encrypted"
+        } else {
+            "plain"
+        }
+    );
     println!();
 
     // Test 3: Encryption Structure
@@ -47,7 +56,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("✓ AES-256-GCM + Argon2id encryption detected");
         println!("  KDF Parameters:");
         if let Some(mem) = kdf_params.get("mem_cost") {
-            println!("    Memory cost: {} KiB ({} MiB)", mem, mem.as_i64().unwrap_or(0) / 1024);
+            println!(
+                "    Memory cost: {} KiB ({} MiB)",
+                mem,
+                mem.as_i64().unwrap_or(0) / 1024
+            );
         }
         if let Some(time) = kdf_params.get("time_cost") {
             println!("    Time cost: {} iterations", time);
@@ -89,7 +102,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if mode == 0o600 {
             println!("✓ File permissions: 0o600 (owner read/write only) - SECURE");
         } else {
-            println!("✗ File permissions: 0o{:o} - INSECURE! Should be 0o600", mode);
+            println!(
+                "✗ File permissions: 0o{:o} - INSECURE! Should be 0o600",
+                mode
+            );
         }
     }
 
@@ -103,7 +119,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 6: Round-trip Save/Load
     println!("Test 6: Round-trip Save/Load");
     println!("───────────────────────────────────────────────────────────");
-    let loaded_keypair = WalletKeypair::load_from_file(std::path::Path::new(wallet_path), password)?;
+    let loaded_keypair =
+        WalletKeypair::load_from_file(std::path::Path::new(wallet_path), password)?;
     println!("✓ Wallet loaded successfully");
 
     if loaded_keypair.public_key == keypair.public_key {
@@ -125,7 +142,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message = b"Test audit message";
     let signature = loaded_keypair.sign(message)?;
     println!("✓ Message signed");
-    println!("  Signature size: {} bytes (Dilithium5: 4595 bytes)", signature.len());
+    println!(
+        "  Signature size: {} bytes (Dilithium5: 4595 bytes)",
+        signature.len()
+    );
 
     let is_valid = loaded_keypair.verify(message, &signature);
     if is_valid {
@@ -159,8 +179,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut test_keypair = WalletKeypair::generate_dilithium5()?;
     let secret_before = test_keypair.secret_key.expose_secret().clone();
     println!("✓ Test keypair created");
-    println!("  Secret key before wipe: {} bytes (non-zero)",
-             secret_before.iter().filter(|&&b| b != 0).count());
+    println!(
+        "  Secret key before wipe: {} bytes (non-zero)",
+        secret_before.iter().filter(|&&b| b != 0).count()
+    );
 
     test_keypair.secure_wipe();
     let secret_after = test_keypair.secret_key.expose_secret();
@@ -169,7 +191,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if zero_count == secret_after.len() || secret_after.is_empty() {
         println!("✓ Secret key wiped: ZEROIZED (secure)");
     } else {
-        println!("⚠ Secret key not fully zeroized: {}/{} bytes", zero_count, secret_after.len());
+        println!(
+            "⚠ Secret key not fully zeroized: {}/{} bytes",
+            zero_count,
+            secret_after.len()
+        );
     }
     println!();
 
@@ -192,8 +218,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if unique.len() == num_keys {
         println!("✓ All {} keypairs are UNIQUE (100% entropy)", num_keys);
     } else {
-        println!("✗ DUPLICATES FOUND: {}/{} unique ({:.1}% entropy)",
-                 unique.len(), num_keys, entropy_ratio);
+        println!(
+            "✗ DUPLICATES FOUND: {}/{} unique ({:.1}% entropy)",
+            unique.len(),
+            num_keys,
+            entropy_ratio
+        );
     }
     println!();
 

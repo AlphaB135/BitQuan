@@ -224,4 +224,51 @@ mod tests {
         let _ = state.update(next_height, next_time, &params);
         assert!(state.guard_state().is_active());
     }
+
+    #[test]
+    fn sign_bit_handling_increases_size() {
+        // Test that when the sign bit is set, size is incremented
+        // This is the CORRECT Bitcoin compact format behavior
+        let target = 0x00ff_ffff_0000u64; // Will set sign bit after shift
+        let compact = target_to_compact_u64(target);
+
+        // Verify size byte was incremented (bits 24-31)
+        let size = compact >> 24;
+        assert!(
+            size > 3,
+            "Size should be incremented when sign bit is set, got size={}",
+            size
+        );
+
+        // Verify mantissa is valid (bits 0-23)
+        assert_eq!(
+            compact & 0x007fffff,
+            0x0000ffff,
+            "Mantissa should be preserved"
+        );
+    }
+
+    #[test]
+    fn target_to_compact_zero_edge_case() {
+        // Test that zero target is handled correctly
+        let compact = target_to_compact_u64(0);
+        assert_eq!(compact, 0, "Zero target should produce zero compact");
+    }
+
+    #[test]
+    fn compact_to_target_reconstructs_mantissa() {
+        // Test that compact_to_target correctly reconstructs the mantissa
+        // The size byte determines where the 23-bit mantissa is placed in the u64
+        let bits = 0x057fffff; // Size=5, mantissa=0x007fffff (max mantissa)
+        let target = compact_to_target(bits);
+
+        // Verify the mantissa is correctly positioned
+        // For size=5, the mantissa should be shifted left by 8*(5-3) = 16 bits
+        let expected_mantissa_pos = 8 * (5 - 3);
+        let reconstructed_mantissa = (target >> expected_mantissa_pos) & 0x007fffff;
+        assert_eq!(
+            reconstructed_mantissa, 0x007fffff,
+            "Mantissa should be correctly reconstructed"
+        );
+    }
 }

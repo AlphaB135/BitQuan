@@ -274,7 +274,9 @@ impl WalletKeypair {
                 .map_err(|e| Error::Invalid(format!("failed to set file permissions: {e}")))?;
         }
 
-        log::info!("⚠️  WARNING: Keypair saved to file (secret key is encrypted, but file is not)!");
+        log::info!(
+            "⚠️  WARNING: Keypair saved to file (secret key is encrypted, but file is not)!"
+        );
         log::info!("⚠️  For production, use the encrypted keystore system!");
         Ok(())
     }

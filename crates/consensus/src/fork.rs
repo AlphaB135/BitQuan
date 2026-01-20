@@ -5,6 +5,7 @@
 
 use crate::pow::header_hash;
 use bitquan_types::BlockHeader;
+use log::warn;
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -99,7 +100,10 @@ impl BlockNode {
             .checked_div(target_plus_one)
             .unwrap_or_else(|| {
                 // Log warning but return minimum work as fallback
-                eprintln!("Warning: Division by zero in work calculation, using minimum work");
+                warn!(
+                    "Division by zero in work calculation for bits={:#010x}, using minimum work",
+                    bits
+                );
                 U256::one()
             })
     }

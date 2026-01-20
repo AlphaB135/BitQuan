@@ -1081,8 +1081,8 @@ impl RocksDBStore {
                     // Use height=0 (considered mature) as safe fallback
                     let utxo_entry = StoredUtxoEntry {
                         output: spent_output.clone(),
-                        height: 0,  // Considered mature
-                        is_coinbase: false,  // Conservative assumption
+                        height: 0,          // Considered mature
+                        is_coinbase: false, // Conservative assumption
                     };
                     let utxo_data = serialize::to_bytes(&utxo_entry)?;
 
