@@ -911,3 +911,11 @@ Ctrl+b, d              # Detach from session
 
 **Last Updated**: 2026-01-21
 **Version**: 1.4.0
+
+### Incremental Development Patterns (2026-01-21)
+- **Pattern**: Incremental Development Beats Perfectionism - Build what's possible now (20 min), defer complex work (4-6 hrs) to future issues
+- **Pattern**: Block Locator Exponential Backoff - Bitcoin-style: 1,2,4,8,16,32,64,128... Double step after 10 entries, always include genesis
+- **Pattern**: Storage Access via Trait Object - `Arc<dyn AsyncChainStore>` for flexibility (InMemory tests, RocksDB production)
+- **Pattern**: Issue Creation for Future Work - When deferring, create detailed issues with clear phases to avoid rediscovery
+- **Discovery**: Clippy False Positive on Pattern Matching - Type used in `if let Ok(Some(block))` flagged as unused; use `#[allow(unused_imports)]`
+- **Discovery**: AsyncSyncManager Architecture Limitation - Lacks Peer access and response channels; designed as state manager, not P2P handler

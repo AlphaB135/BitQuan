@@ -8,9 +8,9 @@ use crate::{
 };
 use bitquan_consensus::pow;
 use bitquan_storage::AsyncChainStore;
-use bitquan_types::{BlockHeader, NetworkId};
 #[allow(unused_imports)]
 use bitquan_types::Block;
+use bitquan_types::{BlockHeader, NetworkId};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use thiserror::Error;
