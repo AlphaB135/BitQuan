@@ -12,6 +12,7 @@ use bitquan_network::peer::{Peer, PeerManager};
 use bitquan_network::protocol::{network_magic, InvType, InvVector, Message, RejectCode};
 use bitquan_network::relay::create_block_getdata;
 use bitquan_storage::async_store::AsyncChainStore;
+use bitquan_storage::{serialize, StoredUtxoEntry};
 use bitquan_types::{Block, NetworkId, Transaction};
 use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
@@ -1400,21 +1401,10 @@ async fn handle_getblocks(
 /// This CRITICAL validation prevents double spends and ensures all inputs exist.
 /// MUST be called before `insert_block()` to maintain blockchain integrity.
 ///
-/// ⚠️ CRITICAL LIMITATION: Coinbase maturity not yet validated
-///
-/// Current UTXO schema does not track:
-/// - Block height when UTXO was created
-/// - Whether UTXO is from coinbase
-///
-/// TEMPORARY SOLUTION (Conservative):
-/// - We accept UTXO spends based on existence only
-/// - This allows testnet to function
-/// - PRODUCTION: Must add maturity check before mainnet
-///
-/// Required Schema Change:
-/// - UtxoEntry struct with { value, script_pubkey, height, is_coinbase }
-/// - Update RocksDB serialization format
-/// - Validate: current_height >= utxo_height + 100
+/// Coinbase Maturity:
+/// - Coinbase outputs require 100 confirmations before spending
+/// - Enforced via StoredUtxoEntry with height + is_coinbase tracking
+/// - Validation: current_height >= utxo_height + 100
 ///
 /// # Arguments
 /// * `ctx` - Worker context containing UTXO set
@@ -1428,12 +1418,12 @@ async fn handle_getblocks(
 /// Returns error if any transaction:
 /// - Spends non-existent UTXO
 /// - Attempts double spend
-/// - Violates coinbase maturity
+/// - Violates coinbase maturity (spends coinbase < 100 blocks old)
 /// - Has invalid input/output balance
 pub(crate) async fn validate_block_utxos(
     ctx: &WorkerContext,
     block: &Block,
-    _height: u64,
+    height: u64,
 ) -> Result<u128, WorkerError> {
     use bitquan_consensus::utxo::OutPoint;
     use std::collections::HashSet;
@@ -1490,27 +1480,27 @@ pub(crate) async fn validate_block_utxos(
                     ))
                 })?;
 
-            // Deserialize UTXO
-            let output: bitquan_types::TxOut = serde_json::from_slice(&utxo_bytes)
+            // Deserialize UTXO entry with maturity data
+            let utxo_entry: StoredUtxoEntry = serialize::from_bytes(&utxo_bytes)
                 .map_err(|e| WorkerError::Storage(format!("Failed to deserialize UTXO: {}", e)))?;
 
-            // MATURITY CHECK BLOCKED: See function documentation for details
-            //
-            // We CANNOT validate coinbase maturity here because:
-            // 1. RocksDB stores only TxOut (value + script_pubkey)
-            // 2. Missing: height + is_coinbase flags
-            // 3. Schema migration required before enforcement
-            //
-            // TEMPORARY: Accept all UTXO spends based on existence only
-            // SAFE FOR: Testnet development
-            // UNSAFE FOR: Mainnet production
-            //
-            // FUTURE: Add check here:
-            //   if utxo.is_coinbase && current_height < utxo.height + 100 {
-            //       return Err(...);
-            //   }
+            // COINBASE MATURITY CHECK (100 blocks)
+            const COINBASE_MATURITY: u64 = 100;
+            if utxo_entry.is_coinbase {
+                let maturity_height = utxo_entry.height.saturating_add(COINBASE_MATURITY);
+                if height < maturity_height {
+                    return Err(WorkerError::InvalidData(format!(
+                        "Coinbase UTXO spent before maturity: tx={} vout={} created_at={} current={} required={}",
+                        hex::encode(&input.prev_txid[..8]),
+                        input.prev_vout,
+                        utxo_entry.height,
+                        height,
+                        maturity_height
+                    )));
+                }
+            }
 
-            inputs_value = inputs_value.checked_add(output.value).ok_or_else(|| {
+            inputs_value = inputs_value.checked_add(utxo_entry.output.value).ok_or_else(|| {
                 WorkerError::InvalidData(format!(
                     "Integer overflow: tx {} input values exceed u64::MAX",
                     hex::encode(&tx.txid()[..8])
@@ -1652,22 +1642,26 @@ mod tests {
         fn new() -> Self {
             let mut utxos = std::collections::HashMap::new();
 
-            // Create a mock UTXO: prev_txid + prev_vout -> TxOut
+            // Create a mock UTXO: prev_txid + prev_vout -> StoredUtxoEntry
             let prev_txid = [1u8; 32];
             let prev_vout = 0u32;
             let outpoint_key = [&prev_txid[..], &prev_vout.to_le_bytes()[..]].concat();
 
-            let utxo = TxOut {
-                value: 1_000_000_000_000_000_000, // 1 BQ (18 decimals)
-                script_pubkey: vec![
-                    0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac,
-                ], // P2PKH
+            let utxo_entry = StoredUtxoEntry {
+                output: TxOut {
+                    value: 1_000_000_000_000_000_000, // 1 BQ (18 decimals)
+                    script_pubkey: vec![
+                        0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xac,
+                    ], // P2PKH
+                },
+                height: 100, // Already mature
+                is_coinbase: false, // Not a coinbase UTXO
             };
 
             utxos.insert(
                 outpoint_key,
-                serde_json::to_vec(&utxo).expect("Failed to serialize mock UTXO"),
+                serialize::to_bytes(&utxo_entry).expect("Failed to serialize mock UTXO"),
             );
             Self { utxos }
         }
@@ -1676,7 +1670,7 @@ mod tests {
     #[async_trait::async_trait]
     impl AsyncChainStore for MockAsyncStore {
         async fn height(&self) -> std::result::Result<u64, AsyncStoreError> {
-            Ok(0)
+            Ok(200) // High enough for UTXOs at height 100 to be mature
         }
 
         async fn tip(

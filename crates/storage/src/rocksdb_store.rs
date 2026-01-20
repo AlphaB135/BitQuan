@@ -10,7 +10,7 @@ use crate::{ChainStore, StorageError};
 use bitquan_types::{Block, BlockHeader, Transaction};
 
 /// Binary serialization using bincode (10x faster than JSON)
-mod serialize {
+pub mod serialize {
     use super::*;
 
     /// Serialize to bytes using bincode
@@ -22,6 +22,17 @@ mod serialize {
     pub fn from_bytes<'a, T: serde::Deserialize<'a>>(bytes: &'a [u8]) -> Result<T, StorageError> {
         bincode::deserialize(bytes).map_err(|e| StorageError::SerializationError(e.to_string()))
     }
+}
+
+/// UTXO entry stored in database (includes maturity data)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StoredUtxoEntry {
+    /// The output data
+    pub output: bitquan_types::TxOut,
+    /// Block height where this output was created
+    pub height: u64,
+    /// Whether this is a coinbase output
+    pub is_coinbase: bool,
 }
 
 /// Column family names
@@ -799,9 +810,15 @@ impl ChainStore for RocksDBStore {
                     .get_cf(&cf_utxo, &outpoint_key)
                     .map_err(|e| StorageError::DatabaseError(e.to_string()))?
                 {
-                    let output: bitquan_types::TxOut = serialize::from_bytes(&utxo_data)?;
+                    let utxo_entry: StoredUtxoEntry = serialize::from_bytes(&utxo_data)?;
 
-                    undo_block.add_spent_output(output, input.prev_txid, input.prev_vout);
+                    undo_block.add_spent_output(
+                        utxo_entry.output,
+                        input.prev_txid,
+                        input.prev_vout,
+                        utxo_entry.height,
+                        utxo_entry.is_coinbase,
+                    );
                 }
 
                 // Delete the spent UTXO
@@ -812,9 +829,17 @@ impl ChainStore for RocksDBStore {
         // Add new UTXOs created by this block
         for tx in &block.transactions {
             let txid = tx.txid();
+            let is_coinbase = tx.inputs.len() == 1 && tx.inputs[0].prev_txid == [0u8; 32];
+
             for (vout, output) in tx.outputs.iter().enumerate() {
                 let outpoint_key = [&txid[..], &(vout as u32).to_le_bytes()[..]].concat();
-                let utxo_data = serialize::to_bytes(output)?;
+
+                let utxo_entry = StoredUtxoEntry {
+                    output: output.clone(),
+                    height,
+                    is_coinbase,
+                };
+                let utxo_data = serialize::to_bytes(&utxo_entry)?;
                 batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
             }
         }
@@ -879,7 +904,12 @@ impl ChainStore for RocksDBStore {
             ]
             .concat();
 
-            let utxo_data = serialize::to_bytes(&spent_output.output)?;
+            let utxo_entry = StoredUtxoEntry {
+                output: spent_output.output.clone(),
+                height: spent_output.height,
+                is_coinbase: spent_output.is_coinbase,
+            };
+            let utxo_data = serialize::to_bytes(&utxo_entry)?;
 
             batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
         }
@@ -1046,7 +1076,15 @@ impl RocksDBStore {
 
                     let outpoint_key =
                         [&input.prev_txid[..], &input.prev_vout.to_le_bytes()[..]].concat();
-                    let utxo_data = serialize::to_bytes(spent_output)?;
+
+                    // NOTE: Legacy method doesn't have height/is_coinbase info
+                    // Use height=0 (considered mature) as safe fallback
+                    let utxo_entry = StoredUtxoEntry {
+                        output: spent_output.clone(),
+                        height: 0,  // Considered mature
+                        is_coinbase: false,  // Conservative assumption
+                    };
+                    let utxo_data = serialize::to_bytes(&utxo_entry)?;
 
                     batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
                 }

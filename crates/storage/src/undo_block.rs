@@ -11,6 +11,10 @@ pub struct SpentOutput {
     pub prev_txid: [u8; 32],
     /// The output index in the previous transaction
     pub prev_vout: u32,
+    /// Block height where this output was created (for coinbase maturity)
+    pub height: u64,
+    /// Whether this is a coinbase output (for maturity enforcement)
+    pub is_coinbase: bool,
 }
 
 /// Represents all the data needed to "undo" the effects of an entire block
@@ -36,11 +40,13 @@ impl UndoBlock {
     }
 
     /// Add a spent output to this undo block
-    pub fn add_spent_output(&mut self, output: TxOut, prev_txid: [u8; 32], prev_vout: u32) {
+    pub fn add_spent_output(&mut self, output: TxOut, prev_txid: [u8; 32], prev_vout: u32, height: u64, is_coinbase: bool) {
         self.spent_outputs.push(SpentOutput {
             output,
             prev_txid,
             prev_vout,
+            height,
+            is_coinbase,
         });
     }
 }
