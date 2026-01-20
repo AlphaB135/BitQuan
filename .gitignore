@@ -321,3 +321,4 @@ mine_*.py
 run_*.sh
 tx.hex
 debug_test_data
+audit_scanner.py

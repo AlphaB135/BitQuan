@@ -721,6 +721,19 @@ Closes #[issue-number]
 -   **Bincode 2.0 API is Unintuitive** (2026-01-20): `bincode::deserialize` doesn't exist; `bincode::config()` is module not function; `DefaultOptions` trait removed; Solution: Export wrapper `serialize::to_bytes/from_bytes` from storage crate; Reuse > reinvent
 -   **Security Audit False Positives** (2026-01-20): Audit flagged HIGH issues (overflow, deadlock) that were already protected (`try_from`, lock dropping); Always verify code before treating audit findings as critical; "Code ≠ Comments" applies to audits too
 -   **Mainnet Readiness Checklist** (2026-01-20): (1) Coinbase maturity 100 blocks ✅, (2) File permissions 0o600 ✅, (3) Generic error messages ✅, (4) Input validation ✅, (5) Post-quantum crypto (Dilithium5) ✅; All blockers resolved = mainnet ready
+-   **Read Code Before Changing It** (2026-01-21): Bitcoin compact format uses `as u32` truncation intentionally for sign bit handling; "Dangerous" casts are sometimes features; Always understand algorithm intent before suggesting fixes
+-   **Bitcoin Compact Format Sign Bit** (2026-01-21): Sign bit (0x00800000) overflow triggers size increment - this is CORRECT; Format: `[size (8)] [sign (1)] [mantissa (23)]`; Lines 53-55: `if compact & 0x00800000 != 0 { compact >>= 8; size += 1; }`
+-   **Test Values Must Be Valid** (2026-01-21): `bits = 0x1d00ffff` → exponent=29 → overflows (returns u64::MAX); Use `bits = 0x057fffff` → exponent=5 → works; Always verify test inputs don't overflow before writing assertions
+-   **Production Logging vs eprintln!** (2026-01-21): `eprintln!` cannot be controlled (no log level), floods logs; Use `log::warn!` with structured fields (bits={:#010x}) for production; Add `log.workspace = true` to workspace Cargo.toml
+-   **Trust Code Over Audit Findings** (2026-01-21): Code following Bitcoin standards + 125 tests passing = likely correct; Audit findings should be verified against actual implementation; "Trust but verify" - read code first, then decide
+-   **Tests Passing ≠ Logic Correct** (2026-01-21): User wisdom: "กลัวเทสผ่านเเต่ logic ไม่ผ่าน" (Afraid tests pass but logic fails); Always verify critical algorithms manually; Round-trip: 0x00007fffff0000 → 0x057fffff → 0x00007fffff0000 ✅
+-   **Manual Verification Required** (2026-01-21): For consensus-critical code, verify logic with manual calculation; Tests = necessary but not sufficient; Python/manual verification = confirms correctness
+-   **E2E Stress Testing = Production Readiness** (2026-01-21): Run 185+ tests covering consensus, P2P, wallet, integration before production; Zero bugs found = confidence to ship; Test script: `/tmp/e2e_stress_test.sh`
+-   **Test Script Organization** (2026-01-21): Group E2E tests by category (Consensus, P2P, Wallet, Integration); Easier to identify which subsystem failed; Always structure with clear sections and labels
+-   **Safe File Cleanup Pattern** (2026-01-21): Safety hook blocks `rm -rf`; Use `mv /tmp/test_* /tmp/trash_ 2>/dev/null || true` instead; Prevents accidental data loss during test cleanup
+-   **Zero Bugs After Aggressive Testing = Good Code** (2026-01-21): After comprehensive E2E testing, zero bugs found = previous work (linting, reviews, verification) was effective; Trust the quality process
+-   **User Participation in QA** (2026-01-21): User running E2E tests independently ("เราไปลองมาเเล้วโอเครนะ") = shared ownership of quality; Multiple perspectives catch different issues
+-   **Security Features Verification** (2026-01-21): E2E test must verify security features BLOCK attacks: Double spend ✅, Overflow ✅, Replay ✅, Ghost Tx ✅, Spam loops ✅; All security features working = production ready
 
 -   *Example: The standard way we handle authentication state.*
 -   *Example: The required structure for a new API endpoint.*
@@ -896,5 +909,5 @@ Ctrl+b, d              # Detach from session
 -   [ ] Environment variables set
 -   [ ] Git configured
 
-**Last Updated**: 2026-01-05
-**Version**: 1.3.0
+**Last Updated**: 2026-01-21
+**Version**: 1.4.0

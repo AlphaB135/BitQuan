@@ -394,6 +394,7 @@ dependencies = [
  "async-trait",
  "bincode 1.3.3",
  "bitquan-consensus",
+ "bitquan-storage",
  "bitquan-types",
  "criterion",
  "futures",

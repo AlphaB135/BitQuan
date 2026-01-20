@@ -6,7 +6,11 @@ use crate::{
     peer::PeerManager,
     sync::{ChainSync, SyncProgress},
 };
+use bitquan_consensus::pow;
+use bitquan_storage::AsyncChainStore;
 use bitquan_types::{BlockHeader, NetworkId};
+#[allow(unused_imports)]
+use bitquan_types::Block;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use thiserror::Error;
@@ -368,6 +372,8 @@ pub struct AsyncSyncManager {
     peer_book: Arc<Mutex<PeerBook>>,
     network_id: NetworkId,
     safety_gates: Arc<MigrationSafetyGates>,
+    /// Blockchain storage for building block locators and validating headers
+    storage: Arc<dyn AsyncChainStore>,
 }
 
 impl AsyncSyncManager {
@@ -385,12 +391,17 @@ impl AsyncSyncManager {
         let peer_book = Arc::new(Mutex::new(PeerBook::new()));
         let safety_config = MigrationSafetyConfig::default();
 
+        // Create in-memory store for testing
+        let store = bitquan_storage::InMemoryChainStore::new();
+        let storage = Arc::new(bitquan_storage::AsyncStoreWrapper::new(store));
+
         Self {
             chain_sync: Arc::new(AsyncChainSync::new(local_height)),
             peer_manager,
             peer_book,
             network_id: bitquan_types::NetworkId::Testnet,
             safety_gates: Arc::new(MigrationSafetyGates::new(safety_config)),
+            storage,
         }
     }
 
@@ -400,6 +411,7 @@ impl AsyncSyncManager {
         peer_manager: Arc<PeerManager>,
         peer_book: Arc<Mutex<PeerBook>>,
         network_id: NetworkId,
+        storage: Arc<dyn AsyncChainStore>,
     ) -> Self {
         let safety_config = MigrationSafetyConfig::default();
 
@@ -409,6 +421,7 @@ impl AsyncSyncManager {
             peer_book,
             network_id,
             safety_gates: Arc::new(MigrationSafetyGates::new(safety_config)),
+            storage,
         }
     }
 
@@ -419,6 +432,7 @@ impl AsyncSyncManager {
         peer_book: Arc<Mutex<PeerBook>>,
         network_id: NetworkId,
         safety_config: MigrationSafetyConfig,
+        storage: Arc<dyn AsyncChainStore>,
     ) -> Self {
         Self {
             chain_sync: Arc::new(AsyncChainSync::new(local_height)),
@@ -426,6 +440,7 @@ impl AsyncSyncManager {
             peer_book,
             network_id,
             safety_gates: Arc::new(MigrationSafetyGates::new(safety_config)),
+            storage,
         }
     }
 
@@ -631,7 +646,62 @@ impl AsyncSyncManager {
         Ok(())
     }
 
+    /// Build a block locator for finding common ancestor with a peer
+    ///
+    /// Uses Bitcoin-style exponential backoff pattern:
+    /// - Start from the tip
+    /// - Step back exponentially: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512...
+    /// - Always include genesis block
+    ///
+    /// This allows efficient finding of the most recent common ancestor
+    /// even when chains have diverged significantly.
+    async fn build_block_locator(&self, tip_height: u64) -> Vec<[u8; 32]> {
+        let mut locator = Vec::new();
+        let mut current_height = tip_height;
+        let mut step = 1u64;
+
+        // Use exponential backoff to traverse the chain
+        while current_height > 0 {
+            // Try to get the block at current height
+            if let Ok(Some(block)) = self.storage.get_block_by_height(current_height).await {
+                let hash = pow::header_hash(&block.header);
+                locator.push(hash);
+
+                // After first 10 entries, double the step size
+                if locator.len() >= 10 {
+                    step *= 2;
+                }
+
+                // Move backwards by step size
+                if current_height <= step {
+                    break;
+                }
+                current_height -= step;
+            } else {
+                // Block not found, try previous height
+                current_height = current_height.saturating_sub(1);
+            }
+        }
+
+        // Always include genesis block if not already present
+        if let Ok(Some(block)) = self.storage.get_block_by_height(0).await {
+            let genesis_hash = pow::header_hash(&block.header);
+            if locator.last() != Some(&genesis_hash) {
+                locator.push(genesis_hash);
+            }
+        }
+
+        locator
+    }
+
     /// Request headers from a specific peer
+    ///
+    /// **NOTE**: This is a simplified implementation that builds the block locator
+    /// and fetches headers from storage. For full P2P functionality, this needs
+    /// integration with the worker's P2P message handler.
+    ///
+    /// Architecture limitation: `AsyncSyncManager` lacks direct peer access and
+    /// response channels. The production IBD uses `handle_getheaders` in worker.rs.
     async fn request_headers_from_peer(
         &self,
         start_height: u64,
@@ -651,24 +721,51 @@ impl AsyncSyncManager {
             )));
         }
 
-        // In a real implementation, this would:
-        // 1. Connect to the peer if not already connected
-        // 2. Send a getheaders message
-        // 3. Wait for response with timeout
-        // 4. Parse and return headers
+        // Build block locator for finding common ancestor
+        let sync = self.chain_sync.inner();
+        let current_height = sync.local_height();
+        let locator = self.build_block_locator(current_height).await;
 
-        // For now, simulate with empty response
         log::debug!(
-            "Requesting headers {} to {} from peer {}",
+            "🔍 Built block locator with {} hashes for peer {} (requesting heights {}-{})",
+            locator.len(),
+            peer_id,
             start_height,
-            end_height,
-            peer_id
+            end_height
         );
 
-        // Simulate network latency
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        // In a full P2P implementation, we would:
+        // 1. Send GetHeaders message via peer connection
+        // 2. Wait for Headers response with timeout (30 seconds)
+        // 3. Validate and return headers
 
-        Ok(vec![])
+        // For now, fetch from storage (simulates sync during IBD)
+        let mut headers = Vec::new();
+        for height in start_height..=end_height {
+            if let Ok(Some(block)) = self.storage.get_block_by_height(height).await {
+                headers.push(block.header);
+            } else {
+                break; // Gap in chain, stop here
+            }
+        }
+
+        if headers.is_empty() {
+            log::debug!(
+                "No headers found in storage for range {}-{} (would request from peer {})",
+                start_height,
+                end_height,
+                peer_id
+            );
+        } else {
+            log::debug!(
+                "Fetched {} headers from storage (heights {}-{})",
+                headers.len(),
+                start_height,
+                start_height + headers.len() as u64 - 1
+            );
+        }
+
+        Ok(headers)
     }
 
     /// Get sync status as string
@@ -686,6 +783,7 @@ impl Clone for AsyncSyncManager {
             peer_book: Arc::clone(&self.peer_book),
             network_id: self.network_id,
             safety_gates: Arc::clone(&self.safety_gates),
+            storage: Arc::clone(&self.storage),
         }
     }
 }
@@ -716,8 +814,17 @@ mod tests {
         let peer_book = Arc::new(Mutex::new(PeerBook::new()));
         let network_id = NetworkId::Regtest;
 
-        let sync_manager =
-            AsyncSyncManager::new_with_components(100, peer_manager, peer_book, network_id);
+        // Create in-memory store for testing
+        let store = bitquan_storage::InMemoryChainStore::new();
+        let storage = Arc::new(bitquan_storage::AsyncStoreWrapper::new(store));
+
+        let sync_manager = AsyncSyncManager::new_with_components(
+            100,
+            peer_manager,
+            peer_book,
+            network_id,
+            storage,
+        );
 
         let progress = sync_manager.get_sync_progress().await.unwrap();
         assert_eq!(progress.local_height, 100);
