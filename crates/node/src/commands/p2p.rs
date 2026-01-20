@@ -350,6 +350,7 @@ pub async fn p2p_server(
                     bitquan_network::discovery::PeerBook::new(),
                 )),
                 network,
+                store_arc.clone(),
             ),
         );
         let handler = crate::rpc::NodeRpcHandler::with_components(
@@ -484,6 +485,7 @@ pub async fn p2p_server(
             peer_manager.clone(),
             peer_book.clone(),
             network,
+            store.clone(),
         ),
     );
     println!("Sync manager initialized (local height: {})", height);
