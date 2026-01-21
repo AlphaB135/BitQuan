@@ -7,9 +7,9 @@ ignore = [
     # Will upgrade to bincode 2.0 with proper migration plan
     "RUSTSEC-2024-0368",
 
-    # protobuf 2.28.0 vulnerability from primitive-types 0.6.2
-    # Will be fixed by upgrading to primitive-types 0.14 (PR #38)
-    "RUSTSEC-2023-0673",
+    # protobuf 2.28.0 vulnerability from prometheus 0.13.4
+    # Will upgrade prometheus after stabilizing metrics
+    "RUSTSEC-2024-0437",
 ]
 
 [licenses]
