@@ -29,7 +29,7 @@ jobs:
       BITQUAN_SKIP_PQC_TESTS: "1"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
       # - uses: mozilla-actions/sccache-action@v0.0.4 # Temporarily disabled
@@ -54,7 +54,7 @@ jobs:
     timeout-minutes: 30
     continue-on-error: true  # Non-blocking: cross-compilation setup is complex
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: |
           rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-gnu wasm32-unknown-unknown
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz --locked
       - run: |
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
