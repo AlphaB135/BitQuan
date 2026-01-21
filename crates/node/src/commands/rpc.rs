@@ -9,7 +9,6 @@
 use crate::cli::{invalid, read_password_from_stdin};
 use crate::commands::p2p::get_or_create_jwt_secret;
 use bitquan_types::error::{Error, Result};
-use serde_json::json;
 use std::path::Path;
 
 // Helper function to get or create JWT secret
