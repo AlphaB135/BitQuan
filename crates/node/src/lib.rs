@@ -21,11 +21,14 @@ pub mod stratum_server;
 pub mod vardiff;
 
 // Core modules (always enabled)
+pub mod address;
 pub mod chainstate;
 pub mod metrics;
 pub mod miner;
 pub mod reward_engine;
+pub mod rpc;
 pub mod sync_task;
+pub mod tx_builder;
 pub mod wallet;
 pub mod worker;
 

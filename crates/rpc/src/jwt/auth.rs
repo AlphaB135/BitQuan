@@ -62,7 +62,7 @@ impl JwtAuth {
 
     /// Create JWT auth from config file
     pub fn from_config(config: &crate::jwt::JwtConfig) -> Result<Self, String> {
-        let mut jwt_auth = Self::new_empty(&config.secret);
+        let mut jwt_auth = Self::new(&config.secret);
 
         for user in &config.users {
             jwt_auth.add_user_hashed(
