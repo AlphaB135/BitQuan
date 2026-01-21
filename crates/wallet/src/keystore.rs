@@ -102,6 +102,7 @@ use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use argon2::{Argon2, Params};
 use base64::{engine::general_purpose, Engine as _};
+use log::warn;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use secrecy::{ExposeSecret, SecretVec};
@@ -115,7 +116,6 @@ use std::sync::{
     Arc, Mutex,
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use log::warn;
 use zeroize::Zeroize;
 
 /// Parameters for the Argon2id key derivation function

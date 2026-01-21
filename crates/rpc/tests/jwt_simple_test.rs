@@ -13,10 +13,7 @@ fn test_jwt_auth_creation() {
 
     // Should be able to login with admin user
     let token = jwt_auth.login("admin", "admin123");
-    assert!(
-        token.is_ok(),
-        "Login should succeed with admin user"
-    );
+    assert!(token.is_ok(), "Login should succeed with admin user");
 
     let token_str = token.expect("Failed to get login token");
     assert!(!token_str.is_empty(), "Token should not be empty");

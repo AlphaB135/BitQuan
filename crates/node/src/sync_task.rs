@@ -7,11 +7,11 @@ use bitquan_network::async_sync::AsyncSyncManager;
 #[cfg(feature = "pool")]
 use bitquan_types::NetworkId;
 #[cfg(feature = "pool")]
+use log::{error, info};
+#[cfg(feature = "pool")]
 use std::sync::Arc;
 #[cfg(feature = "pool")]
 use tokio::time::{sleep, Duration};
-#[cfg(feature = "pool")]
-use log::{error, info};
 
 /// Spawns a background task that periodically runs sync maintenance.
 ///

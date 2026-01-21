@@ -419,10 +419,7 @@ impl Default for Mempool {
         Self::new().unwrap_or_else(|e| {
             // FATAL: RNG failure at this point indicates system-level issues
             // In production, this should never happen, but we provide a fallback
-            warn!(
-                "RNG initialization failed during Mempool::default(): {}",
-                e
-            );
+            warn!("RNG initialization failed during Mempool::default(): {}", e);
             // Create a minimal mempool without RNG for graceful degradation
             // Use deterministic seed for fallback to avoid panic
             let rng = RngService::new().unwrap_or_else(|_| {

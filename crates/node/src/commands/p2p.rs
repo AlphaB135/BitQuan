@@ -634,7 +634,9 @@ pub async fn p2p_server(
     // Bootstrap peer connections
     if let Some(peers) = bootstrap_peers {
         if peers.is_empty() {
-            log::warn!("No bootstrap peers configured. Node will wait for incoming connections only.");
+            log::warn!(
+                "No bootstrap peers configured. Node will wait for incoming connections only."
+            );
         } else {
             log::info!("Bootstrapping to {} peer(s)...", peers.len());
             let peer_manager_for_bootstrap = peer_manager.clone();
@@ -654,7 +656,8 @@ pub async fn p2p_server(
                     let timeout_result = tokio::time::timeout(
                         tokio::time::Duration::from_secs(30),
                         pm.connect_peer(addr),
-                    ).await;
+                    )
+                    .await;
 
                     match timeout_result {
                         Ok(Ok(())) => {

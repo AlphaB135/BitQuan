@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use std::{convert::TryInto, fs, path::Path};
 
+use log::{error, info, warn};
 use rocksdb::{Options, WriteBatch, WriteOptions, DB};
-use log::{info, warn, error};
 
 use crate::{ChainStore, StorageError};
 use bitquan_types::{Block, BlockHeader, Transaction};
@@ -1157,11 +1157,17 @@ impl RocksDBStore {
             blocks_disconnected += 1;
 
             if blocks_disconnected % 100 == 0 {
-                info!("Disconnected {} blocks during rollback", blocks_disconnected);
+                info!(
+                    "Disconnected {} blocks during rollback",
+                    blocks_disconnected
+                );
             }
         }
 
-        info!("Rollback complete: disconnected {} blocks", blocks_disconnected);
+        info!(
+            "Rollback complete: disconnected {} blocks",
+            blocks_disconnected
+        );
         Ok(blocks_disconnected)
     }
 }
