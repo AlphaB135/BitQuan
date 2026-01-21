@@ -115,6 +115,7 @@ use std::sync::{
     Arc, Mutex,
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use log::warn;
 use zeroize::Zeroize;
 
 /// Parameters for the Argon2id key derivation function
@@ -900,7 +901,7 @@ pub fn encrypt_keystore(
         .map(|d| d.as_secs())
         .unwrap_or_else(|_| {
             // Log warning but continue with epoch fallback
-            eprintln!("Warning: System clock is set before Unix epoch, using epoch as fallback");
+            warn!("System clock is set before Unix epoch, using epoch as fallback");
             0
         });
     Ok(KeystoreFile {
@@ -1100,9 +1101,7 @@ pub fn write_keystore_file<P: AsRef<Path>>(path: P, ks: &KeystoreFile) -> std::i
 
     #[cfg(windows)]
     {
-        eprintln!(
-            "WARNING: Windows file permissions not enforced. Use BitLocker/EFS to encrypt folder."
-        );
+        warn!("Windows file permissions not enforced. Use BitLocker/EFS to encrypt folder.");
     }
 
     std::fs::rename(tmp_path, path)?;

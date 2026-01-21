@@ -4,6 +4,7 @@
 use bitquan_consensus::MempoolPolicy;
 use bitquan_types::{checked, Error, Result, Transaction};
 use bq_crypto::rng::{RandomSource, RngService};
+use log::warn;
 use std::collections::BTreeMap;
 
 /// Weight units per PQC signature (BQIP-0002)
@@ -133,7 +134,7 @@ impl Mempool {
             .try_fold(0usize, |acc, v| acc.checked_add(v.len()))
             .unwrap_or_else(|| {
                 // Log warning but return max value as fallback
-                eprintln!("Warning: Transaction count overflow detected, returning max value");
+                warn!("Transaction count overflow detected, returning max value");
                 usize::MAX
             })
     }
@@ -418,8 +419,8 @@ impl Default for Mempool {
         Self::new().unwrap_or_else(|e| {
             // FATAL: RNG failure at this point indicates system-level issues
             // In production, this should never happen, but we provide a fallback
-            eprintln!(
-                "WARNING: RNG initialization failed during Mempool::default(): {}",
+            warn!(
+                "RNG initialization failed during Mempool::default(): {}",
                 e
             );
             // Create a minimal mempool without RNG for graceful degradation

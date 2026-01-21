@@ -257,7 +257,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
                 Ok((stream, peer_addr)) => {
                     self.spawn_worker(stream, Some(peer_addr.ip()));
                 }
-                Err(e) => eprintln!("Connection error: {}", e),
+                Err(e) => error!("Connection error: {}", e),
             }
         }
     }
@@ -271,7 +271,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
                 Ok((stream, peer_addr)) => {
                     self.spawn_worker(stream, Some(peer_addr.ip()));
                 }
-                Err(e) => eprintln!("Connection error: {}", e),
+                Err(e) => error!("Connection error: {}", e),
             }
         }
     }
@@ -305,7 +305,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
                 if e.kind() != std::io::ErrorKind::ConnectionReset
                     && e.kind() != std::io::ErrorKind::BrokenPipe
                 {
-                    eprintln!("Error handling connection: {}", e);
+                    error!("Error handling connection: {}", e);
                 }
             }
         });
