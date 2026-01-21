@@ -44,7 +44,6 @@ rand_chacha = "0.3"
 secrecy.workspace = true
 serde.workspace = true
 serde_json = "1.0"
-bincode = "2.0"
 sha2.workspace = true
 zeroize.workspace = true
 tokio = { version = "1.49", features = ["full"] }
@@ -55,7 +54,7 @@ lru = "0.16"
 rusqlite = { version = "0.30", features = ["bundled"] }
 warp = "0.3"
 async-trait = "0.1.89"
-prometheus = "0.13"
+prometheus = "0.14"
 lazy_static = "1.4"
 
 [features]

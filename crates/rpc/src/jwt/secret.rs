@@ -241,9 +241,14 @@ mod tests {
         let manager =
             JwtSecretManager::load_or_generate(&temp_dir).expect("Failed to generate JWT secret");
 
-        let jwt_auth = manager.into_jwt_auth();
+        let mut jwt_auth = manager.into_jwt_auth();
 
-        // Default admin user should exist and login should work
+        // Create test user for authentication
+        jwt_auth
+            .add_user_plaintext("admin", "admin123", "admin")
+            .expect("Failed to create test user");
+
+        // Login should work
         let result = jwt_auth.login("admin", "admin123");
         assert!(result.is_ok());
 

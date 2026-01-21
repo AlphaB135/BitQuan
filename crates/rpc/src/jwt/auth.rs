@@ -49,24 +49,20 @@ impl UserCredentials {
 }
 
 impl JwtAuth {
-    /// Create JWT auth with default admin user
+    /// Create empty JWT auth (recommended for production)
+    ///
+    /// **Security**: Use this method and add users via config file or add_user_plaintext().
+    /// The old new() method with default admin is deprecated.
     pub fn new(secret: &str) -> Self {
-        let mut users = HashMap::new();
-
-        // Create default admin with hashed password
-        if let Ok(admin_creds) = UserCredentials::new("admin123", "admin") {
-            users.insert("admin".to_string(), admin_creds);
-        }
-
         Self {
             token_gen: TokenGenerator::new(secret),
-            users,
+            users: HashMap::new(),
         }
     }
 
     /// Create JWT auth from config file
     pub fn from_config(config: &crate::jwt::JwtConfig) -> Result<Self, String> {
-        let mut jwt_auth = Self::new_empty(&config.secret);
+        let mut jwt_auth = Self::new(&config.secret);
 
         for user in &config.users {
             jwt_auth.add_user_hashed(
@@ -80,6 +76,7 @@ impl JwtAuth {
     }
 
     /// Create empty JWT auth (for loading from config)
+    #[deprecated(note = "Use JwtAuth::new() instead, which now creates an empty auth instance")]
     pub fn new_empty(secret: &str) -> Self {
         Self {
             token_gen: TokenGenerator::new(secret),
@@ -174,7 +171,11 @@ mod tests {
 
     #[test]
     fn test_jwt_login() {
-        let jwt = JwtAuth::new("test-secret");
+        let mut jwt = JwtAuth::new("test-secret");
+        // Create test user explicitly
+        jwt.add_user_plaintext("admin", "admin123", "admin")
+            .expect("Failed to create test user");
+
         let token = jwt
             .login("admin", "admin123")
             .unwrap_or_else(|e| panic!("Failed to login with admin credentials: {}", e));

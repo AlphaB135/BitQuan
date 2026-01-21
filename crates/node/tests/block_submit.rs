@@ -1,5 +1,7 @@
 //! Integration tests for block submission and network propagation.
 
+#![cfg(feature = "pool")]
+
 use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits};
 use bitquan_node::{BlockSubmitter, SubmitResult};
 use bitquan_types::{Block, BlockHeader, NetworkId, Transaction};

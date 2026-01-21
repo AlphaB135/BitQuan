@@ -11,6 +11,7 @@ genesis.json
 command.txt
 MY_WALLET_INFO.txt
 index.md
+map.md
 # Wallet keystore test fixtures
 tests/**/*.keystore
 tests/**/keystore*.json
@@ -322,3 +323,4 @@ run_*.sh
 tx.hex
 debug_test_data
 audit_scanner.py
+map.mdjwt.toml

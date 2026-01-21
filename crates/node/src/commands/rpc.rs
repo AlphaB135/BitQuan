@@ -9,7 +9,6 @@
 use crate::cli::{invalid, read_password_from_stdin};
 use crate::commands::p2p::get_or_create_jwt_secret;
 use bitquan_types::error::{Error, Result};
-use serde_json::json;
 use std::path::Path;
 
 // Helper function to get or create JWT secret
@@ -88,10 +87,13 @@ pub fn run_rpc_server(
 }
 
 /// Submit transaction via RPC to local node
-pub async fn submit_transaction_rpc(tx_hex: &str) -> Result<String> {
+///
+/// **Note**: This function is currently unused and kept for future integration.
+/// When启用, make the RPC URL configurable rather than hardcoded.
+pub async fn submit_transaction_rpc(tx_hex: &str, rpc_url: Option<&str>) -> Result<String> {
     use serde_json::json;
 
-    let rpc_url = "http://127.0.0.1:29443";
+    let rpc_url = rpc_url.unwrap_or("http://127.0.0.1:8332");
     let payload = json!({
       "jsonrpc": "2.0",
       "method": "submittransaction",

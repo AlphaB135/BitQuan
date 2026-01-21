@@ -1,5 +1,7 @@
 //! Integration tests for pool template manager and dashboard.
 
+#![cfg(feature = "pool")]
+
 use bitquan_consensus::pow::PowAlgo;
 use bitquan_node::{BlockTemplate, PoolTemplateManager, VarDiff};
 use bitquan_types::BlockHeader;

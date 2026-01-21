@@ -1,5 +1,7 @@
 //! Integration tests for Stratum mining server.
 
+#![cfg(feature = "pool")]
+
 use bitquan_consensus::pow::PowAlgo;
 use bitquan_node::stratum_server::{
     MinerSession, RejectReason, StratumConfig, StratumMetrics, StratumServer,

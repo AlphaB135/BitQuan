@@ -260,7 +260,7 @@ pub async fn p2p_server(
     datadir: &str,
     rpc: RpcServerOptions<'_>,
     network: NetworkId,
-    _bootstrap_peers: Option<Vec<String>>, // TODO: implement bootstrap peer connections
+    bootstrap_peers: Option<Vec<String>>,
 ) -> Result<()> {
     use bitquan_mempool::Mempool;
 
@@ -350,6 +350,7 @@ pub async fn p2p_server(
                     bitquan_network::discovery::PeerBook::new(),
                 )),
                 network,
+                store_arc.clone(),
             ),
         );
         let handler = crate::rpc::NodeRpcHandler::with_components(
@@ -484,6 +485,7 @@ pub async fn p2p_server(
             peer_manager.clone(),
             peer_book.clone(),
             network,
+            store.clone(),
         ),
     );
     println!("Sync manager initialized (local height: {})", height);
@@ -628,6 +630,52 @@ pub async fn p2p_server(
         .local_addr()
         .map_err(|e| Error::Invalid(format!("failed to get local addr: {e}")))?;
     println!("✅ P2P Server listening on {}", local_addr);
+
+    // Bootstrap peer connections
+    if let Some(peers) = bootstrap_peers {
+        if peers.is_empty() {
+            log::warn!(
+                "No bootstrap peers configured. Node will wait for incoming connections only."
+            );
+        } else {
+            log::info!("Bootstrapping to {} peer(s)...", peers.len());
+            let peer_manager_for_bootstrap = peer_manager.clone();
+
+            for peer_addr in peers {
+                let addr: std::net::SocketAddr = match peer_addr.parse() {
+                    Ok(a) => a,
+                    Err(e) => {
+                        log::warn!("Invalid bootstrap peer address '{}': {}", peer_addr, e);
+                        continue;
+                    }
+                };
+
+                let pm = peer_manager_for_bootstrap.clone();
+                tokio::spawn(async move {
+                    // Timeout bootstrap connection after 30 seconds
+                    let timeout_result = tokio::time::timeout(
+                        tokio::time::Duration::from_secs(30),
+                        pm.connect_peer(addr),
+                    )
+                    .await;
+
+                    match timeout_result {
+                        Ok(Ok(())) => {
+                            log::info!("Successfully connected to bootstrap peer: {}", addr);
+                        }
+                        Ok(Err(e)) => {
+                            log::warn!("Failed to connect to bootstrap peer {}: {}", addr, e);
+                        }
+                        Err(_) => {
+                            log::warn!("Bootstrap connection to {} timed out after 30s", addr);
+                        }
+                    }
+                });
+            }
+        }
+    } else {
+        log::warn!("No bootstrap peers configured. Node will wait for incoming connections only.");
+    }
 
     // Metrics server (started earlier)
     start_metrics_service(&local_addr.to_string());

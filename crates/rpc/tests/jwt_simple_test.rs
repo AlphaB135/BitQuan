@@ -4,14 +4,16 @@ use bitquan_rpc::jwt::{JwtAuth, JwtConfig, JwtUserConfig};
 
 #[test]
 fn test_jwt_auth_creation() {
-    let jwt_auth = JwtAuth::new("test-secret-key");
+    let mut jwt_auth = JwtAuth::new("test-secret-key");
 
-    // Should be able to login with default admin user
+    // Create admin user explicitly (security fix: no default users)
+    jwt_auth
+        .add_user_plaintext("admin", "admin123", "admin")
+        .expect("Failed to create admin user");
+
+    // Should be able to login with admin user
     let token = jwt_auth.login("admin", "admin123");
-    assert!(
-        token.is_ok(),
-        "Login should succeed with default admin user"
-    );
+    assert!(token.is_ok(), "Login should succeed with admin user");
 
     let token_str = token.expect("Failed to get login token");
     assert!(!token_str.is_empty(), "Token should not be empty");
@@ -28,7 +30,12 @@ fn test_jwt_auth_creation() {
 
 #[test]
 fn test_jwt_auth_invalid_password() {
-    let jwt_auth = JwtAuth::new("test-secret");
+    let mut jwt_auth = JwtAuth::new("test-secret");
+
+    // Create admin user explicitly
+    jwt_auth
+        .add_user_plaintext("admin", "admin123", "admin")
+        .expect("Failed to create admin user");
 
     let result = jwt_auth.login("admin", "wrongpassword");
     assert!(result.is_err(), "Login should fail with wrong password");
@@ -46,7 +53,7 @@ fn test_jwt_auth_invalid_user() {
 
 #[test]
 fn test_jwt_auth_add_user() {
-    let mut jwt_auth = JwtAuth::new_empty("test-secret");
+    let mut jwt_auth = JwtAuth::new("test-secret");
 
     // Add a custom user
     let result = jwt_auth.add_user_plaintext("alice", "alicepass", "miner");
@@ -95,8 +102,13 @@ fn test_jwt_from_config() {
 
 #[test]
 fn test_jwt_token_verification_fails_with_wrong_secret() {
-    let jwt_auth1 = JwtAuth::new("secret1");
+    let mut jwt_auth1 = JwtAuth::new("secret1");
     let jwt_auth2 = JwtAuth::new("secret2");
+
+    // Create admin user in jwt_auth1
+    jwt_auth1
+        .add_user_plaintext("admin", "admin123", "admin")
+        .expect("Failed to create admin user");
 
     let token = jwt_auth1
         .login("admin", "admin123")
@@ -112,7 +124,13 @@ fn test_jwt_token_verification_fails_with_wrong_secret() {
 
 #[test]
 fn test_jwt_token_claims_structure() {
-    let jwt_auth = JwtAuth::new("test-secret");
+    let mut jwt_auth = JwtAuth::new("test-secret");
+
+    // Create admin user
+    jwt_auth
+        .add_user_plaintext("admin", "admin123", "admin")
+        .expect("Failed to create admin user");
+
     let token = jwt_auth
         .login("admin", "admin123")
         .expect("Failed to login with admin credentials");
@@ -136,7 +154,13 @@ fn test_jwt_token_claims_structure() {
 
 #[test]
 fn test_jwt_admin_role_check() {
-    let jwt_auth = JwtAuth::new("test-secret");
+    let mut jwt_auth = JwtAuth::new("test-secret");
+
+    // Create admin user
+    jwt_auth
+        .add_user_plaintext("admin", "admin123", "admin")
+        .expect("Failed to create admin user");
+
     let token = jwt_auth
         .login("admin", "admin123")
         .expect("Failed to login with admin credentials");
@@ -149,7 +173,12 @@ fn test_jwt_admin_role_check() {
 
 #[test]
 fn test_jwt_refresh_token() {
-    let jwt_auth = JwtAuth::new("test-secret");
+    let mut jwt_auth = JwtAuth::new("test-secret");
+
+    // Create admin user
+    jwt_auth
+        .add_user_plaintext("admin", "admin123", "admin")
+        .expect("Failed to create admin user");
 
     // Login with refresh token
     let (access_token, refresh_token) = jwt_auth
@@ -191,7 +220,12 @@ fn test_jwt_refresh_token() {
 
 #[test]
 fn test_jwt_refresh_with_access_token_fails() {
-    let jwt_auth = JwtAuth::new("test-secret");
+    let mut jwt_auth = JwtAuth::new("test-secret");
+
+    // Create admin user
+    jwt_auth
+        .add_user_plaintext("admin", "admin123", "admin")
+        .expect("Failed to create admin user");
 
     // Get regular access token
     let access_token = jwt_auth
@@ -208,7 +242,13 @@ fn test_jwt_refresh_with_access_token_fails() {
 
 #[test]
 fn test_jwt_refresh_token_expiration() {
-    let jwt_auth = JwtAuth::new("test-secret");
+    let mut jwt_auth = JwtAuth::new("test-secret");
+
+    // Create admin user
+    jwt_auth
+        .add_user_plaintext("admin", "admin123", "admin")
+        .expect("Failed to create admin user");
+
     let (_, refresh_token) = jwt_auth
         .login_with_refresh("admin", "admin123")
         .expect("Failed to login with refresh token");

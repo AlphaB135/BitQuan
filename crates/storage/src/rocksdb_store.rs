@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use std::{convert::TryInto, fs, path::Path};
 
+use log::{error, info, warn};
 use rocksdb::{Options, WriteBatch, WriteOptions, DB};
 
 use crate::{ChainStore, StorageError};
@@ -91,7 +92,7 @@ impl RecoveryManager {
 
     /// Perform complete database recovery
     pub fn recover(&self) -> Result<(), StorageError> {
-        eprintln!("🚑 Starting database recovery...");
+        info!("Starting database recovery");
 
         // Step 1: Create backup if requested
         if self.options.auto_backup {
@@ -126,7 +127,7 @@ impl RecoveryManager {
             self.create_checkpoint()?;
         }
 
-        eprintln!("✅ Database recovery completed successfully");
+        info!("Database recovery completed successfully");
         Ok(())
     }
 
@@ -181,7 +182,7 @@ impl RecoveryManager {
                 .iter()
                 .take(backups.len() - self.options.max_backups)
             {
-                eprintln!("🗑️  Removing old backup: {}", path.display());
+                info!("Removing old backup: {}", path.display());
                 std::fs::remove_dir_all(path).map_err(|e| {
                     StorageError::DatabaseError(format!("failed to remove backup: {}", e))
                 })?;
@@ -193,7 +194,7 @@ impl RecoveryManager {
 
     /// Repair corrupted database using RocksDB repair utility
     fn repair_database(&self) -> Result<(), StorageError> {
-        eprintln!("🔧 Attempting to repair corrupted database...");
+        warn!("Attempting to repair corrupted database");
 
         let mut opts = Options::default();
         opts.create_if_missing(true);
@@ -203,13 +204,13 @@ impl RecoveryManager {
         DB::repair(&opts, &self.db_path)
             .map_err(|e| StorageError::DatabaseError(format!("database repair failed: {}", e)))?;
 
-        eprintln!("✅ Database repair completed");
+        info!("Database repair completed");
         Ok(())
     }
 
     /// Verify integrity of all blocks in database
     fn verify_block_integrity(&self, store: &RocksDBStore) -> Result<(), StorageError> {
-        eprintln!("🔍 Verifying block integrity...");
+        info!("Verifying block integrity");
 
         let height = store.height()?;
         let mut corrupted_blocks = 0;
@@ -231,7 +232,7 @@ impl RecoveryManager {
                 let actual_hash = Self::block_id(&block.header);
 
                 if expected_hash != actual_hash {
-                    eprintln!("❌ Corrupted block at height {}", check_height);
+                    error!("Corrupted block at height {}", check_height);
                     corrupted_blocks += 1;
                 }
             }
@@ -244,13 +245,13 @@ impl RecoveryManager {
             )));
         }
 
-        eprintln!("✅ Block integrity verification completed");
+        info!("Block integrity verification completed");
         Ok(())
     }
 
     /// Create database checkpoint
     fn create_checkpoint(&self) -> Result<(), StorageError> {
-        eprintln!("📸 Creating database checkpoint...");
+        info!("Creating database checkpoint");
 
         let checkpoint_dir = self.db_path.join("checkpoint");
         std::fs::create_dir_all(&checkpoint_dir).map_err(|e| {
@@ -260,7 +261,7 @@ impl RecoveryManager {
         // Copy current database to checkpoint
         RocksDBStore::copy_dir_recursive(&self.db_path, &checkpoint_dir)?;
 
-        eprintln!("✅ Checkpoint created at: {}", checkpoint_dir.display());
+        info!("Checkpoint created: {}", checkpoint_dir.display());
         Ok(())
     }
 
@@ -269,7 +270,7 @@ impl RecoveryManager {
         &self,
         backup_path: P,
     ) -> Result<(), StorageError> {
-        eprintln!("🔄 Restoring database from backup...");
+        info!("Restoring database from backup");
 
         let backup_path = backup_path.as_ref();
         if !backup_path.exists() {
@@ -288,7 +289,7 @@ impl RecoveryManager {
         // Copy backup to database location
         RocksDBStore::copy_dir_recursive(backup_path, &self.db_path)?;
 
-        eprintln!("✅ Database restored from backup");
+        info!("Database restored from backup");
         Ok(())
     }
 
@@ -427,7 +428,7 @@ impl RocksDBStore {
         // Recursively copy all files
         Self::copy_dir_recursive(db_path, &backup_path)?;
 
-        eprintln!("✅ Database backed up to: {}", backup_path.display());
+        info!("Database backed up: {}", backup_path.display());
 
         Ok(())
     }
@@ -542,11 +543,11 @@ impl RocksDBStore {
 
     /// Verify database integrity
     pub fn verify_database(&self) -> Result<(), StorageError> {
-        eprintln!("🔍 Verifying database integrity...");
+        info!("Verifying database integrity");
 
         // Check metadata consistency
         let height = self.height()?;
-        eprintln!("  Chain height: {}", height);
+        info!("Chain height: {}", height);
 
         // Ensure DB version matches expected value
         match self.get_meta(KEY_DB_VERSION)? {
@@ -606,7 +607,7 @@ impl RocksDBStore {
             self.verify_chain_continuity(height)?;
         }
 
-        eprintln!("✅ Database verification complete");
+        info!("Database verification complete");
         Ok(())
     }
 
@@ -649,7 +650,7 @@ impl RocksDBStore {
 
     /// Rebuild all indices from blocks
     pub fn rebuild_indices(&self) -> Result<(), StorageError> {
-        eprintln!("🔧 Rebuilding database indices...");
+        info!("Rebuilding database indices");
 
         // This is a simplified version - in production, you'd:
         // 1. Iterate through all blocks
@@ -658,19 +659,19 @@ impl RocksDBStore {
         // 4. Validate UTXO set consistency
 
         let height = self.height()?;
-        eprintln!("  Processing {} blocks...", height);
+        info!("Processing {} blocks...", height);
 
         // For now, just verify indices exist
         self.verify_chain_continuity(height)?;
 
-        eprintln!("✅ Index rebuild complete");
+        info!("Index rebuild complete");
         Ok(())
     }
 
     /// Prune orphan blocks (blocks not in main chain)
     #[allow(dead_code)]
     pub fn prune_orphans(&self) -> Result<u64, StorageError> {
-        eprintln!("🗑️  Pruning orphan blocks...");
+        info!("Pruning orphan blocks");
 
         // Get current chain tip
         let current_height = self.height()?;
@@ -686,7 +687,7 @@ impl RocksDBStore {
             pruned = 0; // No actual pruning until chain reorg handling is implemented
         }
 
-        eprintln!("✅ Pruned {} orphan blocks", pruned);
+        info!("Pruned {} orphan blocks", pruned);
         Ok(pruned)
     }
 
@@ -1133,8 +1134,8 @@ impl RocksDBStore {
             return Ok(0); // Nothing to rollback
         }
 
-        eprintln!(
-            "🔄 Rolling back from height {} to {}",
+        info!(
+            "Rolling back from height {} to {}",
             current_height, target_height
         );
 
@@ -1156,12 +1157,15 @@ impl RocksDBStore {
             blocks_disconnected += 1;
 
             if blocks_disconnected % 100 == 0 {
-                eprintln!("  Disconnected {} blocks...", blocks_disconnected);
+                info!(
+                    "Disconnected {} blocks during rollback",
+                    blocks_disconnected
+                );
             }
         }
 
-        eprintln!(
-            "✅ Rollback complete. Disconnected {} blocks",
+        info!(
+            "Rollback complete: disconnected {} blocks",
             blocks_disconnected
         );
         Ok(blocks_disconnected)
