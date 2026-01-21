@@ -2,6 +2,8 @@
 //!
 //! Tests share acceptance/rejection with actual hash computation and target comparison.
 
+#![cfg(feature = "pool")]
+
 use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, PowAlgo};
 use bitquan_node::{BlockTemplate, PoolTemplateManager};
 use bitquan_types::BlockHeader;
