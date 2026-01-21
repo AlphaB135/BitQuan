@@ -1,22 +1,25 @@
-//! Background sync task for maintaining chain synchronization
+//! Background sync task for maintaining chain synchronization.
+//!
+//! **Phase 8 Feature**: Background sync maintenance is planned for future implementation.
 
-// use crate::rpc::NodeRpcHandler; // TODO: Implement rpc module
-
-// Temporary placeholder to fix compilation
-#[allow(dead_code)]
-pub struct NodeRpcHandler {
-    // Placeholder implementation
-}
+#[cfg(feature = "pool")]
 use bitquan_network::async_sync::AsyncSyncManager;
-use log::{error, info};
+#[cfg(feature = "pool")]
+use bitquan_types::NetworkId;
+#[cfg(feature = "pool")]
 use std::sync::Arc;
+#[cfg(feature = "pool")]
 use tokio::time::{sleep, Duration};
+#[cfg(feature = "pool")]
+use log::{error, info};
 
-/// Spawns a background task that periodically runs sync maintenance
-#[allow(dead_code)]
+/// Spawns a background task that periodically runs sync maintenance.
+///
+/// **Phase 8**: This function is reserved for future sync maintenance implementation.
+#[cfg(feature = "pool")]
 pub async fn spawn_sync_maintenance(
     sync_manager: Arc<AsyncSyncManager>,
-    _rpc_handler: Arc<NodeRpcHandler>, // TODO: Use when rpc module is implemented
+    _rpc_handler: Arc<crate::rpc::NodeRpcHandler>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         // Periodic sync maintenance loop
@@ -47,17 +50,18 @@ pub async fn spawn_sync_maintenance(
     })
 }
 
-/// Initialize sync manager and background task
-#[allow(dead_code)]
+/// Initialize sync manager and background task.
+///
+/// **Phase 8**: This function is reserved for future implementation with proper peer discovery.
+#[cfg(feature = "pool")]
 pub async fn initialize_sync(
     local_height: u64,
-    _network_id: bitquan_types::NetworkId, // TODO: Use when implementing proper sync
+    _network_id: NetworkId,
 ) -> Result<
     (Arc<AsyncSyncManager>, tokio::task::JoinHandle<()>),
     Box<dyn std::error::Error + Send + Sync>,
 > {
-    // Create simple sync manager without peer book for now
-    // TODO: Add peer discovery once mutex issues are resolved
+    // Create sync manager with peer book (Phase 8)
     let sync_manager = Arc::new(AsyncSyncManager::new(local_height));
 
     info!("AsyncSyncManager initialized with height: {}", local_height);

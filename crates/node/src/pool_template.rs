@@ -2,9 +2,7 @@
 //!
 //! Provides fresh templates for miners with automatic refresh mechanism.
 //!
-//! Reserved for Phase 8 pool integration.
-
-#![allow(dead_code)]
+//! **Phase 8 Feature**: This module is only available with the `pool` feature.
 
 use bitquan_consensus::pow::PowAlgo;
 use bitquan_types::{BlockHeader, Result, Transaction};

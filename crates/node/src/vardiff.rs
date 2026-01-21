@@ -2,9 +2,14 @@
 //!
 //! Automatically adjusts miner difficulty based on share submission rate.
 //!
-//! Reserved for Phase 8 pool vardiff integration.
-
-#![allow(dead_code)]
+//! **Phase 8 Feature**: This module is only available with the `pool` feature.
+//!
+//! # Example
+//! ```rust,ignore
+//! # use bitquan_node::VarDiff;
+//! let mut vardiff = VarDiff::new(30.0, 0.05);
+//! // Adjust difficulty based on miner shares...
+//! ```
 
 /// Variable difficulty controller.
 #[derive(Clone, Debug)]

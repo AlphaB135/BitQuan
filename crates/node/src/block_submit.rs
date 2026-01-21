@@ -2,19 +2,17 @@
 //!
 //! Handles submission of mined blocks to the network, including local validation
 //! and P2P broadcasting.
+//!
+//! **Phase 8 Feature**: This module is only available with the `pool` feature.
 
 use bitquan_consensus::check_header_pow;
 use bitquan_types::{Block, NetworkId, Result};
 use std::sync::Arc;
 
-// use crate::chainstate::ChainState; // TODO: Implement chainstate module
-// use crate::metrics::MiningMetrics; // TODO: Implement metrics module
 use crate::reward_engine::RewardEngine;
-// use log::warn; // TODO: Use when implementing proper logging
 
 /// Result of a block submission attempt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)] // Reserved for Phase 8 pool integration
 pub enum SubmitResult {
     /// Block was accepted and broadcast.
     Accepted {
@@ -36,7 +34,6 @@ pub enum SubmitResult {
 }
 
 /// Block submission handler.
-#[allow(dead_code)] // Reserved for Phase 8 pool integration
 pub struct BlockSubmitter {
     /// Network ID for validation.
     pub network_id: NetworkId,
@@ -50,7 +47,6 @@ pub struct BlockSubmitter {
     pub metrics: Option<Arc<()>>, // TODO: Replace with MiningMetrics when implemented
 }
 
-#[allow(dead_code)] // Phase 8 pool integration
 impl BlockSubmitter {
     /// Create a new block submitter.
     pub fn new(network_id: NetworkId) -> Self {
