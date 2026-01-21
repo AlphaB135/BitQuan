@@ -1,0 +1,15 @@
+# JWT Authentication Configuration
+# IMPORTANT: Set JWT_SECRET environment variable with a secure, randomly generated secret
+# Generate a new secret with: openssl rand -hex 32
+secret = "${JWT_SECRET}"
+
+[[users]]
+username = "admin"
+password_hash = "${JWT_ADMIN_PASSWORD_HASH}"
+role = "admin"
+
+# You can add more users here:
+# [[users]]
+# username = "viewer"
+# password_hash = "$argon2id$v=19$m=19456,t=2,p=1$Q1jyewUdmakjPNt4n2LZFg$vxXidOOsjayYC+M4R0XyB8FZZ9+tLfGNZtla0nGkh4A"
+# role = "viewer"
