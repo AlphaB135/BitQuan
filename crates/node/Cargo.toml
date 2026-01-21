@@ -18,7 +18,7 @@ path = "src/main.rs"
 [dependencies]
 argon2 = "0.5"
 base64 = "0.22"
-base64ct = { version = "1.6.0", features = ["alloc"] }
+base64ct = { version = "1.8.3", features = ["alloc"] }
 bech32 = "0.11.0"
 bip39 = "2.2.0"
 bitquan-consensus = { path = "../consensus", version = "0.1.0" }
@@ -47,7 +47,7 @@ serde_json = "1.0"
 bincode = "2.0"
 sha2.workspace = true
 zeroize.workspace = true
-tokio = { version = "1.35", features = ["full"] }
+tokio = { version = "1.49", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
 uuid = { version = "1.6", features = ["v4", "serde"] }
 dashmap = "5.5"
