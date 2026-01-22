@@ -11,9 +11,17 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# ⚠️ SECURITY WARNING ⚠️
+# These credentials are for TESTING ONLY and should NEVER be used in production.
+# Override by setting environment variables before running this script.
+#
+# Example:
+#   export TEST_WALLET_PASSWORD="your_secure_password"
+#   ./scripts/test_transaction_flow.sh
+
 # Test Configuration
 DATA_DIR="./data/test_tx"
-WALLET_PASS="test_password_123"
+WALLET_PASS="${TEST_WALLET_PASSWORD:-test_only_password_do_not_use_in_prod}"
 NODE_BIN="./target/release/bitquan-node"
 RPC_PORT=18443
 
