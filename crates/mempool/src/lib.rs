@@ -1,11 +1,11 @@
 //! Transaction memory pool with fee-per-weight ordering.
 #![warn(missing_docs)]
 
-use bitquan_consensus::MempoolPolicy;
+use bitquan_consensus::{utxo::OutPoint, MempoolPolicy};
 use bitquan_types::{checked, Error, Result, Transaction};
 use bq_crypto::rng::{RandomSource, RngService};
 use log::warn;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 /// Weight units per PQC signature (BQIP-0002)
 const SIGNATURE_WEIGHT: usize = 384;
@@ -81,6 +81,8 @@ impl MempoolEntry {
 pub struct Mempool {
     /// Entries organized by fee-per-weight (descending order via BTreeMap)
     entries: BTreeMap<u64, Vec<MempoolEntry>>,
+    /// Tracks spent outpoints to prevent double-spend within mempool
+    spent_outpoints: HashSet<OutPoint>,
     /// RNG for tie-breaking
     rng: RngService,
     /// Current total size in bytes
@@ -108,6 +110,7 @@ impl Mempool {
         let rng = RngService::new().map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
         Ok(Self {
             entries: BTreeMap::new(),
+            spent_outpoints: HashSet::new(),
             rng,
             size_bytes: 0,
             max_size_bytes: Self::DEFAULT_MAX_SIZE,
@@ -120,6 +123,7 @@ impl Mempool {
         let rng = RngService::new().map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
         Ok(Self {
             entries: BTreeMap::new(),
+            spent_outpoints: HashSet::new(),
             rng,
             size_bytes: 0,
             max_size_bytes,
@@ -244,14 +248,29 @@ impl Mempool {
             .rng
             .u64()
             .map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
+
+        // Create entry to calculate fee_per_weight for validation
         let entry = MempoolEntry::from_transaction(tx, fee, tie_breaker)?;
 
-        // Check minimum fee rate
+        // Check minimum fee rate BEFORE double-spend check (cheaper operation)
         if entry.fee_per_weight < self.policy.min_relay_fee_per_wu {
             return Err(Error::Invalid(format!(
                 "fee rate {} below minimum {}",
                 entry.fee_per_weight, self.policy.min_relay_fee_per_wu
             )));
+        }
+
+        // Check for double-spend within mempool (AFTER fee check passes)
+        // We use the entry's tx reference since ownership was transferred
+        for input in &entry.tx.inputs {
+            let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
+            if !self.spent_outpoints.insert(outpoint) {
+                return Err(Error::Invalid(format!(
+                    "Double spend detected: input prev_txid={} prev_vout={} already spent in mempool",
+                    input.prev_vout,
+                    "..." // txid is 32 bytes, abbreviated for readability
+                )));
+            }
         }
 
         // Check if adding this transaction would exceed size limit (with overflow protection)
@@ -307,6 +326,12 @@ impl Mempool {
                 for entry in entries {
                     let entry_size = entry.tx.serialized_size_hint().unwrap_or(0);
                     self.size_bytes = self.size_bytes.saturating_sub(entry_size);
+
+                    // Remove spent outpoints from tracking
+                    for input in &entry.tx.inputs {
+                        let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
+                        self.spent_outpoints.remove(&outpoint);
+                    }
                 }
             }
         }
@@ -339,6 +364,13 @@ impl Mempool {
                     }
                     let entry_size = entry.tx.serialized_size_hint().unwrap_or(0);
                     self.size_bytes = self.size_bytes.saturating_sub(entry_size);
+
+                    // Remove spent outpoints from tracking
+                    for input in &entry.tx.inputs {
+                        let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
+                        self.spent_outpoints.remove(&outpoint);
+                    }
+
                     collected.push(entry);
                 }
             }
@@ -438,6 +470,7 @@ impl Default for Mempool {
 
             Self {
                 entries: BTreeMap::new(),
+                spent_outpoints: HashSet::new(),
                 rng,
                 size_bytes: 0,
                 max_size_bytes: Self::DEFAULT_MAX_SIZE,
@@ -572,7 +605,9 @@ mod tests {
         policy.min_relay_fee_per_wu = 10;
         let mut mempool =
             Mempool::with_limits(policy, 1_000_000).expect("Failed to create mempool with limits");
-        let tx = create_test_tx(1, 2, 1);
+
+        let mut tx = create_test_tx(1, 2, 1);
+        tx.inputs[0].prev_txid[0] = 1;
 
         // Fee too low for min rate
         assert!(mempool.insert(tx.clone(), 100).is_err());
@@ -586,9 +621,14 @@ mod tests {
     fn test_fee_per_weight_ordering() {
         let mut mempool = Mempool::new().expect("Failed to create mempool");
 
-        let tx1 = create_test_tx(1, 2, 1);
-        let tx2 = create_test_tx(1, 2, 1);
-        let tx3 = create_test_tx(1, 2, 1);
+        let mut tx1 = create_test_tx(1, 2, 1);
+        tx1.inputs[0].prev_txid[0] = 1;
+
+        let mut tx2 = create_test_tx(1, 2, 1);
+        tx2.inputs[0].prev_txid[0] = 2;
+
+        let mut tx3 = create_test_tx(1, 2, 1);
+        tx3.inputs[0].prev_txid[0] = 3;
 
         // Insert with different fees
         mempool.insert(tx1, 1000).expect("Failed to insert tx1");
@@ -652,8 +692,11 @@ mod tests {
     fn test_select_for_block() {
         let mut mempool = Mempool::new().expect("Failed to create mempool");
 
-        let tx1 = create_test_tx(1, 2, 1);
-        let tx2 = create_test_tx(1, 2, 1);
+        let mut tx1 = create_test_tx(1, 2, 1);
+        tx1.inputs[0].prev_txid[0] = 1;
+
+        let mut tx2 = create_test_tx(1, 2, 1);
+        tx2.inputs[0].prev_txid[0] = 2;
 
         mempool.insert(tx1, 5000).expect("Failed to insert tx1");
         mempool.insert(tx2, 3000).expect("Failed to insert tx2");
@@ -781,8 +824,11 @@ mod tests {
     fn test_select_for_block_overflow_protection() {
         let mut mempool = Mempool::new().expect("Failed to create mempool");
 
-        let tx1 = create_test_tx(1, 2, 1);
-        let tx2 = create_test_tx(1, 2, 1);
+        let mut tx1 = create_test_tx(1, 2, 1);
+        tx1.inputs[0].prev_txid[0] = 1;
+
+        let mut tx2 = create_test_tx(1, 2, 1);
+        tx2.inputs[0].prev_txid[0] = 2;
 
         mempool.insert(tx1, 5000).expect("Failed to insert tx1");
         mempool.insert(tx2, 3000).expect("Failed to insert tx2");
@@ -846,5 +892,101 @@ mod tests {
                 unreachable!("Unexpected error type: {:?}", e);
             }
         }
+    }
+
+    #[test]
+    fn test_insert_rejects_double_spend() {
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
+
+        // Create first transaction spending UTXO_A
+        let tx1 = create_test_tx(1, 2, 1);
+        let utxo_a_txid = tx1.inputs[0].prev_txid;
+        let utxo_a_vout = tx1.inputs[0].prev_vout;
+
+        // Insert first transaction - should succeed
+        assert!(mempool.insert(tx1, 1000).is_ok());
+        assert_eq!(mempool.len(), 1);
+
+        // Create second transaction spending same UTXO
+        let mut tx2 = create_test_tx(1, 2, 1);
+        tx2.inputs[0].prev_txid = utxo_a_txid;
+        tx2.inputs[0].prev_vout = utxo_a_vout;
+
+        // Insert second transaction - should fail with double-spend error
+        let result = mempool.insert(tx2, 5000);
+        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(Error::Invalid(msg)) if msg.contains("Double spend detected"))
+        );
+
+        // Mempool should still have only 1 transaction
+        assert_eq!(mempool.len(), 1);
+    }
+
+    #[test]
+    fn test_insert_allows_different_utxos() {
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
+
+        // Create two transactions spending different UTXOs
+        let mut tx1 = create_test_tx(1, 2, 1);
+        // Modify tx1 to have unique outpoint
+        tx1.inputs[0].prev_txid[0] = 1;
+
+        let mut tx2 = create_test_tx(1, 2, 1);
+        // Modify tx2 to have different unique outpoint
+        tx2.inputs[0].prev_txid[0] = 2;
+
+        // Both should be accepted since they spend different UTXOs
+        assert!(mempool.insert(tx1, 1000).is_ok());
+        assert!(mempool.insert(tx2, 2000).is_ok());
+
+        assert_eq!(mempool.len(), 2);
+    }
+
+    #[test]
+    fn test_drain_clears_spent_outpoints() {
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
+
+        // Create transaction spending specific UTXO
+        let tx1 = create_test_tx(1, 2, 1);
+        let utxo_a_txid = tx1.inputs[0].prev_txid;
+        let utxo_a_vout = tx1.inputs[0].prev_vout;
+
+        assert!(mempool.insert(tx1, 1000).is_ok());
+
+        // Drain the transaction
+        let drained = mempool.drain_high_priority(1);
+        assert_eq!(drained.len(), 1);
+
+        // Now try to insert another transaction spending the same UTXO
+        let mut tx2 = create_test_tx(1, 2, 1);
+        tx2.inputs[0].prev_txid = utxo_a_txid;
+        tx2.inputs[0].prev_vout = utxo_a_vout;
+
+        // Should succeed since outpoint was cleared
+        assert!(mempool.insert(tx2, 2000).is_ok());
+        assert_eq!(mempool.len(), 1);
+    }
+
+    #[test]
+    fn test_multiple_inputs_double_spend() {
+        let mut mempool = Mempool::new().expect("Failed to create mempool");
+
+        // Create first transaction with unique outpoints
+        let mut tx1 = create_test_tx(1, 2, 1);
+        tx1.inputs[0].prev_txid[0] = 1;
+
+        assert!(mempool.insert(tx1, 1000).is_ok());
+
+        // Create second transaction spending same UTXO
+        let mut tx2 = create_test_tx(1, 2, 1);
+        tx2.inputs[0].prev_txid[0] = 1; // Same as tx1
+
+        // Should fail due to double spend
+        let result = mempool.insert(tx2, 5000);
+        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(Error::Invalid(msg)) if msg.contains("Double spend detected"))
+        );
     }
 }
