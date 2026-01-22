@@ -43,6 +43,14 @@
   * [Mining Issues](/troubleshooting/mining-issues.md)
   * [FAQ](/troubleshooting/faq.md)
 
+* [Examples](/examples/)
+  * [Overview](/examples/README.md)
+  * [Create Wallet](/examples/create-wallet.md)
+  * [Run Node](/examples/run-node.md)
+  * [Mine Blocks](/examples/mine-blocks.md)
+  * [Send Transaction](/examples/send-transaction.md)
+  * [RPC Calls](/examples/rpc-calls.md)
+
 * [Security](/security/)
   * [Security Hub](/security/README.md)
   * [Audit Handoff](/security/AUDIT_HANDOFF.md)
