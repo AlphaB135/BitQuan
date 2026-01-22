@@ -6,7 +6,7 @@
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/security.yml?branch=main)](https://github.com/AlphaB135/BitQuan/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Rust](https://img.shields.io/badge/rust-1.84%2B-orange)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-stable-orange)](https://www.rust-lang.org)
 [![Post-Quantum](https://img.shields.io/badge/Cryptography-Dilithium5-purple)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
 
 A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium5** signatures.
@@ -227,7 +227,7 @@ bitquan/
 - Production readiness: 100% (code complete, mainnet pending)
   - All security fixes applied (PR #80)
   - All logging migrated (PR #83)
-  - All tests passing (185+ tests)
+  - All tests passing (200+ tests)
   - Post-quantum crypto (Dilithium5)
   - External security audit (pending)
 
@@ -238,7 +238,7 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 ## Development Status
 
 Current version: v1.0-audit-20251122 (pre-mainnet)
-Tests: 72 network tests + 10 reward maturity integration tests + E2E validated (all passing)
+Tests: 90+ unit tests + 10+ integration tests + E2E stress test validated (all passing)
 Recent Updates:
 - P2P TCP socket I/O implementation complete
 - Reward maturity integration tests (100-block maturity)
