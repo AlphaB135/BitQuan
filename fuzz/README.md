@@ -12,12 +12,25 @@ rustup install nightly
 cargo install cargo-fuzz
 ```
 
+**Important**: Fuzzing requires nightly Rust. If your project uses `rust-toolchain.toml` to pin stable, you may need to:
+1. Temporarily rename `rust-toolchain.toml` before building fuzzers
+2. Use `cargo +nightly` explicitly for all fuzz commands
+3. Set a local override: `cd fuzz && rustup override set nightly`
+
 ## Available Targets
 
 - **fuzz_transaction** - Fuzzes transaction parsing, validation, and weight calculation
 - **fuzz_block** - Fuzzes block header parsing, merkle root calculation, and block validation
 - **fuzz_script** - Fuzzes script interpreter execution with arbitrary bytecode
 - **fuzz_mempool** - Fuzzes mempool operations (insert, eviction, fee sorting)
+- **fuzz_keystore_json** - Fuzzes keystore JSON parsing and serialization (CRITICAL - handles private keys)
+- **fuzz_consensus** - Fuzzes consensus validation logic
+- **fuzz_crypto** - Fuzzes cryptographic operations
+- **fuzz_network** - Fuzzes P2P network message parsing
+- **fuzz_pow** - Fuzzes proof-of-work validation
+- **fuzz_wire** - Fuzzes wire protocol serialization
+- **fuzz_asert** - Fuzzes ASERT (difficulty adjustment) calculation
+- **fuzz_address** - Fuzzes address parsing and validation
 
 ## Running Fuzz Tests
 
@@ -81,6 +94,26 @@ cargo cov -- show target/*/release/fuzz_transaction \
 3. **Time limits**: Use `-max_total_time` for quick sanity checks
 4. **Parallel jobs**: Use `-jobs` to utilize all CPU cores
 5. **Minimize inputs**: Use `cargo fuzz tmin` to reduce crash inputs to minimal size
+
+## Critical Security Targets
+
+The following fuzzers handle security-sensitive data and should be prioritized:
+
+1. **fuzz_keystore_json** (CRITICAL)
+   - Handles private keys and wallet data
+   - Tests JSON parsing from untrusted sources
+   - Validates serialization round-trips don't leak data
+   - Run command: `cargo +nightly fuzz run fuzz_keystore_json -- -runs=100000`
+
+2. **fuzz_crypto** (HIGH)
+   - Tests cryptographic operations
+   - Validates key handling and signature operations
+   - Ensures no panic on malformed inputs
+
+3. **fuzz_consensus** (HIGH)
+   - Tests blockchain consensus logic
+   - Critical for preventing consensus bugs
+   - Validates block and transaction acceptance rules
 
 ## Resources
 

@@ -26,6 +26,9 @@ path = "../crates/mempool"
 [dependencies.bitquan-network]
 path = "../crates/network"
 
+[dependencies.wallet]
+path = "../crates/wallet"
+
 # Fuzz Targets
 [[bin]]
 name = "fuzz_transaction"
@@ -93,6 +96,13 @@ bench = false
 [[bin]]
 name = "fuzz_consensus"
 path = "fuzz_targets/fuzz_consensus.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_keystore_json"
+path = "fuzz_targets/fuzz_keystore_json.rs"
 test = false
 doc = false
 bench = false
