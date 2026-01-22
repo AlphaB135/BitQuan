@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used)] // Faucet is dev/test tool: compile-time constants are safe
+
 use anyhow::Result;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
@@ -13,7 +15,6 @@ use warp::{Filter, Reply};
 lazy_static! {
     // Bech32 address validation (BIP 173): hrp + '1' + 6-90 data chars
     // BitQuan uses "bq" prefix, so pattern is: bq1 + 38-62 characters
-    #[allow(clippy::expect_used)] // Compile-time constant regex: invalid pattern = programming error
     static ref BECH32_REGEX: Regex =
         Regex::new(r"^bq1[a-z0-9]{38,62}$").expect("Invalid regex");
 }
