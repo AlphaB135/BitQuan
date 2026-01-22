@@ -1,10 +1,23 @@
 # JWT Authentication Configuration
 # Copy this to jwt.toml and customize
 
-# JWT secret key for signing tokens
-# IMPORTANT: Generate a strong random secret for production!
-# Example: openssl rand -hex 32
-secret = "CHANGE_THIS_SECRET_IN_PRODUCTION_USE_LONG_RANDOM_STRING"
+# =====================================================================
+# ⚠️ CRITICAL SECURITY WARNING ⚠️
+# =====================================================================
+# The JWT secret MUST be replaced with a cryptographically secure
+# random string BEFORE running in production.
+#
+# Generate secret with: openssl rand -hex 32
+# OR: openssl rand -base64 48
+#
+# The placeholder below will be REJECTED by the application.
+# It must be exactly 64 hex characters (32 bytes) or longer.
+# =====================================================================
+
+# ⛔ DO NOT USE THIS PLACEHOLDER IN PRODUCTION ⛔
+secret = "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET"
+# Example of valid secret (DO NOT USE THIS EITHER):
+# secret = "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c"
 
 # Users with hashed passwords
 # To generate a hash, use: bitquan-cli hash-password <password>

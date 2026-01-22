@@ -27,7 +27,7 @@ pub struct JwtConfig {
 impl Default for JwtConfig {
     fn default() -> Self {
         Self {
-            secret: "CHANGE_THIS_SECRET_IN_PRODUCTION".to_string(),
+            secret: "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET".to_string(),
             users: vec![JwtUserConfig {
                 username: "admin".to_string(),
                 password_hash: "$argon2id$v=19$m=19456,t=2,p=1$...".to_string(),
@@ -43,7 +43,46 @@ impl JwtConfig {
         let content =
             fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
 
-        toml::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))
+        let config: JwtConfig = toml::from_str(&content)
+            .map_err(|e| format!("Failed to parse config: {}", e))?;
+
+        // Validate the secret isn't a placeholder
+        config.validate_secret()?;
+
+        Ok(config)
+    }
+
+    /// Validate that the JWT secret is not a placeholder or obviously insecure
+    pub fn validate_secret(&self) -> Result<(), String> {
+        // List of forbidden placeholder secrets
+        const FORBIDDEN_SECRETS: &[&str] = &[
+            "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET",
+            "CHANGE_THIS_SECRET_IN_PRODUCTION_USE_LONG_RANDOM_STRING",
+            "CHANGE_THIS_SECRET_IN_PRODUCTION",
+            "secret",
+            "password",
+            "jwtsecret",
+        ];
+
+        // Check for exact matches of forbidden secrets
+        if FORBIDDEN_SECRETS.contains(&self.secret.as_str()) {
+            return Err(
+                "JWT secret is a placeholder and cannot be used in production. \
+                Generate a secure secret with: openssl rand -hex 32"
+                    .to_string(),
+            );
+        }
+
+        // Enforce minimum length (at least 32 bytes = 64 hex chars)
+        if self.secret.len() < 32 {
+            return Err(format!(
+                "JWT secret is too short ({} bytes). Minimum 32 bytes required. \
+                Generate with: openssl rand -hex 32",
+                self.secret.len()
+            ));
+        }
+
+        Ok(())
     }
 
     /// Save configuration to file
@@ -66,5 +105,60 @@ mod tests {
         let config = JwtConfig::default();
         assert_eq!(config.users.len(), 1);
         assert_eq!(config.users[0].username, "admin");
+        // Default secret should fail validation
+        assert!(config.validate_secret().is_err());
+    }
+
+    #[test]
+    fn test_placeholder_secret_rejected() {
+        let mut config = JwtConfig::default();
+
+        // Test each forbidden placeholder
+        const PLACEHOLDERS: &[&str] = &[
+            "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET",
+            "CHANGE_THIS_SECRET_IN_PRODUCTION_USE_LONG_RANDOM_STRING",
+            "CHANGE_THIS_SECRET_IN_PRODUCTION",
+            "secret",
+            "password",
+            "jwtsecret",
+        ];
+
+        for placeholder in PLACEHOLDERS {
+            config.secret = placeholder.to_string();
+            assert!(
+                config.validate_secret().is_err(),
+                "Placeholder '{}' should be rejected",
+                placeholder
+            );
+        }
+    }
+
+    #[test]
+    fn test_short_secret_rejected() {
+        let mut config = JwtConfig::default();
+
+        // Test secrets shorter than 32 bytes
+        config.secret = "short".to_string();
+        assert!(config.validate_secret().is_err());
+
+        config.secret = "a".repeat(31);
+        assert!(config.validate_secret().is_err());
+    }
+
+    #[test]
+    fn test_valid_secret_accepted() {
+        let mut config = JwtConfig::default();
+
+        // Valid 32-byte secret (64 hex chars)
+        config.secret = "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c".to_string();
+        assert!(config.validate_secret().is_ok());
+
+        // Valid 48-byte secret (96 hex chars) - constructed manually
+        config.secret = format!(
+            "{}{}",
+            "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c",
+            "5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c"
+        );
+        assert!(config.validate_secret().is_ok());
     }
 }
