@@ -4,9 +4,8 @@ BitQuan RPC Client - Python SDK Example
 Demonstrates how to interact with BitQuan node via JSON-RPC
 """
 
-import json
 import requests
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 class BitQuanRPC:
     """Simple JSON-RPC 2.0 client for BitQuan node"""

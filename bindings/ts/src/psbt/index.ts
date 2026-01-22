@@ -197,7 +197,7 @@ export class PQPSBT {
 
     // Write outputs
     for (const output of this.outputs) {
-      buffers.push(this.serializeOutput(output);
+      buffers.push(this.serializeOutput(output));
     }
 
     return Buffer.concat(buffers);

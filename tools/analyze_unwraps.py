@@ -43,7 +43,7 @@ def is_test_line(file_path, line_no):
             line_text = lines[line_no-1]
             if'#[test]' in line_text or 'mod tests' in line_text:
                 return True
-    except:
+    except Exception:
         pass
     return False
 

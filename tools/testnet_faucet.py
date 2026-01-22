@@ -5,9 +5,6 @@ Distributes testnet coins for development and testing
 """
 
 import os
-import json
-import time
-import hashlib
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string
 from typing import Dict, Optional

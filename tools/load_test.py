@@ -36,7 +36,7 @@ def monitor_memory(result, duration=1):
             memory_mb = process.memory_info().rss / 1024 / 1024
             result.peak_memory = max(result.peak_memory, memory_mb)
             time.sleep(duration)
-        except:
+        except Exception:
             break
 
 def create_connection(host, port, connection_id, duration=10):
@@ -63,7 +63,7 @@ def create_connection(host, port, connection_id, duration=10):
             except socket.timeout:
                 # Timeout is expected, continue
                 continue
-            except:
+            except Exception:
                 break
 
         s.close()

