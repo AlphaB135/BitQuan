@@ -11,9 +11,9 @@
 - Automatic tracking and notification to core team
 
 **2. Email**
-- Email: `security@bitquan.org`
-- Encrypt sensitive details using GPG (key in `docs/security/keys/`)
-- **Note**: Domain verification pending before mainnet launch
+- Email: `atsadawut.02@icloud.com`
+- Include "SECURITY:" in subject line
+- **Note**: Personal contact for BitQuan project
 - If no response within 48 hours, please use GitHub Security Advisories
 
 **3. Emergency Contact**
@@ -108,9 +108,9 @@ python tools/load_test.py --connections 1000 --duration 10
    - Automatically notifies core maintainers
 
 2. **Email**
-   - Address: `security@bitquan.org`
-   - GPG Key: See `docs/security/keys/`
-   - **Status**: Domain verification pending before mainnet launch
+   - Address: `atsadawut.02@icloud.com`
+   - Include "SECURITY:" in subject line
+   - **Note**: Personal contact for BitQuan project
    - **Fallback**: If no response within 48 hours, use GitHub Security Advisories
 
 3. **Emergency**
