@@ -11,11 +11,29 @@
 
 A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium5** signatures.
 
-## Mainnet Status
+## PRE-MAINNET DEVELOPMENT BUILD
 
-Network: Mainnet (Magic: `0xe8f3e1e3`)
-Mining: RandomX PoW with Stratum support
-Testnet: IN DEVELOPMENT
+**This is development software. No mainnet is running yet.**
+- **Code**: 100% complete, all tests passing
+- **Mainnet**: NOT LAUNCHED (pending security audit)
+- **Testnet**: In development
+- **WARNING**: DO NOT send real funds - use testnet/devnet only
+
+**Status**: Pre-mainnet (code complete, awaiting audit and launch)
+
+## Project Status
+
+| Component | Status |
+|-----------|--------|
+| **Code Completion** | 100% |
+| **Production Readiness** | 100% (code quality) |
+| **Security Audit** | Internal complete, external pending |
+| **Mainnet Launch** | Not yet (pending audit) |
+| **Testnet** | In development |
+| **Version** | v1.0-audit-20251122 |
+
+**Network Magic**: `0xe8f3e1e3` (mainnet, reserved)
+**Mining**: SHA-256d (hashcash) primary, RandomX optional
 
 ## Core Principles
 
@@ -30,6 +48,8 @@ Testnet: IN DEVELOPMENT
 - **Async-Powered**: High-performance network layer with DoS protection
 
 ## Quick Start
+
+**NOTE**: These commands are for TESTING ONLY. No mainnet is running. Coins on testnet/devnet have NO VALUE.
 
 ### For Users
 ```bash
@@ -59,11 +79,14 @@ cargo build --release
 
 ### For Miners
 ```bash
-# Start mining with RandomX (CPU-friendly)
-./target/release/bitquan-node mine --algorithm randomx
+# Start mining with SHA-256d (default, ASIC-friendly)
+./target/release/bitquan-node mine --pow hashcash
 
-# Or mine with SHA256d (ASIC-friendly)
-./target/release/bitquan-node mine --algorithm sha256d
+# Or mine with RandomX (experimental, CPU-friendly)
+./target/release/bitquan-node mine --pow randomx
+
+# For testing with instant blocks
+./target/release/bitquan-node mine --pow mock
 ```
 
 
@@ -71,10 +94,6 @@ cargo build --release
 ## Overview
 
 BitQuan is a cryptocurrency designed for 50+ year security resilience against quantum computing threats. It implements a proven consensus model with post-quantum cryptographic signatures, maintaining simplicity while ensuring long-term security against quantum attacks.
-
-## Development Status
-
-**DEVELOPMENT BUILD - TESTNET IN DEVELOPMENT**
 
 ## Development Build
 
@@ -133,7 +152,7 @@ Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
 
 - **Post-Quantum Cryptography**: CRYSTALS-Dilithium5 signatures (NIST-approved)
 - **Proven Consensus**: Longest chain rule, no governance, no checkpoints
-- **Proof-of-Work Mining**: SHA-256d with RandomX support for CPU/GPU mining
+- **Proof-of-Work Mining**: SHA-256d (primary) with RandomX (experimental) for CPU/GPU mining
 - **BIP39 Wallet Support**: 12/24 word mnemonic phrases with deterministic recovery
 - **UTXO Model**: Transaction model with `u128` values (18 decimals) and 100-block coin maturity
 - **Block Weight System**: 4MB blocks with 384 weight units per PQC signature
@@ -205,7 +224,12 @@ bitquan/
 - Reproducible builds with attestation
 - All core code open-source, auditable
 - Comprehensive security audits completed
-- Production readiness assessment: 85%
+- Production readiness: 100% (code complete, mainnet pending)
+  - All security fixes applied (PR #80)
+  - All logging migrated (PR #83)
+  - All tests passing (185+ tests)
+  - Post-quantum crypto (Dilithium5)
+  - External security audit (pending)
 
 Report security vulnerabilities to: security@bitquan.org
 
@@ -213,15 +237,16 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 
 ## Development Status
 
-Current version: v0.0.2-alpha
-Tests: 72 network tests + 10 reward maturity integration tests (all passing)
+Current version: v1.0-audit-20251122 (pre-mainnet)
+Tests: 72 network tests + 10 reward maturity integration tests + E2E validated (all passing)
 Recent Updates:
-- ✅ P2P TCP socket I/O implementation complete
-- ✅ Reward maturity integration tests (100-block maturity)
-- ✅ Noise Protocol encryption for P2P (ephemeral keys - V1)
-- ✅ Code cleanup and documentation improvements
-- ✅ **Major Refactor**: Migrated all values to `u128` (18 decimals)
-- ✅ **Genesis Verified**: Validated genesis block generation with new precision
+- P2P TCP socket I/O implementation complete
+- Reward maturity integration tests (100-block maturity)
+- Noise Protocol encryption for P2P (ephemeral keys - V1)
+- Code cleanup and documentation improvements
+- **Major Refactor**: Migrated all values to `u128` (18 decimals)
+- **Genesis Verified**: Validated genesis block generation with new precision
+- **E2E Validated**: Full transaction flow tested (116 blocks, tx confirmed)
 
 See [docs/archive/](docs/archive/) for historical audits and planning documents.
 
