@@ -9,7 +9,6 @@ use secrecy::ExposeSecret;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n");
@@ -95,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(unix)]
     {
-        let metadata = fs::metadata(wallet_path)?;
+        let metadata = std::fs::metadata(wallet_path)?;
         let permissions = metadata.permissions();
         let mode = permissions.mode() & 0o777;
 
