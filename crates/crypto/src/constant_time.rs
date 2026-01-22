@@ -159,7 +159,7 @@ impl SecureAllocator {
             if result != 0 {
                 // Memory locking failed, but we still return the allocation
                 // This is better than failing entirely
-                eprintln!(
+                log::warn!(
                     "Warning: Failed to lock memory: {}",
                     std::io::Error::last_os_error()
                 );
@@ -184,7 +184,7 @@ impl SecureAllocator {
             let result = unsafe { munlock(ptr, vec.len()) };
 
             if result != 0 {
-                eprintln!(
+                log::warn!(
                     "Warning: Failed to unlock memory: {}",
                     std::io::Error::last_os_error()
                 );

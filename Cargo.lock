@@ -564,6 +564,7 @@ dependencies = [
  "hex",
  "hkdf",
  "libc",
+ "log",
  "pqc-dilithium-seeded",
  "proptest",
  "rand 0.8.5",

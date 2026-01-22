@@ -327,9 +327,11 @@ impl SyncManager {
                     if headers.is_empty() {
                         // SECURITY FIX: Don't break - try next peer instead
                         // A malicious peer returning empty headers should not halt sync
-                        eprintln!(
+                        log::warn!(
                             "Peer {} returned no headers for range {}-{}, trying next peer",
-                            peer_id, current_height, end_height
+                            peer_id,
+                            current_height,
+                            end_height
                         );
 
                         // Mark peer as unreliable and continue with next peer
@@ -345,7 +347,7 @@ impl SyncManager {
                     current_height = self.chain_sync.local_height();
                 }
                 Err(e) => {
-                    eprintln!("Failed to request blocks from {}: {}", peer_id, e);
+                    log::error!("Failed to request blocks from {}: error={}", peer_id, e);
                     self.chain_sync.increment_sync_errors();
 
                     // Mark peer failure
