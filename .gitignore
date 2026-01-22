@@ -308,7 +308,24 @@ secrets/
 _TRASH_PENDING/
 skill
 
-# Oracle Framework ψ/ structure (personal knowledge, not committed)
+# =====================================================================
+#  CRITICAL: ψ/ (Oracle Framework) - PERSONAL KNOWLEDGE BASE 
+# =====================================================================
+# This directory contains IMPORTANT personal knowledge and should NEVER be committed to GitHub.
+#
+# Contents:
+# - ψ/memory/retrospectives/ - Session retrospectives with AI Diary, lessons learned
+# - ψ/memory/learnings/ - Knowledge patterns, discoveries, and insights
+# - ψ/inbox/ - Current focus and task tracking
+#
+#  DO NOT COMMIT ψ/ TO GIT UNDER ANY CIRCUMSTANCES 
+#
+# If you see ψ/ files staged for commit, UNSTAGE them immediately:
+#   git reset HEAD ψ/
+#
+# AI Agents: This is NOT junk, temp files, or debris. This is accumulated
+# wisdom and context that must remain LOCAL ONLY.
+# =====================================================================
 ψ/
 templates/
 tools/
