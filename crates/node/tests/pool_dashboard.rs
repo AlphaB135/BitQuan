@@ -83,12 +83,12 @@ fn test_vardiff_adjustment_logic() {
     // Test fast miner (submitting every 5s instead of 15s)
     let new_diff = vardiff.adjust(5.0, 1.0);
     assert!(new_diff > 1.0, "Difficulty should increase for fast miner");
-    println!("Fast miner: 1.0 -> {}", new_diff);
+    log::debug!("Fast miner: 1.0 -> {}", new_diff);
 
     // Test slow miner (submitting every 30s instead of 15s)
     let new_diff = vardiff.adjust(30.0, 1.0);
     assert!(new_diff < 1.0, "Difficulty should decrease for slow miner");
-    println!("Slow miner: 1.0 -> {}", new_diff);
+    log::debug!("Slow miner: 1.0 -> {}", new_diff);
 
     // Test stable miner (submitting every 15s as expected)
     let new_diff = vardiff.adjust(15.0, 1.0);
@@ -97,7 +97,7 @@ fn test_vardiff_adjustment_logic() {
         diff_change < 0.01,
         "Difficulty should remain stable for on-target miner"
     );
-    println!("Stable miner: 1.0 -> {}", new_diff);
+    log::debug!("Stable miner: 1.0 -> {}", new_diff);
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn test_ws_broadcast_format() {
     assert!(json.contains("\"timestamp\":1730500000"));
     assert!(json.contains("\"active_miners\":14"));
     assert!(json.contains("\"shares_ok\":2034"));
-    println!("PoolStats JSON: {}", json);
+    log::debug!("PoolStats JSON: {}", json);
 }
 
 #[test]

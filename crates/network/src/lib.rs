@@ -239,7 +239,7 @@ impl NetworkService {
             // Send block to peer via TCP
             if let Err(e) = self.send_to_peer(peer, &message) {
                 // Log error but continue to other peers
-                eprintln!(
+                log::error!(
                     "[P2P] Failed to send block {} to peer {}: {}",
                     hex::encode(&hash[..8]),
                     peer,

@@ -139,10 +139,7 @@ impl WsDashboard {
                 bitquan_types::Error::Invalid(format!("failed to bind dashboard: {}", e))
             })?;
 
-        println!(
-            "Dashboard: WebSocket server listening on {}",
-            self.config.bind_addr
-        );
+        log::info!("WebSocket dashboard listening on {}", self.config.bind_addr);
 
         // Spawn stats broadcaster
         self.spawn_stats_broadcaster(Arc::clone(&peers), Arc::clone(&metrics));
@@ -157,12 +154,12 @@ impl WsDashboard {
                         if let Err(e) =
                             handle_ws_connection(stream, addr, stats_rx, miners_rx).await
                         {
-                            eprintln!("Dashboard: WebSocket error {}: {}", addr, e);
+                            log::error!("Dashboard WebSocket error: addr={}, error={}", addr, e);
                         }
                     });
                 }
                 Err(e) => {
-                    eprintln!("Dashboard: Accept error: {}", e);
+                    log::error!("Dashboard accept error: {}", e);
                 }
             }
         }
@@ -396,7 +393,7 @@ async fn handle_ws_connection(
     // Note: This is a simplified implementation that sends JSON over raw TCP
     // In production, use a proper WebSocket library like tokio-tungstenite
 
-    println!("Dashboard: New connection from {}", addr);
+    log::debug!("Dashboard: New connection from {}", addr);
 
     use tokio::io::AsyncWriteExt;
     let (_, mut writer) = stream.into_split();
@@ -432,7 +429,7 @@ async fn handle_ws_connection(
         }
     }
 
-    println!("Dashboard: Connection closed {}", addr);
+    log::debug!("Dashboard: Connection closed: {}", addr);
     Ok(())
 }
 

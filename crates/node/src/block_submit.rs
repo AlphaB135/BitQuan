@@ -124,9 +124,10 @@ impl BlockSubmitter {
         // 3. Broadcast to network (or mock)
         let result = if self.mock_mode {
             // Mock mode: just log what would be broadcast
-            println!(
+            log::info!(
                 "[INFO] MOCK: Would broadcast block hash={} algo={} height=unknown",
-                hash_hex, block.header.algo_id
+                hash_hex,
+                block.header.algo_id
             );
 
             SubmitResult::Accepted {
@@ -164,7 +165,7 @@ impl BlockSubmitter {
 
                 // Log success
                 let reward_bq = reward as f64 / 1_0000_0000.0;
-                println!(
+                log::info!(
                     "[INFO] Block accepted! height={}, miner={}, reward={:.2} BQ",
                     height.unwrap_or(0),
                     miner,
@@ -197,7 +198,7 @@ impl BlockSubmitter {
         // - Connect to peers via P2P protocol
         // - Send block announcement
         // - Wait for acceptance confirmations
-        println!(
+        log::info!(
             "[INFO] Block mined! hash={} algo={} txs={} (P2P broadcast pending integration)",
             hash_hex,
             block.header.algo_id,

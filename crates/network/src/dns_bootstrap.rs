@@ -74,7 +74,7 @@ impl DnsBootstrap {
                     peers.extend(addrs);
                 }
                 Err(e) => {
-                    eprintln!("Failed to resolve DNS seed {}: {}", seed.hostname, e);
+                    log::warn!("Failed to resolve DNS seed {}: {}", seed.hostname, e);
                 }
             }
         }

@@ -91,16 +91,17 @@ impl PoolTemplateManager {
 
                 match build_fn() {
                     Ok(template) => {
+                        let job_id = template.job_id;
                         let mut cache_guard = cache.write().await;
                         *cache_guard = Some(template);
 
                         let mut refresh_guard = last_refresh.write().await;
                         *refresh_guard = Instant::now();
 
-                        println!("PoolTemplate: Refreshed block template");
+                        log::debug!("Pool template refreshed: job_id={:?}", job_id);
                     }
                     Err(e) => {
-                        eprintln!("PoolTemplate: Failed to build template: {}", e);
+                        log::error!("Failed to build pool template: error={}", e);
                     }
                 }
             }
