@@ -1,29 +1,29 @@
 <!-- _sidebar.md -->
 
-* [🏠 Home](/)
-* [📖 Getting Started](/getting-started/)
+* [Home](/)
+* [Getting Started](/getting-started/)
   * [Installation](/getting-started/install.md)
   * [Quick Start](/getting-started/quickstart.md)
 
-* [💡 Concepts](/concepts/)
+* [Concepts](/concepts/)
   * [Consensus Economics](/concepts/CONSENSUS_ECON.md)
   * [Genesis Block](/concepts/GENESIS.md)
   * [Network Config](/concepts/network.md)
 
-* [⚙️ CLI Reference](/cli/)
+* [CLI Reference](/cli/)
   * [bitquan-node](/cli/bitquan-node.md)
   * [bitquan-wallet](/cli/bitquan-wallet.md)
   * [bq-stress](/cli/bq-stress.md)
   * [bq-preflight](/cli/bq-preflight.md)
   * [Command Reference](/cli/command.md)
 
-* [🛠️ Development](/dev/)
+* [Development](/dev/)
   * [Building](/dev/README.md)
   * [Code Coverage](/dev/COVERAGE.md)
   * [Logging Policy](/dev/LOGGING_POLICY.md)
   * [Panic Safety](/dev/PANIC_SAFETY.md)
 
-* [🖥️ Operations](/ops/)
+* [Operations](/ops/)
   * [Runbook](/ops/RUNBOOK.md)
   * [Observability](/ops/OBSERVABILITY.md)
   * [Pre-Launch Checklist](/ops/PRELAUNCH_CHECKLIST.md)
@@ -31,23 +31,31 @@
   * [Phase 7 - Complete](/ops/PHASE7_COMPLETE.md)
   * [Phase 7 - Quick Ref](/ops/PHASE7_QUICKREF.md)
 
-* [🌐 Testnet](/testnet/)
+* [Testnet](/testnet/)
   * [Testnet Guide](/testnet/README.md)
   * [Load Testing](/testnet/LOAD_TESTING.md)
 
-* [🔒 Security](/security/)
+* [Troubleshooting](/troubleshooting/)
+  * [Overview](/troubleshooting/README.md)
+  * [Sync Issues](/troubleshooting/sync-issues.md)
+  * [Network Issues](/troubleshooting/network-issues.md)
+  * [Wallet Issues](/troubleshooting/wallet-issues.md)
+  * [Mining Issues](/troubleshooting/mining-issues.md)
+  * [FAQ](/troubleshooting/faq.md)
+
+* [Security](/security/)
   * [Security Hub](/security/README.md)
   * [Audit Handoff](/security/AUDIT_HANDOFF.md)
   * [Audit Summary](/security/AUDIT_SUMMARY.md)
   * [Bug Bounty](/security/BUG_BOUNTY.md)
   * [Entropy Audit](/security/ENTROPY_AUDIT.md)
 
-* [📦 Releases](/releases/)
+* [Releases](/releases/)
   * [Mainnet Announcement](/releases/MAINNET_ANNOUNCEMENT.md)
 
-* [🗺️ Roadmap](/roadmap/)
+* [Roadmap](/roadmap/)
 
-* [📚 Guides](/guides/)
+* [Guides](/guides/)
   * [Contributing](/guides/CONTRIBUTING.md)
   * [Installation](/guides/INSTALL.md)
   * [Quick Start](/guides/QUICKSTART.md)
@@ -56,21 +64,21 @@
   * [Architecture](/guides/architecture.md)
   * [Release Process](/guides/RELEASE.md)
 
-* [💼 Wallet](/wallet/)
+* [Wallet](/wallet/)
   * [Key Generation](/wallet/generation.md)
   * [BIP39 Mnemonic](/wallet/mnemonic.md)
   * [Multi-Signature](/wallet/multisig.md)
   * [Backup & Recovery](/wallet/backup.md)
 
-* [🔌 RPC API](/rpc/)
+* [RPC API](/rpc/)
   * [API Reference](/rpc/API_REFERENCE.md)
 
-* [📋 Specifications](/spec/)
+* [Specifications](/spec/)
   * [BQIPs](/bqip/)
 
 * **Links**
-* [![GitHub](https://icongr.am/simple/github.svg?size=16&colored=false) GitHub](https://github.com/AlphaB135/BitQuan)
-* [📄 Main README](../README.md)
-* [🔐 Security Policy](../SECURITY.md)
-* [🤝 Contributing](../CONTRIBUTING.md)
-* [⚖️ License](../LICENSE)
+* [GitHub](https://github.com/AlphaB135/BitQuan)
+* [Main README](../README.md)
+* [Security Policy](../SECURITY.md)
+* [Contributing](../CONTRIBUTING.md)
+* [License](../LICENSE)
