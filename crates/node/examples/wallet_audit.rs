@@ -6,10 +6,10 @@
 
 use bitquan_node::wallet::WalletKeypair;
 use secrecy::ExposeSecret;
-use std::fs;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n");
