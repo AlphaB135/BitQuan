@@ -504,10 +504,10 @@ curl -s http://localhost:8332/getblockchaininfo
 4. **Level 4:** Critical infrastructure
 
 ### Documentation Resources
-- **Operations Manual:** [OPS_GUIDE.md](OPS_GUIDE.md)
-- **API Reference:** [API_DOCS.md](API_DOCS.md)
-- **Security Guide:** [SECURITY.md](SECURITY.md)
-- **Troubleshooting:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **Operations Manual:** [operations/README.md](operations/README.md)
+- **API Reference:** [api/rpc/API_REFERENCE.md](api/rpc/API_REFERENCE.md)
+- **Security Guide:** [../SECURITY.md](../SECURITY.md)
+- **Troubleshooting:** [troubleshooting/README.md](troubleshooting/README.md)
 
 ---
 

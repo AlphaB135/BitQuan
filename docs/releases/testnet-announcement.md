@@ -62,7 +62,7 @@ You'll receive **100 testnet BQ** for testing!
 - 🔬 Stress testing
 - 🐛 Edge case hunting
 
-**📋 Full Testing Guide**: [docs/TESTER_GUIDE.md](docs/TESTER_GUIDE.md)
+**📋 Full Testing Guide**: [../TESTER_GUIDE.md](../TESTER_GUIDE.md)
 
 ---
 
@@ -123,7 +123,7 @@ docker-compose -f docker-compose.testnet.yml up -d
 ```
 
 ### Option 3: Manual Setup
-See detailed guide: [docs/TESTNET_SETUP.md](docs/TESTNET_SETUP.md)
+See detailed guide: [../TESTNET_SETUP.md](../TESTNET_SETUP.md)
 
 ---
 
@@ -170,11 +170,11 @@ See detailed guide: [docs/TESTNET_SETUP.md](docs/TESTNET_SETUP.md)
 
 ## 📚 Documentation
 
-- **[Tester Guide](docs/TESTER_GUIDE.md)** - Start here!
-- **[Testnet Setup](docs/TESTNET_SETUP.md)** - Run your own node
-- **[API Reference](docs/API.md)** - RPC API documentation
-- **[Mining Guide](docs/MINING.md)** - How to mine
-- **[Wallet Guide](docs/WALLET.md)** - Wallet operations
+- **[Tester Guide](../TESTER_GUIDE.md)** - Start here!
+- **[Testnet Setup](../TESTNET_SETUP.md)** - Run your own node
+- **[API Reference](../api/rpc/API_REFERENCE.md)** - RPC API documentation
+- **[Mining Examples](../examples/mine-blocks.md)** - How to mine
+- **[Wallet Guide](../wallet/)** - Wallet operations
 
 ---
 
@@ -271,7 +271,7 @@ Apache 2.0 - See [LICENSE](LICENSE) for details
 1. ✅ [Download Client](https://github.com/AlphaB135/BitQuan/releases)
 2. ✅ [Create Wallet](#2️⃣-create-wallet)
 3. ✅ [Get Coins](http://faucet.bitquan.io)
-4. ✅ [Start Testing!](docs/TESTER_GUIDE.md)
+4. ✅ [Start Testing!](../TESTER_GUIDE.md)
 
 **Questions?** Join our [Discord](https://discord.gg/bitquan)
 

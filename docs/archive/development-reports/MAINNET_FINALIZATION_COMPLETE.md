@@ -116,26 +116,26 @@ BitQuan has successfully completed comprehensive mainnet finalization, achieving
 ## 📚 Documentation Deliverables
 
 ### User-Facing Documentation
-1. **[Mainnet Installation Guide](docs/guides/MAINNET_INSTALLATION.md)**
+1. **[Mainnet Installation Guide](../operations/mainnet-deployment.md)**
    - System requirements and setup
    - Binary installation and source compilation
    - Configuration and security hardening
    - Service setup and monitoring
 
-2. **[Mainnet Operations Guide](docs/guides/MAINNET_OPERATIONS.md)**
+2. **[Mainnet Operations Guide](../guides/MAINNET_OPERATIONS.md)**
    - Day-to-day node management
    - Monitoring and alerting
    - Performance optimization
    - Troubleshooting and emergency procedures
 
-3. **[Mainnet Launch Announcement](docs/releases/MAINNET_LAUNCH_ANNOUNCEMENT.md)**
+3. **[Mainnet Launch Announcement](../releases/MAINNET_ANNOUNCEMENT.md)**
    - Professional launch announcement
    - Technical specifications and features
    - Security audit summary
    - Community and resource links
 
 ### Operational Documentation
-4. **[Pre-Launch Checklist](docs/ops/MAINNET_PRELAUNCH_CHECKLIST.md)**
+4. **[Pre-Launch Checklist](../ops/PRELAUNCH_CHECKLIST.md)**
    - Comprehensive launch validation checklist
    - Security and infrastructure verification
    - Emergency preparedness procedures

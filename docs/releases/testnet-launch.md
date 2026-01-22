@@ -182,10 +182,10 @@ After successful testnet completion and audits!
 - 📧 **Email**: testnet@bitquan.io
 
 ### **Documentation:**
-- 📖 **Full Docs**: [docs/TESTNET_SETUP.md](docs/TESTNET_SETUP.md)
-- 🧪 **Tester Guide**: [docs/TESTER_GUIDE.md](docs/TESTER_GUIDE.md)
-- 📊 **Monitoring**: [docs/MONITORING.md](docs/MONITORING.md)
-- 🚀 **Launch Checklist**: [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)
+- 📖 **Full Docs**: [../TESTNET_SETUP.md](../TESTNET_SETUP.md)
+- 🧪 **Tester Guide**: [../TESTER_GUIDE.md](../TESTER_GUIDE.md)
+- 📊 **Monitoring**: [../MONITORING.md](../MONITORING.md)
+- 🚀 **Launch Checklist**: [../LAUNCH_CHECKLIST.md](../LAUNCH_CHECKLIST.md)
 
 ### **Source Code:**
 - 💻 **GitHub**: https://github.com/AlphaB135/BitQuan
@@ -262,7 +262,7 @@ BitQuan represents the next generation of blockchain security:
 **Ready to test?**
 
 1. ⭐ Star the repo: https://github.com/AlphaB135/BitQuan
-2. 🧪 Start testing: Follow [TESTER_GUIDE.md](docs/TESTER_GUIDE.md)
+2. 🧪 Start testing: Follow [TESTER_GUIDE.md](../TESTER_GUIDE.md)
 3. 🐛 Report bugs: https://github.com/AlphaB135/BitQuan/issues
 4. 💬 Join community: Discord (coming soon)
 5. 🔄 Share this post!
