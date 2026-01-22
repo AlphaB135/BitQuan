@@ -118,6 +118,30 @@ use std::sync::{
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zeroize::Zeroize;
 
+/// Warn Windows users about file permission requirements.
+///
+/// On Windows, the library cannot enforce file ACLs (Access Control Lists).
+/// Users must manually ensure keystores are stored in encrypted locations
+/// like BitLocker-encrypted drives or EFS-encrypted folders.
+///
+/// This warning is shown once per process to remind Windows users of this
+/// security requirement.
+#[cfg(target_os = "windows")]
+fn warn_windows_acl_once() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static WARNED: AtomicBool = AtomicBool::new(false);
+
+    if !WARNED.load(Ordering::Relaxed) {
+        warn!(
+            "⚠️  WINDOWS SECURITY WARNING: This library cannot enforce file ACLs on Windows. \
+             Keystores MUST be stored in BitLocker-encrypted or EFS-encrypted folders. \
+             See: crates/wallet/SECURITY.md section 3"
+        );
+        WARNED.store(true, Ordering::Relaxed);
+    }
+}
+
 /// Parameters for the Argon2id key derivation function
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KdfParams {
@@ -828,6 +852,9 @@ pub fn encrypt_keystore_adaptive(
     password: &str,
     meta: Option<serde_json::Value>,
 ) -> Result<KeystoreFile, String> {
+    #[cfg(target_os = "windows")]
+    warn_windows_acl_once();
+
     let (mem_kib, time_cost, parallelism) = adaptive_default_params();
     encrypt_keystore(plaintext, password, meta, mem_kib, time_cost, parallelism)
 }
@@ -963,6 +990,9 @@ pub fn encrypt_keystore(
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn decrypt_keystore(ks: &KeystoreFile, password: &str) -> Result<Vec<u8>, String> {
+    #[cfg(target_os = "windows")]
+    warn_windows_acl_once();
+
     decrypt_keystore_cached(ks, password, true)
 }
 

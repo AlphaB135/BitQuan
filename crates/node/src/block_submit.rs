@@ -43,8 +43,6 @@ pub struct BlockSubmitter {
     pub chain_state: Option<Arc<crate::chainstate::ChainState>>,
     /// Reward engine (optional).
     pub reward_engine: Option<Arc<std::sync::Mutex<RewardEngine>>>,
-    /// Mining metrics (optional).
-    pub metrics: Option<Arc<()>>, // TODO: Replace with MiningMetrics when implemented
 }
 
 impl BlockSubmitter {
@@ -55,7 +53,6 @@ impl BlockSubmitter {
             mock_mode: false,
             chain_state: None,
             reward_engine: None,
-            metrics: None,
         }
     }
 
@@ -66,7 +63,6 @@ impl BlockSubmitter {
             mock_mode: true,
             chain_state: None,
             reward_engine: None,
-            metrics: None,
         }
     }
 
@@ -79,13 +75,6 @@ impl BlockSubmitter {
     /// Set reward engine.
     pub fn with_reward_engine(mut self, engine: Arc<std::sync::Mutex<RewardEngine>>) -> Self {
         self.reward_engine = Some(engine);
-        self
-    }
-
-    /// Set metrics.
-    pub fn with_metrics(mut self, metrics: Arc<()>) -> Self {
-        // TODO: Replace with MiningMetrics when implemented
-        self.metrics = Some(metrics);
         self
     }
 
@@ -153,15 +142,6 @@ impl BlockSubmitter {
                     bitquan_types::Error::Invalid(format!("reward engine lock poisoned: {}", e))
                 })?;
                 let reward = engine.record_block(block, hash, height.unwrap_or(0), miner)?;
-
-                // Update metrics
-                if let Some(_metrics) = &self.metrics {
-                    // TODO: Implement metrics when MiningMetrics is ready
-                    // metrics.record_block_persisted();
-                    // metrics.set_total_rewards(engine.total_distributed());
-                    // metrics.set_pool_balance(engine.total_distributed());
-                    // metrics.set_reward_per_block(reward);
-                }
 
                 // Log success
                 let reward_bq = reward as f64 / 1_0000_0000.0;

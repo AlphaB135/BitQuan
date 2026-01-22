@@ -627,8 +627,10 @@ mod tests {
 
     #[test]
     fn test_reward_halving_logic() {
+        // Test uses in-memory database (RewardEngine::new() creates PoolDatabase::memory())
+        // When persistent pool_db is implemented, add with_database() constructor for integration tests
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
-        let engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
+        let engine = RewardEngine::new();
 
         // Fee estimation: 1 tx * 1000 qbits
         const FEE: u128 = 1000;
@@ -652,7 +654,7 @@ mod tests {
     #[test]
     fn test_credit_and_settle_rewards() {
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
-        let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
+        let mut engine = RewardEngine::new();
 
         // Credit miner with realistic BQ amounts (not qbits)
         // 1 BQ = 10^18 qbits
@@ -674,7 +676,7 @@ mod tests {
     #[test]
     fn test_record_block() {
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
-        let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
+        let mut engine = RewardEngine::new();
 
         let block = dummy_block(100);
         let hash = [1u8; 32];
@@ -693,7 +695,7 @@ mod tests {
     #[test]
     fn test_pool_balance_metrics() {
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
-        let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
+        let mut engine = RewardEngine::new();
 
         let block = dummy_block(0);
         let hash = [1u8; 32];
@@ -711,7 +713,7 @@ mod tests {
     #[test]
     fn test_record_payout() {
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
-        let mut engine = RewardEngine::new(); // TODO: Add with_database when pool_db is implemented
+        let mut engine = RewardEngine::new();
 
         let payout_id = engine
             .record_payout("miner1", 1000, Some("tx123".to_string()))

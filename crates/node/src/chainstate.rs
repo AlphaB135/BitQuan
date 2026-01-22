@@ -64,21 +64,33 @@ impl ChainState {
     /// to genesis. This is used by clients to say "this is what I have" when
     /// requesting blocks from a peer.
     ///
+    /// # Bitcoin-style Exponential Backoff Pattern
+    /// The locator should follow Bitcoin BIP-37 pattern:
+    /// - Start with tip
+    /// - Then tip-1, tip-2, tip-4, tip-8, tip-16, ... (double step each time)
+    /// - Always include genesis block
+    /// - Limit to ~10-12 entries total
+    ///
     /// # Returns
     /// Vector of block hashes, newest first. Empty if chain is empty.
     ///
-    /// # Note
-    /// This is a stub implementation. Once ChainState is integrated with
-    /// ChainStore, this will return actual block hashes from the chain.
-    /// For now, returns the current tip if height > 0.
+    /// # Implementation Note
+    /// **STUB**: This implementation only returns the current tip hash.
+    ///
+    /// Proper exponential backoff requires access to full block history:
+    /// - Option 1: Store block hash history in ChainState (memory overhead)
+    /// - Option 2: Integrate with ChainStore to query historical blocks
+    /// - Option 3: Implement rolling hash cache (last N blocks)
+    ///
+    /// When implementing, consider using a rolling cache of last 1000 blocks
+    /// to cover most practical sync scenarios without storing entire history.
     pub fn get_locator(&self) -> Vec<[u8; 32]> {
         let mut locator = Vec::new();
         let height = self.get_height();
 
         if height > 0 {
-            // For now, just return the tip hash
-            // TODO: Implement exponential backoff locator once ChainStore is integrated
-            // Pattern: tip, tip-1, tip-2, tip-4, tip-8, ..., genesis
+            // Stub: return only the current tip hash
+            // Proper implementation requires block history access
             locator.push(self.get_tip());
         }
 

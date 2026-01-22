@@ -120,7 +120,36 @@ impl PowEngine for Sha256dEngine {
     }
 }
 
-/// Wrapper for RandomXVM to implement Send
+/// Wrapper for RandomXVM to implement Send.
+///
+/// # SAFETY: Send Implementation
+///
+/// The underlying `randomx_rs::RandomXVM` type from the FFI library does not
+/// implement Send (likely due to C FFI pointer semantics). We implement Send
+/// for our wrapper because:
+///
+/// 1. **Mutex Protection**: Every `SendableRandomXVM` is stored inside
+///    `Arc<Mutex<Option<SendableRandomXVM>>>`. The Mutex guarantees exclusive
+///    access - only one thread can access the VM at a time.
+///
+/// 2. **No Direct Exposure**: We never expose the inner RandomXVM outside
+///    the mutex. All access goes through the mutex guard.
+///
+/// 3. **Unique Per Seed**: Each VM is keyed by its seed hash. Different seeds
+///    create different VM instances - no sharing across seeds.
+///
+/// 4. **VM Creation Safety**: RandomX VM creation is expensive, so we cache
+///    VMs per seed. The cache ensures each seed has exactly one VM.
+///
+/// **Why This Is Safe**: While RandomXVM may contain raw pointers or
+/// thread-local FFI state, our Mutex wrapper ensures:
+/// - No concurrent access to the same VM
+/// - Clean synchronization via Mutex API
+/// - Safe transfer between threads (Arc::clone is atomic refcount increment)
+///
+/// **Alternative Considered**: Per-thread VM cache. Rejected because:
+/// - Higher memory usage (one VM per thread per seed)
+/// - Current Mutex approach is safe and more memory efficient
 #[cfg(feature = "randomx")]
 pub struct SendableRandomXVM(randomx_rs::RandomXVM);
 
