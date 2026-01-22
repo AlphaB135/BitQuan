@@ -11,26 +11,38 @@
 
 A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium5** signatures.
 
-## PRE-MAINNET DEVELOPMENT BUILD
+## TESTNET COMING SOON
 
-**This is development software. No mainnet is running yet.**
-- **Code**: 100% complete, all tests passing
-- **Mainnet**: NOT LAUNCHED (pending security audit)
-- **Testnet**: In development
-- **WARNING**: DO NOT send real funds - use testnet/devnet only
+**BitQuan is preparing for public testnet launch.**
 
-**Status**: Pre-mainnet (code complete, awaiting audit and launch)
+| Milestone | Status |
+|-----------|--------|
+| Code Complete | Done |
+| Internal Security Audit | Done |
+| External Security Audit | In Progress |
+| **Public Testnet** | **Coming Q1 2026** |
+| Mainnet | After successful testnet + audit |
+
+- **Code**: 100% complete, all 200+ tests passing
+- **Security**: Internal audit complete, external pending
+- **Testnet**: Launching soon - follow for announcements
+- **Mainnet**: NOT LAUNCHED (requires testnet validation + external audit)
+
+**WARNING**: No real value - testnet coins are for testing only
 
 ## Project Status
 
-| Component | Status |
-|-----------|--------|
-| **Code Completion** | 100% |
-| **Production Readiness** | 100% (code quality) |
-| **Security Audit** | Internal complete, external pending |
-| **Mainnet Launch** | Not yet (pending audit) |
-| **Testnet** | In development |
-| **Version** | v1.0-audit-20251122 |
+| Component | Status | Target |
+|-----------|--------|--------|
+| **Code Completion** | 100% | Done |
+| **Unit Tests** | 200+ passing | Done |
+| **Internal Security Audit** | Complete | Done |
+| **External Security Audit** | In Progress | Q1 2026 |
+| **Public Testnet** | Preparing | Q1 2026 |
+| **Mainnet Launch** | Pending | After testnet |
+| **Version** | v1.0-audit-20251122 | - |
+
+**Current Phase**: Pre-Testnet (final preparations)
 
 **Network Magic**: `0xe8f3e1e3` (mainnet, reserved)
 **Mining**: SHA-256d (hashcash) primary, RandomX optional
@@ -321,20 +333,28 @@ BitQuan is a spare-time solo project. If it helps your work or research, you can
 - Monthly operating target: **~$300 USD**. Donation summaries are published quarterly in `FUNDING.md`.
 - Questions about support or larger sponsorships: contact `security@bitquan.org`.
 
-## Testnet
+## Testnet - Coming Soon
 
-BitQuan testnet is **IN DEVELOPMENT**.
+BitQuan public testnet is **launching Q1 2026**.
 
-**Quick Start:**
-```bash
-# Run testnet node
-./target/release/bitquan-node --network testnet --config config/testnet.toml
-```
+**What to Expect:**
+- Free testnet coins from faucet
+- Full node sync testing
+- Mining with real difficulty adjustments
+- Transaction broadcasting and confirmation
+- Wallet integration testing
 
-**Network Details:**
-- Network: testnet
-- P2P Port: 19444
-- RPC Port: 19443
-- Status: IN DEVELOPMENT
+**Pre-Launch Checklist:**
+- [x] Core node implementation
+- [x] Consensus rules finalized
+- [x] P2P networking stable
+- [x] RPC API complete
+- [x] Internal security audit
+- [ ] External security audit (in progress)
+- [ ] Seed nodes deployed
+- [ ] Faucet service ready
+- [ ] Block explorer ready
 
-For full testnet documentation, see [docs/testnet/README.md](docs/testnet/README.md)
+**Stay Updated:**
+- Watch this repo for release announcements
+- Join [GitHub Discussions](https://github.com/AlphaB135/BitQuan/discussions)
