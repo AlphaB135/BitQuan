@@ -378,6 +378,7 @@ pub struct AsyncSyncManager {
 
 impl AsyncSyncManager {
     /// Create a new async sync manager with minimal setup
+    #[allow(clippy::expect_used)] // Test-only code: noise config generation should never fail
     pub fn new(local_height: u64) -> Self {
         // Create mock components for testing
         let noise_config = Arc::new(

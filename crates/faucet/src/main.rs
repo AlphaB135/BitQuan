@@ -13,6 +13,7 @@ use warp::{Filter, Reply};
 lazy_static! {
     // Bech32 address validation (BIP 173): hrp + '1' + 6-90 data chars
     // BitQuan uses "bq" prefix, so pattern is: bq1 + 38-62 characters
+    #[allow(clippy::expect_used)] // Compile-time constant regex: invalid pattern = programming error
     static ref BECH32_REGEX: Regex =
         Regex::new(r"^bq1[a-z0-9]{38,62}$").expect("Invalid regex");
 }
@@ -120,7 +121,7 @@ async fn send_to_address(config: &FaucetConfig, address: &str) -> Result<String>
         .timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(10))
         .build()
-        .expect("Failed to build HTTP client");
+        .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {}", e))?;
 
     let rpc_req = RpcRequest {
         jsonrpc: "2.0".to_string(),
