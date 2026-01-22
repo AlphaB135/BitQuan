@@ -1,12 +1,28 @@
 # BitQuan Security Policy
 
 ## Reporting a Vulnerability
-- Email security reports to `security@bitquan.org` with encrypted details (GPG key in `docs/security/keys/`)
-- For critical vulnerabilities, also page the on-call maintainer via the emergency contact listed in `MAINTAINERS`
-- Response targets:
-  - Acknowledge within 24 hours
-  - Initial assessment within 72 hours
-  - Coordinated disclosure timeline agreed with reporter
+
+### Primary Contact Methods
+
+**1. GitHub Security Advisories (RECOMMENDED)**
+- Report via: https://github.com/AlphaB135/BitQuan/security/advisories
+- This is the **preferred method** for vulnerability reports
+- Provides secure, private communication with maintainers
+- Automatic tracking and notification to core team
+
+**2. Email**
+- Email: `security@bitquan.org`
+- Encrypt sensitive details using GPG (key in `docs/security/keys/`)
+- **Note**: Domain verification pending before mainnet launch
+- If no response within 48 hours, please use GitHub Security Advisories
+
+**3. Emergency Contact**
+- For critical vulnerabilities only, page the on-call maintainer via the emergency contact listed in `MAINTAINERS`
+
+### Response SLA
+- Acknowledge within 24 hours
+- Initial assessment within 72 hours
+- Coordinated disclosure timeline agreed with reporter
 
 ## Scope
 Security reports include, but are not limited to:
@@ -83,9 +99,28 @@ python tools/load_test.py --connections 1000 --duration 10
 - Program terms published publicly and updated via BQIP when needed
 
 ## Contact
-- Primary: `security@bitquan.org`
-- GPG Fingerprint (example placeholder): `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`
-- Backup community channel with limited access shared under NDA during active incidents
+
+### Security Disclosure Channels (in order of preference)
+
+1. **GitHub Security Advisories** (RECOMMENDED)
+   - URL: https://github.com/AlphaB135/BitQuan/security/advisories
+   - Private, secure, tracked
+   - Automatically notifies core maintainers
+
+2. **Email**
+   - Address: `security@bitquan.org`
+   - GPG Key: See `docs/security/keys/`
+   - **Status**: Domain verification pending before mainnet launch
+   - **Fallback**: If no response within 48 hours, use GitHub Security Advisories
+
+3. **Emergency**
+   - See `MAINTAINERS` file for on-call contact information
+   - For **critical** vulnerabilities only (active exploits, chain halting conditions)
+
+### For Non-Security Questions
+- General inquiries: Use GitHub Issues or Discussions
+- Development questions: See `CONTRIBUTING.md`
+- Documentation issues: Open a pull request
 
 ## Cryptographic Lifespan
 

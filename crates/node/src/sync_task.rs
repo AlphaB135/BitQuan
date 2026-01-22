@@ -55,25 +55,19 @@ pub async fn spawn_sync_maintenance(
 /// **Phase 8**: This function is reserved for future implementation with proper peer discovery.
 #[cfg(feature = "pool")]
 pub async fn initialize_sync(
-    local_height: u64,
+    _local_height: u64,
     _network_id: NetworkId,
 ) -> Result<
     (Arc<AsyncSyncManager>, tokio::task::JoinHandle<()>),
     Box<dyn std::error::Error + Send + Sync>,
 > {
-    // Create sync manager with peer book (Phase 8)
-    let sync_manager = Arc::new(AsyncSyncManager::new(local_height));
+    // Pool feature (Phase 8) is not yet implemented.
+    // This requires proper peer discovery, ChainStore integration, and dependency injection.
+    use std::io;
 
-    info!("AsyncSyncManager initialized with height: {}", local_height);
-
-    Ok((
-        sync_manager,
-        tokio::spawn(async move {
-            // Simple maintenance task
-            loop {
-                sleep(Duration::from_secs(300)).await; // Check every 5 minutes
-                info!("Background sync maintenance check completed");
-            }
-        }),
-    ))
+    Err(Box::new(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "Pool feature (Phase 8) is not yet implemented. \
+         Please use the main sync path without the 'pool' feature enabled.",
+    )))
 }

@@ -461,13 +461,194 @@ impl PQPSBT {
     }
 
     /// Finalize PSBT and extract transaction
+    ///
+    /// This method constructs the final transaction from the PSBT data
+    /// by extracting all signatures and witness data.
+    ///
+    /// According to BIP 174, finalization requires all inputs to have
+    /// complete signature data before the transaction can be extracted.
     pub fn finalize(self) -> Result<Transaction> {
-        // TODO: Implement PSBT finalization
-        // This would build the final transaction from PSBT data
-        // Implementation depends on Transaction structure
-        Err(SDKError::PSBT(PSBTError::InvalidFormat(
-            "PSBT finalization not yet implemented".to_string(),
-        )))
+        use bitquan_types::{SignaturePayload, TxIn, TxOut, Witness};
+
+        // Extract version from global data (default to 1 if not set)
+        let version = self
+            .global
+            .iter()
+            .find_map(|(key, _value)| {
+                if let GlobalKey::Version(v) = key {
+                    Some(*v as i32)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(1);
+
+        // Extract locktime from global data (default to 0 if not set)
+        let lock_time = self
+            .global
+            .iter()
+            .find_map(|(key, _value)| {
+                if let GlobalKey::Locktime(l) = key {
+                    Some(*l)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+
+        // Build inputs and witnesses from PSBT input data
+        let mut inputs = Vec::with_capacity(self.inputs.len());
+        let mut witnesses = Vec::with_capacity(self.inputs.len());
+
+        for (input_index, psbt_input) in self.inputs.iter().enumerate() {
+            // Extract previous txid (required)
+            let prev_txid = psbt_input
+                .get_field(&InputKey::PreviousTxid([0u8; 32]))
+                .ok_or_else(|| {
+                    SDKError::PSBT(PSBTError::MissingField("PreviousTxid".to_string()))
+                })?;
+
+            if prev_txid.len() != 32 {
+                return Err(SDKError::PSBT(PSBTError::InvalidFormat(format!(
+                    "PreviousTxid must be 32 bytes, got {}",
+                    prev_txid.len()
+                ))));
+            }
+
+            let mut txid = [0u8; 32];
+            txid.copy_from_slice(prev_txid);
+
+            // Extract previous output index (required)
+            let prev_vout_bytes = psbt_input
+                .get_field(&InputKey::PreviousOutputIndex(0))
+                .ok_or_else(|| {
+                    SDKError::PSBT(PSBTError::MissingField("PreviousOutputIndex".to_string()))
+                })?;
+
+            if prev_vout_bytes.len() < 4 {
+                return Err(SDKError::PSBT(PSBTError::InvalidFormat(
+                    "PreviousOutputIndex must be 4 bytes".to_string(),
+                )));
+            }
+
+            let prev_vout = u32::from_le_bytes([
+                prev_vout_bytes[0],
+                prev_vout_bytes[1],
+                prev_vout_bytes[2],
+                prev_vout_bytes[3],
+            ]);
+
+            // Extract sequence (default to 0xffffffff if not set)
+            let sequence = psbt_input
+                .get_field(&InputKey::Sequence(0xffffffff))
+                .and_then(|bytes| {
+                    if bytes.len() >= 4 {
+                        Some(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0xffffffff);
+
+            // Extract Dilithium signature (required for finalization)
+            let signature = psbt_input
+                .get_field(&InputKey::DilithiumSignature([0u8; SIGNBYTES]))
+                .ok_or_else(|| {
+                    SDKError::PSBT(PSBTError::InvalidFormat(
+                        "Missing Dilithium signature - cannot finalize incomplete PSBT".to_string(),
+                    ))
+                })?;
+
+            if signature.len() != SIGNBYTES {
+                return Err(SDKError::PSBT(PSBTError::InvalidFormat(format!(
+                    "Dilithium signature must be {} bytes, got {}",
+                    SIGNBYTES,
+                    signature.len()
+                ))));
+            }
+
+            // Extract Dilithium public key (required for finalization)
+            let public_key = psbt_input.get_dilithium_public_key().ok_or_else(|| {
+                SDKError::PSBT(PSBTError::InvalidFormat(
+                    "Missing Dilithium public key - cannot finalize incomplete PSBT".to_string(),
+                ))
+            })?;
+
+            // Create witness with SignaturePayload struct (not enum)
+            let sig_payload = SignaturePayload {
+                signer_index: input_index as u16,
+                signature: signature.to_vec(),
+                public_key: public_key.to_vec(),
+                aux: None,
+            };
+
+            witnesses.push(Witness {
+                signatures: vec![sig_payload],
+            });
+
+            // Create TxIn
+            inputs.push(TxIn {
+                prev_txid: txid,
+                prev_vout,
+                script_sig: vec![], // Script sig is empty for witness transactions
+                sequence,
+            });
+        }
+
+        // Build outputs from PSBT output data
+        let mut outputs = Vec::with_capacity(self.outputs.len());
+        for psbt_output in &self.outputs {
+            // Extract amount (required)
+            let amount = psbt_output
+                .get_amount()
+                .ok_or_else(|| SDKError::PSBT(PSBTError::MissingField("Amount".to_string())))?;
+
+            // Extract script pubkey (required)
+            let script_pubkey = psbt_output.get_script_pubkey().ok_or_else(|| {
+                SDKError::PSBT(PSBTError::MissingField("ScriptPubkey".to_string()))
+            })?;
+
+            outputs.push(TxOut {
+                value: amount,
+                script_pubkey,
+            });
+        }
+
+        // Determine signature algorithm from flags
+        let sig_algo = if self.signature_flags.has_dilithium() {
+            bitquan_types::SigAlgorithm::Dilithium5
+        } else {
+            return Err(SDKError::PSBT(PSBTError::InvalidFormat(
+                "No valid signature algorithm specified in flags".to_string(),
+            )));
+        };
+
+        // Extract genesis hash from global data or use default
+        let genesis_hash = self
+            .global
+            .iter()
+            .find_map(|(key, _value)| {
+                if let GlobalKey::FallbackFingerprint(hash) = key {
+                    Some(*hash)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(bitquan_types::GENESIS_HASH_BYTES);
+
+        // Build final transaction
+        let tx = Transaction {
+            version,
+            network: bitquan_types::NetworkId::Devnet,
+            genesis_hash,
+            lock_time,
+            inputs,
+            outputs,
+            sig_algo,
+            witnesses,
+        };
+
+        Ok(tx)
     }
 
     // Helper methods for serialization

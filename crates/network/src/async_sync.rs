@@ -377,7 +377,39 @@ pub struct AsyncSyncManager {
 }
 
 impl AsyncSyncManager {
-    /// Create a new async sync manager with minimal setup
+    /// Create a new async sync manager with minimal setup.
+    ///
+    /// # ⚠️ TEST-ONLY CONSTRUCTOR ⚠️
+    ///
+    /// This method creates **mock components** and should **ONLY** be used in:
+    /// - Unit tests (`#[cfg(test)]`)
+    /// - Integration tests
+    ///
+    /// **DO NOT use in production code.** Production code must use `new_with_components()`
+    /// with real dependencies (PeerManager, PeerBook, AsyncChainStore).
+    ///
+    /// # Example (Test Usage)
+    /// ```ignore
+    /// #[cfg(test)]
+    /// fn test_sync() {
+    ///     let manager = AsyncSyncManager::new(100); // ✅ OK: test code
+    /// }
+    /// ```
+    ///
+    /// # Example (Production - DON'T DO THIS)
+    /// ```ignore
+    /// // ❌ WRONG: Don't use new() in production!
+    /// // let manager = AsyncSyncManager::new(height);
+    ///
+    /// // ✅ CORRECT: Use new_with_components() with real dependencies
+    /// let manager = AsyncSyncManager::new_with_components(
+    ///     height,
+    ///     real_peer_manager,
+    ///     real_peer_book,
+    ///     network_id,
+    ///     real_storage,
+    /// );
+    /// ```
     #[allow(clippy::expect_used)] // Test-only code: noise config generation should never fail
     pub fn new(local_height: u64) -> Self {
         // Create mock components for testing
