@@ -51,7 +51,7 @@ fuzz_target!(|data: &[u8]| {
                 sequence: 0xffffffff,
             }],
             outputs: vec![TxOut {
-                value,
+                value: value.into(),
                 script_pubkey: vec![],
             }],
             lock_time: 0,

@@ -54,8 +54,7 @@ fuzz_target!(|data: &[u8]| {
         let _ = serde_json::from_str::<KeystoreFile>(&with_nulls);
 
         // Test 2: JSON with excessive nesting (potential stack overflow)
-        let nested = format!(r#"{{"a":{}}}"#);
-        let mut deeply_nested = nested.to_string();
+        let mut deeply_nested = json_str.to_string();
         for _ in 0..(data.len() % 10) {
             deeply_nested = format!(r#"{{"nested":{}}}"#, deeply_nested);
         }
