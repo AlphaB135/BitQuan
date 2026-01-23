@@ -1,52 +1,15 @@
 # JWT Authentication Configuration
-# Copy this to jwt.toml and customize
+# IMPORTANT: Set JWT_SECRET environment variable with a secure, randomly generated secret
+# Generate a new secret with: openssl rand -hex 32
+secret = "${JWT_SECRET}"
 
-# =====================================================================
-# ⚠️ CRITICAL SECURITY WARNING ⚠️
-# =====================================================================
-# The JWT secret MUST be replaced with a cryptographically secure
-# random string BEFORE running in production.
-#
-# Generate secret with: openssl rand -hex 32
-# OR: openssl rand -base64 48
-#
-# The placeholder below will be REJECTED by the application.
-# It must be exactly 64 hex characters (32 bytes) or longer.
-# =====================================================================
-
-# ⛔ DO NOT USE THIS PLACEHOLDER IN PRODUCTION ⛔
-secret = "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET"
-# Example of valid secret (DO NOT USE THIS EITHER):
-# secret = "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c"
-
-# Users with hashed passwords
-# To generate a hash, use: bitquan-cli hash-password <password>
 [[users]]
 username = "admin"
-# Password: admin123
-password_hash = "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$qrvAoAhjhZvPXXZBz+JqMRRdC4mXvMr5dN3wQTu6g5E"
+password_hash = "${JWT_ADMIN_PASSWORD_HASH}"
 role = "admin"
 
-[[users]]
-username = "miner"
-# Password: miner123
-password_hash = "$argon2id$v=19$m=19456,t=2,p=1$YW5vdGhlcnNhbHQxMjM0NQ$9pMKZCMjIYc0kO0O3KaZLCFN4w0EjVjB6tMqDnQBmGo"
-role = "miner"
-
-[[users]]
-username = "readonly"
-# Password: readonly123
-password_hash = "$argon2id$v=19$m=19456,t=2,p=1$dGhpcmRzYWx0MTIzNDU2Nw$LH6WV3O1N7q0pFWJHPNn/kP8O9xQz8GqXhYiVBZvVGA"
-role = "readonly"
-
-# Role Permissions:
-# - admin: Full access to all RPC methods + admin APIs
-# - miner: Mining operations + block submission
-# - readonly: Query operations only (getblockcount, getblockchaininfo, etc.)
-
-# Security Notes:
-# 1. Never commit jwt.toml with real credentials to version control
-# 2. Set file permissions: chmod 600 jwt.toml
-# 3. Use strong, unique passwords for each user
-# 4. Rotate JWT secret and user passwords regularly
-# 5. Store jwt.toml in secure location with backup
+# You can add more users here:
+# [[users]]
+# username = "viewer"
+# password_hash = "$argon2id$v=19$m=19456,t=2,p=1$Q1jyewUdmakjPNt4n2LZFg$vxXidOOsjayYC+M4R0XyB8FZZ9+tLfGNZtla0nGkh4A"
+# role = "viewer"

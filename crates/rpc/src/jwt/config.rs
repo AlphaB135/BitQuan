@@ -135,30 +135,32 @@ mod tests {
 
     #[test]
     fn test_short_secret_rejected() {
-        let mut config = JwtConfig::default();
-
         // Test secrets shorter than 32 bytes
-        config.secret = "short".to_string();
+        let config = JwtConfig { secret: "short".to_string(), ..Default::default() };
         assert!(config.validate_secret().is_err());
 
-        config.secret = "a".repeat(31);
+        let config = JwtConfig { secret: "a".repeat(31), ..Default::default() };
         assert!(config.validate_secret().is_err());
     }
 
     #[test]
     fn test_valid_secret_accepted() {
-        let mut config = JwtConfig::default();
-
         // Valid 32-byte secret (64 hex chars)
-        config.secret = "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c".to_string();
+        let config = JwtConfig {
+            secret: "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c".to_string(),
+            ..Default::default()
+        };
         assert!(config.validate_secret().is_ok());
 
         // Valid 48-byte secret (96 hex chars) - constructed manually
-        config.secret = format!(
-            "{}{}",
-            "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c",
-            "5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c"
-        );
+        let config = JwtConfig {
+            secret: format!(
+                "{}{}",
+                "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c",
+                "5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c"
+            ),
+            ..Default::default()
+        };
         assert!(config.validate_secret().is_ok());
     }
 }

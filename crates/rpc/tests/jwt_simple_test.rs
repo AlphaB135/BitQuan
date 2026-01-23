@@ -74,7 +74,7 @@ fn test_jwt_auth_add_user() {
 fn test_jwt_config_default() {
     let config = JwtConfig::default();
 
-    assert_eq!(config.secret, "CHANGE_THIS_SECRET_IN_PRODUCTION");
+    assert_eq!(config.secret, "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET");
     assert_eq!(config.users.len(), 1);
     assert_eq!(config.users[0].username, "admin");
     assert_eq!(config.users[0].role, "admin");
