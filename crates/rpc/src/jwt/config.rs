@@ -27,7 +27,8 @@ pub struct JwtConfig {
 impl Default for JwtConfig {
     fn default() -> Self {
         Self {
-            secret: "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET".to_string(),
+            secret: "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET"
+                .to_string(),
             users: vec![JwtUserConfig {
                 username: "admin".to_string(),
                 password_hash: "$argon2id$v=19$m=19456,t=2,p=1$...".to_string(),
@@ -43,8 +44,8 @@ impl JwtConfig {
         let content =
             fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
 
-        let config: JwtConfig = toml::from_str(&content)
-            .map_err(|e| format!("Failed to parse config: {}", e))?;
+        let config: JwtConfig =
+            toml::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))?;
 
         // Validate the secret isn't a placeholder
         config.validate_secret()?;
@@ -136,10 +137,16 @@ mod tests {
     #[test]
     fn test_short_secret_rejected() {
         // Test secrets shorter than 32 bytes
-        let config = JwtConfig { secret: "short".to_string(), ..Default::default() };
+        let config = JwtConfig {
+            secret: "short".to_string(),
+            ..Default::default()
+        };
         assert!(config.validate_secret().is_err());
 
-        let config = JwtConfig { secret: "a".repeat(31), ..Default::default() };
+        let config = JwtConfig {
+            secret: "a".repeat(31),
+            ..Default::default()
+        };
         assert!(config.validate_secret().is_err());
     }
 
@@ -147,7 +154,8 @@ mod tests {
     fn test_valid_secret_accepted() {
         // Valid 32-byte secret (64 hex chars)
         let config = JwtConfig {
-            secret: "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c".to_string(),
+            secret: "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c"
+                .to_string(),
             ..Default::default()
         };
         assert!(config.validate_secret().is_ok());
