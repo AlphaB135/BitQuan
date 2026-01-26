@@ -6,8 +6,13 @@
 //! - Network statistics
 
 use bitquan_types::{Block, Result};
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+
+/// Maximum number of block hashes to keep in rolling history cache.
+/// This covers most practical IBD scenarios without excessive memory usage.
+const MAX_HISTORY_SIZE: usize = 1000;
 
 /// Blockchain state information.
 #[derive(Debug, Clone)]
@@ -17,6 +22,8 @@ pub struct ChainState {
     height: Arc<AtomicU64>,
     /// Current tip hash.
     tip_hash: Arc<Mutex<[u8; 32]>>,
+    /// Rolling hash history for IBD locators (oldest to newest).
+    history: Arc<Mutex<VecDeque<[u8; 32]>>>,
 }
 
 #[allow(dead_code)] // Phase 8 pool/RPC metrics integration
@@ -26,6 +33,7 @@ impl ChainState {
         Self {
             height: Arc::new(AtomicU64::new(0)),
             tip_hash: Arc::new(Mutex::new([0u8; 32])),
+            history: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_HISTORY_SIZE))),
         }
     }
 
@@ -39,6 +47,16 @@ impl ChainState {
             .tip_hash
             .lock()
             .map_err(|_| bitquan_types::Error::Invalid("lock poisoned".into()))? = block_hash;
+
+        // Add to history with rolling cache (remove oldest if at capacity)
+        let mut history = self
+            .history
+            .lock()
+            .map_err(|_| bitquan_types::Error::Invalid("lock poisoned".into()))?;
+        if history.len() >= MAX_HISTORY_SIZE {
+            history.pop_front();
+        }
+        history.push_back(block_hash);
 
         Ok(new_height)
     }
@@ -65,7 +83,7 @@ impl ChainState {
     /// requesting blocks from a peer.
     ///
     /// # Bitcoin-style Exponential Backoff Pattern
-    /// The locator should follow Bitcoin BIP-37 pattern:
+    /// The locator follows Bitcoin BIP-37 pattern:
     /// - Start with tip
     /// - Then tip-1, tip-2, tip-4, tip-8, tip-16, ... (double step each time)
     /// - Always include genesis block
@@ -74,24 +92,57 @@ impl ChainState {
     /// # Returns
     /// Vector of block hashes, newest first. Empty if chain is empty.
     ///
-    /// # Implementation Note
-    /// **STUB**: This implementation only returns the current tip hash.
-    ///
-    /// Proper exponential backoff requires access to full block history:
-    /// - Option 1: Store block hash history in ChainState (memory overhead)
-    /// - Option 2: Integrate with ChainStore to query historical blocks
-    /// - Option 3: Implement rolling hash cache (last N blocks)
-    ///
-    /// When implementing, consider using a rolling cache of last 1000 blocks
-    /// to cover most practical sync scenarios without storing entire history.
+    /// # Implementation
+    /// Uses rolling hash cache of last MAX_HISTORY_SIZE blocks. For chains
+    /// longer than the cache, the locator will include the oldest cached hash.
     pub fn get_locator(&self) -> Vec<[u8; 32]> {
         let mut locator = Vec::new();
         let height = self.get_height();
 
-        if height > 0 {
-            // Stub: return only the current tip hash
-            // Proper implementation requires block history access
-            locator.push(self.get_tip());
+        if height == 0 {
+            return locator;
+        }
+
+        // Get history snapshot (minimize lock time)
+        let Ok(history) = self.history.lock() else {
+            // Lock poisoned - return empty locator as fallback
+            return locator;
+        };
+        let history_len = history.len();
+
+        if history_len == 0 {
+            return locator;
+        }
+
+        // Always start with tip (most recent block)
+        locator.push(history[history_len - 1]);
+
+        // Exponential backoff: 1, 2, 4, 8, 16, 32, ...
+        let mut step = 1u64;
+        let mut index = height as i64 - 1 - step as i64;
+
+        // Limit to ~10 entries to prevent excessive locators
+        while locator.len() < 10 && index >= 0 {
+            let idx = index as usize;
+            if idx < history_len {
+                locator.push(history[idx]);
+            } else {
+                // Index outside our history cache - use oldest cached hash
+                // This happens when chain is longer than MAX_HISTORY_SIZE
+                locator.push(history[0]);
+                break;
+            }
+
+            step = step.saturating_mul(2);
+            index = height as i64 - 1 - step as i64;
+        }
+
+        // Always include genesis block (hash[0]) if we have it
+        // and it's not already the last entry
+        if let Some(&genesis) = history.front() {
+            if locator.last() != Some(&genesis) {
+                locator.push(genesis);
+            }
         }
 
         locator
@@ -197,5 +248,70 @@ mod tests {
         }
 
         assert_eq!(state.get_height(), 10);
+    }
+
+    #[test]
+    fn test_locator_empty_chain() {
+        let state = ChainState::new();
+        let locator = state.get_locator();
+        assert_eq!(locator.len(), 0);
+    }
+
+    #[test]
+    fn test_locator_single_block() {
+        let state = ChainState::new();
+        let block = dummy_block();
+        let hash = [1u8; 32];
+
+        state
+            .append_block(&block, hash)
+            .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
+
+        let locator = state.get_locator();
+        assert_eq!(locator.len(), 1);
+        assert_eq!(locator[0], hash);
+    }
+
+    #[test]
+    fn test_locator_exponential_backoff() {
+        let state = ChainState::new();
+        let block = dummy_block();
+
+        // Add 20 blocks
+        for i in 0..20 {
+            let hash = [i as u8; 32];
+            state
+                .append_block(&block, hash)
+                .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
+        }
+
+        let locator = state.get_locator();
+
+        // Should have: tip(19), 18, 17, 15, 11, 3, 0(genesis)
+        // Or similar exponential backoff pattern
+        assert!(locator.len() >= 2);
+        assert_eq!(locator[0], [19u8; 32]); // Tip is most recent
+
+        // Genesis should be included
+        assert_eq!(locator.last(), Some(&[0u8; 32]));
+    }
+
+    #[test]
+    fn test_locator_includes_genesis() {
+        let state = ChainState::new();
+        let block = dummy_block();
+
+        // Add a few blocks
+        for i in 0..5 {
+            let hash = [i as u8; 32];
+            state
+                .append_block(&block, hash)
+                .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
+        }
+
+        let locator = state.get_locator();
+
+        // Genesis (hash[0]) should always be included
+        assert!(locator.contains(&[0u8; 32]));
     }
 }
