@@ -1,5 +1,4 @@
 # BitQuan
-bye everyone 
 <div align="center">
   <img src="https://raw.githubusercontent.com/AlphaB135/BitQuan/main/docs/img/BitQuan.png" alt="BitQuan Logo" width="200"/>
 </div>
