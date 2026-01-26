@@ -38,7 +38,7 @@ jobs:
         echo "Using JavaScript analysis for generic security patterns"
 
     - name: 🔧 Initialize CodeQL
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
         # เพิ่ม custom queries สำหรับ Rust security
@@ -50,10 +50,10 @@ jobs:
         sudo apt-get install -y libudev-dev pkg-config
 
     - name: 🔨 Autobuild
-      uses: github/codeql-action/autobuild@v2
+      uses: github/codeql-action/autobuild@v4
 
     - name: 🔍 Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
 
