@@ -229,7 +229,6 @@ pub async fn setup_p2p_network(
 }
 
 /// Start Metrics Server (Clean implementation without Bind/Drop hack)
-#[allow(dead_code)]
 pub fn start_metrics_service(p2p_listen_addr: &str) {
     let p2p_port: u16 = p2p_listen_addr
         .split(':')
@@ -781,7 +780,6 @@ pub async fn p2p_connect(peer: &str, height: u64, network: NetworkId) -> Result<
 }
 
 /// RPC server options structure (copied from main.rs for use in p2p_server)
-#[allow(dead_code)]
 pub struct RpcServerOptions<'a> {
     /// RPC server listen address (e.g., "127.0.0.1:18445")
     pub listen: Option<&'a str>,

@@ -438,7 +438,7 @@ pub fn calculate_block_weight(block: &Block) -> Result<usize, ConsensusError> {
 /// **Note:** This function is internal-only for testing weight formulas.
 /// External callers should use `calculate_block_weight()` with production parameters.
 #[deprecated(note = "Use calculate_block_weight() for BQIP-0002 compliance")]
-#[allow(dead_code)]
+#[allow(dead_code)] // Deprecated API - kept for potential external references
 pub(crate) fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
     use bitquan_types::CompactUint;
     // Total bytes (base + witness) - return 0 on error (deprecated anyway)
@@ -762,16 +762,6 @@ fn hash_pair(a: [u8; 32], b: [u8; 32]) -> [u8; 32] {
     let mut hash = [0u8; 32];
     hash.copy_from_slice(result.as_bytes());
     hash
-}
-
-/// Consensus engine bundling parameters, crypto registry, and RNG state.
-#[allow(dead_code)]
-fn is_coinbase_tx(tx: &bitquan_types::Transaction) -> bool {
-    if tx.inputs.is_empty() {
-        return false;
-    }
-    let first = &tx.inputs[0];
-    first.prev_txid == [0u8; 32] && first.prev_vout == u32::MAX
 }
 
 /// Consensus engine for validating blocks and transactions

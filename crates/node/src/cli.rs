@@ -12,7 +12,6 @@ pub fn format_bq(qbits: u128) -> String {
 }
 
 /// Parse network ID from string
-#[allow(dead_code)]
 pub fn parse_network_id(value: &str) -> Result<NetworkId> {
     match value.to_lowercase().as_str() {
         "mainnet" => Ok(NetworkId::Mainnet),

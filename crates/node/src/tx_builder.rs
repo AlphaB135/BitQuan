@@ -9,7 +9,6 @@ use bitquan_types::{
 };
 
 /// Builder for constructing transactions.
-#[allow(dead_code)]
 pub struct TransactionBuilder {
     version: i32,
     inputs: Vec<TxIn>,
@@ -199,7 +198,6 @@ pub fn build_simple_tx(
 ///
 /// This function wraps the consensus transaction_sighash and adds per-input
 /// differentiation by hashing the input index into the result.
-#[allow(dead_code)]
 pub fn compute_sighash_with_context(
     tx: &Transaction,
     ctx: &TxContext,
@@ -232,7 +230,6 @@ pub fn compute_sighash_with_context(
 ///
 /// DEPRECATED: Use compute_sighash_with_context instead.
 /// This function is kept for backward compatibility.
-#[allow(dead_code)]
 #[deprecated(note = "Use compute_sighash_with_context with TxContext")]
 pub fn compute_sighash(tx: &Transaction, input_index: usize) -> Result<[u8; 32]> {
     let ctx = TxContext::new(tx.network, tx.genesis_hash);

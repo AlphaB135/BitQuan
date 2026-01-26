@@ -213,13 +213,12 @@ pub struct SyncManager {
     /// Chain sync instance
     chain_sync: Arc<ChainSync>,
     /// Peer manager for network communication
-    #[allow(dead_code)] // Used in future implementations
+    #[allow(dead_code)] // Reserved for future peer coordination features
     peer_manager: Arc<PeerManager>,
     /// Peer book for peer discovery
-    #[allow(dead_code)] // Used in future implementations
     peer_book: Arc<Mutex<PeerBook>>,
     /// Network identifier
-    #[allow(dead_code)] // Used in future implementations
+    #[allow(dead_code)] // Reserved for multi-network sync
     network_id: bitquan_types::NetworkId,
 }
 

@@ -31,20 +31,21 @@ const STRATUM_QUEUE_CAP: usize = 1024;
 /// Share verification job sent to worker pool.
 #[derive(Debug, Clone)]
 struct ShareJob {
-    session_id: Uuid,
+    #[allow(dead_code)]
+    session_id: Uuid, // Reserved for future analytics/tracking
     peer_key: String,
     algo: PowAlgo,
     template: BlockTemplate,
     nonce: u64,
     #[allow(dead_code)]
-    submitted_at: Instant,
+    submitted_at: Instant, // Reserved for future analytics/latency measurement
 }
 
 /// Share verification result from worker pool.
 #[derive(Debug, Clone)]
 struct ShareResult {
     #[allow(dead_code)]
-    session_id: Uuid,
+    session_id: Uuid, // Reserved for future analytics/tracking
     peer_key: String,
     verdict: ShareVerdict,
     template: BlockTemplate,
@@ -86,7 +87,6 @@ pub struct StratumServer {
 
 /// Stratum server configuration.
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // All fields reserved for Phase 8
 pub struct StratumConfig {
     /// Bind address (e.g., "0.0.0.0:3333").
     pub bind_addr: String,
@@ -120,7 +120,6 @@ impl Default for StratumConfig {
 
 /// Share verification result.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // All variants reserved for Phase 8
 pub enum ShareVerdict {
     /// Share accepted - meets difficulty.
     Accept {
@@ -166,7 +165,6 @@ impl RejectReason {
 
 /// Active miner session.
 #[derive(Debug)]
-#[allow(dead_code)] // Active component; some fields reserved for Phase 8
 pub struct MinerSession {
     /// Unique session ID.
     pub id: Uuid,
@@ -282,7 +280,6 @@ impl MinerSession {
     }
 
     /// Update current job_id.
-    #[allow(dead_code)] // Reserved for job template rotation (Phase 8)
     pub async fn set_job_id(&self, job_id: u64) {
         let mut current = self.current_job_id.write().await;
         *current = job_id;
@@ -388,7 +385,6 @@ impl StratumMetrics {
     }
 
     /// Get rejected shares for specific reason.
-    #[allow(dead_code)] // Reserved for metrics API
     pub fn get_rejected_by_reason(&self, algo: PowAlgo, reason: RejectReason) -> u64 {
         let key = (algo, reason.as_str());
         self.shares_rejected
@@ -408,7 +404,6 @@ impl StratumMetrics {
     }
 
     /// Get last valid share timestamp.
-    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_last_valid_share_timestamp(&self) -> u64 {
         self.last_valid_share_timestamp.load(Ordering::Relaxed)
     }
@@ -435,25 +430,21 @@ impl StratumMetrics {
     }
 
     /// Get total blocks submitted.
-    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_submitted(&self) -> u64 {
         self.blocks_submitted_total.load(Ordering::Relaxed)
     }
 
     /// Get total blocks accepted.
-    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_accepted(&self) -> u64 {
         self.blocks_accepted_total.load(Ordering::Relaxed)
     }
 
     /// Get total blocks rejected.
-    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_rejected(&self) -> u64 {
         self.blocks_rejected_total.load(Ordering::Relaxed)
     }
 
     /// Format metrics as Prometheus text format.
-    #[allow(dead_code)] // Reserved for /metrics endpoint (Phase 8)
     pub fn format_prometheus(&self, active_miners: usize) -> String {
         let mut output = String::new();
 
@@ -592,7 +583,6 @@ impl StratumServer {
     }
 
     /// Set the pool template manager for real block template generation.
-    #[allow(dead_code)] // Reserved for Phase 8 pool integration
     pub fn set_template_manager(&mut self, manager: Arc<PoolTemplateManager>) {
         self.template_manager = Some(manager);
     }
@@ -774,25 +764,21 @@ impl StratumServer {
     }
 
     /// Stop the server.
-    #[allow(dead_code)] // Reserved for graceful shutdown
     pub fn stop(&self) {
         self.stop_flag.store(true, Ordering::Relaxed);
     }
 
     /// Get active miner count.
-    #[allow(dead_code)] // Reserved for status API
     pub fn active_miners(&self) -> usize {
         self.peers.len()
     }
 
     /// Get metrics reference.
-    #[allow(dead_code)] // Reserved for metrics export
     pub fn metrics(&self) -> &Arc<StratumMetrics> {
         &self.metrics
     }
 
     /// Get peers reference.
-    #[allow(dead_code)] // Reserved for admin API
     pub fn peers(&self) -> &Arc<DashMap<String, MinerSession>> {
         &self.peers
     }

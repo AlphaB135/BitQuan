@@ -16,7 +16,6 @@ const MAX_HISTORY_SIZE: usize = 1000;
 
 /// Blockchain state information.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Reserved for Phase 8 pool/RPC metrics integration
 pub struct ChainState {
     /// Current chain height.
     height: Arc<AtomicU64>,
@@ -26,7 +25,6 @@ pub struct ChainState {
     history: Arc<Mutex<VecDeque<[u8; 32]>>>,
 }
 
-#[allow(dead_code)] // Phase 8 pool/RPC metrics integration
 impl ChainState {
     /// Create a new chain state starting at genesis.
     pub fn new() -> Self {

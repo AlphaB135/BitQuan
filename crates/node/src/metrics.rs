@@ -13,12 +13,10 @@ use warp::Filter;
 /// Mining metrics (stub for test compatibility)
 /// TODO: Implement actual mining metrics tracking
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Placeholder for future implementation
 pub struct MiningMetrics {
     _phantom: std::marker::PhantomData<()>,
 }
 
-#[allow(dead_code)] // Placeholder for future implementation
 impl MiningMetrics {
     pub fn new(_algos: &[bitquan_consensus::pow::PowAlgo]) -> Self {
         Self {
@@ -73,11 +71,9 @@ lazy_static! {
 }
 
 /// Global OnceLock to track running metrics servers per port
-#[allow(dead_code)]
 static METRICS_SERVERS: OnceLock<std::sync::Mutex<std::collections::HashMap<u16, bool>>> =
     OnceLock::new();
 
-#[allow(dead_code)]
 pub fn start_metrics_server(port: u16) -> Result<tokio::task::JoinHandle<()>, String> {
     // Get or initialize the servers map
     let servers =

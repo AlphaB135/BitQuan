@@ -62,10 +62,8 @@ pub struct WorkerContext {
     /// Ban manager for peer misconduct.
     pub ban_manager: Arc<TokioMutex<BanManager>>,
     /// Network identifier for validation.
-    #[allow(dead_code)] // Used for future sighash context
     pub network_id: bitquan_types::NetworkId,
     /// Genesis hash for transaction context.
-    #[allow(dead_code)] // Used for future sighash context
     pub genesis_hash: [u8; 32],
     /// Pending block requests during reorg (tracked to detect duplicates)
     pub pending_block_requests: Arc<TokioMutex<std::collections::HashSet<[u8; 32]>>>,
@@ -439,55 +437,6 @@ async fn send_getheaders_if_behind(
 ///
 /// After handshake completes, nodes with lower height should send GetBlocks
 /// to request block inventory from peers.
-#[allow(dead_code)]
-async fn send_getblocks(peer: &mut Peer, ctx: &WorkerContext) -> Result<(), WorkerError> {
-    use sha2::{Digest, Sha256};
-
-    // Get our current tip and build locator
-    let our_height = ctx.storage.height().await.unwrap_or(0);
-
-    // Build block locator - start from tip and work backwards exponentially
-    let mut locator_hashes: Vec<[u8; 32]> = Vec::new();
-
-    // For now, just use the tip as locator (TODO: implement exponential backoff)
-    if let Ok(Some(tip)) = ctx.storage.tip().await {
-        // Calculate header hash (double SHA256)
-        let bytes = tip.to_bytes();
-        let first = Sha256::digest(&bytes);
-        let second = Sha256::digest(first);
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&second);
-        locator_hashes.push(hash);
-    } else {
-        // No tip yet - use zero hash
-        locator_hashes.push([0u8; 32]);
-    }
-
-    // Stop hash is zero (get as many as possible)
-    let stop_hash = [0u8; 32];
-
-    let msg = bitquan_network::protocol::Message::GetBlocks {
-        version: bitquan_network::protocol::PROTOCOL_VERSION,
-        locator_hashes,
-        stop_hash,
-    };
-
-    peer.send_message(msg)
-        .map_err(|e| WorkerError::Network(format!("send GetBlocks failed: {}", e)))?;
-
-    println!(
-        "📤 Sent GetBlocks to {} (height: {})",
-        peer.addr, our_height
-    );
-    log::info!(
-        "📤 Sent GetBlocks to {} (height: {})",
-        peer.addr,
-        our_height
-    );
-
-    Ok(())
-}
-
 /// Handle inventory announcement.
 ///
 /// Logic:
@@ -1560,7 +1509,6 @@ pub(crate) async fn validate_block_utxos(
 /// # Returns
 /// * `Ok(())` if handshake successful
 /// * `Err(WorkerError)` if handshake fails
-#[allow(dead_code)]
 pub async fn perform_version_handshake(
     peer: &mut Peer,
     network: NetworkId,

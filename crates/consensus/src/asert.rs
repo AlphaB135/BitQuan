@@ -78,7 +78,7 @@ pub struct GuardContext<'a> {
 
 /// Integer fixed-point multiplication: (a * b) / FP_SCALE
 #[inline]
-#[allow(dead_code)]
+#[allow(dead_code)] // ASERT math helper - used in tests, may be used in production
 fn fp_mul(a: u64, b: u64) -> u64 {
     let result = (a as u128) * (b as u128);
     let scaled_result = result / (FP_SCALE as u128);
@@ -93,7 +93,7 @@ fn fp_mul(a: u64, b: u64) -> u64 {
 
 /// Integer fixed-point division: (a * FP_SCALE) / b
 #[inline]
-#[allow(dead_code)]
+#[allow(dead_code)] // ASERT math helper - used in tests, may be used in production
 fn fp_div(a: u64, b: u64) -> u64 {
     if b == 0 {
         return u64::MAX;

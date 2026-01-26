@@ -7,9 +7,6 @@ use std::collections::HashSet;
 
 /// Input validation rules for RPC requests
 pub struct InputValidator {
-    /// Maximum request size in bytes
-    #[allow(dead_code)]
-    max_request_size: usize,
     /// Maximum number of parameters per request
     max_parameters: usize,
     /// Maximum string length
@@ -20,9 +17,6 @@ pub struct InputValidator {
     max_nesting_depth: usize,
     /// Allowed JSON-RPC methods
     allowed_methods: HashSet<String>,
-    /// Regex patterns for validating strings
-    #[allow(dead_code)]
-    string_patterns: Vec<Regex>,
     /// Blocked patterns for preventing injection attacks
     blocked_patterns: Vec<Regex>,
 }
@@ -72,13 +66,11 @@ impl InputValidator {
         ];
 
         let mut validator = Self {
-            max_request_size: 1_048_576,  // 1 MB
-            max_parameters: 100,          // Max 100 parameters
-            max_string_length: 1_048_576, // 1 MB per string
-            max_array_length: 10_000,     // Max 10,000 items per array
-            max_nesting_depth: 10,        // Max 10 levels deep
+            max_parameters: 100, // Max 100 parameters
+            max_string_length: 1_048_576,
+            max_array_length: 10_000, // Max 10,000 items per array
+            max_nesting_depth: 10,    // Max 10 levels deep
             allowed_methods: allowed_methods.into_iter().map(|s| s.to_string()).collect(),
-            string_patterns: Vec::new(),
             blocked_patterns: Vec::new(),
         };
 
@@ -400,13 +392,11 @@ impl InputValidator {
     /// Create a strict validator for high-security environments
     pub fn strict() -> Self {
         let mut validator = Self {
-            max_request_size: 256_000,  // 256 KB
-            max_parameters: 50,         // Max 50 parameters
-            max_string_length: 100_000, // 100 KB per string
-            max_array_length: 1_000,    // Max 1,000 items per array
-            max_nesting_depth: 5,       // Max 5 levels deep
+            max_parameters: 50, // Max 50 parameters
+            max_string_length: 100_000,
+            max_array_length: 1_000, // Max 1,000 items per array
+            max_nesting_depth: 5,    // Max 5 levels deep
             allowed_methods: HashSet::new(),
-            string_patterns: Vec::new(),
             blocked_patterns: Vec::new(),
         };
 
@@ -437,13 +427,11 @@ impl InputValidator {
     /// Create a permissive validator for development environments
     pub fn permissive() -> Self {
         let mut validator = Self {
-            max_request_size: 5_242_880,  // 5 MB
-            max_parameters: 500,          // Max 500 parameters
-            max_string_length: 5_242_880, // 5 MB per string
-            max_array_length: 100_000,    // Max 100,000 items per array
-            max_nesting_depth: 20,        // Max 20 levels deep
+            max_parameters: 500, // Max 500 parameters
+            max_string_length: 5_242_880,
+            max_array_length: 100_000, // Max 100,000 items per array
+            max_nesting_depth: 20,     // Max 20 levels deep
             allowed_methods: HashSet::new(),
-            string_patterns: Vec::new(),
             blocked_patterns: Vec::new(),
         };
 
