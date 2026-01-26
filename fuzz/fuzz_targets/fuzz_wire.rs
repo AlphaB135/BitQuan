@@ -2,14 +2,14 @@
 
 use bitquan_types::{NetworkId, SigAlgorithm, Transaction};
 use libfuzzer_sys::fuzz_target;
-use serde_json;
+use serde_json::from_slice;
 
 fuzz_target!(|data: &[u8]| {
     // Test raw transaction deserialization from wire format
     // This simulates network message parsing with malformed data
 
     // Try to deserialize as Transaction directly (most common wire format)
-    let _result: Result<Transaction, _> = serde_json::from_slice(data);
+    let _result: Result<Transaction, _> = from_slice(data);
 
     // Test partial transaction structures that might appear in wire format
     if data.len() >= 4 {
@@ -23,7 +23,7 @@ fuzz_target!(|data: &[u8]| {
                 version_bytes[3],
             ]);
             // Test that version doesn't cause issues in validation
-            if version >= 0 && version <= 1000 {
+            if (0..=1000).contains(&version) {
                 // Create minimal transaction with this version
                 let tx = Transaction {
                     version,
@@ -44,20 +44,20 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test network ID parsing from single byte
-    if data.len() >= 1 {
+    if !data.is_empty() {
         let network_byte = data[0];
         let _network = NetworkId::from_u8(network_byte);
     }
 
     // Test signature algorithm parsing
-    if data.len() >= 1 {
+    if !data.is_empty() {
         let algo_byte = data[0];
         let _algo = SigAlgorithm::from_code(algo_byte);
     }
 
     // Test malformed JSON that might come from RPC endpoints
     if data.len() >= 2 && data[0] == b'{' && data[data.len() - 1] == b'}' {
-        let _result: Result<Transaction, _> = serde_json::from_slice(data);
+        let _result: Result<Transaction, _> = from_slice(data);
     }
 
     // Test compact uint parsing (common in wire format)
