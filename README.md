@@ -75,7 +75,7 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 - **Solution**: Layer 2 protocols for scaling (payment channels, rollups)
 - **Mitigation**: State pruning keeps full node storage manageable
 
-**Full Analysis**: See [Post-Quantum Trade-offs](docs/post-quantum-trade-offs.md)
+**Full Analysis**: See [Post-Quantum Trade-offs](docs/post-quantum-trade-offs.md) | [TPS Analysis](docs/tps-analysis.md)
 
 ## Quick Start
 
