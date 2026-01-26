@@ -246,7 +246,7 @@ jobs:
 
     steps:
     - name: 🔍 Run OSSF Scorecard
-      uses: ossf/scorecard-action@v2.3.1
+      uses: ossf/scorecard-action@v2.4.3
       with:
         results_file: results.json
         results_format: json
