@@ -23,7 +23,7 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 | **Public Testnet** | **Coming Q1 2026** |
 | Mainnet | After successful testnet + audit |
 
-- **Code**: 100% complete, all 200+ tests passing
+- **Code**: 100% complete, all 778 tests passing
 - **Security**: Internal audit complete, external pending
 - **Testnet**: Launching soon - follow for announcements
 - **Mainnet**: NOT LAUNCHED (requires testnet validation + external audit)
@@ -35,7 +35,7 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 | Component | Status | Target |
 |-----------|--------|--------|
 | **Code Completion** | 100% | Done |
-| **Unit Tests** | 200+ passing | Done |
+| **Unit Tests** | 778 passing | Done |
 | **Internal Security Audit** | Complete | Done |
 | **External Security Audit** | In Progress | Q1 2026 |
 | **Public Testnet** | Preparing | Q1 2026 |
