@@ -138,7 +138,7 @@ jobs:
       uses: actions/dependency-review-action@v3
       with:
         fail-on-severity: high
-        allow-licenses: MIT,Apache-2.0,BSD-3-Clause,ISC,CC0-1.0,OpenSSL,Apache-2.0 WITH LLVM-exception,CDLA-Permissive-2.0,Unicode-DFS-2016
+        permit-licenses: MIT,Apache-2.0,BSD-3-Clause,ISC,CC0-1.0,OpenSSL,Apache-2.0 WITH LLVM-exception,CDLA-Permissive-2.0
 
     - name: 📊 Dependency Summary
       run: |
