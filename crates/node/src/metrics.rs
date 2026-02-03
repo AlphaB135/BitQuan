@@ -1,6 +1,14 @@
-// Prometheus metric registration uses expect() because duplicate registration
-// indicates a bug in the code (conflicting metric names).
-#![allow(clippy::expect_used)]
+// Prometheus metrics with lazy_static initialization.
+//
+// CLIPPY EXPECT_USED JUSTIFICATION:
+// - Duplicate metric registration is a programmer error (conflicting metric names)
+// - lazy_static! doesn't support fallible initialization with ? operator
+// - This runs once at startup; panic here is appropriate for configuration bugs
+// - All expect() messages describe exactly what went wrong for debugging
+//
+// Therefore, clippy::expect_used is allowed for this module.
+
+#![expect(clippy::expect_used)]
 
 use lazy_static::lazy_static;
 use prometheus::{
@@ -8,8 +16,6 @@ use prometheus::{
     IntGauge,
 };
 
-// Prometheus metric registration uses expect() because duplicate registration
-// indicates a bug in the code (conflicting metric names).
 lazy_static! {
     // Global metrics
     static ref BLOCK_HEIGHT: IntGauge = register_int_gauge!(
