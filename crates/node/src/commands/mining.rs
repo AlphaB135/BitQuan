@@ -3,6 +3,16 @@
 //! This module contains all mining-related commands:
 //! - mine_genesis, mine_once, mine_continuous
 //! - stratum_server
+//!
+//! # PUBLIC API JUSTIFICATION
+//!
+//! This module provides helper functions and constants for the mining commands.
+//! Even though some items are not directly used in the binary, they are part of the
+//! library's public API and may be used by external users.
+//!
+//! Therefore, dead_code warnings are allowed for this module.
+
+#![allow(dead_code)]
 
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,

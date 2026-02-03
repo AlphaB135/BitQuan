@@ -1,6 +1,19 @@
 //! Stratum V1 mining server for BitQuan hybrid PoW.
 //!
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
+//!
+//! # PUBLIC API JUSTIFICATION
+//!
+//! This module provides a public API for the Stratum mining server.
+//! Many functions, fields, and methods are part of the library's public API even if not
+//! used directly in the binary. These allow external users to:
+//! - Configure and run a Stratum mining server
+//! - Monitor mining metrics and miner sessions
+//! - Integrate custom mining pool logic
+//!
+//! Therefore, dead_code warnings are allowed for this module.
+
+#![allow(dead_code)]
 
 use bitquan_consensus::pow::{
     meets_target, randomx_pow_hash, sha256d_pow_hash, target_from_bits, PowAlgo,

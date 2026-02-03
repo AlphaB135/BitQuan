@@ -2,6 +2,19 @@
 //!
 //! Implements BIP39 standard for generating human-readable backup phrases
 //! that can restore wallet keys.
+//!
+//! # PUBLIC API JUSTIFICATION
+//!
+//! This module provides a public API for mnemonic phrase generation and key derivation.
+//! Many functions are part of the library's public API even if not used directly in
+//! the binary. These allow external users to:
+//! - Generate mnemonic phrases programmatically
+//! - Derive Dilithium keys from BIP39 seeds
+//! - Validate and parse mnemonic phrases
+//!
+//! Therefore, dead_code warnings are allowed for this module.
+
+#![allow(dead_code)]
 
 use bip39::Mnemonic;
 use bitquan_types::error::{Error, Result};

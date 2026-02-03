@@ -2,25 +2,37 @@
 #![warn(clippy::unwrap_used)]
 #![warn(clippy::expect_used)]
 #![warn(missing_docs)]
-#![allow(dead_code)] // Allow utility functions/constants for future use
 
+// Library modules - public APIs may not all be used in main binary
+// Note: Some modules have their own #![allow(dead_code)] at module level
 mod address;
+#[allow(dead_code)]
 mod block_submit;
+#[allow(dead_code)]
 mod chainstate;
+#[allow(dead_code)]
 mod keystore;
+#[allow(dead_code)]
 mod metrics;
+#[allow(dead_code)]
 mod miner;
 mod mnemonic;
+#[allow(dead_code)]
 mod pool_template;
+#[allow(dead_code)]
 mod reward_engine;
 #[cfg(feature = "rocksdb-backend")]
 mod rpc;
 mod stratum_server;
+#[allow(dead_code)]
 mod sync_task;
 mod tx_builder;
 mod utxo;
+#[allow(dead_code)]
 mod vardiff;
+#[allow(dead_code)]
 mod wallet;
+#[allow(dead_code)]
 mod worker;
 mod ws_dashboard;
 
@@ -68,18 +80,6 @@ use hex::encode as hex_encode;
 use log::error;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
-
-/// 1 BQ = 10^18 qbits (like wei to ETH)
-const QBITS_PER_BQ: u128 = 1_000_000_000_000_000_000;
-
-/// Format qbits as BQ using pure integer arithmetic.
-/// SECURITY: Never use f64 for money! Floating point causes precision loss.
-/// Example: 1_500_000_000_000_000_000 -> "1.500000000000000000"
-fn format_bq(qbits: u128) -> String {
-    let whole = qbits / QBITS_PER_BQ;
-    let frac = qbits % QBITS_PER_BQ;
-    format!("{}.{:018}", whole, frac)
-}
 
 /// Proof-of-Work algorithm mode
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1918,8 +1918,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         let _ = std::io::Write::flush(&mut std::io::stdout());
 
         // Hybrid mining path
-        #[allow(unused_variables)]
-        let (_mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
+        let (mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
 
@@ -1942,12 +1941,6 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         } else {
             (None, None)
         };
-
-        // Standard SHA-256d mining path
-        let (mined_header, _algo_used): (
-            Option<bitquan_types::BlockHeader>,
-            Option<bitquan_consensus::pow::PowAlgo>,
-        ) = (None, None);
 
         let (header, n) = if let Some(h) = mined_header {
             let nonce = h.nonce;
@@ -2237,33 +2230,6 @@ fn mine_continuous(_options: MiningOptions) -> Result<()> {
     error!("ERROR: Continuous mining requires 'rocksdb-backend' feature");
     error!("Rebuild with: cargo build --release --features rocksdb-backend");
     Ok(())
-}
-
-/// Generate a wallet keypair with encrypted storage
-/// Show wallet address from encrypted keystore
-fn address_network_label(network: address::AddressNetwork) -> &'static str {
-    match network {
-        address::AddressNetwork::Mainnet => "mainnet",
-        address::AddressNetwork::Testnet => "testnet",
-        address::AddressNetwork::LegacyMainnet => "mainnet (legacy q1)",
-    }
-}
-
-/// Convert Bech32m address to script hex for mining/balance checks.
-/// Validate a Bech32m address and display decoded metadata.
-/// Sign a message with encrypted wallet keypair
-/// Helper to read password from stdin securely (no echo)
-fn read_password_from_stdin() -> Result<String> {
-    // SECURITY: Use rpassword to prompt and hide input (no terminal echo)
-    // prompt_password handles flushing stdout automatically
-    let password = rpassword::prompt_password("Password: ")
-        .map_err(|e| Error::Invalid(format!("Failed to read password: {e}")))?;
-
-    if password.is_empty() {
-        return Err(Error::Invalid("Password cannot be empty".into()));
-    }
-
-    Ok(password)
 }
 
 /// Run Stratum mining server.
