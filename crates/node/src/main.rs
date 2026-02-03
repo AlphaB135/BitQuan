@@ -1918,7 +1918,7 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         let _ = std::io::Write::flush(&mut std::io::stdout());
 
         // Hybrid mining path
-        let (mined_header, _algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
+        let (mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
 
