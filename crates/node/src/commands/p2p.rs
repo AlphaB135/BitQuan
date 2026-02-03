@@ -228,30 +228,6 @@ pub async fn setup_p2p_network(
     ))
 }
 
-/// Start Metrics Server (Clean implementation without Bind/Drop hack)
-pub fn start_metrics_service(p2p_listen_addr: &str) {
-    let p2p_port: u16 = p2p_listen_addr
-        .split(':')
-        .next_back()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(18444);
-
-    // Convention: Metrics port = 9615 + offset from default P2P port
-    let metrics_port = 9615 + p2p_port.saturating_sub(18444);
-    let metrics_addr = format!("127.0.0.1:{}", metrics_port);
-
-    println!(
-        "Starting metrics server on http://{}/metrics ...",
-        metrics_addr
-    );
-
-    // Fix: Just spawn it. If it fails to bind, it will log internally or panic safely in its own thread.
-    // No more "bind -> drop -> start" race condition.
-    let _ = std::thread::spawn(move || {
-        let _ = crate::metrics::start_metrics_server(metrics_port);
-    });
-}
-
 /// P2P Server that accepts incoming connections
 pub async fn p2p_server(
     listen: &str,
@@ -675,9 +651,6 @@ pub async fn p2p_server(
     } else {
         log::warn!("No bootstrap peers configured. Node will wait for incoming connections only.");
     }
-
-    // Metrics server (started earlier)
-    start_metrics_service(&local_addr.to_string());
 
     // === PEER ACCEPT LOOP ===
     let worker_ctx_for_accept = worker_ctx.clone();
