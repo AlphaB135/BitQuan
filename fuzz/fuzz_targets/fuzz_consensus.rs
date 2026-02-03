@@ -1,9 +1,9 @@
 #![no_main]
 
-use libfuzzer_sys::fuzz_target;
+use bitquan_consensus::difficulty::compact_to_target;
 use bitquan_consensus::{ForkChoice, ForkError};
 use bitquan_types::BlockHeader;
-use bitquan_consensus::difficulty::compact_to_target;
+use libfuzzer_sys::fuzz_target;
 
 // Fuzz fork choice logic for difficulty calculations and reorg handling
 fuzz_target!(|data: &[u8]| {
@@ -21,7 +21,7 @@ fuzz_target!(|data: &[u8]| {
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
         time: 1231006505, // Bitcoin genesis timestamp
-        bits: 0x1d00ffff,   // Easy difficulty for genesis
+        bits: 0x1d00ffff, // Easy difficulty for genesis
         nonce: 0,
         algo_id: 0,
     };
@@ -44,7 +44,10 @@ fuzz_target!(|data: &[u8]| {
         // Create block header from fuzz data
         let header = BlockHeader {
             version: i32::from_le_bytes([
-                block_data[0], block_data[1], block_data[2], block_data[3]
+                block_data[0],
+                block_data[1],
+                block_data[2],
+                block_data[3],
             ]),
             prev_block: if i == 0 {
                 [0u8; 32] // Genesis child
@@ -62,14 +65,26 @@ fuzz_target!(|data: &[u8]| {
                 hint
             },
             time: u32::from_le_bytes([
-                block_data[68], block_data[69], block_data[70], block_data[71]
+                block_data[68],
+                block_data[69],
+                block_data[70],
+                block_data[71],
             ]),
             bits: u32::from_le_bytes([
-                block_data[72], block_data[73], block_data[74], block_data[75]
+                block_data[72],
+                block_data[73],
+                block_data[74],
+                block_data[75],
             ]),
             nonce: u64::from_le_bytes([
-                block_data[76], block_data[77], block_data[78], block_data[79],
-                block_data[80], block_data[81], block_data[82], block_data[83]
+                block_data[76],
+                block_data[77],
+                block_data[78],
+                block_data[79],
+                block_data[80],
+                block_data[81],
+                block_data[82],
+                block_data[83],
             ]),
             algo_id: block_data[84],
         };
@@ -86,7 +101,11 @@ fuzz_target!(|data: &[u8]| {
                 if let Some(reorg) = reorg_info {
                     // Verify reorg depth is reasonable
                     assert!(reorg.depth() <= 100, "Reorg too deep: {}", reorg.depth());
-                    assert!(reorg.new_blocks() <= 1000, "Too many new blocks: {}", reorg.new_blocks());
+                    assert!(
+                        reorg.new_blocks() <= 1000,
+                        "Too many new blocks: {}",
+                        reorg.new_blocks()
+                    );
                 }
             }
             Err(ForkError::OrphanBlock(_)) => {
@@ -115,8 +134,7 @@ fuzz_target!(|data: &[u8]| {
 
         // Test work calculation (should not overflow)
         let work = if target != 0 {
-            u64::MAX.checked_div(target.saturating_add(1))
-                .unwrap_or(1)
+            u64::MAX.checked_div(target.saturating_add(1)).unwrap_or(1)
         } else {
             1
         };
@@ -160,27 +178,29 @@ fuzz_target!(|data: &[u8]| {
         use std::thread;
 
         let fc_arc = Arc::new(Mutex::new(ForkChoice::new()));
-        let handles: Vec<_> = (0..3).map(|thread_id| {
-            let fc_clone = Arc::clone(&fc_arc);
-            let test_header = BlockHeader {
-                version: 1,
-                prev_block: [thread_id as u8; 32],
-                merkle_root: [thread_id as u8; 32],
-                pqc_agg_hint: [0u8; 32],
-                time: 1231006505 + thread_id as u32,
-                bits: 0x207fffff,
-                nonce: thread_id as u64,
-                algo_id: 0,
-            };
+        let handles: Vec<_> = (0..3)
+            .map(|thread_id| {
+                let fc_clone = Arc::clone(&fc_arc);
+                let test_header = BlockHeader {
+                    version: 1,
+                    prev_block: [thread_id as u8; 32],
+                    merkle_root: [thread_id as u8; 32],
+                    pqc_agg_hint: [0u8; 32],
+                    time: 1231006505 + thread_id as u32,
+                    bits: 0x207fffff,
+                    nonce: thread_id as u64,
+                    algo_id: 0,
+                };
 
-            thread::spawn(move || {
-                let mut fc = fc_clone.lock().unwrap();
-                let _ = fc.add_genesis(test_header.clone());
-                let _ = fc.add_block(test_header);
-                let _ = fc.best_tip();
-                let _ = fc.height();
+                thread::spawn(move || {
+                    let mut fc = fc_clone.lock().unwrap();
+                    let _ = fc.add_genesis(test_header.clone());
+                    let _ = fc.add_block(test_header);
+                    let _ = fc.best_tip();
+                    let _ = fc.height();
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all threads
         for handle in handles {

@@ -151,8 +151,8 @@ fuzz_target!(|data: &[u8]| {
                 thread::spawn(move || {
                     let engine = RandomXEngine::new((*config_clone).clone());
                     for _ in 0..2 {
-                        let _ = engine.verify(&*header_clone);
-                        let _ = engine.pow_hash(&*header_clone);
+                        let _ = engine.verify(&header_clone);
+                        let _ = engine.pow_hash(&header_clone);
                     }
                 })
             })

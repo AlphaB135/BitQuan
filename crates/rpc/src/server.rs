@@ -6,8 +6,6 @@ use crate::{
 };
 use base64::Engine;
 use chrono;
-use http::StatusCode;
-use once_cell::sync::Lazy;
 use serde_json::json;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -979,12 +977,6 @@ impl BackoffState {
         }
     }
 
-    #[allow(dead_code)]
-    fn record_success(&mut self) {
-        self.failed_attempts = 0;
-        self.locked_until = None;
-    }
-
     fn is_locked(&self) -> bool {
         if let Some(locked_until) = self.locked_until {
             Instant::now() < locked_until
@@ -1024,27 +1016,6 @@ async fn apply_cooldown(
 
     config.cooldown_duration
 }
-/// Resolve client IP considering proxy headers
-#[allow(dead_code)]
-fn resolve_client_ip(peer_ip: IpAddr, headers: &[String], config: &RpcConfig) -> IpAddr {
-    if !config.trust_proxy {
-        return peer_ip;
-    }
-
-    // Check for X-Forwarded-For header
-    for header in headers {
-        if header.to_lowercase().starts_with("x-forwarded-for:") {
-            if let Some(ip_str) = header.split(':').nth(1).map(|s| s.trim()) {
-                if let Ok(ip) = ip_str.parse::<IpAddr>() {
-                    // Take the first IP in the chain (original client)
-                    return ip;
-                }
-            }
-        }
-    }
-
-    peer_ip
-}
 /// Apply authentication backoff for failed attempts
 async fn apply_auth_backoff(
     ip: IpAddr,
@@ -1066,15 +1037,6 @@ async fn apply_auth_backoff(
     // Fix: Only check status, don't record failure eagerly
     state.is_locked()
 }
-/// Reset authentication backoff after successful authentication
-#[allow(dead_code)]
-async fn reset_auth_backoff(ip: IpAddr, backoff: &Arc<Mutex<HashMap<IpAddr, BackoffState>>>) {
-    let mut backoff_map = backoff.lock().await;
-
-    if let Some(state) = backoff_map.get_mut(&ip) {
-        state.record_success();
-    }
-}
 
 /// Apply rate limiting based on client IP and configuration
 async fn check_rate_limit(
@@ -1089,27 +1051,6 @@ async fn check_rate_limit(
         .or_insert_with(|| TokenBucket::new(config.rate_limit_requests, config.rate_limit_window));
 
     bucket.consume(1) // Each request consumes 1 token
-}
-#[allow(dead_code)]
-static METRICS: Lazy<RpcMetrics> = Lazy::new(RpcMetrics::default);
-#[derive(Default)]
-struct RpcMetrics {
-    // ... fields
-}
-impl RpcMetrics {
-    #[allow(dead_code)]
-    #[allow(clippy::too_many_arguments)]
-    fn record(
-        &self,
-        _status: StatusCode,
-        _latency_ms: u64,
-        _rate_limited: bool,
-        _body_limit: bool,
-        _auth_fail: bool,
-        _header_limit: bool,
-        _body_timeout: bool,
-    ) {
-    }
 }
 
 /// Verify JWT Bearer token from Authorization header.

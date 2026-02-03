@@ -109,7 +109,6 @@ impl WalletKeypair {
     }
 
     /// Signs a message using the secret key with secure memory access.
-    #[allow(dead_code)]
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
         let mut sig = vec![0u8; SIGNBYTES];
         dilithium::crypto_sign_signature(&mut sig, message, self.secret_key.expose_secret());
@@ -117,7 +116,6 @@ impl WalletKeypair {
     }
 
     /// Verifies a signature using the public key.
-    #[allow(dead_code)]
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
         dilithium::crypto_sign_verify(signature, message, &self.public_key).is_ok()
     }
@@ -160,7 +158,6 @@ impl WalletKeypair {
     }
 
     /// Creates from serializable format with secret key decryption.
-    #[allow(dead_code)]
     pub fn from_serializable(data: &SerializableKeypair, password: &str) -> Result<Self> {
         // Reconstruct keypair from serialized data
         let public_key = hex::decode(&data.public_key)
@@ -225,7 +222,6 @@ impl WalletKeypair {
     }
 
     /// Returns the public key hash (for address generation).
-    #[allow(dead_code)]
     pub fn public_key_hash(&self) -> [u8; 32] {
         let mut hasher = Sha256::new();
         hasher.update(&self.public_key);
@@ -248,7 +244,6 @@ impl WalletKeypair {
     }
 
     /// Creates a new secure keypair that automatically wipes on drop.
-    #[allow(dead_code)]
     pub fn generate_secure() -> Result<Self> {
         Self::generate_dilithium5()
     }
@@ -256,7 +251,6 @@ impl WalletKeypair {
     /// Saves keypair to a file (warning: stores in JSON - file not encrypted!).
     /// Note: The secret key field IS encrypted with the password, but the JSON file itself
     /// is not encrypted at the file level. For production, use the keystore module.
-    #[allow(dead_code)]
     pub fn save_to_file(&self, path: &Path, password: &str) -> Result<()> {
         let data = self.to_serializable(password);
         let json = serde_json::to_string_pretty(&data)?;
@@ -282,7 +276,6 @@ impl WalletKeypair {
     }
 
     /// Loads keypair from a file.
-    #[allow(dead_code)]
     pub fn load_from_file(path: &Path, password: &str) -> Result<Self> {
         let json = fs::read_to_string(path)
             .map_err(|e| Error::Invalid(format!("failed to read keypair file: {e}")))?;
@@ -294,7 +287,6 @@ impl WalletKeypair {
     }
 
     /// Exports public key only (safe to share).
-    #[allow(dead_code)]
     pub fn export_public(&self) -> WalletPublicKey {
         WalletPublicKey {
             algorithm: self.algorithm,
@@ -326,7 +318,6 @@ impl WalletPublicKey {
     }
 
     /// Returns the public key hash.
-    #[allow(dead_code)]
     pub fn public_key_hash(&self) -> [u8; 32] {
         let mut hasher = Sha256::new();
         hasher.update(&self.public_key);
@@ -347,7 +338,6 @@ pub mod address {
     pub const HRP_MAINNET: &str = "bq";
 
     /// Human-readable prefix for BitQuan testnet addresses.
-    #[allow(dead_code)]
     pub const HRP_TESTNET: &str = "bqt";
 
     /// Encodes a public key hash to a Bech32m address.
@@ -377,13 +367,11 @@ pub mod address {
     }
 
     /// Decodes a Bech32m address to a public key hash.
-    #[allow(dead_code)]
     pub fn decode(address: &str) -> Result<[u8; 32]> {
         decode_with_hrp(address, HRP_MAINNET)
     }
 
     /// Decodes a Bech32m address with HRP validation.
-    #[allow(dead_code)]
     pub fn decode_with_hrp(address: &str, expected_hrp: &str) -> Result<[u8; 32]> {
         // Decode Bech32m
         let (hrp, data) = bech32::decode(address)
@@ -425,13 +413,11 @@ pub mod address {
     }
 
     /// Validates a Bech32m address without decoding.
-    #[allow(dead_code)]
     pub fn validate(address: &str) -> bool {
         decode(address).is_ok()
     }
 
     /// Returns helpful error message for invalid addresses.
-    #[allow(dead_code)]
     pub fn validate_with_hint(address: &str) -> Result<()> {
         match decode(address) {
             Ok(_) => Ok(()),

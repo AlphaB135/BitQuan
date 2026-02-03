@@ -1,48 +1,21 @@
-// Prometheus metric registration uses expect() because duplicate registration
-// indicates a bug in the code (conflicting metric names).
-#![allow(clippy::expect_used)]
+// Prometheus metrics with lazy_static initialization.
+//
+// CLIPPY EXPECT_USED JUSTIFICATION:
+// - Duplicate metric registration is a programmer error (conflicting metric names)
+// - lazy_static! doesn't support fallible initialization with ? operator
+// - This runs once at startup; panic here is appropriate for configuration bugs
+// - All expect() messages describe exactly what went wrong for debugging
+//
+// Therefore, clippy::expect_used is allowed for this module.
+
+#![expect(clippy::expect_used)]
 
 use lazy_static::lazy_static;
 use prometheus::{
     register_int_counter, register_int_counter_vec, register_int_gauge, IntCounter, IntCounterVec,
     IntGauge,
 };
-use std::sync::OnceLock;
-use warp::Filter;
 
-/// Mining metrics (stub for test compatibility)
-/// TODO: Implement actual mining metrics tracking
-#[derive(Debug, Clone)]
-#[allow(dead_code)] // Placeholder for future implementation
-pub struct MiningMetrics {
-    _phantom: std::marker::PhantomData<()>,
-}
-
-#[allow(dead_code)] // Placeholder for future implementation
-impl MiningMetrics {
-    pub fn new(_algos: &[bitquan_consensus::pow::PowAlgo]) -> Self {
-        Self {
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    // Stub methods for test compatibility
-    pub fn record_block_persisted(&self, _height: u64) {}
-    pub fn set_total_rewards(&self, _rewards: u128) {}
-    pub fn set_pool_balance(&self, _balance: u128) {}
-    pub fn set_reward_per_block(&self, _reward: u128) {}
-    pub fn record_block_mined(&self) {}
-    pub fn record_hash_attempts(&self, _attempts: u64) {}
-    pub fn get_blocks_mined(&self) -> u64 {
-        0
-    }
-    pub fn get_hash_attempts(&self) -> u64 {
-        0
-    }
-}
-
-// Prometheus metric registration uses expect() because duplicate registration
-// indicates a bug in the code (conflicting metric names).
 lazy_static! {
     // Global metrics
     static ref BLOCK_HEIGHT: IntGauge = register_int_gauge!(
@@ -70,48 +43,6 @@ lazy_static! {
         "Peer ban events by reason",
         &["reason"]
     ).expect("failed to register ban_score_events metric");
-}
-
-/// Global OnceLock to track running metrics servers per port
-#[allow(dead_code)]
-static METRICS_SERVERS: OnceLock<std::sync::Mutex<std::collections::HashMap<u16, bool>>> =
-    OnceLock::new();
-
-#[allow(dead_code)]
-pub fn start_metrics_server(port: u16) -> Result<tokio::task::JoinHandle<()>, String> {
-    // Get or initialize the servers map
-    let servers =
-        METRICS_SERVERS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
-
-    // Check if server is already running on this port
-    {
-        let mut running = servers
-            .lock()
-            .map_err(|e| format!("lock poisoned: {}", e))?;
-        if running.contains_key(&port) {
-            return Err(format!("Metrics server already running on port {}", port));
-        }
-        running.insert(port, true);
-    }
-
-    let metrics_route = warp::path!("metrics").map(|| {
-        use prometheus::TextEncoder;
-        let encoder = TextEncoder::new();
-        let metric_families = prometheus::gather();
-        let metric_string = encoder
-            .encode_to_string(&metric_families)
-            .unwrap_or_else(|e| format!("Error encoding metrics: {}", e));
-
-        // Build custom response with correct content-type
-        warp::http::Response::builder()
-            .header("content-type", "text/plain; version=0.0.4; charset=utf-8")
-            .body(metric_string)
-            .expect("failed to build HTTP response for metrics endpoint")
-    });
-
-    Ok(tokio::spawn(async move {
-        warp::serve(metrics_route).run(([127, 0, 0, 1], port)).await;
-    }))
 }
 
 // Helper functions for updating metrics

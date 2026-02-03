@@ -669,7 +669,6 @@ impl RocksDBStore {
     }
 
     /// Prune orphan blocks (blocks not in main chain)
-    #[allow(dead_code)]
     pub fn prune_orphans(&self) -> Result<u64, StorageError> {
         info!("Pruning orphan blocks");
 

@@ -58,6 +58,24 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 - **Open Source**: Apache 2.0, fully auditable, no backdoors
 - **Async-Powered**: High-performance network layer with DoS protection
 
+## Post-Quantum Trade-offs
+
+**Honest Assessment**: BitQuan uses Dilithium5 signatures which are ~63x larger than Bitcoin's ECDSA.
+
+| Metric | Bitcoin | BitQuan | Ratio |
+|--------|---------|---------|-------|
+| Signature Size | ~73 bytes | 4,595 bytes | **63x** |
+| Layer 1 TPS | ~7 | < 1 | By design |
+| Quantum Security | ❌ Vulnerable | ✅ Dilithium5 | NIST standard |
+
+**This is a deliberate trade-off**: We prioritize quantum security today over layer 1 efficiency.
+
+- **Why**: Emergency hard forks for PQ migration are risky and disruptive
+- **Solution**: Layer 2 protocols for scaling (payment channels, rollups)
+- **Mitigation**: State pruning keeps full node storage manageable
+
+**Full Analysis**: See [Post-Quantum Trade-offs](docs/POST_QUANTUM_TRADEOFFS.md) | [TPS Analysis](docs/TPS_ANALYSIS.md)
+
 ## Quick Start
 
 **NOTE**: These commands are for TESTING ONLY. No mainnet is running. Coins on testnet/devnet have NO VALUE.

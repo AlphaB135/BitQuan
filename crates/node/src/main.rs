@@ -70,13 +70,11 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 
 /// 1 BQ = 10^18 qbits (like wei to ETH)
-#[allow(dead_code)]
 const QBITS_PER_BQ: u128 = 1_000_000_000_000_000_000;
 
 /// Format qbits as BQ using pure integer arithmetic.
 /// SECURITY: Never use f64 for money! Floating point causes precision loss.
 /// Example: 1_500_000_000_000_000_000 -> "1.500000000000000000"
-#[allow(dead_code)]
 fn format_bq(qbits: u128) -> String {
     let whole = qbits / QBITS_PER_BQ;
     let frac = qbits % QBITS_PER_BQ;
@@ -89,7 +87,6 @@ pub enum PowMode {
     /// Standard SHA-256d hashcash (Bitcoin-style)
     Hashcash,
     /// Mock mode for testing (debug builds only)
-    #[allow(dead_code)]
     Mock,
     /// RandomX algorithm (memory-hard)
     #[cfg(feature = "randomx")]
@@ -2244,7 +2241,6 @@ fn mine_continuous(_options: MiningOptions) -> Result<()> {
 
 /// Generate a wallet keypair with encrypted storage
 /// Show wallet address from encrypted keystore
-#[allow(dead_code)]
 fn address_network_label(network: address::AddressNetwork) -> &'static str {
     match network {
         address::AddressNetwork::Mainnet => "mainnet",
@@ -2257,7 +2253,6 @@ fn address_network_label(network: address::AddressNetwork) -> &'static str {
 /// Validate a Bech32m address and display decoded metadata.
 /// Sign a message with encrypted wallet keypair
 /// Helper to read password from stdin securely (no echo)
-#[allow(dead_code)]
 fn read_password_from_stdin() -> Result<String> {
     // SECURITY: Use rpassword to prompt and hide input (no terminal echo)
     // prompt_password handles flushing stdout automatically

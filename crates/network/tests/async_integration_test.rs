@@ -180,7 +180,7 @@ async fn test_async_network_error_handling() {
 }
 
 // Helper function to write to stream
-#[allow(dead_code)]
+#[allow(dead_code)] // Test helper - may be used in future tests
 async fn write_all_with_timeout(
     stream: &mut TcpStream,
     data: &[u8],
@@ -191,7 +191,7 @@ async fn write_all_with_timeout(
 }
 
 // Helper function to read from stream
-#[allow(dead_code)]
+#[allow(dead_code)] // Test helper - may be used in future tests
 async fn read_u8_with_timeout(
     stream: &mut TcpStream,
     timeout: Duration,

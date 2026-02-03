@@ -1,4 +1,23 @@
-#![allow(clippy::all)]
+// CLIPPY ALL JUSTIFICATION:
+//
+// This crate is a Rust port of the NIST CRYSTALS-Dilithium reference implementation.
+// The code is deliberately written to closely match the reference C implementation
+// for security auditing and verification purposes.
+//
+// Deviations from the reference (including Rust-idiomatic changes) could:
+// 1. Introduce subtle security bugs during translation
+// 2. Make security audits more difficult by diverging from verified code
+// 3. Create challenges for cross-verification against the reference
+//
+// Examples of non-idiomatic patterns that match the reference:
+// - Manual bit rotation (matches reference's ROTL/ROTR macros)
+// - Specific operator ordering (matches reference's expressions)
+// - Loop patterns that index arrays (matches reference's pointer arithmetic)
+//
+// Therefore, all clippy lints are allowed for this crate. The code prioritizes
+// security and verifiability over Rust idiomatic patterns.
+
+#![expect(clippy::all)]
 
 #[cfg(feature = "aes")]
 mod aes256ctr;

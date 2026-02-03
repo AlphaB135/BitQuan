@@ -1,7 +1,5 @@
 //! Integration tests for reward engine and chain persistence.
 
-use bitquan_consensus::pow::PowAlgo;
-use bitquan_node::metrics::MiningMetrics;
 use bitquan_node::reward_engine::{PoolDatabase, RewardEngine};
 use bitquan_types::{Block, BlockHeader, NetworkId, SigAlgorithm, Transaction, TxOut};
 
@@ -312,38 +310,6 @@ fn test_database_persistence() {
 
     // Cleanup
     let _ = std::fs::remove_file(&temp_path);
-}
-
-#[test]
-#[ignore = "MiningMetrics is a stub implementation - get_blocks_mined() always returns 0"]
-fn test_metrics_integration() {
-    let _db = PoolDatabase::memory().expect("Failed to create memory database");
-    let mut engine = RewardEngine::new();
-
-    let metrics = MiningMetrics::new(&[PowAlgo::Sha256d]);
-
-    // Record block and update metrics
-    let block = dummy_block(100);
-    let hash = [1u8; 32];
-    let reward = engine
-        .record_block(&block, hash, 100, "miner1")
-        .expect("Failed to record block");
-
-    metrics.record_block_persisted(100); // height from dummy_block(100)
-    metrics.set_total_rewards(engine.total_distributed());
-    metrics.set_pool_balance(engine.total_distributed());
-    metrics.set_reward_per_block(reward);
-
-    // Update metrics manually referenced in assertions
-    // Note: MiningMetrics is a placeholder, these methods don't take PowAlgo arg anymore
-    metrics.record_block_mined();
-    metrics.record_hash_attempts(1);
-
-    // Verify metrics
-    // Note: MiningMetrics is a placeholder, these methods don't take PowAlgo arg anymore
-    assert_eq!(metrics.get_blocks_mined(), 1);
-    assert_eq!(metrics.get_hash_attempts(), 1);
-    assert!(reward > 0, "Reward should be positive");
 }
 
 #[test]

@@ -27,7 +27,6 @@ use std::sync::{Arc, Mutex};
 // For 1000 blocks, this is ~1000x faster on reads.
 use std::collections::HashSet;
 
-#[allow(dead_code)]
 #[derive(Default)]
 struct MemoryData {
     rewards: HashMap<String, u128>,
@@ -40,13 +39,11 @@ struct MemoryData {
     spendable_blocks: HashSet<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct PoolDatabase {
     storage: Arc<Mutex<MemoryData>>,
 }
 
-#[allow(dead_code)]
 impl PoolDatabase {
     pub fn memory() -> Result<Self> {
         Ok(PoolDatabase {
@@ -232,7 +229,6 @@ impl PoolDatabase {
 // If you ever find yourself writing field-by-field clones, STOP.
 // Add #[derive(Clone)] and move on with your life.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub struct BlockRecord {
     pub hash: String,
     pub height: u64,
@@ -243,7 +239,6 @@ pub struct BlockRecord {
 }
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub struct PayoutRecord {
     pub id: String,
     pub miner_id: String,
@@ -254,7 +249,6 @@ pub struct PayoutRecord {
 
 /// Balance information for a miner.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct BalanceInfo {
     /// Total balance (all rewards).
     pub total: u128,
@@ -285,28 +279,24 @@ const HALVING_INTERVAL: u64 = 210_000;
 const REWARD_RATE_SCALE: u128 = 10000;
 
 /// Reward engine for calculating and distributing mining rewards.
-#[allow(dead_code)] // Reserved for Phase 8 pool payout integration
 pub struct RewardEngine {
     /// Pool database for persistence.
     db: PoolDatabase,
     /// Reward multiplier scaled by REWARD_RATE_SCALE (default 10000 = 100.00%).
     reward_rate: u64,
     /// Block maturity for rewards (confirmations needed).
-    #[allow(dead_code)]
     maturity: u64,
     /// Total rewards distributed counter (in BQ, not qbits, to fit in u64).
     /// Stored as BQ to avoid u64 overflow (u64::MAX = ~18.4 billion BQ).
     total_distributed: Arc<AtomicU64>,
 }
 
-#[allow(dead_code)] // Phase 8 pool payout integration
 impl Default for RewardEngine {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[allow(dead_code)]
 impl RewardEngine {
     /// Create a new reward engine.
     pub fn new() -> Self {
@@ -583,7 +573,6 @@ impl RewardEngine {
 
 /// Pool statistics snapshot.
 #[derive(Debug, Clone, serde::Serialize)]
-#[allow(dead_code)] // Phase 8 pool API
 pub struct PoolStats {
     pub total_rewards: u128,
     pub miner_count: u64,

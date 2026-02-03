@@ -120,7 +120,6 @@ pub fn inspect(address: &str) -> Result<AddressInfo, String> {
 }
 
 /// Decodes a Bech32m address to a public key hash.
-#[allow(dead_code)]
 pub fn decode_bech32m(address: &str) -> Result<[u8; 32], String> {
     inspect(address).map(|info| info.payload)
 }
