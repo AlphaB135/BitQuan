@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-warp = "0.3"
+warp = "0.4"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 reqwest = { version = "0.12", features = ["json"] }
