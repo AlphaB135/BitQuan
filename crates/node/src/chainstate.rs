@@ -5,9 +5,9 @@
 //! - Total supply and difficulty
 //! - Network statistics
 
-use bitquan_types::{Block, BlockHeader, Result};
-use bitquan_storage::async_store::{AsyncChainStore, AsyncStoreError};
 use bitquan_consensus::pow;
+use bitquan_storage::async_store::{AsyncChainStore, AsyncStoreError};
+use bitquan_types::{Block, BlockHeader, Result};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -70,7 +70,10 @@ impl std::fmt::Debug for ChainState {
         f.debug_struct("ChainState")
             .field("height", &self.get_height())
             .field("tip_hash", &self.tip_hash)
-            .field("history_len", &self.history.lock().map(|h| h.len()).unwrap_or(0))
+            .field(
+                "history_len",
+                &self.history.lock().map(|h| h.len()).unwrap_or(0),
+            )
             .field("store", &self.store.is_some())
             .finish()
     }
@@ -216,7 +219,9 @@ impl ChainState {
         locators: &[[u8; 32]],
         limit: usize,
     ) -> std::result::Result<Vec<BlockHeader>, AsyncStoreError> {
-        let store = self.store.as_ref()
+        let store = self
+            .store
+            .as_ref()
             .ok_or_else(|| AsyncStoreError::Poisoned("store not set - call set_store() first"))?;
 
         // Step 1: Find the first locator that exists in our chain
@@ -233,12 +238,12 @@ impl ChainState {
                     if let Ok(Some(block)) = store.get_block_by_height(h).await {
                         let block_hash = pow::header_hash(&block.header);
                         if block_hash == *locator {
-                            start_height = h + 1;  // Start AFTER this block
+                            start_height = h + 1; // Start AFTER this block
                             break;
                         }
                     }
                 }
-                break;  // Found first match, stop searching
+                break; // Found first match, stop searching
             }
         }
 
@@ -248,12 +253,12 @@ impl ChainState {
 
         for h in start_height..(start_height.saturating_add(limit as u64)) {
             if h > chain_height {
-                break;  // Reached tip
+                break; // Reached tip
             }
 
             match store.get_block_by_height(h).await {
                 Ok(Some(block)) => headers.push(block.header),
-                Ok(None) => break,  // Block not found
+                Ok(None) => break, // Block not found
                 Err(e) => return Err(e),
             }
         }
@@ -271,11 +276,7 @@ impl ChainState {
     /// Without a store, this uses only the in-memory history cache (limited to
     /// MAX_HISTORY_SIZE blocks). For full chain access, use the async version with
     /// a store attached.
-    pub fn find_headers_after(
-        &self,
-        locators: &[[u8; 32]],
-        limit: usize,
-    ) -> Vec<BlockHeader> {
+    pub fn find_headers_after(&self, locators: &[[u8; 32]], limit: usize) -> Vec<BlockHeader> {
         // If store is available and we have a runtime, use async version
         if self.store.is_some() {
             if let Ok(handle) = tokio::runtime::Handle::try_current() {
@@ -283,7 +284,9 @@ impl ChainState {
                 let locators = locators.to_vec();
 
                 return handle.block_on(async move {
-                    self_clone.find_headers_after_async(&locators, limit).await
+                    self_clone
+                        .find_headers_after_async(&locators, limit)
+                        .await
                         .unwrap_or_else(|_| Vec::new())
                 });
             }
@@ -297,11 +300,7 @@ impl ChainState {
     ///
     /// This is a limited fallback that works without a store but is bounded by
     /// MAX_HISTORY_SIZE. Returns headers from the rolling cache only.
-    fn find_headers_after_cached(
-        &self,
-        locators: &[[u8; 32]],
-        limit: usize,
-    ) -> Vec<BlockHeader> {
+    fn find_headers_after_cached(&self, locators: &[[u8; 32]], limit: usize) -> Vec<BlockHeader> {
         // Get history snapshot
         let Ok(history) = self.history.lock() else {
             return Vec::new();
@@ -312,14 +311,14 @@ impl ChainState {
         }
 
         let history_len = history.len();
-        let mut start_index = 0;  // Default: start from beginning (genesis)
+        let mut start_index = 0; // Default: start from beginning (genesis)
 
         // Find first locator that exists in our cache
         if !locators.is_empty() {
             for locator in locators {
                 for (idx, cached_hash) in history.iter().enumerate() {
                     if *cached_hash == *locator {
-                        start_index = idx + 1;  // Start AFTER this block
+                        start_index = idx + 1; // Start AFTER this block
                         break;
                     }
                 }
