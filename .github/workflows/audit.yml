@@ -67,7 +67,7 @@ jobs:
           cargo tree --all-features > dependency-tree.txt
           echo "Dependency count: $(cargo tree --all-features --prefix none | wc -l)"
       - name: Upload dependency tree
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dependency-tree
           path: dependency-tree.txt
