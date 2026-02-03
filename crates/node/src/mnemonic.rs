@@ -3,8 +3,6 @@
 //! Implements BIP39 standard for generating human-readable backup phrases
 //! that can restore wallet keys.
 
-#![allow(dead_code)]
-
 use bip39::Mnemonic;
 use bitquan_types::error::{Error, Result};
 

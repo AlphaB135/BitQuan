@@ -25,6 +25,7 @@ pub mod address;
 pub mod chainstate;
 pub mod metrics;
 pub mod miner;
+pub mod mnemonic;
 pub mod reward_engine;
 pub mod rpc;
 pub mod sync_task;
@@ -47,6 +48,7 @@ pub use vardiff::VarDiff;
 // Core re-exports (always available)
 pub use chainstate::ChainState;
 pub use miner::{HybridMiner, MinerMetrics};
+pub use mnemonic::{generate_mnemonic, mnemonic_to_seed, parse_mnemonic, MnemonicHelper};
 pub use reward_engine::RewardEngine;
 pub use wallet::WalletKeypair;
 
