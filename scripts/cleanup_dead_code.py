@@ -6,12 +6,11 @@ Scans for #[allow(dead_code)] and automatically removes unused code.
 Run this after removing #[allow(dead_code)] to clean up the leftovers.
 """
 
-import os
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Set, Dict, List, Tuple
+from typing import List, Tuple
 
 # ANSI colors
 GREEN = "\033[92m"
@@ -115,7 +114,7 @@ def is_actually_used(item_name: str, file_path: Path, project_root: Path) -> boo
 
             return len(matches) > 2  # Allow some false positives
     except Exception:
-        pass
+        pass  # ripgrep may not be installed, skip advanced detection
 
     return False
 
@@ -137,7 +136,6 @@ def remove_dead_code_block(file_path: Path, line_number: int, dry_run: bool = Tr
 
         # Determine the block type and find its end
         current_line = lines[start_line]
-        indent_level = len(current_line) - len(current_line.lstrip())
 
         # Look for the end of the block
         end_line = start_line + 1
@@ -237,7 +235,6 @@ def scan_and_clean(project_root: Path, dry_run: bool = True):
                     start = max(0, line_num - 2)
                     end = min(len(content_lines), line_num + 3)
                     context = content_lines[start:end]
-                    context_text = ''.join(context)
 
                     # Try to extract function/struct name
                     item_name = extract_function_name(line, context[1:] if len(context) > 1 else [])
