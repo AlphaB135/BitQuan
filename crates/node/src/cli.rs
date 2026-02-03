@@ -2,27 +2,12 @@
 
 use crate::address::AddressNetwork;
 use bitquan_types::error::{Error, Result};
-use bitquan_types::NetworkId;
 
 /// Format qbits to BQ (1 BQ = 10^18 qbits)
 pub fn format_bq(qbits: u128) -> String {
     let bq = qbits / 1_000_000_000_000_000_000;
     let qats = qbits % 1_000_000_000_000_000_000;
     format!("{}.{:018}", bq, qats)
-}
-
-/// Parse network ID from string
-pub fn parse_network_id(value: &str) -> Result<NetworkId> {
-    match value.to_lowercase().as_str() {
-        "mainnet" => Ok(NetworkId::Mainnet),
-        "testnet" => Ok(NetworkId::Testnet),
-        "devnet" => Ok(NetworkId::Devnet),
-        "regtest" => Ok(NetworkId::Regtest),
-        _ => Err(bitquan_types::error::Error::Invalid(format!(
-            "Unknown network: {}. Valid options: mainnet, testnet, devnet, regtest",
-            value
-        ))),
-    }
 }
 
 /// Create invalid error
