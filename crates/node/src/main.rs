@@ -1918,6 +1918,8 @@ fn mine_continuous(options: MiningOptions) -> Result<()> {
         let _ = std::io::Write::flush(&mut std::io::stdout());
 
         // Hybrid mining path
+        // When randomx feature is disabled, algo_used is only used for debug output
+        #[cfg_attr(not(feature = "randomx"), allow(unused_variables))]
         let (mined_header, algo_used) = if let Some(ref hybrid_miner) = hybrid_miner {
             // Select algorithm based on iteration
             let algo = hybrid_miner.select_algorithm(height);
