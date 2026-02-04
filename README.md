@@ -22,7 +22,7 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 | **Public Testnet** | **Coming Q1 2026** |
 | Mainnet | After successful testnet + audit |
 
-- **Code**: 100% complete, all 200+ tests passing
+- **Code**: 100% complete, 600+ tests passing
 - **Security**: Internal audit complete, external pending
 - **Testnet**: Launching soon - follow for announcements
 - **Mainnet**: NOT LAUNCHED (requires testnet validation + external audit)
@@ -34,12 +34,12 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 | Component | Status | Target |
 |-----------|--------|--------|
 | **Code Completion** | 100% | Done |
-| **Unit Tests** | 200+ passing | Done |
+| **Unit Tests** | 600+ passing | Done |
 | **Internal Security Audit** | Complete | Done |
 | **External Security Audit** | In Progress | Q1 2026 |
 | **Public Testnet** | Preparing | Q1 2026 |
 | **Mainnet Launch** | Pending | After testnet |
-| **Version** | v1.0-audit-20251122 | - |
+| **Version** | v1.0-audit-20260204 | - |
 
 **Current Phase**: Pre-Testnet (final preparations)
 
@@ -54,7 +54,7 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 - **Proof-of-Work**: SHA-256d mining with RandomX support
 - **Precision**: 18-decimal precision (1 BQ = 10^18 qbits) stored as `u128`
 - **Hard Supply**: 21,000,000 BQ limit
-- **Memory Safety**: ~15 unsafe blocks (all justified with SAFETY comments), minimal unwrap() in production code
+- **Memory Safety**: 14 unsafe blocks (all justified with SAFETY comments), minimal unwrap() in production code
 - **Open Source**: Apache 2.0, fully auditable, no backdoors
 - **Async-Powered**: High-performance network layer with DoS protection
 
@@ -189,7 +189,7 @@ Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
 - **Async P2P Networking**: High-performance async network layer with DoS protection
 - **JSON-RPC API**: Standard RPC interface
 - **Stratum Mining Pool Support**: Stratum V1 protocol for pool mining
-- **Memory Safety**: ~15 unsafe blocks (all justified with SAFETY comments)
+- **Memory Safety**: 14 unsafe blocks (all justified with SAFETY comments)
 
 ## Async Network Layer
 
@@ -252,11 +252,11 @@ bitquan/
 - GPG-signed commits and releases required
 - Reproducible builds with attestation
 - All core code open-source, auditable
-- Comprehensive security audits completed
+- Internal security audit complete, external audit in progress
 - Production readiness: 100% (code complete, mainnet pending)
   - All security fixes applied (PR #80)
   - All logging migrated (PR #83)
-  - All tests passing (200+ tests)
+  - All tests passing (600+ tests)
   - Post-quantum crypto (Dilithium5)
   - External security audit (pending)
 
@@ -266,8 +266,8 @@ See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
 
 ## Development Status
 
-Current version: v1.0-audit-20251122 (pre-mainnet)
-Tests: 90+ unit tests + 10+ integration tests + E2E stress test validated (all passing)
+Current version: v1.0-audit-20260204 (pre-mainnet)
+Tests: 600+ tests passing (unit + integration + E2E stress)
 Recent Updates:
 - P2P TCP socket I/O implementation complete
 - Reward maturity integration tests (100-block maturity)
