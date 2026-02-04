@@ -551,6 +551,10 @@ mod tests {
 
         // Corrupt the address (flip a character)
         let mut corrupted = address.clone();
+        // SAFETY: This is test code that intentionally modifies String bytes to create
+        // a character change. We only change ASCII characters (a/b), so UTF-8 validity
+        // is preserved. The corrupted address is used only to verify checksum validation
+        // fails correctly - it's never used as a valid String in production logic.
         let bytes = unsafe { corrupted.as_bytes_mut() };
         if bytes[10] == b'a' {
             bytes[10] = b'b';
