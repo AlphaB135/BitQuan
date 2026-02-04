@@ -1,3 +1,17 @@
+// NON_SNAKE_CASE JUSTIFICATION:
+//
+// This module provides WebAssembly bindings using wasm_bindgen.
+// The wasm_bindgen macro and its procedural macros generate JavaScript-facing
+// APIs that expect PascalCase for types and camelCase for methods per
+// JavaScript/WebAssembly conventions.
+//
+// Examples:
+// - `#[wasm_bindgen] pub struct Keys` (not `keys`)
+// - `pub fn pubkey()` (matches JS getter convention)
+//
+// Therefore, non_snake_case is allowed to maintain compatibility with
+// wasm_bindgen and JavaScript API conventions.
+
 #![allow(non_snake_case)]
 extern crate alloc;
 

@@ -1,3 +1,18 @@
+// NEEDLESS_RANGE_LOOP JUSTIFICATION:
+//
+// This module implements the FIPS202 SHA-3 and SHAKE hash functions
+// following the NIST FIPS 202 standard specification.
+//
+// The code structure matches the reference Keccak implementation closely
+// for cryptographic verification purposes. Range loops are used explicitly
+// to match the specification's round structure and permutation operations.
+//
+// Changing loop patterns could introduce deviations from the verified
+// reference implementation, making security audits more difficult.
+//
+// Therefore, needless_range_loop is allowed to maintain fidelity to the
+// FIPS 202 specification and reference implementation.
+
 #![allow(clippy::needless_range_loop)]
 
 #[cfg(not(feature = "aes"))]
