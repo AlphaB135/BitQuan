@@ -237,7 +237,10 @@ impl RecoveryManager {
 
                 if expected_hash != actual_hash {
                     error!("Corrupted block at height {}", check_height);
-                    corrupted_blocks += 1;
+                    return Err(StorageError::DatabaseError(format!(
+                        "Hash mismatch at height {}: expected {}, actual {}",
+                        check_height, expected_hash, actual_hash
+                    )));
                 }
             }
         }
