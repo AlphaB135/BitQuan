@@ -235,23 +235,22 @@ async fn main() -> Result<()> {
 
     let index_route = warp::path::end().map(index);
 
-    // Extract headers for IP detection
+    // Extract headers for IP detection (warp 0.4.x doesn't have addr::remote())
     let api_drip = warp::post()
         .and(warp::path("api"))
         .and(warp::path("drip"))
         .and(warp::path::end())
         .and(warp::filters::header::headers_cloned())
-        .and(warp::addr::remote())
         .and(warp::body::json())
         .and_then({
             let rate_limiter = rate_limiter.clone();
             let config = config.clone();
-            move |headers, addr: Option<std::net::SocketAddr>, body: DripRequest| {
+            move |headers, body: DripRequest| {
                 let rate_limiter = rate_limiter.clone();
                 let config = config.clone();
                 async move {
                     Ok::<_, warp::Rejection>(
-                        handle_drip(headers, addr, body, rate_limiter, config).await,
+                        handle_drip(headers, None, body, rate_limiter, config).await,
                     )
                 }
             }
