@@ -50,6 +50,15 @@ pub struct BlockchainInfo {
     pub difficulty: f64,
     /// Chain work (hex)
     pub chainwork: String,
+    /// Pruning mode ("full", "pruned", "utxo_only")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pruning_mode: Option<String>,
+    /// Height below which blocks are pruned (if any)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pruning_height: Option<u64>,
+    /// Number of blocks kept in pruned mode
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks_kept: Option<u64>,
 }
 
 /// Mining info response

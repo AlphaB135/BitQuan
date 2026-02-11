@@ -34,6 +34,121 @@ pub enum StorageError {
     /// Serialization error
     #[error("serialization error: {0}")]
     SerializationError(String),
+    /// Pruning error - cannot prune blocks needed for reorg safety
+    #[error("cannot prune below minimum depth of {0} blocks")]
+    PruningDepthError(u64),
+    /// Block data has been pruned and is unavailable
+    #[error("block data pruned at height {height}, only headers available")]
+    BlockDataPruned {
+        /// The block height that was pruned
+        height: u64,
+    },
+}
+
+/// Pruning mode for blockchain storage.
+///
+/// Controls how much historical block data is retained on disk.
+/// Headers are always kept for SPV verification, but full block
+/// data (transactions, witnesses) can be pruned to save space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum PruningMode {
+    /// Keep all blocks (full node).
+    ///
+    /// No pruning is performed. All historical block data is retained.
+    #[default]
+    Full,
+    /// Keep only the last N blocks of full data.
+    ///
+    /// Blocks older than `keep_blocks` are pruned, keeping only headers.
+    /// The minimum safe value is 1000 to protect against reorgs.
+    Pruned {
+        /// Number of recent blocks to keep (minimum 1000)
+        keep_blocks: u64,
+    },
+    /// Keep only headers and UTXO set (minimum storage mode).
+    ///
+    /// All block bodies are pruned, leaving only headers and the UTXO set.
+    /// This is the most space-efficient mode but cannot serve historical
+    /// block data to other nodes.
+    UtxoOnly,
+}
+
+impl PruningMode {
+    /// Returns the minimum safe depth for pruning (1000 blocks).
+    ///
+    /// This protects against chain reorganizations up to 1000 blocks deep.
+    /// At 15s block time, this represents approximately 4 hours of chain history.
+    pub const MIN_SAFE_DEPTH: u64 = 1000;
+
+    /// Returns the number of blocks to keep based on the pruning mode.
+    ///
+    /// - `Full`: Returns `u64::MAX` (keep everything)
+    /// - `Pruned { keep_blocks }`: Returns the configured value
+    /// - `UtxoOnly`: Returns 0 (keep only headers)
+    pub fn keep_blocks(&self) -> u64 {
+        match self {
+            PruningMode::Full => u64::MAX,
+            PruningMode::Pruned { keep_blocks } => *keep_blocks,
+            PruningMode::UtxoOnly => 0,
+        }
+    }
+
+    /// Returns true if this mode prunes any block data.
+    pub fn is_pruned(&self) -> bool {
+        !matches!(self, PruningMode::Full)
+    }
+
+    /// Validates that the pruning mode configuration is safe.
+    ///
+    /// Returns an error if `keep_blocks` is less than `MIN_SAFE_DEPTH`.
+    pub fn validate(&self) -> Result<(), StorageError> {
+        if let PruningMode::Pruned { keep_blocks } = self {
+            if *keep_blocks < Self::MIN_SAFE_DEPTH {
+                return Err(StorageError::PruningDepthError(Self::MIN_SAFE_DEPTH));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Metadata about the current pruning state.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PruningMetadata {
+    /// The current pruning mode.
+    pub mode: PruningMode,
+    /// The height below which blocks have been pruned (if any).
+    pub pruning_height: Option<u64>,
+    /// Unix timestamp of last pruning operation.
+    pub last_pruned: u64,
+    /// Number of blocks that have been pruned total.
+    pub total_pruned: u64,
+}
+
+impl PruningMetadata {
+    /// Creates a new pruning metadata for the given mode.
+    pub fn new(mode: PruningMode) -> Self {
+        Self {
+            mode,
+            pruning_height: None,
+            last_pruned: 0,
+            total_pruned: 0,
+        }
+    }
+
+    /// Returns true if any blocks have been pruned.
+    pub fn is_pruned(&self) -> bool {
+        self.pruning_height.is_some()
+    }
+
+    /// Updates the pruning metadata after a pruning operation.
+    pub fn record_pruning(&mut self, new_pruning_height: u64, blocks_pruned: u64) {
+        self.pruning_height = Some(new_pruning_height);
+        self.last_pruned = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.total_pruned = self.total_pruned.saturating_add(blocks_pruned);
+    }
 }
 
 impl From<crate::async_store::AsyncStoreError> for StorageError {

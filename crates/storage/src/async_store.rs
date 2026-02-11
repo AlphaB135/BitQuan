@@ -121,6 +121,13 @@ pub trait AsyncChainStore: Send + Sync {
     /// Calculate the Median Time Past (MTP) from the last 11 blocks
     /// Returns median timestamp for timestamp validation
     async fn median_time_past(&self) -> std::result::Result<u64, AsyncStoreError>;
+
+    /// Get pruning metadata if available.
+    ///
+    /// Returns None for stores that don't support pruning or if metadata is not available.
+    async fn get_pruning_metadata(
+        &self,
+    ) -> std::result::Result<Option<crate::PruningMetadata>, AsyncStoreError>;
 }
 
 #[async_trait]
@@ -319,6 +326,19 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
         })
         .await
         .map_err(AsyncStoreError::TaskSpawn)?
+    }
+
+    async fn get_pruning_metadata(
+        &self,
+    ) -> std::result::Result<Option<crate::PruningMetadata>, AsyncStoreError> {
+        // For generic ChainStore, we can't get pruning metadata
+        // This is only available for RocksDBStore
+        // Return None for non-RocksDB stores
+        Ok(tokio::task::spawn_blocking(|| {
+            Ok::<Option<crate::PruningMetadata>, StorageError>(None)
+        })
+        .await
+        .map_err(AsyncStoreError::TaskSpawn)??)
     }
 }
 

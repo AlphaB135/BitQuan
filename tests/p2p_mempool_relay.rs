@@ -73,6 +73,13 @@ impl AsyncChainStore for MockAsyncStore {
         // Mock implementation - returns 0 for testing
         Ok(0)
     }
+
+    async fn get_pruning_metadata(
+        &self,
+    ) -> Result<Option<bitquan_storage::PruningMetadata>, AsyncStoreError> {
+        // Mock implementation - returns None (no pruning)
+        Ok(None)
+    }
 }
 
 /// Create a mock transaction for testing

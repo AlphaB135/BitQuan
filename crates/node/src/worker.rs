@@ -1688,6 +1688,13 @@ mod tests {
             // Mock implementation - returns 0 for testing
             Ok(0)
         }
+
+        async fn get_pruning_metadata(
+            &self,
+        ) -> std::result::Result<Option<bitquan_storage::PruningMetadata>, AsyncStoreError> {
+            // Mock implementation - returns None (no pruning)
+            Ok(None)
+        }
     }
 
     /// Test that double spends within the same block are detected and rejected

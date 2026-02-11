@@ -50,6 +50,10 @@ const KEY_TIP: &[u8] = b"tip";
 const KEY_HEIGHT: &[u8] = b"height";
 const KEY_DB_VERSION: &[u8] = b"db_version";
 const KEY_CHECKSUM: &[u8] = b"checksum";
+const KEY_PRUNING_MODE: &[u8] = b"pruning_mode";
+const KEY_PRUNING_HEIGHT: &[u8] = b"pruning_height";
+const KEY_LAST_PRUNED: &[u8] = b"last_pruned";
+const KEY_TOTAL_PRUNED: &[u8] = b"total_pruned";
 
 /// Current database version
 const DB_VERSION: u32 = 1;
@@ -228,8 +232,8 @@ impl RecoveryManager {
 
             if let Some(block) = store.get_block_by_height(check_height)? {
                 // Verify block hash matches header
-                let expected_hash = Self::block_id(&block.header);
-                let actual_hash = Self::block_id(&block.header);
+                let expected_hash = block_hash(&block.header);
+                let actual_hash = block_hash(&block.header);
 
                 if expected_hash != actual_hash {
                     error!("Corrupted block at height {}", check_height);
@@ -323,17 +327,19 @@ impl RecoveryManager {
         backups.sort();
         Ok(backups)
     }
+}
 
-    /// Compute block ID (duplicate of private method)
-    fn block_id(header: &BlockHeader) -> [u8; 32] {
-        use sha2::{Digest, Sha256};
-        let bytes = header.to_bytes();
-        let first = Sha256::digest(bytes);
-        let second = Sha256::digest(first);
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&second);
-        out
-    }
+/// Compute block hash using SHA256d (double SHA-256).
+///
+/// This is the standard Bitcoin-style block hash calculation.
+pub fn block_hash(header: &BlockHeader) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let bytes = header.to_bytes();
+    let first = Sha256::digest(bytes);
+    let second = Sha256::digest(first);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&second);
+    out
 }
 
 /// RocksDB-backed chain store with persistent storage
@@ -688,6 +694,253 @@ impl RocksDBStore {
 
         info!("Pruned {} orphan blocks", pruned);
         Ok(pruned)
+    }
+
+    // ========== State Pruning Methods ==========
+
+    /// Get the current pruning mode from metadata.
+    pub fn get_pruning_mode(&self) -> Result<crate::PruningMode, StorageError> {
+        let meta_cf = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+
+        match self.db.get_cf(&meta_cf, KEY_PRUNING_MODE) {
+            Ok(Some(bytes)) => {
+                bincode::deserialize(&bytes)
+                    .map_err(|e| StorageError::SerializationError(e.to_string()))
+            }
+            _ => Ok(crate::PruningMode::default()),
+        }
+    }
+
+    /// Set the pruning mode.
+    ///
+    /// This updates the metadata but does not immediately prune blocks.
+    /// Call `prune_blocks()` to perform actual pruning.
+    pub fn set_pruning_mode(&self, mode: crate::PruningMode) -> Result<(), StorageError> {
+        mode.validate()?;
+
+        let meta_cf = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+
+        let bytes = bincode::serialize(&mode)
+            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+
+        self.db
+            .put_cf(&meta_cf, KEY_PRUNING_MODE, bytes)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+        info!("Pruning mode set to: {:?}", mode);
+        Ok(())
+    }
+
+    /// Get the current pruning metadata.
+    pub fn get_pruning_metadata(&self) -> Result<crate::PruningMetadata, StorageError> {
+        let mode = self.get_pruning_mode()?;
+
+        let meta_cf = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+
+        let pruning_height = self
+            .db
+            .get_cf(&meta_cf, KEY_PRUNING_HEIGHT)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+            .and_then(|bytes| bincode::deserialize(&bytes).ok());
+
+        let last_pruned = self
+            .db
+            .get_cf(&meta_cf, KEY_LAST_PRUNED)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+            .and_then(|bytes| bincode::deserialize(&bytes).ok())
+            .unwrap_or(0);
+
+        let total_pruned = self
+            .db
+            .get_cf(&meta_cf, KEY_TOTAL_PRUNED)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+            .and_then(|bytes| bincode::deserialize(&bytes).ok())
+            .unwrap_or(0);
+
+        Ok(crate::PruningMetadata {
+            mode,
+            pruning_height,
+            last_pruned,
+            total_pruned,
+        })
+    }
+
+    /// Prune block data before the specified height.
+    ///
+    /// This deletes full block data (transactions, witnesses) but keeps headers
+    /// for SPV verification. The UTXO set is preserved.
+    ///
+    /// # Arguments
+    /// * `before_height` - Prune all blocks with height < this value
+    ///
+    /// # Safety
+    /// This function enforces a minimum safe depth to prevent reorg data loss.
+    /// The current height must be at least `MIN_SAFE_DEPTH` (1000) blocks
+    /// greater than `before_height`.
+    pub fn prune_blocks_before(&self, before_height: u64) -> Result<u64, StorageError> {
+        let current_height = self.height()?;
+
+        // Safety check: ensure we're not pruning too close to tip
+        if current_height.saturating_sub(before_height) < crate::PruningMode::MIN_SAFE_DEPTH {
+            return Err(StorageError::PruningDepthError(crate::PruningMode::MIN_SAFE_DEPTH));
+        }
+
+        info!("Pruning blocks before height {}", before_height);
+
+        let blocks_cf = self
+            .db
+            .cf_handle(CF_BLOCKS)
+            .ok_or_else(|| StorageError::DatabaseError("blocks CF not found".into()))?;
+
+        let mut batch = WriteBatch::default();
+        let mut pruned = 0u64;
+
+        // Iterate through height index to find blocks to prune
+        let height_cf = self
+            .db
+            .cf_handle(CF_HEIGHT_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
+
+        let iter = self
+            .db
+            .iterator_cf(&height_cf, rocksdb::IteratorMode::Start);
+
+        for item in iter {
+            let (key, _value) = item.map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+            // Parse height from key (assuming key is height encoded as bytes)
+            if key.len() >= 8 {
+                let height = u64::from_le_bytes(
+                    key[..8]
+                        .try_into()
+                        .unwrap_or([0u8; 8]),
+                );
+
+                if height >= before_height {
+                    break; // Reached non-prunable height
+                }
+
+                // Get the block hash from height index
+                if let Ok(Some(block)) = self.get_block_by_height(height) {
+                    // Compute block hash using SHA256d
+                    let block_hash = block_hash(&block.header);
+
+                    // Delete the full block data (but NOT the header)
+                    batch.delete_cf(&blocks_cf, block_hash);
+
+                    // Note: We keep headers in CF_HEADERS for SPV verification
+                    // We also keep the UTXO set intact
+
+                    pruned = pruned.saturating_add(1);
+                }
+            }
+        }
+
+        // Apply batch deletion
+        if pruned > 0 {
+            self.db
+                .write(batch)
+                .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+            // Update pruning metadata
+            self.update_pruning_metadata(before_height, pruned)?;
+
+            info!("Pruned {} blocks (height < {})", pruned, before_height);
+        }
+
+        Ok(pruned)
+    }
+
+    /// Check if block data is available at the given height.
+    ///
+    /// Returns `false` if the block has been pruned (only header available).
+    pub fn is_block_available(&self, height: u64) -> Result<bool, StorageError> {
+        let metadata = self.get_pruning_metadata()?;
+
+        if let Some(pruning_height) = metadata.pruning_height {
+            if height < pruning_height {
+                return Ok(false);
+            }
+        }
+
+        // Check if block actually exists
+        Ok(self.get_block_by_height(height)?.is_some())
+    }
+
+    /// Update pruning metadata after a pruning operation.
+    fn update_pruning_metadata(
+        &self,
+        new_pruning_height: u64,
+        blocks_pruned: u64,
+    ) -> Result<(), StorageError> {
+        let meta_cf = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+
+        // Get current metadata or create new
+        let mut metadata = self.get_pruning_metadata().unwrap_or_else(|_| {
+            crate::PruningMetadata::new(crate::PruningMode::default())
+        });
+
+        metadata.record_pruning(new_pruning_height, blocks_pruned);
+
+        // Write updated metadata
+        let bytes = bincode::serialize(&new_pruning_height)
+            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+        self.db
+            .put_cf(&meta_cf, KEY_PRUNING_HEIGHT, bytes)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+        let bytes = bincode::serialize(&metadata.last_pruned)
+            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+        self.db
+            .put_cf(&meta_cf, KEY_LAST_PRUNED, bytes)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+        let bytes = bincode::serialize(&metadata.total_pruned)
+            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+        self.db
+            .put_cf(&meta_cf, KEY_TOTAL_PRUNED, bytes)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Perform pruning based on the current pruning mode.
+    ///
+    /// This calculates the appropriate height to prune based on the mode
+    /// and calls `prune_blocks_before()`.
+    pub fn prune(&self) -> Result<u64, StorageError> {
+        let mode = self.get_pruning_mode()?;
+        let current_height = self.height()?;
+
+        let prune_before_height = match mode {
+            crate::PruningMode::Full => return Ok(0), // No pruning
+            crate::PruningMode::Pruned { keep_blocks } => {
+                current_height.saturating_sub(keep_blocks)
+            }
+            crate::PruningMode::UtxoOnly => {
+                // Prune everything except the minimum safe depth
+                current_height.saturating_sub(crate::PruningMode::MIN_SAFE_DEPTH)
+            }
+        };
+
+        if prune_before_height == 0 {
+            info!("Nothing to prune (chain too short)");
+            return Ok(0);
+        }
+
+        self.prune_blocks_before(prune_before_height)
     }
 
     /// Get database statistics
