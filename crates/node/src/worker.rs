@@ -1265,46 +1265,14 @@ async fn handle_getblocks(
         hex::encode(&stop_hash[..8])
     );
 
-    // Find the first locator hash that exists in our chain
-    for (i, locator_hash) in locator_hashes.iter().enumerate() {
-        log::trace!(
-            "Checking locator {}/{}: {}",
-            i + 1,
-            locator_hashes.len(),
-            hex::encode(&locator_hash[..8])
-        );
-
-        // Check if this block exists in our chain
-        match ctx.storage.get_block(locator_hash).await {
-            Ok(Some(_block)) => {
-                log::info!(
-                    "✅ Found common ancestor at locator {}: {}",
-                    i,
-                    hex::encode(&locator_hash[..8])
-                );
-                break;
-            }
-            Ok(None) => {
-                log::trace!("❌ Locator not found: {}", hex::encode(&locator_hash[..8]));
-            }
-            Err(e) => {
-                log::error!("Storage error checking locator: {}", e);
-            }
-        }
-    }
-
-    // Build inventory of blocks to announce
-    let mut inv: Vec<bitquan_network::protocol::InvVector> = Vec::new();
-
-    // For now, announce blocks from height 0 up to our tip
-    // In a full implementation, we would:
-    // 1. Get the height of the common ancestor
-    // 2. Fetch blocks from (ancestor_height + 1) to tip
-    // 3. Limit to 500 blocks per message
 
     // Find the height of the common ancestor to start announcing AFTER it
     // This prevents announcing blocks the peer already has (chain split prevention)
     let mut start_height = 0u64;
+
+    // Build inventory of blocks to announce
+    let mut inv: Vec<bitquan_network::protocol::InvVector> = Vec::new();
+
 
     // Check each locator hash to find common ancestor
     for locator_hash in &locator_hashes {
