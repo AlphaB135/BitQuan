@@ -1,6 +1,6 @@
 //! Chain synchronization with peers.
 
-use crate::{discovery::PeerBook, peer::PeerManager, protocol::Message};
+use crate::{discovery::PeerBook, protocol::Message};
 use bitquan_types::{BlockHeader, Result};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -212,29 +212,19 @@ impl From<&ChainSync> for SyncProgress {
 pub struct SyncManager {
     /// Chain sync instance
     chain_sync: Arc<ChainSync>,
-    /// Peer manager for network communication
-    #[allow(dead_code)] // Reserved for future peer coordination features
-    peer_manager: Arc<PeerManager>,
     /// Peer book for peer discovery
     peer_book: Arc<Mutex<PeerBook>>,
-    /// Network identifier
-    #[allow(dead_code)] // Reserved for multi-network sync
-    network_id: bitquan_types::NetworkId,
 }
 
 impl SyncManager {
     /// Create a new sync manager.
     pub fn new(
         local_height: u64,
-        peer_manager: Arc<PeerManager>,
         peer_book: Arc<std::sync::Mutex<PeerBook>>,
-        network_id: bitquan_types::NetworkId,
     ) -> Self {
         Self {
             chain_sync: Arc::new(ChainSync::new(local_height)),
-            peer_manager,
             peer_book,
-            network_id,
         }
     }
 
