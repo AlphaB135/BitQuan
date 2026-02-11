@@ -217,7 +217,6 @@ impl RecoveryManager {
         info!("Verifying block integrity");
 
         let height = store.height()?;
-        let mut corrupted_blocks = 0;
 
         // Sample verification for large databases
         let sample_size = std::cmp::min(100, height as usize);
@@ -230,26 +229,36 @@ impl RecoveryManager {
         for i in 0..sample_size {
             let check_height = if step > 0 { i as u64 * step } else { 0 };
 
-            if let Some(block) = store.get_block_by_height(check_height)? {
-                // Verify block hash matches header
-                let expected_hash = block_hash(&block.header);
-                let actual_hash = block_hash(&block.header);
+            // Get the stored block_id (hash) from height_index
+            let cf_height = store
+                .db
+                .cf_handle(CF_HEIGHT_INDEX)
+                .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
 
-                if expected_hash != actual_hash {
-                    error!("Corrupted block at height {}", check_height);
-                    return Err(StorageError::DatabaseError(format!(
-                        "Hash mismatch at height {}: expected {}, actual {}",
-                        check_height, expected_hash, actual_hash
-                    )));
+            let stored_block_id = store
+                .db
+                .get_cf(&cf_height, check_height.to_le_bytes())
+                .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+            if let Some(block_id_bytes) = stored_block_id {
+                // Verify the stored hash matches the recomputed hash from the block header
+                let mut stored_hash = [0u8; 32];
+                stored_hash.copy_from_slice(&block_id_bytes);
+
+                if let Some(block) = store.get_block_by_height(check_height)? {
+                    let recomputed_hash = block_hash(&block.header);
+
+                    if stored_hash != recomputed_hash {
+                        error!("Corrupted block at height {}", check_height);
+                        return Err(StorageError::DatabaseError(format!(
+                            "Hash mismatch at height {}: stored={}, recomputed={}",
+                            check_height,
+                            hex::encode(stored_hash),
+                            hex::encode(recomputed_hash)
+                        )));
+                    }
                 }
             }
-        }
-
-        if corrupted_blocks > 0 {
-            return Err(StorageError::DatabaseError(format!(
-                "Found {} corrupted blocks",
-                corrupted_blocks
-            )));
         }
 
         info!("Block integrity verification completed");
@@ -1147,72 +1156,6 @@ impl ChainStore for RocksDBStore {
                 return self.disconnect_block_legacy(block);
             }
         };
-
-        // NEW: Prune UTXO set after disconnect to prevent unbounded growth
-        self.prune_utxo_set_after_disconnect()?;
-
-        /// Prune UTXO set when a block is disconnected (reorg or manual).
-        /// Only prune if this is NOT the tip block (prevents pruning current chain state).
-        fn prune_utxo_set_after_disconnect(&mut self) -> Result<(), StorageError> {
-            let Some(metadata) = self.get_pruning_metadata()?;
-
-            // Only prune if we have pruning metadata AND block is not tip
-            let should_prune = match metadata.as_ref() {
-                Some(meta) => {
-                    !meta.is_pruned && self.height()? > Some(meta.pruning_height)
-                }
-                None => false
-            };
-
-            if !should_prune {
-                return Ok(()); // No pruning configured or not needed
-            }
-
-            // Prune UTXO set up to (and including) the disconnecting block height
-            let utxo_cutoff_height = match metadata.as_ref() {
-                Some(meta) => {
-                    if meta.pruning_height.is_some() {
-                        meta.pruning_height.unwrap()
-                    } else {
-                        self.height()?.saturating_sub(PruningMode::MIN_SAFE_DEPTH)
-                    }
-                }
-                None => self.height()?.saturating_sub(PruningMode::MIN_SAFE_DEPTH)
-            };
-
-            // Delete UTXOs spent by this block
-            for spent_output in &block.transactions {
-                let outpoint_key = [
-                    &spent_output.prev_txid[..],
-                    &spent_output.prev_vout.to_le_bytes()[..],
-                ]
-                .concat();
-
-                let utxo_entry = StoredUtxoEntry {
-                    output: spent_output.output.clone(),
-                    height: spent_output.height,
-                    is_coinbase: spent_output.is_coinbase,
-                };
-
-                let utxo_data = serialize::to_bytes(&utxo_entry)?;
-                batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
-            }
-
-            info!(
-                "Pruned {} UTXOs for block at height {}",
-                utxo_cutoff_height,
-                block_hash(&block.header)
-            );
-
-            // Mark pruning operation complete in metadata
-            if let Some(mut metadata) = self.get_pruning_metadata() {
-                let mut new_meta = metadata.clone();
-                new_meta.record_pruning(block_hash, utxo_cutoff_height);
-                self.set_pruning_metadata(new_meta)?;
-            }
-
-            Ok(())
-        }
 
         // Restore spent UTXOs from undo data
         for spent_output in &undo_block.spent_outputs {
