@@ -334,11 +334,13 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
         // For generic ChainStore, we can't get pruning metadata
         // This is only available for RocksDBStore
         // Return None for non-RocksDB stores
-        Ok(tokio::task::spawn_blocking(|| {
-            Ok::<Option<crate::PruningMetadata>, StorageError>(None)
-        })
-        .await
-        .map_err(AsyncStoreError::TaskSpawn)??)
+        Ok(
+            tokio::task::spawn_blocking(|| {
+                Ok::<Option<crate::PruningMetadata>, StorageError>(None)
+            })
+            .await
+            .map_err(AsyncStoreError::TaskSpawn)??,
+        )
     }
 }
 

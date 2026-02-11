@@ -1691,7 +1691,8 @@ mod tests {
 
         async fn get_pruning_metadata(
             &self,
-        ) -> std::result::Result<Option<bitquan_storage::PruningMetadata>, AsyncStoreError> {
+        ) -> std::result::Result<Option<bitquan_storage::PruningMetadata>, AsyncStoreError>
+        {
             // Mock implementation - returns None (no pruning)
             Ok(None)
         }

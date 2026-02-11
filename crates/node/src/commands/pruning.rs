@@ -61,7 +61,8 @@ pub fn prune_blocks(
     };
 
     // Validate the new mode
-    new_mode.validate()
+    new_mode
+        .validate()
         .map_err(|e| Error::Invalid(format!("Invalid pruning configuration: {}", e)))?;
 
     println!("New pruning mode: {:?}", new_mode);

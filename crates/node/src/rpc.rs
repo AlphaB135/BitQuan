@@ -108,27 +108,22 @@ impl RpcMethods for NodeRpcHandler {
             .unwrap_or(1.0);
 
         // Get pruning info if available
-        let (pruning_mode, pruning_height, blocks_kept) = if let Some(metadata) = self
-            .store
-            .get_pruning_metadata()
-            .await
-            .ok()
-            .flatten()
-        {
-            let mode_str = match metadata.mode {
-                bitquan_storage::PruningMode::Full => Some("full".to_string()),
-                bitquan_storage::PruningMode::Pruned { .. } => Some("pruned".to_string()),
-                bitquan_storage::PruningMode::UtxoOnly => Some("utxo_only".to_string()),
+        let (pruning_mode, pruning_height, blocks_kept) =
+            if let Some(metadata) = self.store.get_pruning_metadata().await.ok().flatten() {
+                let mode_str = match metadata.mode {
+                    bitquan_storage::PruningMode::Full => Some("full".to_string()),
+                    bitquan_storage::PruningMode::Pruned { .. } => Some("pruned".to_string()),
+                    bitquan_storage::PruningMode::UtxoOnly => Some("utxo_only".to_string()),
+                };
+                let blocks = match metadata.mode {
+                    bitquan_storage::PruningMode::Full => None,
+                    bitquan_storage::PruningMode::Pruned { keep_blocks } => Some(keep_blocks),
+                    bitquan_storage::PruningMode::UtxoOnly => Some(0),
+                };
+                (mode_str, metadata.pruning_height, blocks)
+            } else {
+                (None, None, None)
             };
-            let blocks = match metadata.mode {
-                bitquan_storage::PruningMode::Full => None,
-                bitquan_storage::PruningMode::Pruned { keep_blocks } => Some(keep_blocks),
-                bitquan_storage::PruningMode::UtxoOnly => Some(0),
-            };
-            (mode_str, metadata.pruning_height, blocks)
-        } else {
-            (None, None, None)
-        };
 
         Ok(BlockchainInfo {
             chain: self.chain_name.clone(),
