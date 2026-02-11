@@ -39,6 +39,7 @@ docs/
 - **[ASYNC_MIGRATION_STATUS.md](./migrations/ASYNC_MIGRATION_STATUS.md)** - Migration status tracker
 
 ### Operations
+- **[IBD_PROGRESS_TRACKING.md](./operations/IBD_PROGRESS_TRACKING.md)** - Initial Block Download progress monitoring
 - **[DISASTER-RECOVERY.md](./operations/DISASTER-RECOVERY.md)** - Disaster recovery procedures
 - **[ROADMAP](./operations/ROADMAP.md)** - Project roadmap and milestones
 
