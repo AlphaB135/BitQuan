@@ -66,8 +66,18 @@ impl AsyncP2PListener {
 
                     // Spawn a new task for this peer connection
                     tokio::spawn(async move {
-                        if let Err(e) = peer_manager.add_peer_inbound(stream, addr).await {
-                            log::warn!("Failed to add peer {}: {}", addr, e);
+                        match peer_manager.add_peer_inbound(stream, addr).await {
+                            Ok(peer_height) => {
+                                if let Some(height) = peer_height {
+                                    log::info!("Peer {} connected with claimed height {}", addr, height);
+                                } else {
+                                    log::info!("Peer {} connected (no height claimed)", addr);
+                                }
+                                // Note: PeerBook is automatically updated if set via set_peer_book()
+                            }
+                            Err(e) => {
+                                log::warn!("Failed to add peer {}: {}", addr, e);
+                            }
                         }
                     });
                 }
@@ -99,8 +109,18 @@ impl AsyncP2PListener {
                     let peer_manager = Arc::clone(&self.peer_manager);
 
                     tokio::spawn(async move {
-                        if let Err(e) = peer_manager.add_peer_inbound(stream, addr).await {
-                            log::warn!("Failed to add peer {}: {}", addr, e);
+                        match peer_manager.add_peer_inbound(stream, addr).await {
+                            Ok(peer_height) => {
+                                if let Some(height) = peer_height {
+                                    log::info!("Peer {} connected with claimed height {}", addr, height);
+                                } else {
+                                    log::info!("Peer {} connected (no height claimed)", addr);
+                                }
+                                // Note: PeerBook is automatically updated if set via set_peer_book()
+                            }
+                            Err(e) => {
+                                log::warn!("Failed to add peer {}: {}", addr, e);
+                            }
                         }
                     });
                 }

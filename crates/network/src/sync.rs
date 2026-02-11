@@ -325,7 +325,7 @@ impl SyncManager {
             let end_height = current_height + batch_size as u64 - 1;
 
             // Get best peer for this batch
-            let peer_book = self
+            let mut peer_book = self
                 .peer_book
                 .lock()
                 .map_err(|_| bitquan_types::Error::Fatal("peer book lock poisoned"))?;
@@ -337,7 +337,37 @@ impl SyncManager {
             }
 
             let peer_id = best_peers[0].clone();
-            drop(peer_book); // Release lock before network call
+
+            // Validate peer's claimed height before requesting blocks
+            // This prevents requesting blocks that peer doesn't actually have
+            let should_skip_peer = {
+                let peer_claimed_height = peer_book.get_peer(&peer_id)
+                    .and_then(|p| p.claimed_height);
+
+                if let Some(claimed) = peer_claimed_height {
+                    if claimed < end_height {
+                        log::warn!(
+                            "Peer {} claims height {} but we're requesting up to {}, skipping",
+                            peer_id, claimed, end_height
+                        );
+                        peer_book.mark_peer_failure(&peer_id);
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    log::debug!("Peer {} has no claimed_height, trying anyway", peer_id);
+                    false
+                }
+            };
+
+            // Release peer_book lock before network call
+            drop(peer_book);
+
+            // Skip to next peer if current one is unsuitable
+            if should_skip_peer {
+                continue;
+            }
 
             match request_blocks_from_peer(current_height, end_height, &peer_id) {
                 Ok(headers) => {

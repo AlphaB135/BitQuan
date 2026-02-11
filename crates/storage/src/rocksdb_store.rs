@@ -257,6 +257,9 @@ impl RecoveryManager {
                             hex::encode(recomputed_hash)
                         )));
                     }
+                } else {
+                    // Block has been pruned - cannot verify hash integrity
+                    warn!("Skipping integrity check for pruned block at height {} (block data not available)", check_height);
                 }
             }
         }
