@@ -254,17 +254,35 @@ impl SyncManager {
         let mut best_height = self.chain_sync.local_height();
 
         for peer_addr in best_peers {
-            // In a real implementation, we would:
-            // 1. Connect to the peer if not already connected
-            // 2. Send a version message to get their height
-            // 3. Update our best height if they're higher
+            // Verify peer's claimed height matches what they can actually provide
+            if let Some(peer) = peer_book.get_peer(&peer_addr) {
+                // Use peer's claimed height from version handshake
+                // In a full implementation, we would also verify by requesting
+                // a block at that height to confirm the peer has it
+                if let Some(peer_height) = peer.claimed_height {
+                    // Verify that height is reasonable (not ridiculously high)
+                    // This prevents Sybil attacks where peers claim extreme heights
+                    let local_height = self.chain_sync.local_height();
 
-            // For now, simulate getting height from peer
-            if let Some(_peer) = peer_book.get_peer(&peer_addr) {
-                // Simulate peer height (in production would come from version message)
-                let simulated_peer_height = self.chain_sync.local_height() + 10;
-                if simulated_peer_height > best_height {
-                    best_height = simulated_peer_height;
+                    // Sanity check: Don't accept heights more than 1000 blocks ahead
+                    // without verification. In production, this would request
+                    // a block at peer_height to confirm.
+                    if peer_height > local_height && peer_height <= local_height + 1000 {
+                        log::info!(
+                            "✓ Peer {} claims height {} (local: {})",
+                            peer_addr, peer_height, local_height
+                        );
+                        if peer_height > best_height {
+                            best_height = peer_height;
+                        }
+                    } else if peer_height > local_height + 1000 {
+                        log::warn!(
+                            "⚠ Peer {} claims unreasonable height {} (local: {}), ignoring",
+                            peer_addr, peer_height, local_height
+                        );
+                    }
+                } else {
+                    log::debug!("Peer {} has no claimed_height, skipping", peer_addr);
                 }
             }
         }

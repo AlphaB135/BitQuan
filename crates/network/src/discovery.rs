@@ -38,6 +38,9 @@ pub struct PersistentPeer {
     pub failed_connections: u64,
     /// Services provided.
     pub services: u64,
+    /// Peer's claimed blockchain height (from version message).
+    /// Used for Sybil attack protection - only trust heights that can be verified.
+    pub claimed_height: Option<u64>,
 }
 
 impl PersistentPeer {
@@ -54,6 +57,7 @@ impl PersistentPeer {
             successful_connections: 0,
             failed_connections: 0,
             services: 0,
+            claimed_height: None,
         }
     }
 
