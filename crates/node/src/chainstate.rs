@@ -278,6 +278,14 @@ impl ChainState {
             }
         }
 
+        // If no headers found and start_height was 0, this means:
+        // 1. No locators matched our chain
+        // 2. Our chain is empty or doesn't have the requested blocks
+        // This indicates an incompatible peer - return error instead of empty
+        if headers.is_empty() && !locators.is_empty() {
+            return Err(AsyncStoreError::NoValidHeaders);
+        }
+
         Ok(headers)
     }
 
@@ -291,6 +299,14 @@ impl ChainState {
     /// Without a store, this uses only the in-memory history cache (limited to
     /// MAX_HISTORY_SIZE blocks). For full chain access, use the async version with
     /// a store attached.
+    ///
+    /// # Returns
+    /// - Vector of headers if found
+    /// - Empty vector if no headers available (fallback to cache)
+    ///
+    /// # Behavior on Error
+    /// If async version returns `NoValidHeaders`, this falls back to
+    /// cache-only implementation instead of propagating the error.
     pub fn find_headers_after(&self, locators: &[[u8; 32]], limit: usize) -> Vec<BlockHeader> {
         // If store is available and we have a runtime, use async version
         if self.store.is_some() {
@@ -299,10 +315,14 @@ impl ChainState {
                 let locators = locators.to_vec();
 
                 return handle.block_on(async move {
-                    self_clone
-                        .find_headers_after_async(&locators, limit)
-                        .await
-                        .unwrap_or_else(|_| Vec::new())
+                    match self_clone.find_headers_after_async(&locators, limit).await {
+                        Ok(headers) => headers,
+                        Err(AsyncStoreError::NoValidHeaders) => {
+                            // Fall back to cache-only implementation
+                            self_clone.find_headers_after_cached(&locators, limit)
+                        }
+                        Err(_) => Vec::new(), // Other errors return empty
+                    }
                 });
             }
         }

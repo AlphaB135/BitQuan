@@ -76,6 +76,9 @@ impl NodeRpcHandler {
             bitquan_storage::async_store::AsyncStoreError::Cancelled => {
                 RpcError::InternalError("operation cancelled".to_string())
             }
+            bitquan_storage::async_store::AsyncStoreError::NoValidHeaders => {
+                RpcError::InternalError("no valid headers found - peer chain incompatible".to_string())
+            }
         }
     }
 }

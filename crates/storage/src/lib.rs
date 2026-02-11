@@ -164,6 +164,9 @@ impl From<crate::async_store::AsyncStoreError> for StorageError {
             crate::async_store::AsyncStoreError::Cancelled => {
                 StorageError::DatabaseError("Operation cancelled".to_string())
             }
+            crate::async_store::AsyncStoreError::NoValidHeaders => {
+                StorageError::DatabaseError("No valid headers found - peer chain incompatible".to_string())
+            }
         }
     }
 }

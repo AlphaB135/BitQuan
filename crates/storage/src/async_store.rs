@@ -24,6 +24,11 @@ pub enum AsyncStoreError {
     /// Operation was cancelled
     #[error("Operation cancelled")]
     Cancelled,
+
+    /// No valid headers found for the given locators
+    /// This indicates the peer's chain doesn't connect to ours
+    #[error("No valid headers found - peer chain incompatible")]
+    NoValidHeaders,
 }
 
 /// Result type for async storage operations
