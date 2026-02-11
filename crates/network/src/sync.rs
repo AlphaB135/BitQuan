@@ -420,14 +420,18 @@ pub fn request_blocks_from_peer(
         peer_id
     );
 
-    // Return empty vector for now - in production this would contain actual headers
-    // In a full implementation, we would:
-    // - Serialize the message and send it to the peer
-    // - Wait for a Headers response
-    // - Deserialize and validate the headers
-    // - Return the headers
-
-    Ok(vec![])
+    // SECURITY FIX: Return error instead of empty headers
+    // This prevents infinite retry loops in the caller when peers
+    // cannot provide the requested blocks
+    //
+    // In a full implementation, this function would:
+    // - Connect to peer if not already connected
+    // - Send GetHeaders message
+    // - Wait for and parse Headers response
+    // - Validate and return the headers
+    Err(bitquan_types::Error::Net(
+        "request_blocks_from_peer not implemented - peer unavailable".to_string()
+    ))
 }
 
 /// Legacy function for backward compatibility.
