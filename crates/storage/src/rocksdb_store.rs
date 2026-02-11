@@ -1148,6 +1148,72 @@ impl ChainStore for RocksDBStore {
             }
         };
 
+        // NEW: Prune UTXO set after disconnect to prevent unbounded growth
+        self.prune_utxo_set_after_disconnect()?;
+
+        /// Prune UTXO set when a block is disconnected (reorg or manual).
+        /// Only prune if this is NOT the tip block (prevents pruning current chain state).
+        fn prune_utxo_set_after_disconnect(&mut self) -> Result<(), StorageError> {
+            let Some(metadata) = self.get_pruning_metadata()?;
+
+            // Only prune if we have pruning metadata AND block is not tip
+            let should_prune = match metadata.as_ref() {
+                Some(meta) => {
+                    !meta.is_pruned && self.height()? > Some(meta.pruning_height)
+                }
+                None => false
+            };
+
+            if !should_prune {
+                return Ok(()); // No pruning configured or not needed
+            }
+
+            // Prune UTXO set up to (and including) the disconnecting block height
+            let utxo_cutoff_height = match metadata.as_ref() {
+                Some(meta) => {
+                    if meta.pruning_height.is_some() {
+                        meta.pruning_height.unwrap()
+                    } else {
+                        self.height()?.saturating_sub(PruningMode::MIN_SAFE_DEPTH)
+                    }
+                }
+                None => self.height()?.saturating_sub(PruningMode::MIN_SAFE_DEPTH)
+            };
+
+            // Delete UTXOs spent by this block
+            for spent_output in &block.transactions {
+                let outpoint_key = [
+                    &spent_output.prev_txid[..],
+                    &spent_output.prev_vout.to_le_bytes()[..],
+                ]
+                .concat();
+
+                let utxo_entry = StoredUtxoEntry {
+                    output: spent_output.output.clone(),
+                    height: spent_output.height,
+                    is_coinbase: spent_output.is_coinbase,
+                };
+
+                let utxo_data = serialize::to_bytes(&utxo_entry)?;
+                batch.put_cf(&cf_utxo, &outpoint_key, &utxo_data);
+            }
+
+            info!(
+                "Pruned {} UTXOs for block at height {}",
+                utxo_cutoff_height,
+                block_hash(&block.header)
+            );
+
+            // Mark pruning operation complete in metadata
+            if let Some(mut metadata) = self.get_pruning_metadata() {
+                let mut new_meta = metadata.clone();
+                new_meta.record_pruning(block_hash, utxo_cutoff_height);
+                self.set_pruning_metadata(new_meta)?;
+            }
+
+            Ok(())
+        }
+
         // Restore spent UTXOs from undo data
         for spent_output in &undo_block.spent_outputs {
             let outpoint_key = [
