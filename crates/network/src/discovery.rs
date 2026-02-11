@@ -81,6 +81,15 @@ impl PersistentPeer {
     }
 
     /// Calculate peer score (higher is better).
+    ///
+    /// Scoring factors:
+    /// - Success rate: successful_connections / total_connections
+    /// - Recency bonus: peers seen recently score higher
+    /// - Age penalty: decays over hours (3600s = 1 hour)
+    ///
+    /// Formula: score = success_rate × (1 / (1 + age_hours))
+    /// - score range: 0.0 to 1.0
+    /// - higher score = better peer
     pub fn score(&self) -> f64 {
         let total = (self.successful_connections + self.failed_connections) as f64;
         if total == 0.0 {
@@ -97,7 +106,20 @@ impl PersistentPeer {
         let age_secs = now.saturating_sub(self.last_seen);
         let age_penalty = 1.0 / (1.0 + (age_secs as f64 / 3600.0)); // Decay over hours
 
-        success_rate * age_penalty
+        let final_score = success_rate * age_penalty;
+
+        // Log scoring for debugging (only for peers with history)
+        if total > 0.0 {
+            log::debug!(
+                "Peer {} score: {:.4} (success_rate={:.2}, age_hours={:.1})",
+                self.addr,
+                final_score,
+                success_rate,
+                age_secs as f64 / 3600.0
+            );
+        }
+
+        final_score
     }
 
     /// Check if peer is stale (not seen recently).
