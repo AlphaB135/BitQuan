@@ -40,6 +40,7 @@ pedantic = "warn"
 
 [workspace.dependencies]
 clap = { version = "4.5", features = ["derive"] }
+bytes = "1.11.1"  # RUSTSEC-2026-0007: warp 0.4.2 uses 1.11.0 (vulnerable)
 hex = "0.4"
 rocksdb = "0.23"
 serde = { version = "1.0", features = ["derive"] }
