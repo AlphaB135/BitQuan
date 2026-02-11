@@ -1302,7 +1302,52 @@ async fn handle_getblocks(
     // 2. Fetch blocks from (ancestor_height + 1) to tip
     // 3. Limit to 500 blocks per message
 
-    let mut height = 0u64;
+    // Find the height of the common ancestor to start announcing AFTER it
+    // This prevents announcing blocks the peer already has (chain split prevention)
+    let mut start_height = 0u64;
+
+    // Check each locator hash to find common ancestor
+    for locator_hash in &locator_hashes {
+        match ctx.storage.get_block(locator_hash).await {
+            Ok(Some(_)) => {
+                // Found common ancestor - now find its height
+                let chain_height = match ctx.storage.height().await {
+                    Ok(h) => h,
+                    Err(e) => {
+                        log::error!("Failed to get chain height: {}", e);
+                        return Ok(false);
+                    }
+                };
+
+                // Search for the ancestor's height
+                let mut found_height = None;
+                for h in 0..=chain_height {
+                    if let Ok(Some(block)) = ctx.storage.get_block_by_height(h).await {
+                        let block_hash = header_hash(&block.header);
+                        if block_hash == *locator_hash {
+                            found_height = Some(h);
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(h) = found_height {
+                    start_height = h + 1;
+                    log::info!("✅ Common ancestor at height {}, starting from {}", h, start_height);
+                }
+                break;
+            }
+            Ok(None) => {
+                // This locator doesn't exist in our chain, try next
+            }
+            Err(e) => {
+                log::error!("Storage error checking locator: {}", e);
+                break;
+            }
+        }
+    }
+
+    let mut height = start_height;
     let limit = 500; // Max blocks to announce per GetBlocks response
 
     while inv.len() < limit {
