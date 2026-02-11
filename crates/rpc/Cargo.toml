@@ -24,7 +24,7 @@ httparse = "1.8"
 rustls = { version = "0.23", features = ["ring"] }
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging"] }
-rcgen = "0.13"
+rcgen = "0.14"
 
 # JWT Authentication
 jsonwebtoken = "9.2"

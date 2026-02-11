@@ -107,10 +107,10 @@ impl AsRef<ServerConfig> for TlsConfig {
 /// The artefacts are written to `cert.pem` and `key.pem` under the provided output directory.
 pub fn generate_self_signed_cert(output_dir: &Path) -> Result<(), TlsError> {
     let subject_alt_names = vec!["localhost".to_string(), "127.0.0.1".to_string()];
-    let CertifiedKey { cert, key_pair } = generate_simple_self_signed(subject_alt_names)?;
+    let CertifiedKey { cert, signing_key } = generate_simple_self_signed(subject_alt_names)?;
 
     let cert_pem = cert.pem();
-    let key_pem = key_pair.serialize_pem();
+    let key_pem = signing_key.serialize_pem();
 
     std::fs::write(output_dir.join("cert.pem"), cert_pem)?;
     std::fs::write(output_dir.join("key.pem"), key_pem)?;
