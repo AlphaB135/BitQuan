@@ -1144,6 +1144,25 @@ impl ChainStore for RocksDBStore {
             .db
             .cf_handle(CF_UNDO)
             .ok_or_else(|| StorageError::DatabaseError("undo CF not found".into()))?;
+        let cf_blocks = self
+            .db
+            .cf_handle(CF_BLOCKS)
+            .ok_or_else(|| StorageError::DatabaseError("blocks CF not found".into()))?;
+        let cf_headers = self
+            .db
+            .cf_handle(CF_HEADERS)
+            .ok_or_else(|| StorageError::DatabaseError("headers CF not found".into()))?;
+        let cf_height = self
+            .db
+            .cf_handle(CF_HEIGHT_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
+        let cf_tx = self
+            .db
+            .cf_handle(CF_TX_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("tx_index CF not found".into()))?;
+
+        // Get current height before updating (needed for cleanup)
+        let current_height = self.height()?;
 
         // Load undo data for this block
         let undo_data = self
@@ -1202,6 +1221,22 @@ impl ChainStore for RocksDBStore {
         }
 
         batch.put_cf(&cf_meta, KEY_HEIGHT, new_height.to_le_bytes());
+
+        // C2 FIX: Clean up orphan data for the disconnected block
+        // Without this, stale data remains after reorg and can conflict with new chain
+        batch.delete_cf(&cf_blocks, block_id);
+        batch.delete_cf(&cf_headers, block_id);
+        // Delete height index entry (blocks are 0-indexed, so height key is height-1)
+        if current_height > 0 {
+            batch.delete_cf(&cf_height, (current_height - 1).to_le_bytes());
+        }
+        // Delete transaction index entries for all transactions in this block
+        for tx in &block.transactions {
+            let txid = tx.txid();
+            batch.delete_cf(&cf_tx, txid);
+        }
+        // Delete undo data (no longer needed after disconnect)
+        batch.delete_cf(&cf_undo, block_id);
 
         self.db
             .write_opt(batch, &Self::sync_write_opts())
@@ -1314,6 +1349,7 @@ impl RocksDBStore {
     /// Legacy disconnect method for blocks without undo data.
     /// This is less efficient but provides backwards compatibility.
     fn disconnect_block_legacy(&mut self, block: &Block) -> Result<(), StorageError> {
+        let block_id = Self::block_id(&block.header);
         let mut batch = WriteBatch::default();
         let cf_utxo = self
             .db
@@ -1323,6 +1359,25 @@ impl RocksDBStore {
             .db
             .cf_handle(CF_META)
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+        let cf_blocks = self
+            .db
+            .cf_handle(CF_BLOCKS)
+            .ok_or_else(|| StorageError::DatabaseError("blocks CF not found".into()))?;
+        let cf_headers = self
+            .db
+            .cf_handle(CF_HEADERS)
+            .ok_or_else(|| StorageError::DatabaseError("headers CF not found".into()))?;
+        let cf_height = self
+            .db
+            .cf_handle(CF_HEIGHT_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
+        let cf_tx = self
+            .db
+            .cf_handle(CF_TX_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("tx_index CF not found".into()))?;
+
+        // Get current height before updating (needed for cleanup)
+        let current_height = self.height()?;
 
         // Revert UTXO changes
         for tx in block.transactions.iter() {
@@ -1376,6 +1431,19 @@ impl RocksDBStore {
         }
 
         batch.put_cf(&cf_meta, KEY_HEIGHT, new_height.to_le_bytes());
+
+        // C2 FIX: Clean up orphan data for the disconnected block (legacy version)
+        batch.delete_cf(&cf_blocks, block_id);
+        batch.delete_cf(&cf_headers, block_id);
+        // Delete height index entry (blocks are 0-indexed, so height key is height-1)
+        if current_height > 0 {
+            batch.delete_cf(&cf_height, (current_height - 1).to_le_bytes());
+        }
+        // Delete transaction index entries for all transactions in this block
+        for tx in &block.transactions {
+            let txid = tx.txid();
+            batch.delete_cf(&cf_tx, txid);
+        }
 
         self.db
             .write_opt(batch, &Self::sync_write_opts())
