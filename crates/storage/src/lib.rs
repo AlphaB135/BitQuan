@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use bitquan_types::{Block, BlockHeader, Transaction};
+use log::error;
 use thiserror::Error;
 
 #[cfg(feature = "rocksdb-backend")]
@@ -145,7 +146,13 @@ impl PruningMetadata {
         self.pruning_height = Some(new_pruning_height);
         self.last_pruned = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
+            .unwrap_or_else(|e| {
+                // System time went backwards - use current timestamp as fallback
+                eprintln!("System clock error in record_pruning: {}", e);
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+            })
             .as_secs();
         self.total_pruned = self.total_pruned.saturating_add(blocks_pruned);
     }

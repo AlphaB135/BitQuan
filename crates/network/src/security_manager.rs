@@ -627,7 +627,8 @@ mod tests {
         let config = SecurityConfig::for_security_level(SecurityLevel::Standard);
         let mut security = SecurityManager::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
-        let ip = "127.0.0.1".parse().unwrap();
+        let ip = "127.0.0.1".parse()
+            .expect("Invalid IP address in test");
 
         // Should allow connection
         assert!(security
@@ -656,7 +657,8 @@ mod tests {
         let config = SecurityConfig::for_security_level(SecurityLevel::Standard);
         let mut security = SecurityManager::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
-        let ip = "127.0.0.1".parse().unwrap();
+        let ip = "127.0.0.1".parse()
+            .expect("Invalid IP address in test");
 
         // Ban peer directly
         assert!(security

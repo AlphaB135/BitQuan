@@ -75,7 +75,7 @@ mod tests {
         let err = recv_envelope(&mut reader, [0u8; 4]).expect_err("should reject oversize");
         match err {
             P2pError::MessageTooLarge(size) => assert_eq!(size, MAX_MESSAGE_SIZE + 1),
-            other => unreachable!("unexpected error: {:?}", other),
+            other => panic!("unexpected error: {:?}", other),
         }
     }
 }

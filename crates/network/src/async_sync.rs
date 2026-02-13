@@ -841,19 +841,23 @@ mod tests {
     async fn test_async_chain_sync() {
         let sync = AsyncChainSync::new(100);
 
-        let progress = sync.get_progress().await.unwrap();
+        let progress = sync.get_progress().await
+            .expect("Failed to get sync progress in test");
         assert_eq!(progress.local_height, 100);
         assert_eq!(progress.best_height, 100);
 
-        sync.set_best_height(150).await.unwrap();
+        sync.set_best_height(150).await
+            .expect("Failed to set best height in test");
 
-        let progress = sync.get_progress().await.unwrap();
+        let progress = sync.get_progress().await
+            .expect("Failed to get sync progress in test");
         assert_eq!(progress.best_height, 150);
     }
 
     #[tokio::test]
     async fn test_async_sync_manager() {
-        let noise_config = Arc::new(NoiseConfig::generate().unwrap());
+        let noise_config = Arc::new(NoiseConfig::generate()
+            .expect("Failed to generate noise config in test"));
         let peer_manager = Arc::new(PeerManager::new(10, NetworkId::Regtest, noise_config));
         let peer_book = Arc::new(Mutex::new(PeerBook::new()));
         let network_id = NetworkId::Regtest;
@@ -870,10 +874,12 @@ mod tests {
             storage,
         );
 
-        let progress = sync_manager.get_sync_progress().await.unwrap();
+        let progress = sync_manager.get_sync_progress().await
+            .expect("Failed to get sync progress in test");
         assert_eq!(progress.local_height, 100);
 
-        let needs_sync = sync_manager.needs_sync().await.unwrap();
+        let needs_sync = sync_manager.needs_sync().await
+            .expect("Failed to check sync needs in test");
         assert!(!needs_sync);
     }
 }

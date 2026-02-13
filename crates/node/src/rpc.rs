@@ -77,7 +77,9 @@ impl NodeRpcHandler {
                 RpcError::InternalError("operation cancelled".to_string())
             }
             bitquan_storage::async_store::AsyncStoreError::NoValidHeaders => {
-                RpcError::InternalError("no valid headers found - peer chain incompatible".to_string())
+                RpcError::InternalError(
+                    "no valid headers found - peer chain incompatible".to_string(),
+                )
             }
         }
     }
@@ -744,7 +746,15 @@ impl RpcMethods for NodeRpcHandler {
         // Calculate change (for simplicity, send change back to sender)
         // Estimate fee: ~10KB for Dilithium transaction @ 1 sat/byte = 10,000 satoshis
         let estimated_fee = 10_000u64;
-        let change_value = input_value - output_value - (estimated_fee as u128);
+        let change_value = input_value
+            .checked_sub(output_value)
+            .and_then(|v| v.checked_sub(estimated_fee as u128))
+            .ok_or_else(|| {
+                RpcError::InternalError(format!(
+                    "Insufficient funds: have {} qbits, need {} + {} fee",
+                    input_value, output_value, estimated_fee
+                ))
+            })?;
         let sender_pubkey_hash = wallet.public_key_hash();
         let change_script = script_from_pubkey_hash(&sender_pubkey_hash);
 

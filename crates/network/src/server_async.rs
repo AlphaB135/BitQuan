@@ -208,8 +208,9 @@ mod tests {
         let peer_manager = Arc::new(AsyncPeerManager::new(10, NetworkId::Devnet));
         let listener = AsyncP2PListener::bind("127.0.0.1:0", peer_manager)
             .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+            .expect("Failed to bind listener in test");
+        let addr = listener.local_addr()
+            .expect("Failed to get local address in test");
         assert_eq!(addr.ip().to_string(), "127.0.0.1");
     }
 }

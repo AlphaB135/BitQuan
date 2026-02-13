@@ -770,14 +770,22 @@ impl RocksDBStore {
             .get_cf(&meta_cf, KEY_LAST_PRUNED)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?
             .and_then(|bytes| bincode::deserialize(&bytes).ok())
-            .unwrap_or(0);
+            .unwrap_or_else(|| {
+                // Default value when no timestamp is stored - this should only happen
+                // for newly created databases or databases where timestamps weren't recorded
+                0
+            });
 
         let total_pruned = self
             .db
             .get_cf(&meta_cf, KEY_TOTAL_PRUNED)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?
             .and_then(|bytes| bincode::deserialize(&bytes).ok())
-            .unwrap_or(0);
+            .unwrap_or_else(|| {
+                // Default value when no timestamp is stored - this should only happen
+                // for newly created databases or databases where timestamps weren't recorded
+                0
+            });
 
         Ok(crate::PruningMetadata {
             mode,
@@ -834,7 +842,15 @@ impl RocksDBStore {
 
             // Parse height from key (assuming key is height encoded as bytes)
             if key.len() >= 8 {
-                let height = u64::from_le_bytes(key[..8].try_into().unwrap_or([0u8; 8]));
+                let height = u64::from_le_bytes({
+                    let key_bytes: [u8; 8] = key[..8].try_into()
+                        .unwrap_or_else(|_| {
+                            // Invalid key format - log error and skip
+                            error!("Invalid height index key: length < 8 bytes");
+                            [0u8; 8]
+                        });
+                    key_bytes
+                });
 
                 if height >= before_height {
                     break; // Reached non-prunable height
@@ -901,7 +917,10 @@ impl RocksDBStore {
         // Get current metadata or create new
         let mut metadata = self
             .get_pruning_metadata()
-            .unwrap_or_else(|_| crate::PruningMetadata::new(crate::PruningMode::default()));
+            .unwrap_or_else(|e| {
+                error!("Failed to get pruning metadata, using default: {}", e);
+                crate::PruningMetadata::new(crate::PruningMode::default())
+            });
 
         metadata.record_pruning(new_pruning_height, blocks_pruned);
 

@@ -147,7 +147,7 @@ fn test_create_block_inv_message() {
             assert_eq!(inventory[0].hash, hash);
             assert_eq!(inventory[0].inv_type, InvType::Block);
         }
-        _ => panic!("Expected Inv message"),
+        _ => panic!("Expected Inv message"), // Test code - panic is acceptable for test failures
     }
 }
 

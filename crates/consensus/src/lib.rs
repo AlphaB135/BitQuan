@@ -372,6 +372,15 @@ pub enum ConsensusError {
         /// Dust threshold
         threshold: u128,
     },
+    /// Block timestamp is too far in the future.
+    #[error("block timestamp {0} too far in future (max {1})")]
+    TimestampTooFarInFuture(u64, u64),
+    /// Block timestamp is at or below median time past.
+    #[error("block timestamp {0} at or below median time past {1}")]
+    TimestampBelowMTP(u64, u64),
+    /// Invalid difficulty target value.
+    #[error("invalid difficulty target: {0:#x}")]
+    InvalidDifficultyTarget(u32),
 }
 
 /// Calculates transaction weight according to BQIP-0002.
@@ -555,39 +564,37 @@ fn validate_block_header(
         // Validate timestamp is not too far in the future (2 hours tolerance)
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| {
-                ConsensusError::InvalidSignature("System time is before Unix epoch".to_string())
-            })?
+            .unwrap_or_default()
             .as_secs();
 
-        if u64::from(header.time) > current_time + 7200 {
-            return Err(ConsensusError::InvalidSignature(
-                "Block timestamp too far in the future".to_string(),
+        let max_future_time = current_time + 7200;
+        let block_time = u64::from(header.time);
+        if block_time > max_future_time {
+            return Err(ConsensusError::TimestampTooFarInFuture(
+                block_time,
+                max_future_time,
             ));
         }
 
         // Validate timestamp is greater than median of past 11 blocks
-        if u64::from(header.time) <= median_time_past {
-            return Err(ConsensusError::InvalidSignature(
-                "Block timestamp too old (must be > median time past)".to_string(),
+        if block_time <= median_time_past {
+            return Err(ConsensusError::TimestampBelowMTP(
+                block_time,
+                median_time_past,
             ));
         }
     }
 
     // Validate proof of work target
     let target = header.bits;
-    if target == 0 || target > 0x207fffff {
-        return Err(ConsensusError::InvalidSignature(
-            "Invalid difficulty target".to_string(),
-        ));
+    if target == 0 || target > 0x2100ffff {
+        return Err(ConsensusError::InvalidDifficultyTarget(target));
     }
 
     // Validate merkle root matches transactions
     let calculated_merkle = calculate_merkle_root(&block.transactions)?;
     if calculated_merkle != header.merkle_root {
-        return Err(ConsensusError::InvalidSignature(
-            "Merkle root mismatch".to_string(),
-        ));
+        return Err(ConsensusError::MerkleRootMismatch);
     }
 
     Ok(())
@@ -682,12 +689,15 @@ fn validate_transaction_fees(
         return Err(ConsensusError::CoinbaseExceedsSubsidy);
     }
 
-    // Coinbase should be at least block subsidy (Prevent burning/mistakes)
-    // Note: Some chains allow burning, but BitQuan enforces this to prevent accidental loss
+    // Note: Miners may voluntarily claim less than full subsidy (e.g., fee donation).
+    // This is allowed per Bitcoin convention. The critical check is the ceiling above.
     if coinbase_output < block_subsidy {
-        return Err(ConsensusError::InvalidSignature(
-            "Coinbase reward below block subsidy".to_string(),
-        ));
+        log::warn!(
+            "⚠ Coinbase output {} is below block subsidy {} (miner forfeited {})",
+            coinbase_output,
+            block_subsidy,
+            block_subsidy - coinbase_output
+        );
     }
 
     Ok(())

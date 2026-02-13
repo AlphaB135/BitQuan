@@ -333,8 +333,10 @@ mod tests {
 
     #[test]
     fn test_range_size() {
-        assert_eq!(range_size(0, 100).unwrap(), 101); // 0 to 100 inclusive
-        assert_eq!(range_size(50, 50).unwrap(), 1); // Single block
+        assert_eq!(range_size(0, 100)
+            .expect("Valid range should not fail"), 101); // 0 to 100 inclusive
+        assert_eq!(range_size(50, 50)
+            .expect("Valid range should not fail"), 1); // Single block
         assert!(range_size(100, 0).is_err()); // Invalid range
     }
 }

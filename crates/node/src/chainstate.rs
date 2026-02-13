@@ -593,6 +593,8 @@ mod tests {
         // Add some blocks
         for i in 0..5 {
             state.append_block(&block, [i as u8; 32]).unwrap();
+            // Cache the validated header so it can be returned by find_headers_after
+            state.cache_validated_header([i as u8; 32], block.header.clone());
         }
 
         // Empty locators should return from beginning (cache-only fallback)
@@ -627,6 +629,8 @@ mod tests {
         // Add 20 blocks
         for i in 0..20 {
             state.append_block(&block, [i as u8; 32]).unwrap();
+            // Cache the validated header so it can be returned by find_headers_after
+            state.cache_validated_header([i as u8; 32], block.header.clone());
         }
 
         // Send locator = block 10 (middle)
@@ -662,6 +666,8 @@ mod tests {
         // Add some blocks
         for i in 0..5 {
             state.append_block(&block, [i as u8; 32]).unwrap();
+            // Cache the validated header so it can be returned by find_headers_after
+            state.cache_validated_header([i as u8; 32], block.header.clone());
         }
 
         // Send unknown locator

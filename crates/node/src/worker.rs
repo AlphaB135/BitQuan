@@ -1185,6 +1185,23 @@ async fn handle_headers(
 
         valid_count += 1;
         block_hashes.push(hash);
+
+        // Validate timestamp is not too far in the future (2 hours)
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if u64::from(header.time) > now + 7200 {
+            log::warn!(
+                "⚠️  Header {}/{} has future timestamp ({} > {})",
+                idx + 1,
+                headers.len(),
+                header.time,
+                now + 7200
+            );
+            let _ = peer.add_ban_score(20);
+            break;
+        }
     }
 
     log::info!(
@@ -1265,14 +1282,12 @@ async fn handle_getblocks(
         hex::encode(&stop_hash[..8])
     );
 
-
     // Find the height of the common ancestor to start announcing AFTER it
     // This prevents announcing blocks the peer already has (chain split prevention)
     let mut start_height = 0u64;
 
     // Build inventory of blocks to announce
     let mut inv: Vec<bitquan_network::protocol::InvVector> = Vec::new();
-
 
     // Check each locator hash to find common ancestor
     for locator_hash in &locator_hashes {
@@ -1301,7 +1316,11 @@ async fn handle_getblocks(
 
                 if let Some(h) = found_height {
                     start_height = h + 1;
-                    log::info!("✅ Common ancestor at height {}, starting from {}", h, start_height);
+                    log::info!(
+                        "✅ Common ancestor at height {}, starting from {}",
+                        h,
+                        start_height
+                    );
                 }
                 break;
             }
@@ -1525,6 +1544,7 @@ pub(crate) async fn validate_block_utxos(
 pub async fn perform_version_handshake(
     peer: &mut Peer,
     network: NetworkId,
+    height: u64,
 ) -> Result<(), WorkerError> {
     use bitquan_network::protocol::{Message, PROTOCOL_VERSION};
 
@@ -1561,7 +1581,7 @@ pub async fn perform_version_handshake(
                     .unwrap_or_default()
                     .as_secs(),
                 user_agent: env!("CARGO_PKG_NAME").to_string(),
-                start_height: 0, // TODO: Get from chain state
+                start_height: height,
             };
 
             peer.send_message(our_version)?;
