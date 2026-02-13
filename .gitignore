@@ -365,3 +365,5 @@ debug_test_data
 audit_scanner.py
 map.md
 jwt.toml
+/oracle-reports/
+/oracle-v2/
