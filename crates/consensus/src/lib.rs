@@ -22,6 +22,9 @@ pub mod utxo;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod comprehensive_tests;
+
 pub use asert::{asert_next_target, BurstGuardState, GuardContext, FP_SCALE};
 pub use difficulty::{compact_to_target, target_to_compact_u64, DifficultyState};
 pub use economic::{
