@@ -392,14 +392,14 @@ impl AsyncSyncManager {
     /// ```ignore
     /// #[cfg(test)]
     /// fn test_sync() {
-    ///     let manager = AsyncSyncManager::new(100); // ✅ OK: test code
+    ///     let manager = AsyncSyncManager::new_for_testing(100); // ✅ OK: test code
     /// }
     /// ```
     ///
     /// # Example (Production - DON'T DO THIS)
     /// ```ignore
     /// // ❌ WRONG: Don't use new() in production!
-    /// // let manager = AsyncSyncManager::new(height);
+    /// // let manager = AsyncSyncManager::new_for_testing(height);
     ///
     /// // ✅ CORRECT: Use new_with_components() with real dependencies
     /// let manager = AsyncSyncManager::new_with_components(
@@ -411,7 +411,7 @@ impl AsyncSyncManager {
     /// );
     /// ```
     #[allow(clippy::expect_used)] // Test-only code: noise config generation should never fail
-    pub fn new(local_height: u64) -> Self {
+    pub fn new_for_testing(local_height: u64) -> Self {
         // Create mock components for testing
         let noise_config = Arc::new(
             NoiseConfig::generate().expect("Failed to generate noise config for sync manager"),
@@ -436,6 +436,12 @@ impl AsyncSyncManager {
             safety_gates: Arc::new(MigrationSafetyGates::new(safety_config)),
             storage,
         }
+    }
+
+    /// Create a test-only sync manager (deprecated alias).
+    #[deprecated(note = "Use new_for_testing() for tests or new_with_components() in production")]
+    pub fn new(local_height: u64) -> Self {
+        Self::new_for_testing(local_height)
     }
 
     /// Create a new async sync manager with full components
@@ -479,7 +485,9 @@ impl AsyncSyncManager {
 
     /// Get current sync progress
     pub async fn get_sync_progress(&self) -> AsyncSyncResult<SyncProgress> {
-        self.chain_sync.get_progress().await
+        let mut progress = self.chain_sync.get_progress().await?;
+        progress.peers_connected = self.peer_manager.peer_count().await as u64;
+        Ok(progress)
     }
 
     /// Check if sync is needed
@@ -628,6 +636,7 @@ impl AsyncSyncManager {
                     Ok(headers) => {
                         if !headers.is_empty() {
                             headers_received = true;
+                            sync.add_headers_synced(headers.len() as u64);
                             current_height += headers.len() as u64;
                             sync.set_local_height(current_height);
 
