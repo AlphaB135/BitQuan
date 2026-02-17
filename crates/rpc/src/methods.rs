@@ -184,6 +184,12 @@ pub struct SyncResponse {
     pub last_sync_attempt: u64,
     /// Sync errors count
     pub sync_errors: u64,
+    /// Number of headers synced in current run
+    pub headers_synced: u64,
+    /// Number of blocks synced in current run
+    pub blocks_synced: u64,
+    /// Number of connected peers
+    pub peers_connected: u64,
 }
 
 /// RPC method handler trait

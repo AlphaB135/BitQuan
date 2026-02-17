@@ -35,6 +35,10 @@ pub struct ChainSync {
     last_sync_attempt: Arc<AtomicU64>,
     /// Sync errors count.
     sync_errors: Arc<AtomicU64>,
+    /// Number of headers synced in current sync run.
+    headers_synced: Arc<AtomicU64>,
+    /// Number of blocks synced in current sync run.
+    blocks_synced: Arc<AtomicU64>,
 }
 
 impl ChainSync {
@@ -47,6 +51,8 @@ impl ChainSync {
             syncing: Arc::new(AtomicBool::new(false)),
             last_sync_attempt: Arc::new(AtomicU64::new(0)),
             sync_errors: Arc::new(AtomicU64::new(0)),
+            headers_synced: Arc::new(AtomicU64::new(0)),
+            blocks_synced: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -114,6 +120,8 @@ impl ChainSync {
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
             .is_ok()
         {
+            self.headers_synced.store(0, Ordering::Relaxed);
+            self.blocks_synced.store(0, Ordering::Relaxed);
             self.set_status(SyncStatus::Discovering);
             self.update_last_sync_attempt();
             true
@@ -173,6 +181,26 @@ impl ChainSync {
     pub fn reset_sync_errors(&self) {
         self.sync_errors.store(0, Ordering::Relaxed);
     }
+
+    /// Get number of headers synced in current sync run.
+    pub fn headers_synced(&self) -> u64 {
+        self.headers_synced.load(Ordering::Relaxed)
+    }
+
+    /// Increment number of synced headers.
+    pub fn add_headers_synced(&self, count: u64) {
+        self.headers_synced.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Get number of blocks synced in current sync run.
+    pub fn blocks_synced(&self) -> u64 {
+        self.blocks_synced.load(Ordering::Relaxed)
+    }
+
+    /// Increment number of synced blocks.
+    pub fn add_blocks_synced(&self, count: u64) {
+        self.blocks_synced.fetch_add(count, Ordering::Relaxed);
+    }
 }
 
 /// Sync progress info.
@@ -192,6 +220,12 @@ pub struct SyncProgress {
     pub last_sync_attempt: u64,
     /// Sync errors count.
     pub sync_errors: u64,
+    /// Number of headers synced in current sync run.
+    pub headers_synced: u64,
+    /// Number of blocks synced in current sync run.
+    pub blocks_synced: u64,
+    /// Number of connected peers.
+    pub peers_connected: u64,
 }
 
 impl From<&ChainSync> for SyncProgress {
@@ -204,6 +238,9 @@ impl From<&ChainSync> for SyncProgress {
             progress: sync.progress(),
             last_sync_attempt: sync.last_sync_attempt(),
             sync_errors: sync.sync_errors(),
+            headers_synced: sync.headers_synced(),
+            blocks_synced: sync.blocks_synced(),
+            peers_connected: 0,
         }
     }
 }
@@ -456,6 +493,7 @@ pub fn process_headers(headers: Vec<BlockHeader>, sync: &ChainSync) -> Result<()
     }
 
     // Update local height based on received headers
+    sync.add_headers_synced(headers.len() as u64);
     let last_height = sync.local_height() + headers.len() as u64;
     sync.set_local_height(last_height);
 
@@ -559,6 +597,9 @@ mod tests {
         assert_eq!(progress.blocks_behind, 25);
         assert_eq!(progress.progress, 75.0);
         assert_eq!(progress.sync_errors, 0);
+        assert_eq!(progress.headers_synced, 0);
+        assert_eq!(progress.blocks_synced, 0);
+        assert_eq!(progress.peers_connected, 0);
     }
 
     #[test]

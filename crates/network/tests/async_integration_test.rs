@@ -169,7 +169,7 @@ async fn test_peer_manager_cleanup() {
 async fn test_async_network_error_handling() {
     use bitquan_network::async_sync::AsyncSyncManager;
 
-    let sync_manager = AsyncSyncManager::new(100); // height=100
+    let sync_manager = AsyncSyncManager::new_for_testing(100); // height=100
 
     // Test getting sync status
     let result = sync_manager.sync_status().await;

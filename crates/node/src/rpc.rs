@@ -323,6 +323,9 @@ impl RpcMethods for NodeRpcHandler {
                 syncing: is_syncing,
                 last_sync_attempt: progress.last_sync_attempt,
                 sync_errors: progress.sync_errors,
+                headers_synced: progress.headers_synced,
+                blocks_synced: progress.blocks_synced,
+                peers_connected: progress.peers_connected,
             })
         } else {
             // Fallback when sync manager is not initialized
@@ -335,6 +338,9 @@ impl RpcMethods for NodeRpcHandler {
                 syncing: false,
                 last_sync_attempt: 0,
                 sync_errors: 0,
+                headers_synced: 0,
+                blocks_synced: 0,
+                peers_connected: 0,
             })
         }
     }
