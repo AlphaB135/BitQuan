@@ -125,7 +125,7 @@ jobs:
 
           # Start nodes in background
           for i in 1 2 3; do
-            timeout 60s cargo run --release -- \
+            timeout 60s cargo run --release --bin bitquan-node -- \
               --config test-cluster/node$i/config.toml \
               --data-dir test-cluster/node$i/data \
               --peers node1:8331,node2:8332,node3:8333 &
