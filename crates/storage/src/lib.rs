@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 
 use bitquan_types::{Block, BlockHeader, Transaction};
-use log::error;
 use thiserror::Error;
 
 #[cfg(feature = "rocksdb-backend")]
