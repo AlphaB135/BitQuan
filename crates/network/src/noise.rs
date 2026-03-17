@@ -493,8 +493,7 @@ mod tests {
 
     #[test]
     fn test_keypair_generation() {
-        let config = NoiseConfig::generate()
-            .expect("Failed to generate noise config in test");
+        let config = NoiseConfig::generate().expect("Failed to generate noise config in test");
         assert_eq!(config.public_key.len(), 32);
         assert_eq!(config.private_key.len(), 32);
         // Public and private keys should be different
@@ -503,32 +502,34 @@ mod tests {
 
     #[test]
     fn test_handshake_and_transport() {
-        let initiator_config = NoiseConfig::generate()
-            .expect("Failed to generate initiator noise config in test");
-        let responder_config = NoiseConfig::generate()
-            .expect("Failed to generate responder noise config in test");
+        let initiator_config =
+            NoiseConfig::generate().expect("Failed to generate initiator noise config in test");
+        let responder_config =
+            NoiseConfig::generate().expect("Failed to generate responder noise config in test");
 
         // Set up listener
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .expect("Failed to bind TCP listener in test");
-        let addr = listener.local_addr()
+        let listener =
+            TcpListener::bind("127.0.0.1:0").expect("Failed to bind TCP listener in test");
+        let addr = listener
+            .local_addr()
             .expect("Failed to get local address in test");
 
         // Spawn responder thread
         let responder_cfg = responder_config.clone();
         let responder_thread = thread::spawn(move || {
-            let (stream, _) = listener.accept()
+            let (stream, _) = listener
+                .accept()
                 .expect("Failed to accept connection in test");
             NoiseTransport::upgrade_responder(stream, &responder_cfg)
                 .expect("Failed to upgrade responder in test")
         });
 
         // Connect as initiator
-        let stream = TcpStream::connect(addr)
-            .expect("Failed to connect to listener in test");
+        let stream = TcpStream::connect(addr).expect("Failed to connect to listener in test");
         let mut initiator = NoiseTransport::upgrade_initiator(stream, &initiator_config)
             .expect("Failed to upgrade initiator in test");
-        let mut responder = responder_thread.join()
+        let mut responder = responder_thread
+            .join()
             .expect("Failed to join responder thread in test");
 
         // Verify key exchange
@@ -537,58 +538,67 @@ mod tests {
 
         // Test encrypted communication
         let test_msg = b"Hello, encrypted world!";
-        initiator.send(test_msg)
+        initiator
+            .send(test_msg)
             .expect("Failed to send message as initiator");
-        let received = responder.recv()
+        let received = responder
+            .recv()
             .expect("Failed to receive message as responder");
         assert_eq!(received, test_msg);
 
         // Test reverse direction
         let response = b"Hello back!";
-        responder.send(response)
+        responder
+            .send(response)
             .expect("Failed to send response as responder");
-        let received = initiator.recv()
+        let received = initiator
+            .recv()
             .expect("Failed to receive response as initiator");
         assert_eq!(received, response);
     }
 
     #[test]
     fn test_read_write_traits() {
-        let initiator_config = NoiseConfig::generate()
-            .expect("Failed to generate initiator noise config in test");
-        let responder_config = NoiseConfig::generate()
-            .expect("Failed to generate responder noise config in test");
+        let initiator_config =
+            NoiseConfig::generate().expect("Failed to generate initiator noise config in test");
+        let responder_config =
+            NoiseConfig::generate().expect("Failed to generate responder noise config in test");
 
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .expect("Failed to bind TCP listener in test");
-        let addr = listener.local_addr()
+        let listener =
+            TcpListener::bind("127.0.0.1:0").expect("Failed to bind TCP listener in test");
+        let addr = listener
+            .local_addr()
             .expect("Failed to get local address in test");
 
         let responder_cfg = responder_config.clone();
         let responder_thread = thread::spawn(move || {
-            let (stream, _) = listener.accept()
+            let (stream, _) = listener
+                .accept()
                 .expect("Failed to accept connection in test");
             NoiseTransport::upgrade_responder(stream, &responder_cfg)
                 .expect("Failed to upgrade responder in test")
         });
 
-        let stream = TcpStream::connect(addr)
-            .expect("Failed to connect to listener in test");
+        let stream = TcpStream::connect(addr).expect("Failed to connect to listener in test");
         let mut initiator = NoiseTransport::upgrade_initiator(stream, &initiator_config)
             .expect("Failed to upgrade initiator in test");
-        let mut responder = responder_thread.join()
+        let mut responder = responder_thread
+            .join()
             .expect("Failed to join responder thread in test");
 
         // Test using Write trait
         let msg = b"Using Write trait";
-        initiator.write_all(msg)
+        initiator
+            .write_all(msg)
             .expect("Failed to write message using Write trait");
-        initiator.flush()
+        initiator
+            .flush()
             .expect("Failed to flush stream using Write trait");
 
         // Test using Read trait
         let mut buf = vec![0u8; msg.len()];
-        responder.read_exact(&mut buf)
+        responder
+            .read_exact(&mut buf)
             .expect("Failed to read exact bytes using Read trait");
         assert_eq!(&buf, msg);
     }

@@ -486,7 +486,8 @@ impl AsyncPeerManager {
     /// Returns None if peer hasn't completed handshake or didn't provide height.
     pub async fn get_peer_height(&self, addr: SocketAddr) -> Option<u64> {
         let peers = self.peers.lock().await;
-        peers.iter()
+        peers
+            .iter()
             .find(|p| p.addr == addr)
             .and_then(|p| p.start_height)
     }
@@ -497,10 +498,16 @@ impl AsyncPeerManager {
     /// successfully completed version handshake.
     pub async fn get_peer_heights(&self) -> Vec<(SocketAddr, u64)> {
         let peers = self.peers.lock().await;
-        peers.iter()
+        peers
+            .iter()
             .filter(|p| p.state == PeerState::Ready && p.start_height.is_some())
-            .map(|p| (p.addr, p.start_height
-                .expect("Peer should have start height if filter passes")))
+            .map(|p| {
+                (
+                    p.addr,
+                    p.start_height
+                        .expect("Peer should have start height if filter passes"),
+                )
+            })
             .collect()
     }
 }

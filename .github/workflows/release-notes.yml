@@ -1,0 +1,297 @@
+name: Generate Release Notes
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    types: [closed]
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g., 1.0.0)'
+        required: false
+      dry-run:
+        description: 'Dry run (generate without creating release)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  generate-release-notes:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      title: ${{ steps.title.outputs.title }}
+      release-date: ${{ steps.date.outputs.date }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION=${{ github.ref_name }}
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.version }}" ]; then
+            VERSION=${{ inputs.version }}
+          else
+            # Extract version from CHANGELOG.md
+            VERSION=$(grep "^## \[.*\]" CHANGELOG.md | head -1 | sed 's/## \[\(.*\)\].*/\1/')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get release date
+        id: date
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Tag creation date
+            DATE=$(git log -1 --format="%ad" --date=short)
+          else
+            # Current date
+            DATE=$(date +%Y-%m-%d)
+          fi
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+
+      - name: Generate title
+        id: title
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TITLE="Release ${{ github.ref_name }}"
+          else
+            TITLE="Release ${{ steps.version.outputs.version }}"
+          fi
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+
+      - name: Get commit history
+        id: commits
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commits = await github.rest.repos.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              since: '2024-01-01T00:00:00Z',
+            });
+            const sha = commits.data[commits.data.length - 1]?.sha;
+            core.setOutput('sha', sha);
+
+      - name: Analyze changes
+        id: analyze
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { Octokit } = require('@octokit/rest');
+            const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
+            const commits = await octokit.rest.repos.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              since: '2024-01-01T00:00:00Z',
+            });
+
+            const changes = {
+              features: [],
+              bugfixes: [],
+              improvements: [],
+              security: [],
+              breaking: [],
+              other: []
+            };
+
+            for (const commit of commits.data) {
+              const message = commit.commit.message;
+              if (message.includes('feat:')) {
+                changes.features.push({ sha: commit.sha, message });
+              } else if (message.includes('fix:')) {
+                changes.bugfixes.push({ sha: commit.sha, message });
+              } else if (message.includes('perf:')) {
+                changes.improvements.push({ sha: commit.sha, message });
+              } else if (message.includes('security:')) {
+                changes.security.push({ sha: commit.sha, message });
+              } else if (message.includes('BREAKING CHANGE')) {
+                changes.breaking.push({ sha: commit.sha, message });
+              } else {
+                changes.other.push({ sha: commit.sha, message });
+              }
+            }
+
+            core.setOutput('features', JSON.stringify(changes.features));
+            core.setOutput('bugfixes', JSON.stringify(changes.bugfixes));
+            core.setOutput('improvements', JSON.stringify(changes.improvements));
+            core.setOutput('security', JSON.stringify(changes.security));
+            core.setOutput('breaking', JSON.stringify(changes.breaking));
+            core.setOutput('other', JSON.stringify(changes.other));
+
+      - name: Generate release notes
+        run: |
+          cat > release-notes.md << EOF
+          ${{ steps.title.outputs.title }}
+          ===========================
+
+          Released on ${{ steps.date.outputs.date }}
+
+          ## Summary
+
+          This release includes improvements to performance, security, and reliability.
+
+          ## What's Changed
+
+          ### Features
+          ${{ steps.analyze.outputs.features }} | jq -r '.[] | "- \(.message.split("\n")[0])"' | sed 's/feat://g' || echo "No feature changes"
+
+          ### Bug Fixes
+          ${{ steps.analyze.outputs.bugfixes }} | jq -r '.[] | "- \(.message.split("\n")[0])"' | sed 's/fix://g' || echo "No bug fixes"
+
+          ### Performance Improvements
+          ${{ steps.analyze.outputs.improvements }} | jq -r '.[] | "- \(.message.split("\n")[0])"' | sed 's/perf://g' || echo "No performance improvements"
+
+          ### Security Updates
+          ${{ steps.analyze.outputs.security }} | jq -r '.[] | "- \(.message.split("\n")[0])"' | sed 's/security://g' || echo "No security updates"
+
+          ### Breaking Changes
+          ${{ steps.analyze.outputs.breaking }} | jq -r '.[] | "- \(.message.split("\n")[0])"' || echo "No breaking changes"
+
+          ## Technical Details
+
+          ### Updated Dependencies
+
+          - Added new performance monitoring features
+          - Enhanced security protocols
+          - Improved error handling
+
+          ### Build Artifacts
+
+          - Linux (x86_64, ARM64)
+          - macOS (x86_64, ARM64)
+          - Windows (x86_64)
+          - Docker images
+
+          ### CI/CD Improvements
+
+          - Added automated security scanning
+          - Enhanced benchmarking pipeline
+          - Multi-platform testing matrix
+
+          ## Contributors
+
+          Thanks to all contributors who made this release possible!
+
+          ## Installation
+
+          ### From GitHub Releases
+
+          Download the appropriate binary for your platform from the [GitHub releases](https://github.com/${{ github.repository }}/releases) page.
+
+          ### Using Docker
+
+          ```bash
+          docker pull bitquan/bitquan:${{ steps.version.outputs.version }}
+          ```
+
+          ### From Source
+
+          ```bash
+          git clone https://github.com/${{ github.repository }}.git
+          git checkout ${{ steps.version.outputs.version }}
+          cargo build --release
+          ```
+
+          ## Upgrading
+
+          ### From Previous Version
+
+          Backup your data directory and configuration files before upgrading.
+
+          ### Configuration Changes
+
+          Review the updated configuration documentation for any breaking changes.
+
+          ## Support
+
+          - Documentation: [docs.bitquan.com](https://docs.bitquan.com)
+          - Issues: [GitHub Issues](https://github.com/${{ github.repository }}/issues)
+          - Discord: [BitQuan Community](https://discord.gg/bitquan)
+
+          ## License
+
+          This release is licensed under the MIT License.
+          EOF
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-${{ github.run_number }}
+          path: release-notes.md
+          retention-days: 365
+
+      - name: Create release (if not dry run)
+        if: github.event_name != 'pull_request' && !github.event.inputs.dry-run
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  pr-based-release:
+    name: PR-based Release Notes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate release notes from PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { Octokit } = require('@octokit/rest');
+            const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
+            // Get PR commits
+            const commits = await octokit.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+
+            // Generate release notes
+            let notes = `Release Notes for PR #${pr.number}\n\n`;
+            notes += `**Title:** ${pr.title}\n\n`;
+            notes += `**Merged by:** ${pr.merged_by.login}\n\n`;
+            notes += `**Changes:**\n\n`;
+
+            for (const commit of commits.data) {
+              const message = commit.commit.message;
+              if (message.includes('feat:')) {
+                notes += `🚀 Feature: ${message}\n`;
+              } else if (message.includes('fix:')) {
+                notes += `🐛 Fix: ${message}\n`;
+              } else if (message.includes('perf:')) {
+                notes += `⚡ Performance: ${message}\n`;
+              } else if (message.includes('security:')) {
+                notes += `🔒 Security: ${message}\n`;
+              } else {
+                notes += `📝 ${message}\n`;
+              }
+            }
+
+            fs.writeFileSync('release-notes.md', notes);
+
+      - name: Upload PR release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-release-notes-${{ github.run_number }}
+          path: release-notes.md
+          retention-days: 30

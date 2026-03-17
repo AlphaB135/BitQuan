@@ -669,8 +669,7 @@ mod tests {
             ..Default::default()
         };
         let mut protection = DoSProtection::new(config);
-        let ip = "192.168.1.100".parse()
-            .expect("Invalid IP address in test");
+        let ip = "192.168.1.100".parse().expect("Invalid IP address in test");
 
         // Should allow normal connections
         for _ in 0..3 {
@@ -686,18 +685,20 @@ mod tests {
     fn test_syn_cookie_validation() {
         let config = DoSConfig::default();
         let mut protection = DoSProtection::new(config);
-        let ip = "192.168.1.100".parse()
-            .expect("Invalid IP address in test");
+        let ip = "192.168.1.100".parse().expect("Invalid IP address in test");
 
         // Generate valid cookie
-        let cookie = protection.handle_syn_packet(ip, None)
+        let cookie = protection
+            .handle_syn_packet(ip, None)
             .expect("Handle SYN packet should succeed in test")
             .expect("SYN cookie should be generated in test");
-        assert!(protection.validate_syn_cookie(ip, cookie.value)
+        assert!(protection
+            .validate_syn_cookie(ip, cookie.value)
             .expect("Valid cookie should validate successfully"));
 
         // Invalid cookie should fail
-        assert!(!protection.validate_syn_cookie(ip, 99999)
+        assert!(!protection
+            .validate_syn_cookie(ip, 99999)
             .expect("Invalid cookie should return false"));
     }
 
@@ -708,8 +709,7 @@ mod tests {
             ..Default::default()
         };
         let mut protection = DoSProtection::new(config);
-        let ip = "192.168.1.100".parse()
-            .expect("Invalid IP address in test");
+        let ip = "192.168.1.100".parse().expect("Invalid IP address in test");
         let peer = format!("test_peer_{}", rand::random::<u64>());
 
         // Should allow normal connections

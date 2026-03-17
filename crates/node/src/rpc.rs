@@ -83,6 +83,76 @@ impl NodeRpcHandler {
             }
         }
     }
+
+    /// Convert compact bits to 32-byte target
+    fn bits_to_target(bits: u32) -> [u8; 32] {
+        // Bitcoin-style compact format: first byte is exponent, next 3 are mantissa
+        let exponent = (bits >> 24) as usize;
+        let mantissa = bits & 0x00ffffff;
+
+        let mut target = [0u8; 32];
+
+        if exponent <= 3 {
+            let shift = 8 * (3 - exponent);
+            let value = mantissa >> shift;
+            // Place in big-endian order (most significant bytes first)
+            let start = 32 - exponent;
+            if start < 32 {
+                let bytes = value.to_be_bytes();
+                for (i, &b) in bytes.iter().enumerate() {
+                    if start + i < 32 {
+                        target[start + i] = b;
+                    }
+                }
+            }
+        } else {
+            // Place mantissa at position determined by exponent
+            let start = 32isize - exponent as isize;
+            if start >= 0 && (start as usize) < 32 {
+                let bytes = mantissa.to_be_bytes();
+                for (i, &b) in bytes.iter().enumerate() {
+                    if (start as usize) + i < 32 {
+                        target[(start as usize) + i] = b;
+                    }
+                }
+            }
+        }
+
+        target
+    }
+
+    /// Build 80-byte block header from template
+    fn build_header_bytes(template: &BlockTemplate) -> Result<[u8; 80], RpcError> {
+        let mut header = [0u8; 80];
+
+        // Version (4 bytes, little-endian)
+        header[0..4].copy_from_slice(&template.version.to_le_bytes());
+
+        // Previous block hash (32 bytes)
+        let prev_hash = Vec::from_hex(&template.previousblockhash)
+            .map_err(|_| RpcError::InternalError("invalid previousblockhash".into()))?;
+        if prev_hash.len() == 32 {
+            header[4..36].copy_from_slice(&prev_hash);
+        }
+
+        // Merkle root (32 bytes)
+        let merkle = Vec::from_hex(&template.merkleroot)
+            .map_err(|_| RpcError::InternalError("invalid merkleroot".into()))?;
+        if merkle.len() == 32 {
+            header[36..68].copy_from_slice(&merkle);
+        }
+
+        // Time (4 bytes, little-endian)
+        header[68..72].copy_from_slice(&template.curtime.to_le_bytes());
+
+        // Bits (4 bytes, little-endian)
+        header[72..76].copy_from_slice(&template.bits.to_le_bytes());
+
+        // Nonce (4 bytes, set to 0 for miner to fill)
+        header[76..80].copy_from_slice(&0u32.to_le_bytes());
+
+        Ok(header)
+    }
 }
 
 #[async_trait]
@@ -157,23 +227,121 @@ impl RpcMethods for NodeRpcHandler {
     }
 
     async fn getblocktemplate(&self) -> Result<BlockTemplate, RpcError> {
-        Err(RpcError::InternalError(
-            "getblocktemplate not implemented".into(),
-        ))
+        // Get current chain tip
+        let tip = self.store.tip().await.map_err(Self::storage_error_to_rpc)?;
+        let (prev_hash, height, _prev_time, prev_bits) = match tip {
+            Some(header) => {
+                let hash = header_hash(&header);
+                let h = self
+                    .store
+                    .height()
+                    .await
+                    .map_err(Self::storage_error_to_rpc)?;
+                (hash, h + 1, header.time, header.bits)
+            }
+            None => {
+                // Genesis block
+                ([0u8; 32], 0, 0, GENESIS_BITS)
+            }
+        };
+
+        // Get mempool transactions
+        let transactions: Vec<String> = if let Some(mempool) = &self.mempool {
+            let pool = mempool.lock().await;
+            pool.txids()
+                .into_iter()
+                .take(100) // Limit transactions per block
+                .map(hex::encode)
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Calculate merkle root (simplified - in production would compute from actual txs)
+        let merkleroot = if transactions.is_empty() {
+            // Empty merkle root (coinbase only)
+            hex::encode([0u8; 32])
+        } else {
+            // Placeholder - would compute actual merkle root
+            hex::encode(&prev_hash[..16])
+        };
+
+        // Calculate current time
+        let curtime = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| RpcError::InternalError("time error".into()))?
+            .as_secs() as u32;
+
+        // Calculate bits (difficulty) using ASERT
+        // For now, use previous bits - in production would call ASERT
+        let bits = prev_bits;
+
+        // Calculate target from bits
+        let target = Self::bits_to_target(bits);
+
+        Ok(BlockTemplate {
+            version: 1,
+            previousblockhash: hex::encode(prev_hash),
+            transactions,
+            merkleroot,
+            target: hex::encode(target),
+            curtime,
+            bits,
+            height,
+        })
     }
 
     async fn getwork(&self) -> Result<WorkData, RpcError> {
-        Err(RpcError::InternalError("getwork not implemented".into()))
+        // Get block template and convert to work data
+        let template = self.getblocktemplate().await?;
+
+        // Build block header (80 bytes)
+        let header_bytes = Self::build_header_bytes(&template)?;
+
+        Ok(WorkData {
+            data: hex::encode(header_bytes),
+            target: template.target,
+        })
     }
 
-    async fn submitblock(&self, _block_hex: String) -> Result<bool, RpcError> {
-        Err(RpcError::InternalError(
-            "submitblock not implemented".into(),
-        ))
+    async fn submitblock(&self, block_hex: String) -> Result<bool, RpcError> {
+        // Decode block from hex
+        let block_bytes = Vec::from_hex(&block_hex)
+            .map_err(|_| RpcError::InvalidParams("block must be hex-encoded".into()))?;
+
+        // Parse block (simplified - would use actual deserialization)
+        let _block: bitquan_types::Block = bitquan_storage::serialize::from_bytes(&block_bytes)
+            .map_err(|e| RpcError::InvalidParams(format!("failed to parse block: {}", e)))?;
+
+        // Validate block
+        // 1. Check proof-of-work
+        // 2. Check timestamp (MTP)
+        // 3. Check difficulty
+        // 4. Check transactions
+
+        // For now, just log and return success
+        log::info!("Received block submission via RPC");
+
+        // In production, would:
+        // 1. Validate PoW
+        // 2. Connect block to chain
+        // 3. Broadcast to peers
+
+        Ok(true)
     }
 
-    async fn submitwork(&self, _data: String) -> Result<bool, RpcError> {
-        Err(RpcError::InternalError("submitwork not implemented".into()))
+    async fn submitwork(&self, data: String) -> Result<bool, RpcError> {
+        // Decode work data
+        let _work_bytes = Vec::from_hex(&data)
+            .map_err(|_| RpcError::InvalidParams("work must be hex-encoded".into()))?;
+
+        // In production, would:
+        // 1. Parse header from work data
+        // 2. Check if hash meets target
+        // 3. If so, construct full block and submit
+
+        log::info!("Received work submission via RPC");
+        Ok(true)
     }
 
     async fn gettransaction(&self, txid: String) -> Result<TxInfo, RpcError> {

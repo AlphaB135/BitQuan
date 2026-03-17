@@ -1,0 +1,414 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'CHANGELOG.md'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'CHANGELOG.md'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  # Build documentation
+  build-docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rust-doc, rustfmt
+
+      - name: Install documentation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+
+          # Install mdbook
+          cargo install mdbook --locked
+          cargo install mdbook-linkcheck --locked
+
+          # Install Node.js for site generation
+          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+
+      - name: Build Rust documentation
+        run: |
+          cargo doc --all --no-deps --document-private-items --open
+
+      - name: Build mdBook documentation
+        run: |
+          if [ -d "docs" ]; then
+            cd docs
+            mdbook build
+            mdbook linkcheck
+          fi
+
+      - name: Generate API docs
+        run: |
+          # Generate prettier API documentation
+          cargo install cargo-doc2md --locked
+          cargo doc2md --output-dir docs/api/
+
+      - name: Create documentation index
+        run: |
+          cat > docs/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>BitQuan Documentation</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; }
+              h1 { color: #333; }
+              .nav { margin: 20px 0; }
+              .nav a { display: block; padding: 10px; color: #0066cc; text-decoration: none; }
+              .nav a:hover { background-color: #f0f0f0; }
+              .section { margin: 20px 0; }
+              .section h2 { color: #0066cc; }
+              .doc-link { display: inline-block; margin: 10px; padding: 10px 20px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 5px; }
+              .doc-link:hover { background-color: #0052a3; }
+            </style>
+          </head>
+          <body>
+            <h1>BitQuan Documentation</h1>
+
+            <div class="nav">
+              <a href="book/index.html">📖 User Guide</a>
+              <a href="api/index.html">🔌 API Reference</a>
+              <a href="CONTRIBUTING.md">🤝 Contributing</a>
+              <a href="CHANGELOG.md">📝 Changelog</a>
+            </div>
+
+            <div class="section">
+              <h2>Quick Links</h2>
+              <a href="book/getting-started.html" class="doc-link">Getting Started</a>
+              <a href="book/configuration.html" class="doc-link">Configuration</a>
+              <a href="book/networking.html" class="doc-link">Networking</a>
+              <a href="book/wallet.html" class="doc-link">Wallet Guide</a>
+              <a href="book/development.html" class="doc-link">Development</a>
+            </div>
+
+            <div class="section">
+              <h2>API Documentation</h2>
+              <a href="api/bitquan_node/index.html" class="doc-link">Node API</a>
+              <a href="api/bitwallet/index.html" class="doc-link">Wallet API</a>
+              <a href="api/bitp2p/index.html" class="doc-link">P2P API</a>
+            </div>
+
+            <div class="section">
+              <h2>Examples</h2>
+              <a href="examples/basic-node.html" class="doc-link">Basic Node Setup</a>
+              <a href="examples/transaction.html" class="doc-link">Creating Transactions</a>
+              <a href="examples/custom-network.html" class="doc-link">Custom Network</a>
+            </div>
+
+            <script>
+              // Redirect if accessing directly
+              if (window.location.pathname === '/docs/') {
+                window.location.href = 'book/index.html';
+              }
+            </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-${{ github.run_number }}
+          path: target/doc/
+          retention-days: 90
+
+  # Deploy to GitHub Pages
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Download documentation
+        uses: actions/download-artifact@v4
+        with:
+          name: documentation-${{ github.run_number }}
+
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: target/doc/
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v2
+
+  # Generate documentation
+  generate-docs:
+    name: Generate Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Install docs tools
+        run: |
+          cargo install cargo-readme --locked
+          cargo install cargo-doc2md --locked
+
+      - name: Generate README
+        run: |
+          cargo readme > README-generated.md
+          # Update main README with generated content
+          cat README-generated.md > README.md
+
+      - name: Generate contributor guide
+        run: |
+          echo "# Contributor Guide" > CONTRIBUTOR-guide.md
+          echo "## Setting up development environment" >> CONTRIBUTOR-guide.md
+          echo "```bash" >> CONTRIBUTOR-guide.md
+          echo "git clone https://github.com/bitquan/bitquan.git" >> CONTRIBUTOR-guide.md
+          echo "cd bitquan" >> CONTRIBUTOR-guide.md
+          echo "cargo build --release" >> CONTRIBUTOR-guide.md
+          echo "```" >> CONTRIBUTOR-guide.md
+
+      - name: Upload generated docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-docs-${{ github.run_number }}
+          path: |
+            README.md
+            CONTRIBUTOR-guide.md
+          retention-days: 30
+
+  # Documentation linting
+  lint-docs:
+    name: Lint Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install documentation linters
+        run: |
+          npm install -g markdownlint-cli
+          npm install -g textlint
+
+      - name: Lint Markdown files
+        run: |
+          markdownlint docs/**/*.md || true
+          markdownlint README.md || true
+          markdownlint CONTRIBUTING.md || true
+
+      - name: Lint text
+        run: |
+          textlint docs/**/*.md || true
+
+  # Check broken links
+  check-links:
+    name: Check Broken Links
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install link checker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y linkchecker
+
+      - name: Check links
+        run: |
+          linkchecker --ignore-url="^http://localhost" \
+            --ignore-url="^http://127.0.0.1" \
+            --no-warnings \
+            docs/**/*.md || echo "Link checking completed"
+
+  # Generate API documentation
+  api-docs:
+    name: API Documentation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Install api documentation tools
+        run: |
+          cargo install cargo-doc2md --locked
+          cargo install swagger-cli --locked
+
+      - name: Generate API docs
+        run: |
+          # Generate markdown docs from source code
+          cargo doc2md --output-dir docs/api/
+
+          # If there are OpenAPI specs, validate them
+          if [ -f "api/openapi.yaml" ]; then
+            swagger-cli validate api/openapi.yaml
+          fi
+
+      - name: Generate HTML API docs
+        run: |
+          # Generate prettier HTML docs
+          if command -v pandoc &> /dev/null; then
+            find docs/api/ -name "*.md" | while read file; do
+              pandoc "$file" -o "${file%.md}.html" --standalone
+            done
+          fi
+
+      - name: Upload API docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-docs-${{ github.run_number }}
+          path: docs/api/
+          retention-days: 30
+
+  # Documentation preview
+  preview-docs:
+    name: Documentation Preview
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Build docs
+        run: |
+          cargo doc --all --no-deps
+
+      - name: Create preview index
+        run: |
+          cat > docs-preview.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>BitQuan Documentation Preview</title>
+            <meta http-equiv="refresh" content="0; url=./target/doc/bitquan_node/">
+          </head>
+          <body>
+            Redirecting to documentation...
+          </body>
+          </html>
+          EOF
+
+      - name: Upload preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-preview-${{ github.run_number }}
+          path: |
+            target/doc/
+            docs-preview.html
+          retention-days: 7
+
+  # Release documentation
+  release-docs:
+    name: Release Documentation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate release documentation
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'RELEASE-docs.md';
+            const content = `# BitQuan v${{ github.event.release.tag_name }} Documentation
+
+Release date: ${{ github.event.release.published_at }}
+
+## Documentation
+- [User Guide](https://bitquan.io/docs/book/)
+- [API Reference](https://bitquan.io/docs/api/)
+- [Contributing Guide](https://bitquan.io/docs/contributing/)
+
+## What's New
+${{ github.event.release.body }}
+
+## Documentation Updates
+This release includes updates to documentation:
+- API reference updates
+- New examples
+- Improved getting started guide
+
+## Quick Links
+- [Installation Guide](https://bitquan.io/docs/install/)
+- [Configuration Reference](https://bitquan.io/docs/configuration/)
+- [Network Setup](https://bitquan.io/docs/network/)
+
+## Support
+- Documentation issues: [GitHub Issues](https://github.com/bitquan/bitquan/issues)
+- Community: [Discord](https://discord.gg/bitquan)
+`;
+            fs.writeFileSync(path, content);
+
+      - name: Upload release docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-docs-${{ github.run_number }}
+          path: RELEASE-docs.md
+          retention-days: 365

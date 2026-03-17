@@ -349,7 +349,11 @@ impl ChainState {
         // Clean up stale entries first (prevent unbounded growth)
         let now = Instant::now();
         let mut start_index = None;
-        let history = if let Ok(h) = self.history.lock() { h } else { return Vec::new() };
+        let history = if let Ok(h) = self.history.lock() {
+            h
+        } else {
+            return Vec::new();
+        };
 
         if history.is_empty() {
             return Vec::new();
@@ -366,8 +370,10 @@ impl ChainState {
                         break;
                     }
                 }
-                if start_index.is_some() && start_index.unwrap() < history_len {
-                    break;
+                if let Some(idx) = start_index {
+                    if idx < history_len {
+                        break;
+                    }
                 }
             }
         }
@@ -441,10 +447,7 @@ impl ChainState {
 
     /// Get the number of headers currently in the validation cache.
     pub fn validated_cache_size(&self) -> usize {
-        self.validated_headers
-            .lock()
-            .map(|v| v.len())
-            .unwrap_or(0)
+        self.validated_headers.lock().map(|v| v.len()).unwrap_or(0)
     }
 }
 

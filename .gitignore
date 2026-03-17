@@ -367,3 +367,6 @@ map.md
 jwt.toml
 /oracle-reports/
 /oracle-v2/
+
+# Dual-agent communication (ephemeral)
+.agent-comms/

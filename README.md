@@ -10,41 +10,46 @@
 
 A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium5** signatures.
 
-## TESTNET COMING SOON
-
-**BitQuan is preparing for public testnet launch.**
-
-| Milestone | Status |
-|-----------|--------|
-| Code Complete | Done |
-| Internal Security Audit | Done |
-| External Security Audit | In Progress |
-| **Public Testnet** | **Coming Q1 2026** |
-| Mainnet | After successful testnet + audit |
-
-- **Code**: 100% complete, 600+ tests passing
-- **Security**: Internal audit complete, external pending
-- **Testnet**: Launching soon - follow for announcements
-- **Mainnet**: NOT LAUNCHED (requires testnet validation + external audit)
-
-**WARNING**: No real value - testnet coins are for testing only
-
 ## Project Status
 
-| Component | Status | Target |
-|-----------|--------|--------|
-| **Code Completion** | 100% | Done |
-| **Unit Tests** | 600+ passing | Done |
-| **Internal Security Audit** | Complete | Done |
-| **External Security Audit** | In Progress | Q1 2026 |
-| **Public Testnet** | Preparing | Q1 2026 |
-| **Mainnet Launch** | Pending | After testnet |
-| **Version** | v1.0-audit-20260204 | - |
+**Current Phase**: Pre-Testnet Development (March 2026)
 
-**Current Phase**: Pre-Testnet (final preparations)
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Core Protocol | ✅ Complete | ASERT difficulty, P2P sync |
+| Cryptography | ✅ Complete | Dilithium5 signatures |
+| Data Integrity | ✅ Fixed | C1-C7 vulnerabilities resolved |
+| Documentation | ✅ Complete | Production guides, BQIPs |
+| Unit Tests | ✅ 600+ passing | 142+ consensus tests |
+| Internal Audit | ✅ Complete | Security hardening done |
+| External Audit | ⏳ Pending | Q3 2026 target |
+| Testnet | ⏳ Q2 2026 | Public launch |
+| Mainnet | 🔜 Q4 2026 | Post-audit |
 
-**Network Magic**: `0xe8f3e1e3` (mainnet, reserved)
-**Mining**: SHA-256d (hashcash) primary, RandomX optional
+**Recent Fixes**: Data integrity (C1-C7), P2P sync, ASERT difficulty, unwrap elimination
+
+## Documentation Index
+
+### Core Specifications
+| Document | Description |
+|----------|-------------|
+| [POST_QUANTUM_TRADEOFFS.md](docs/POST_QUANTUM_TRADEOFFS.md) | Honest analysis of Dilithium5 size trade-offs |
+| [BQIP-0003_WALLET_STANDARDS.md](docs/BQIP-0003_WALLET_STANDARDS.md) | PQC PSBT, address format, SDK patterns |
+| [BQIP-0004_L2_INTEGRATION.md](docs/BQIP-0004_L2_INTEGRATION.md) | Witness model, ZK-Rollup roadmap |
+
+### Operations
+| Document | Description |
+|----------|-------------|
+| [PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) | Hardware, network, security, monitoring, backup |
+| [SDK_DESIGN.md](docs/SDK_DESIGN.md) | Rust SDK, TypeScript bindings, CLI tools |
+
+### Community
+| Document | Description |
+|----------|-------------|
+| [REDDIT_ROAST_RESPONSE.md](docs/REDDIT_ROAST_RESPONSE.md) | Honest response to criticism, what's fixed |
+
+### Full Documentation
+[📚 Complete Documentation Site](https://alphab135.github.io/BitQuan/)
 
 ## Core Principles
 
@@ -78,45 +83,55 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 
 ## Quick Start
 
-**NOTE**: These commands are for TESTING ONLY. No mainnet is running. Coins on testnet/devnet have NO VALUE.
+### Build from Source
 
-### For Users
 ```bash
-# Clone and build
+# Clone repository
 git clone https://github.com/AlphaB135/BitQuan.git
 cd BitQuan
+
+# Build (requires Rust 1.82+)
 cargo build --release
 
-# Create your first post-quantum wallet
-./target/release/bitquan-node wallet-gen --output my-wallet.keystore
+# Run tests
+cargo test --all
 
-# Get your quantum-resistant address
-./target/release/bitquan-node wallet-address --keystore my-wallet.keystore
+# Run lints
+cargo clippy -- -D warnings
 ```
 
-### For Node Operators
+### Generate Wallet
+
 ```bash
-# Initialize mainnet configuration
-./target/release/bitquan-node init --network mainnet
+# Create new wallet with Dilithium5 keys
+./target/release/bitquan-node wallet-gen --output wallet.keystore
+
+# Get your address
+./target/release/bitquan-node wallet-address --keystore wallet.keystore
+# Output: bq1qyqsq9q5z5khxv8y2w3...
+```
+
+### Start Node
+
+```bash
+# Initialize configuration
+./target/release/bitquan-node init --network testnet
 
 # Start node
-./target/release/bitquan-node --config config/mainnet.toml
-
-# Mine genesis block (first time only)
-./target/release/bitquan-node mine-genesis
+./target/release/bitquan-node run --config config/testnet.toml
 ```
 
-### For Miners
+### Mining
+
 ```bash
-# Start mining with SHA-256d (default, ASIC-friendly)
-./target/release/bitquan-node mine --pow hashcash
+# SHA-256d mining (default)
+./target/release/bitquan-node mine --pow hashcash --network testnet
 
-# Or mine with RandomX (experimental, CPU-friendly)
-./target/release/bitquan-node mine --pow randomx
-
-# For testing with instant blocks
-./target/release/bitquan-node mine --pow mock
+# Mock mining for testing (instant blocks)
+./target/release/bitquan-node mine --pow mock --network devnet
 ```
+
+**Full Guide**: [SDK_DESIGN.md](docs/SDK_DESIGN.md) | [PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md)
 
 
 
@@ -219,14 +234,22 @@ Tokio Runtime
 
 BitQuan intentionally does **NOT** include:
 
-- **Smart Contracts**: No scripting language or Turing-complete execution layer
-- **DeFi/DEX Features**: No built-in decentralized exchange or DeFi protocols
-- **Governance Tokens**: No on-chain voting, staking, or delegation mechanisms
-- **Alternative Consensus**: Only Proof-of-Work (no PoS, DPoS, BFT variants)
-- **Experimental Cryptography**: Only peer-reviewed, NIST-approved algorithms
-- **Marketing Gimmicks**: No promises of "moon", "get rich quick", or unrealistic TPS claims
+- **Smart Contracts**: No scripting language
+- **DeFi Features**: No DEX, staking, governance
+- **Alternative Consensus**: Only PoW (no PoS, DPoS)
+- **Experimental Crypto**: Only NIST-approved algorithms
 
-**Philosophy**: BitQuan does one thing well — quantum-resistant value transfer with simplicity and 50+ year security.
+**Philosophy**: Quantum-resistant value transfer with 50+ year security horizon.
+
+## Roadmap
+
+```
+Q1 2026: ✅ Security hardening (complete)
+Q2 2026: ⏳ Public testnet launch
+Q3 2026: ⏳ External security audit
+Q4 2026: 🔜 Mainnet launch (post-audit)
+2027+:    Layer 2 development (ZK-Rollup)
+```
 
 ## Repository Structure
 
@@ -248,21 +271,36 @@ bitquan/
 
 ## Security
 
-- No backdoors, admin keys, or hidden switches
-- GPG-signed commits and releases required
-- Reproducible builds with attestation
-- All core code open-source, auditable
-- Internal security audit complete, external audit in progress
-- Production readiness: 100% (code complete, mainnet pending)
-  - All security fixes applied (PR #80)
-  - All logging migrated (PR #83)
-  - All tests passing (600+ tests)
-  - Post-quantum crypto (Dilithium5)
-  - External security audit (pending)
+### Audit Status
 
-Report security vulnerabilities to: security@bitquan.org
+| Phase | Status | Date |
+|-------|--------|------|
+| Internal Audit | ✅ Complete | Feb 2026 |
+| Code Hardening | ✅ Complete | Feb 2026 |
+| External Audit | ⏳ Planned | Q3 2026 |
 
-See [SECURITY.md](SECURITY.md) for disclosure policy and response SLAs.
+**Resolved Issues**: C1-C7 data integrity, P2P sync, unwrap elimination
+
+### Responsible Disclosure
+
+**Do NOT open public issues for security vulnerabilities.**
+
+Email: security@bitquan.org
+
+Response SLA:
+- Acknowledgment: 24 hours
+- Initial assessment: 72 hours
+- Critical fix: 7 days
+
+See [SECURITY.md](SECURITY.md) for full policy.
+
+### Security Features
+
+- **Post-Quantum**: Dilithium5 (NIST FIPS 205)
+- **No Backdoors**: No admin keys, no hidden switches
+- **Reproducible Builds**: Deterministic compilation
+- **Signed Releases**: GPG-signed commits and binaries
+- **Memory Safety**: Rust + 14 justified unsafe blocks
 
 ## Development Status
 
@@ -321,57 +359,67 @@ See [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
-2. Sign commits with GPG (`git commit -S`)
-3. Ensure all tests pass (`cargo test --all --locked`)
-4. Follow code style (`cargo fmt --all`)
-5. Pass linting (`cargo clippy --all-targets --all-features`)
+### How to Help
 
-Optional: Enable pre-commit hooks with `./scripts/install-hooks.sh`
+| Area | Skills Needed | Priority |
+|------|---------------|----------|
+| Code review | Rust, blockchain | **High** |
+| Security audit | Cryptography | **Critical** |
+| Test coverage | Rust testing | **High** |
+| Documentation | Technical writing | Medium |
+| Layer 2 research | ZK proofs | Medium |
+
+### Code Style
+
+```bash
+# Format code
+cargo fmt --all
+
+# Check lints (must pass)
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Run all tests (must pass)
+cargo test --all --locked
+
+# Check for unwrap in production
+cargo clippy -- -D clippy::unwrap_used
+```
+
+### Pull Request Process
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/my-feature`)
+3. Make changes following [SECURITY_STANDARDS.md](docs/SECURITY_STANDARDS.md)
+4. Run tests and lints locally
+5. Sign commits with GPG (`git commit -S`)
+6. Open PR against `main` branch
+7. Wait for CI to pass (Fast PR < 7 min)
+8. Address review feedback
+
+**Guidelines**: [CONTRIBUTING.md](CONTRIBUTING.md) | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+### Pre-commit Hooks
+
+```bash
+./scripts/install-hooks.sh
+```
 
 ## Support
 
-BitQuan is a spare-time solo project. If it helps your work or research, you can keep it going in the following ways.
+BitQuan is a spare-time open-source project.
 
-### Direct contributions
-- Donate via [PayPal](https://paypal.me/AtsadawutKhunthong). Funds cover AI assistants (~$200/mo), CI infrastructure, and external security reviews.
-- Sponsor hardware or credits for long-running fuzzing, testnet nodes, or build runners—open an issue to coordinate.
-- Commission specific hardening work (e.g., external audit prep) by discussing scope at `security@bitquan.org`.
+### Ways to Help
+- ⭐ Star and share the repository
+- 🐛 Report bugs via [GitHub Issues](https://github.com/AlphaB135/BitQuan/issues)
+- 💻 Submit pull requests (see [Contributing](#contributing))
+- 💰 Donate via [PayPal](https://paypal.me/AtsadawutKhunthong) for CI/audit costs
 
-### Non-monetary support
-- Star, fork, or share the repository to help it reach other developers.
-- File reproducible bug reports and security issues (see [SECURITY.md](SECURITY.md)).
-- Submit pull requests for documentation, tests, or hardening tasks flagged in `docs/planning/todo.md`.
-- Participate in GitHub Discussions and help new users get started.
+### Contact
+- **Issues**: https://github.com/AlphaB135/BitQuan/issues
+- **Discussions**: https://github.com/AlphaB135/BitQuan/discussions
+- **Security**: security@bitquan.org
+- **Email**: security@bitquan.org
 
-### Transparency
-- Donations are voluntary; they do **not** constitute a token sale, investment contract, or promise of returns.
-- BitQuan stays Apache 2.0 open-source with or without funding; contributions pay for development only.
-- Monthly operating target: **~$300 USD**. Donation summaries are published quarterly in `FUNDING.md`.
-- Questions about support or larger sponsorships: contact `security@bitquan.org`.
+---
 
-## Testnet - Coming Soon
-
-BitQuan public testnet is **launching Q1 2026**.
-
-**What to Expect:**
-- Free testnet coins from faucet
-- Full node sync testing
-- Mining with real difficulty adjustments
-- Transaction broadcasting and confirmation
-- Wallet integration testing
-
-**Pre-Launch Checklist:**
-- [x] Core node implementation
-- [x] Consensus rules finalized
-- [x] P2P networking stable
-- [x] RPC API complete
-- [x] Internal security audit
-- [ ] External security audit (in progress)
-- [ ] Seed nodes deployed
-- [ ] Faucet service ready
-- [ ] Block explorer ready
-
-**Stay Updated:**
-- Watch this repo for release announcements
-- Join [GitHub Discussions](https://github.com/AlphaB135/BitQuan/discussions)
+*BitQuan is NOT launched. No mainnet exists. All coins are testnet-only with NO VALUE.*

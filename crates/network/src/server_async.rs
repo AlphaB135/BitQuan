@@ -69,7 +69,11 @@ impl AsyncP2PListener {
                         match peer_manager.add_peer_inbound(stream, addr).await {
                             Ok(peer_height) => {
                                 if let Some(height) = peer_height {
-                                    log::info!("Peer {} connected with claimed height {}", addr, height);
+                                    log::info!(
+                                        "Peer {} connected with claimed height {}",
+                                        addr,
+                                        height
+                                    );
                                 } else {
                                     log::info!("Peer {} connected (no height claimed)", addr);
                                 }
@@ -112,7 +116,11 @@ impl AsyncP2PListener {
                         match peer_manager.add_peer_inbound(stream, addr).await {
                             Ok(peer_height) => {
                                 if let Some(height) = peer_height {
-                                    log::info!("Peer {} connected with claimed height {}", addr, height);
+                                    log::info!(
+                                        "Peer {} connected with claimed height {}",
+                                        addr,
+                                        height
+                                    );
                                 } else {
                                     log::info!("Peer {} connected (no height claimed)", addr);
                                 }
@@ -209,7 +217,8 @@ mod tests {
         let listener = AsyncP2PListener::bind("127.0.0.1:0", peer_manager)
             .await
             .expect("Failed to bind listener in test");
-        let addr = listener.local_addr()
+        let addr = listener
+            .local_addr()
             .expect("Failed to get local address in test");
         assert_eq!(addr.ip().to_string(), "127.0.0.1");
     }

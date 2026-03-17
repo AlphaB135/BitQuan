@@ -167,6 +167,41 @@ BitQuan expects most activity to occur on Layer 2:
 2. **Storage**: Requires pruning for full nodes
 3. **Adoption Barrier**: Large transactions may deter initial users
 
+### Comparison with Other Blockchains
+
+| Feature | Bitcoin | Ethereum | QRL | BitQuan |
+|---------|---------|----------|-----|---------|
+| **Signature Scheme** | ECDSA/secp256k1 | ECDSA + ECOTS | XMSS (Lattice) | Dilithium5 |
+| **Quantum Resistant** | ❌ No | ❌ No (yet) | ✅ Yes | ✅ Yes |
+| **Signature Size** | 71-73 bytes | 65-73 bytes | ~3,000 bytes | 4,595 bytes |
+| **Avg Transaction Size** | ~250 bytes | ~200 bytes | ~5,000 bytes | ~7,500 bytes |
+| **TPS (Layer 1)** | ~7 | ~15-30 | ~1-2 | ~0.5-1 |
+| **Block Time** | 10 min | 12 sec | 15 sec | 2 min |
+| **Consensus** | PoW (SHA-256) | PoS | PoW (RandomX) | PoW (SHA-256d) |
+
+#### Bitcoin
+- **Pros**: Largest network, most battle-tested, high liquidity
+- **Cons**: Vulnerable to quantum attacks via Shor's algorithm
+- **Future**: May require hard fork to post-quantum signatures
+
+#### Ethereum
+- **Pros**: Smart contracts, large ecosystem, active development
+- **Cons**: Also vulnerable to quantum attacks; transition to PoS doesn't solve this
+- **Future**: Account abstraction may enable PQ upgrades
+
+#### QRL (Quantum Resistant Ledger)
+- **Pros**: First-mover in quantum resistance, uses XMSS signatures
+- **Cons**: Smaller network, less adoption, XMSS is stateful (complex key management)
+- **Signature Approach**: XMSS (eXtended Merkle Signature Scheme) - requires state tracking
+
+#### BitQuan
+- **Pros**: NIST-standardized Dilithium5 (stateless), simpler key management than QRL
+- **Cons**: Largest signatures among PQ chains, lowest TPS
+- **Trade-off**: Maximum security (Mode 5) over efficiency
+
+### Key Takeaway
+BitQuan prioritizes **future-proof security** over **present efficiency**. While Bitcoin and Ethereum offer better TPS and smaller transactions today, they face existential risk from quantum computers. BitQuan accepts the "post-quantum tax" (30x larger transactions) as the cost of long-term viability.
+
 ### Roadmap to Improvement
 | Phase | Focus | TPS Target | Storage |
 |-------|-------|------------|---------|
@@ -196,5 +231,5 @@ BitQuan expects most activity to occur on Layer 2:
 - [BQIP-0003: Pruning Strategy](./bqip/bqip-0003.md) (proposal)
 - [Architecture Overview](./architecture/index.md)
 
-**Updated**: 2026-01-26
+**Updated**: 2026-03-17
 **Author**: BitQuan Core Team

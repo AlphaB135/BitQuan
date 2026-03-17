@@ -1193,7 +1193,7 @@ async fn handle_headers(
             .as_secs();
         if u64::from(header.time) > now + 7200 {
             log::warn!(
-                "⚠️  Header {}/{} has future timestamp ({} > {})",
+                " Header {}/{} has future timestamp ({} > {})",
                 idx + 1,
                 headers.len(),
                 header.time,
@@ -1282,6 +1282,17 @@ async fn handle_getblocks(
         hex::encode(&stop_hash[..8])
     );
 
+    // C5 FIX: Limit locator hashes to prevent DoS (Bitcoin uses ~500 max)
+    const MAX_LOCATOR_HASHES: usize = 500;
+    if locator_hashes.len() > MAX_LOCATOR_HASHES {
+        log::warn!(
+            "Peer {} sent too many locators ({}), limiting to {}",
+            peer.addr,
+            locator_hashes.len(),
+            MAX_LOCATOR_HASHES
+        );
+    }
+
     // Find the height of the common ancestor to start announcing AFTER it
     // This prevents announcing blocks the peer already has (chain split prevention)
     let mut start_height = 0u64;
@@ -1289,18 +1300,21 @@ async fn handle_getblocks(
     // Build inventory of blocks to announce
     let mut inv: Vec<bitquan_network::protocol::InvVector> = Vec::new();
 
-    // Check each locator hash to find common ancestor
-    for locator_hash in &locator_hashes {
+    // Get chain height once for validation
+    let chain_height = match ctx.storage.height().await {
+        Ok(h) => h,
+        Err(e) => {
+            log::error!("Failed to get chain height: {}", e);
+            return Ok(false);
+        }
+    };
+
+    // C5 FIX: Check each locator hash to find common ancestor (limited to prevent DoS)
+    for locator_hash in locator_hashes.iter().take(MAX_LOCATOR_HASHES) {
         match ctx.storage.get_block(locator_hash).await {
             Ok(Some(_)) => {
                 // Found common ancestor - now find its height
-                let chain_height = match ctx.storage.height().await {
-                    Ok(h) => h,
-                    Err(e) => {
-                        log::error!("Failed to get chain height: {}", e);
-                        return Ok(false);
-                    }
-                };
+                // Use pre-fetched chain_height for validation
 
                 // Search for the ancestor's height
                 let mut found_height = None;
@@ -1337,7 +1351,17 @@ async fn handle_getblocks(
     let mut height = start_height;
     let limit = 500; // Max blocks to announce per GetBlocks response
 
-    while inv.len() < limit {
+    // C5 FIX: Validate start_height is within bounds
+    if start_height > chain_height {
+        log::debug!(
+            "📤 Start height {} exceeds chain height {}, nothing to announce",
+            start_height,
+            chain_height
+        );
+        return Ok(true);
+    }
+
+    while inv.len() < limit && height <= chain_height {
         match ctx.storage.get_block_by_height(height).await {
             Ok(Some(block)) => {
                 let block_hash = header_hash(&block.header);

@@ -92,7 +92,10 @@ pub fn validate_peer_height(peer_height: u64, local_height: u64) -> HeightResult
 
     // Check if peer is behind us (stale peer)
     if peer_height < local_height.saturating_sub(GRACE_PERIOD_BLOCKS) {
-        return Err(HeightValidationError::PeerBehindLocal(peer_height, local_height));
+        return Err(HeightValidationError::PeerBehindLocal(
+            peer_height,
+            local_height,
+        ));
     }
 
     // Sanity check: reject obviously malicious claims
@@ -102,8 +105,7 @@ pub fn validate_peer_height(peer_height: u64, local_height: u64) -> HeightResult
             peer_height,
             local_height,
             MAX_SANITY_HEIGHT_DIFF,
-        )
-        );
+        ));
     }
 
     // Soft check: warn about unverified heights
@@ -217,9 +219,7 @@ pub fn sync_progress(local_height: u64, target_height: u64) -> f64 {
 /// ```
 pub fn validate_height_range(start_height: u64, end_height: u64) -> HeightResult<()> {
     if start_height > end_height {
-        return Err(
-            HeightValidationError::InvalidHeight(start_height)
-        );
+        return Err(HeightValidationError::InvalidHeight(start_height));
     }
     Ok(())
 }
@@ -245,7 +245,10 @@ pub fn range_size(start_height: u64, end_height: u64) -> HeightResult<u64> {
     end_height
         .checked_add(1)
         .and_then(|end_plus_one| end_plus_one.checked_sub(start_height))
-        .ok_or(HeightValidationError::HeightOverflow(start_height, end_height))
+        .ok_or(HeightValidationError::HeightOverflow(
+            start_height,
+            end_height,
+        ))
 }
 
 #[cfg(test)]
@@ -284,7 +287,8 @@ mod tests {
         // So this is actually OK during IBD
         // To test rejection, peer needs to be more than 1000 behind
         assert!(validate_peer_height(500, 1000).is_ok()); // Within grace
-        assert!(matches!(  // More than grace behind
+        assert!(matches!(
+            // More than grace behind
             validate_peer_height(100, 2000),
             Err(HeightValidationError::PeerBehindLocal(_, _))
         ));
@@ -333,10 +337,11 @@ mod tests {
 
     #[test]
     fn test_range_size() {
-        assert_eq!(range_size(0, 100)
-            .expect("Valid range should not fail"), 101); // 0 to 100 inclusive
-        assert_eq!(range_size(50, 50)
-            .expect("Valid range should not fail"), 1); // Single block
+        assert_eq!(
+            range_size(0, 100).expect("Valid range should not fail"),
+            101
+        ); // 0 to 100 inclusive
+        assert_eq!(range_size(50, 50).expect("Valid range should not fail"), 1); // Single block
         assert!(range_size(100, 0).is_err()); // Invalid range
     }
 }

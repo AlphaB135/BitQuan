@@ -900,3 +900,5 @@ fn test_validate_transaction_signatures_genesis_mismatch() {
     let result = validate_transaction_signatures(&tx, &ctx, &registry);
     assert!(result.is_err());
 }
+
+// Comprehensive edge case tests

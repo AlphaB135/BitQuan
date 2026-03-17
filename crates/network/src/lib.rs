@@ -39,12 +39,10 @@ pub use security_manager::{
 };
 
 pub use height_validation::{
-    blocks_behind, range_size, sync_progress,
-    validate_height_range, validate_peer_height, validate_request_range,
-    HeightValidationError, HeightResult, MAX_SANITY_HEIGHT_DIFF,
+    blocks_behind, range_size, sync_progress, validate_height_range, validate_peer_height,
+    validate_request_range, HeightResult, HeightValidationError, MAX_SANITY_HEIGHT_DIFF,
     MAX_UNVERIFIED_HEIGHT_DIFF,
 };
-
 
 pub use discovery::{
     bootstrap_peers, discover_from_seeds, PeerBook, PersistentPeer, MAINNET_SEEDS,

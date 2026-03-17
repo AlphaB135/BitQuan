@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: prompt_marketplace_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: prompt_marketplace
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Meilisearch Search Engine
+  meilisearch:
+    image: getmeili/meilisearch:v1.5
+    container_name: prompt_marketplace_search
+    environment:
+      MEILI_MASTER_KEY: masterKeyForDevelopmentOnly
+      MEILI_ENV: development
+    ports:
+      - "7701:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+
+  # MinIO Object Storage (S3 Compatible)
+  minio:
+    image: minio/minio:latest
+    container_name: prompt_marketplace_storage
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  meilisearch_data:
+  minio_data:

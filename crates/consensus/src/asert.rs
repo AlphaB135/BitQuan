@@ -12,7 +12,7 @@ use crate::{compact_to_target, pow::DEVNET_MAX_BITS, ConsensusParams};
 pub const FP_SCALE: u64 = 1u64 << 32; // 2^32 = 4294967296
 
 // Maximum/minimum bounds
-const MIN_TARGET_U64: u64 = 1;
+pub const MIN_TARGET_U64: u64 = 1;
 
 /// Tracks burst guard activation and cooldown state.
 #[derive(Clone, Debug, Default)]
@@ -909,5 +909,46 @@ mod tests {
             assert!(result >= prev_result);
             prev_result = result;
         }
+    }
+
+    #[test]
+    fn test_half_life_mainnet_per_bip0340() {
+        // BIP-0340 specifies 2-day half-life for mainnet
+        let mainnet = DifficultyParams::mainnet();
+        assert_eq!(
+            mainnet.difficulty_half_life, 172_800,
+            "Mainnet half_life should be 172,800s (2 days) per BIP-0340"
+        );
+    }
+
+    #[test]
+    fn test_half_life_testnet_faster() {
+        // Testnet uses faster 4-hour half-life for quicker adjustment
+        let testnet = DifficultyParams::testnet();
+        assert_eq!(
+            testnet.difficulty_half_life, 14_400,
+            "Testnet half_life should be 14,400s (4 hours) for faster adjustment"
+        );
+    }
+
+    #[test]
+    fn test_half_life_regtest_instant() {
+        // Regtest uses 10-minute half-life for instant mining
+        let regtest = DifficultyParams::regtest();
+        assert_eq!(
+            regtest.difficulty_half_life, 600,
+            "Regtest half_life should be 600s (10 minutes) for instant adjustment"
+        );
+    }
+
+    #[test]
+    fn test_phase3_defaults_uses_testnet() {
+        // phase3_defaults should use testnet (4-hour) for backward compatibility
+        let defaults = DifficultyParams::phase3_defaults();
+        let testnet = DifficultyParams::testnet();
+        assert_eq!(
+            defaults.difficulty_half_life, testnet.difficulty_half_life,
+            "phase3_defaults should use testnet half_life for backward compatibility"
+        );
     }
 }
