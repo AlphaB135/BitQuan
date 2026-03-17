@@ -333,10 +333,6 @@ fn test_validate_block_with_fees() {
     let _result = engine.validate_block_with_fees(&block, 0, 0, 0);
 
     // The test passes as long as we can call the function without compilation errors
-    assert!(
-        true,
-        "validate_block_with_fees function exists and is callable"
-    );
 }
 
 #[test]
@@ -375,8 +371,7 @@ fn test_validate_block_with_fees_invalid_fees() {
     // The important thing is that the function can be called with fee validation
     let _result = engine.validate_block_with_fees(&block, 0, total_fees, 0);
     // We don't assert on the result since it could fail for multiple reasons
-    // We just verify the function call works
-    assert!(true, "Function accepts fee validation parameters");
+    // Test passes if the function call compiles
 }
 
 #[test]
