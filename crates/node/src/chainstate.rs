@@ -25,6 +25,12 @@ const MAX_HEADER_AGE: Duration = Duration::from_secs(2 * 60 * 60);
 /// Prevents unbounded memory growth while allowing reasonable cache size.
 const MAX_VALIDATED_HEADERS: usize = 5000;
 
+/// Type alias for validated headers cache entry.
+type ValidatedHeaderEntry = (BlockHeader, Instant);
+
+/// Type alias for validated headers cache.
+type ValidatedHeadersMap = HashMap<[u8; 32], ValidatedHeaderEntry>;
+
 /// Blockchain state information.
 #[derive(Clone)]
 pub struct ChainState {
@@ -40,7 +46,7 @@ pub struct ChainState {
     /// Validated headers cache with timestamps.
     /// Maps block hash -> (header, validation_time).
     /// Only headers validated within MAX_HEADER_AGE are returned.
-    validated_headers: Arc<Mutex<HashMap<[u8; 32], (BlockHeader, Instant)>>>,
+    validated_headers: Arc<Mutex<ValidatedHeadersMap>>,
 }
 
 impl ChainState {
