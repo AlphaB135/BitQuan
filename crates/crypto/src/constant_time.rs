@@ -75,8 +75,10 @@ pub fn constant_time_all_zero(bytes: &[u8]) -> bool {
 /// Returns the smaller of the two values.
 /// Fixed: Uses bitwise operations instead of branching to prevent timing leaks.
 pub fn constant_time_min(a: u32, b: u32) -> u32 {
-    // Mask is 0xFFFFFFFF if a < b, 0 otherwise
-    let mask = ((a.wrapping_sub(b)) >> 31) as u32;
+    // Cast to i32 for arithmetic right shift
+    // Mask is -1 (0xFFFFFFFF) if a < b, 0 otherwise
+    let diff = a.wrapping_sub(b);
+    let mask = ((diff as i32) >> 31) as u32;
     (a & mask) | (b & !mask)
 }
 
@@ -85,8 +87,10 @@ pub fn constant_time_min(a: u32, b: u32) -> u32 {
 /// Returns the larger of the two values.
 /// Fixed: Uses bitwise operations instead of branching to prevent timing leaks.
 pub fn constant_time_max(a: u32, b: u32) -> u32 {
-    // Mask is 0xFFFFFFFF if a >= b, 0 otherwise
-    let mask = (((b.wrapping_sub(a)) as i32) >> 31) as u32;
+    // Cast to i32 for arithmetic right shift
+    // Mask is -1 (0xFFFFFFFF) if a >= b, 0 otherwise
+    let diff = b.wrapping_sub(a);
+    let mask = ((diff as i32) >> 31) as u32;
     (a & mask) | (b & !mask)
 }
 
