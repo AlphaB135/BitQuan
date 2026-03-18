@@ -9,12 +9,17 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 ///
 /// Returns true if the slices are equal, false otherwise.
 /// This function executes in constant time regardless of the input values.
+/// Fixed: No early return to prevent length timing leak.
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
+    let max_len = std::cmp::max(a.len(), b.len());
+    let mut diff = (a.len() ^ b.len()) as u8; // Length diff contributes
 
-    a.ct_eq(b).into()
+    for i in 0..max_len {
+        let x = a.get(i).copied().unwrap_or(0);
+        let y = b.get(i).copied().unwrap_or(0);
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 /// Constant-time comparison of two byte arrays of fixed size.
@@ -68,29 +73,21 @@ pub fn constant_time_all_zero(bytes: &[u8]) -> bool {
 /// Constant-time minimum of two values.
 ///
 /// Returns the smaller of the two values.
-/// This function executes in constant time regardless of the input values.
+/// Fixed: Uses bitwise operations instead of branching to prevent timing leaks.
 pub fn constant_time_min(a: u32, b: u32) -> u32 {
-    // Simple implementation that's still constant-time for the same input sizes
-    // The branch predictor makes this effectively constant-time for our purposes
-    if a <= b {
-        a
-    } else {
-        b
-    }
+    // Mask is 0xFFFFFFFF if a < b, 0 otherwise
+    let mask = ((a.wrapping_sub(b)) >> 31) as u32;
+    (a & mask) | (b & !mask)
 }
 
 /// Constant-time maximum of two values.
 ///
 /// Returns the larger of the two values.
-/// This function executes in constant time regardless of the input values.
+/// Fixed: Uses bitwise operations instead of branching to prevent timing leaks.
 pub fn constant_time_max(a: u32, b: u32) -> u32 {
-    // Simple implementation that's still constant-time for the same input sizes
-    // The branch predictor makes this effectively constant-time for our purposes
-    if a >= b {
-        a
-    } else {
-        b
-    }
+    // Mask is 0xFFFFFFFF if a >= b, 0 otherwise
+    let mask = (((b.wrapping_sub(a)) as i32) >> 31) as u32;
+    (a & mask) | (b & !mask)
 }
 
 /// Constant-time conditional increment.
