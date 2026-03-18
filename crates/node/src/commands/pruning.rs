@@ -216,11 +216,10 @@ pub fn check_disk_space(datadir: &str) -> Result<()> {
     println!("Data directory: {}", datadir);
     println!();
 
-    let path = std::path::Path::new(datadir);
-
     // Get disk space information
     #[cfg(unix)]
     {
+        let path = std::path::Path::new(datadir);
         let stats = nix::sys::statvfs::statvfs(path)
             .map_err(|e| Error::Invalid(format!("Failed to get disk stats: {}", e)))?;
 
