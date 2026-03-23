@@ -2,7 +2,7 @@ name: Documentation
 
 on:
   push:
-    branches: [ main, develop, 'fix/**', 'feat/**' ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
   release:
