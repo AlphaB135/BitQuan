@@ -34,12 +34,12 @@ jobs:
           sudo apt-get install -y libudev-dev pkg-config
 
       - name: Install security tools
-        run: |
-          cargo install cargo-audit cargo-deny --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
 
       - name: Security audit
-        run: |
-          cargo audit --deny warnings --ignore RUSTSEC-2025-0141
+        run: cargo deny check
 
       - name: License check
         run: |

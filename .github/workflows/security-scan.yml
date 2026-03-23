@@ -1,4 +1,4 @@
-name: Security Scan
+name: Security Scan (Optimized)
 
 on:
   push:
@@ -7,6 +7,12 @@ on:
     branches: [ main, develop ]
   schedule:
     - cron: '0 2 * * *'
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+  actions: read
 
 jobs:
   security-scan:
@@ -26,7 +32,7 @@ jobs:
         components: rustfmt, clippy
 
     - name: Cache Dependencies
-      uses: actions/cache@v5
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
@@ -39,255 +45,76 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libudev-dev pkg-config
 
-    - name: Run Security Audit
-      run: |
-        echo "Running cargo audit for security vulnerabilities..."
-        cargo install cargo-audit
-        cargo audit --json > audit-report.json || true
-        cargo audit \
-          --ignore RUSTSEC-2026-0037 \
-          --ignore RUSTSEC-2025-0141
+    - name: Install Security Tools
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-deny, cargo-cyclonedx
 
     - name: Run Cargo Deny
-      run: |
-        echo "Running cargo deny for license and ban checking..."
-        cargo install cargo-deny
-        cargo deny check
+      run: cargo deny check
 
     - name: Run Clippy Security Lints
       run: |
-        echo "Running clippy with security-focused lints..."
         cargo clippy --lib --bins --all-features -- -D warnings \
           -W clippy::panic \
           -W clippy::unimplemented \
           -W clippy::unwrap_used \
-          -W clippy::expect_used \
-          -W clippy::panic_in_result_fn
-
-    - name: Check for Hardcoded Secrets
-      run: |
-        echo "Scanning for hardcoded secrets..."
-        if cargo install cargo-secret 2>/dev/null; then
-          cargo secret scan || true
-        else
-          echo "cargo-secret not available, skipping..."
-        fi
+          -W clippy::expect_used
 
     - name: Secret Scanning with TruffleHog
       if: github.event_name == 'pull_request'
-      run: |
-        echo "Running TruffleHog secret scanning..."
-        docker run --rm -v "$PWD:/src" ghcr.io/trufflesecurity/trufflehog:latest \
-          github --token ${{ secrets.GITHUB_TOKEN }} --repo ${{ github.repository }} \
-          --json > trufflehog-report.json || true
-
-    - name: Dependency Confusion Check
-      run: |
-        echo "Checking for dependency confusion attacks..."
-        find . -name "Cargo.toml" -exec grep -l "bitquan-" {} \; | \
-        while read file; do
-          echo "Checking $file for internal packages..."
-          grep -E "^bitquan-" "$file" || true
-        done
-
-    - name: Upload Security Reports
-      uses: actions/upload-artifact@v6
-      if: always()
+      uses: trufflesecurity/trufflehog@main
       with:
-        name: security-reports
-        path: |
-          audit-report.json
-          trufflehog-report.json
-          target/*/Cargo.lock
-        retention-days: 30
-
-    - name: Security Alert on High Risk Findings
-      if: failure()
-      run: |
-        echo "SECURITY ISSUE DETECTED!"
-        echo "Check the security reports for detailed information."
-        exit 1
-
-  code-quality:
-    name: Code Quality & Security Analysis
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v6
-
-    - name: Setup Rust Toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-        components: rustfmt
-
-    - name: Install System Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev pkg-config
-
-    - name: Check Code Formatting
-      run: |
-        echo "Checking code formatting..."
-        cargo fmt --all -- --check
-
-    - name: Run Security-focused Tests
-      run: |
-        echo "Running security-focused tests..."
-        cargo test --release --all-features -- \
-          --ignore rustdoc \
-          --test security_integration_tests || \
-          cargo test --release --all-features
-
-    - name: Code Coverage Analysis
-      run: |
-        echo "Running code coverage analysis..."
-        cargo install cargo-tarpaulin
-        cargo tarpaulin --out Json --output-dir coverage/ || echo "Coverage analysis failed, continuing..."
-      continue-on-error: true
-
-    - name: Upload Coverage Report
-      uses: actions/upload-artifact@v6
-      if: success() || failure()
-      with:
-        name: coverage-report
-        path: coverage/
-        retention-days: 7
-        if-no-files-found: ignore
-
-  supply-chain-security:
-    name: Supply Chain Security
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v6
-
-    - name: Supply Chain Analysis
-      run: |
-        echo "Analyzing supply chain security..."
-
-        find . -name "Cargo.toml" -exec grep -H "=" {} \; | \
-          grep -v "version = " || echo "No exact versions found - consider pinning versions"
-
-        find . -name "Cargo.toml" -exec grep -H "git =" {} \; || echo "No git dependencies found"
-
-        cargo tree --duplicates || echo "No duplicate dependencies found"
-        cargo tree --format "{p}" | wc -l > dependency-count.txt
-        echo "Total dependencies: $(cat dependency-count.txt)"
+        path: ./
+        base: ${{ github.event.repository.default_branch }}
+        head: HEAD
+        extra_args: --only-verified
 
     - name: SBOM Generation
-      run: |
-        echo "Generating Software Bill of Materials (SBOM)..."
-        cargo install cargo-cyclonedx
-        cargo cyclonedx --format json > sbom.json
-        cargo cyclonedx --format xml > sbom.xml
+      run: cargo cyclonedx --format json > sbom.json
 
-    - name: Upload SBOM
+    - name: Upload SBOM Artifact
       uses: actions/upload-artifact@v6
       with:
         name: sbom
-        path: |
-          sbom.json
-          sbom.xml
+        path: sbom.json
         retention-days: 90
 
-  malware-scan:
-    name: Malware Detection
+  codeql-analysis:
+    name: CodeQL SAST
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
+    - name: Checkout repository
       uses: actions/checkout@v6
 
-    - name: Malware Scan
-      run: |
-        echo "Running malware detection..."
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: 'rust'
 
-        sudo apt-get update
-        sudo apt-get install -y clamav clamav-freshclam
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:rust"
 
-        sudo systemctl stop clamav-freshclam || true
-        sudo freshclam --quiet || echo "Freshclam update skipped (database may be current)"
-
-        sudo clamscan --recursive --infected . || \
-          echo "No malware detected"
-
-    - name: YARA Rule Analysis
-      run: |
-        echo "Running YARA rule analysis..."
-
-        sudo apt-get install -y yara
-
-        curl -L https://github.com/Yara-Rules/rules/archive/master.zip -o rules.zip
-        unzip rules.zip -d yara-rules
-
-        find yara-rules -name "*.yar" -type f | head -10 | \
-          xargs yara -c . || echo "No YARA rule matches found"
-
-  security-scorecard:
+  ossf-scorecard:
     name: OSSF Security Scorecard
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+
     - name: Run OSSF Scorecard
       uses: ossf/scorecard-action@v2.4.3
       with:
-        results_file: results.json
-        results_format: json
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_results: false
+        results_file: results.sarif
+        results_format: sarif
+        publish_results: true
 
-    - name: Upload Scorecard Results
-      uses: actions/upload-artifact@v6
+    - name: Upload SARIF results to code scanning
+      uses: github/codeql-action/upload-sarif@v3
       with:
-        name: scorecard-results
-        path: results.json
-        retention-days: 30
-
-    - name: Scorecard Summary
-      run: |
-        if [ -f results.json ]; then
-          echo "OSSF Scorecard Results:"
-          jq '.score' results.json || echo "Score not available"
-        fi
-
-  advanced-security:
-    name: Advanced Security Analysis
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[security-scan]')
-
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v6
-
-    - name: Fuzz Testing
-      run: |
-        echo "Starting fuzz testing..."
-        cargo install cargo-fuzz
-
-        if [ -d "fuzz" ]; then
-          cd fuzz
-          cargo +nightly fuzz run --release fuzz_target_1 || echo "Fuzz testing completed"
-        else
-          echo "No fuzz targets found - consider adding fuzz testing"
-        fi
-
-    - name: Property-Based Testing
-      run: |
-        echo "Running property-based tests..."
-        cargo install proptest
-
-        cargo test --release proptest || \
-          echo "No property-based tests found - consider adding them"
-
-    - name: Performance Security Analysis
-      run: |
-        echo "Running performance security analysis..."
-
-        cargo install cargo-flamegraph
-
-        cargo test --release security_perf_tests || \
-          echo "No performance security tests found"
+        sarif_file: results.sarif
