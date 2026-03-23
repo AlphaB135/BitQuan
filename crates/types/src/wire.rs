@@ -22,11 +22,11 @@ pub enum WireError {
     SizeLimit(String),
 }
 
-/// Maximum transaction size (1 MB).
-pub const MAX_TX_SIZE: usize = 1_000_000;
+/// Maximum transaction size (4 MB).
+pub const MAX_TX_SIZE: usize = 4_000_000; // BQIP-0005: increased from 1MB to support 32MB blocks
 
-/// Maximum block size (4 MB).
-pub const MAX_BLOCK_SIZE: usize = 4_000_000;
+/// Maximum block size (32 MB).
+pub const MAX_BLOCK_SIZE: usize = 32_000_000; // BQIP-0005: increased from 4MB → 32MB for higher L1 TPS
 
 /// Trait for types that can be serialized to wire format.
 pub trait WireEncode {
@@ -498,6 +498,7 @@ impl WireEncode for BlockHeader {
         write_bytes(writer, &self.prev_block)?;
         write_bytes(writer, &self.merkle_root)?;
         write_bytes(writer, &self.pqc_agg_hint)?;
+        write_bytes(writer, &self.uncles_hash)?;
         write_u32_le(writer, self.time)?;
         write_u32_le(writer, self.bits)?;
         write_u64_le(writer, self.nonce)?;
@@ -506,7 +507,7 @@ impl WireEncode for BlockHeader {
     }
 
     fn encoded_size(&self) -> usize {
-        4 + 32 + 32 + 32 + 4 + 4 + 8 + 1 // 117 bytes (added algo_id)
+        4 + 32 + 32 + 32 + 32 + 4 + 4 + 8 + 1 // 149 bytes (added uncles_hash, algo_id)
     }
 }
 
@@ -522,6 +523,9 @@ impl WireDecode for BlockHeader {
 
         let mut pqc_agg_hint = [0u8; 32];
         reader.read_exact(&mut pqc_agg_hint)?;
+
+        let mut uncles_hash = [0u8; 32];
+        reader.read_exact(&mut uncles_hash)?;
 
         let time = read_u32_le(reader)?;
         let bits = read_u32_le(reader)?;
@@ -540,6 +544,7 @@ impl WireDecode for BlockHeader {
             prev_block,
             merkle_root,
             pqc_agg_hint,
+            uncles_hash,
             time,
             bits,
             nonce,
@@ -561,6 +566,13 @@ impl WireEncode for Block {
             tx.encode(writer)?;
         }
 
+        let uncle_count = CompactUint::from(self.uncles.len() as u64);
+        uncle_count.encode(writer)?;
+
+        for uncle in &self.uncles {
+            uncle.encode(writer)?;
+        }
+
         Ok(())
     }
 
@@ -572,6 +584,10 @@ impl WireEncode for Block {
             .iter()
             .map(|tx| tx.encoded_size())
             .sum::<usize>();
+
+        size += CompactUint::from(self.uncles.len() as u64).encoded_length();
+        size += self.uncles.len() * self.header.encoded_size();
+
         size
     }
 }
@@ -592,8 +608,21 @@ impl WireDecode for Block {
             transactions.push(Transaction::decode(reader)?);
         }
 
+        let uncle_count = CompactUint::decode(reader)?;
+        let uncle_count_usize = uncle_count.value() as usize;
+
+        if uncle_count_usize > 2 {
+            return Err(WireError::SizeLimit("too many uncles (max 2)".into()));
+        }
+
+        let mut uncles = Vec::with_capacity(uncle_count_usize);
+        for _ in 0..uncle_count_usize {
+            uncles.push(BlockHeader::decode(reader)?);
+        }
+
         Ok(Block {
             header,
+            uncles,
             transactions,
         })
     }
@@ -691,6 +720,7 @@ mod tests {
             prev_block: [0u8; 32],
             merkle_root: [1u8; 32],
             pqc_agg_hint: [2u8; 32],
+            uncles_hash: [3u8; 32],
             time: 1234567890,
             bits: 0x1d00ffff,
             nonce: 424242,
@@ -701,7 +731,7 @@ mod tests {
         header
             .encode(&mut buf)
             .expect("Failed to encode block header");
-        assert_eq!(buf.len(), 117); // Fixed header size (with algo_id)
+        assert_eq!(buf.len(), 149); // Fixed header size (with algo_id and uncles_hash)
 
         let decoded = BlockHeader::decode(&mut &buf[..]).expect("Failed to decode block header");
         assert_eq!(decoded.version, header.version);
@@ -717,11 +747,13 @@ mod tests {
                 prev_block: [0u8; 32],
                 merkle_root: [1u8; 32],
                 pqc_agg_hint: [2u8; 32],
+                uncles_hash: [3u8; 32],
                 time: 1234567890,
                 bits: 0x1d00ffff,
                 nonce: 424242,
                 algo_id: 0,
             },
+            uncles: vec![],
             transactions: vec![Transaction {
                 version: 1,
                 network: NetworkId::Devnet,

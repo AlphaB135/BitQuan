@@ -1165,6 +1165,7 @@ async fn handle_share_result(
 
                     let block = Block {
                         header: block_header,
+                        uncles: vec![],
                         transactions: result.template.txs.clone(),
                     };
 

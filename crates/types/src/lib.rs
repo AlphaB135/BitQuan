@@ -3,6 +3,7 @@
 
 mod block;
 mod compact_uint;
+pub mod aggregation;
 pub mod context;
 pub mod entropy;
 pub mod error;

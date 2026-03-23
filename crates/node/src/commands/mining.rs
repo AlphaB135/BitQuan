@@ -95,11 +95,13 @@ fn load_block_placeholder() -> Result<Block> {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 0,
             bits: 0,
             nonce: 0,
             algo_id: 0,
         },
+        uncles: Vec::new(),
         transactions: Vec::new(),
     };
     Ok(block)
@@ -339,7 +341,7 @@ pub fn check_block(path: &str) -> Result<()> {
     let mut engine = ConsensusEngine::new(params, registry);
     let block = load_block_placeholder()?;
 
-    match engine.validate_block(&block, 0, 0) {
+    match engine.validate_block(&block, 0, 0, &[], &std::collections::HashSet::new()) {
         Ok(report) => {
             println!("Block validation successful!");
             println!("  Weight: {} WU", report.block_weight);
@@ -498,6 +500,7 @@ pub fn mine_once(
         prev_block: prev,
         merkle_root,
         pqc_agg_hint: witness_root,
+        uncles_hash: [0u8; 32],
         time,
         bits,
         nonce: 0,
@@ -525,6 +528,7 @@ pub fn mine_once(
             println!("FOUND nonce={n} hash={}", hex::encode(id));
             let block = Block {
                 header: header.clone(),
+                uncles: vec![],
                 transactions: all_txs,
             };
             let _ = store.insert_block(block);
@@ -914,6 +918,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
             prev_block: prev,
             merkle_root,
             pqc_agg_hint: witness_root,
+            uncles_hash: [0u8; 32],
             time,
             bits,
             nonce: 0,
@@ -1083,6 +1088,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         let block = Block {
             header: header.clone(),
+            uncles: vec![],
             transactions: all_txs,
         };
 

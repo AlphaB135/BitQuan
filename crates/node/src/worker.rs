@@ -716,11 +716,68 @@ async fn handle_block(
         }
     };
 
+    // Step 3.5: GHOST Protocol - Fetch Uncle Contexts
+    let mut uncles_ctx = Vec::new();
+    let mut past_uncle_hashes = std::collections::HashSet::new();
+
+    if !block.uncles.is_empty() {
+        // Collect past uncles for double inclusion check (depth bounded by 7)
+        let start_h = height.saturating_sub(7);
+        for h in start_h..height {
+            if let Ok(Some(past_block)) = ctx.storage.get_block_by_height(h).await {
+                for u in past_block.uncles {
+                    past_uncle_hashes.insert(bitquan_consensus::pow::header_hash(&u));
+                }
+            }
+        }
+
+        // Fetch each included uncle
+        for u_hdr in &block.uncles {
+            let u_hash = bitquan_consensus::pow::header_hash(u_hdr);
+            match ctx.storage.get_block(&u_hash).await {
+                Ok(Some(u_block)) => {
+                    // Try to discover height (scan from tip downward up to 10 blocks)
+                    let mut u_height = height.saturating_sub(1);
+                    for h in (height.saturating_sub(10)..height).rev() {
+                        if let Ok(Some(b)) = ctx.storage.get_block_by_height(h).await {
+                            if bitquan_consensus::pow::header_hash(&b.header) == u_hash {
+                                u_height = h;
+                                break;
+                            }
+                        }
+                    }
+
+                    let payout_script = if !u_block.transactions.is_empty() && !u_block.transactions[0].outputs.is_empty() {
+                        u_block.transactions[0].outputs[0].script_pubkey.clone()
+                    } else {
+                        Vec::new() // Will fail consensus if invalid
+                    };
+
+                    uncles_ctx.push(bitquan_consensus::UncleContext {
+                        header: u_hdr.clone(),
+                        height: u_height,
+                        payout_script,
+                    });
+                }
+                _ => {
+                    let msg = format!("Missing Uncle {} for consensus validation", hex::encode(&u_hash[..8]));
+                    log::warn!("{}", msg);
+                    let _ = peer.send_message(Message::Reject {
+                        message: "block".to_string(),
+                        code: RejectCode::Invalid,
+                        reason: msg.clone(),
+                    });
+                    return Err(WorkerError::InvalidData(msg));
+                }
+            }
+        }
+    }
+
     // Step 4: Full consensus validation (coinbase, signatures, merkle, etc.)
     // Uses total_fees from UTXO validation for STRICT coinbase reward check.
     // This prevents the inflation bug where miners claim subsidy + 1 BTC without fees.
     let mut engine = ctx.consensus.lock().await;
-    match engine.validate_block_with_fees(&block, height, total_fees, median_time_past) {
+    match engine.validate_block_with_fees(&block, height, total_fees, median_time_past, &uncles_ctx, &past_uncle_hashes) {
         Ok(report) => {
             log::info!(
                 "✅ Block {} consensus valid (weight: {} WU, sigs: {})",
@@ -1801,11 +1858,13 @@ mod tests {
                 prev_block: [0u8; 32],
                 merkle_root: [0u8; 32],
                 pqc_agg_hint: [0u8; 32],
+               uncles_hash: [0u8; 32],
                 time: 0,
                 bits: 0x1d00ffff,
                 nonce: 0,
                 algo_id: 0, // SHA-256d
             },
+            uncles: vec![],
             transactions: vec![coinbase, tx_a, tx_b],
         };
 
@@ -1904,11 +1963,13 @@ mod tests {
                 prev_block: [0u8; 32],
                 merkle_root: [0u8; 32],
                 pqc_agg_hint: [0u8; 32],
+               uncles_hash: [0u8; 32],
                 time: 0,
                 bits: 0x1d00ffff,
                 nonce: 0,
                 algo_id: 0,
             },
+            uncles: vec![],
             transactions: vec![coinbase, tx_overflow],
         };
 

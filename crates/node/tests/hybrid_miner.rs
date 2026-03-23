@@ -44,6 +44,7 @@ fn randomx_miner_produces_valid_block() {
         prev_block: [0u8; 32],
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567890,
         bits: 0x207fffff, // Very easy target
         nonce: 0,
@@ -105,6 +106,7 @@ fn sha256d_only_miner_works() {
         prev_block: [0u8; 32],
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567890,
         bits: 0x207fffff, // Very easy target
         nonce: 0,
@@ -141,6 +143,7 @@ fn metrics_track_mining_activity() {
         prev_block: [0u8; 32],
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567890,
         bits: 0x207fffff,
         nonce: 0,

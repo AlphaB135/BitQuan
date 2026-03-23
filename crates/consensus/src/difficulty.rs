@@ -141,7 +141,7 @@ mod tests {
             signature_weight_alpha: 384,
             witness_weight_beta: 0.5,
             difficulty: DifficultyParams {
-                target_block_time: 600,
+                target_block_time: 120, // Updated for Phase 4
                 difficulty_half_life: 14_400,
                 burst_guard_window: 11,
                 burst_guard_floor_ratio_fp: 1417339207, // 0.33 in 32.32 fixed-point

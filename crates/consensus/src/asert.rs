@@ -394,16 +394,16 @@ mod tests {
         let params = params();
         let anchor = 1000u64;
 
-        // Test with perfect timing (no change)
-        let next = asert_next_target(anchor, 10, 6000, &params, None);
+        // Test with perfect timing (no change) => 10 blocks * 120s = 1200s
+        let next = asert_next_target(anchor, 10, 1200, &params, None);
         assert_eq!(next, anchor);
 
-        // Test with fast blocks (difficulty should increase)
-        let next_fast = asert_next_target(anchor, 10, 3000, &params, None);
+        // Test with fast blocks (difficulty should increase => target decreases) => 600s
+        let next_fast = asert_next_target(anchor, 10, 600, &params, None);
         assert!(next_fast < anchor);
 
-        // Test with slow blocks (difficulty should decrease)
-        let next_slow = asert_next_target(anchor, 10, 9000, &params, None);
+        // Test with slow blocks (difficulty should decrease => target increases) => 2400s
+        let next_slow = asert_next_target(anchor, 10, 2400, &params, None);
         assert!(next_slow > anchor);
     }
 

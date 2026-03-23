@@ -376,6 +376,7 @@ impl RpcMethods for NodeRpcHandler {
                     prev_block: [0u8; 32],
                     merkle_root: bitquan_types::GENESIS_HASH_BYTES,
                     pqc_agg_hint: [0u8; 32],
+                    uncles_hash: [0u8; 32],
                     time: bitquan_types::GENESIS_TIME,
                     bits: bitquan_types::GENESIS_BITS,
                     nonce: bitquan_types::GENESIS_NONCE,
@@ -414,6 +415,7 @@ impl RpcMethods for NodeRpcHandler {
                 prev_block: prev_hash,
                 merkle_root,
                 pqc_agg_hint: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
@@ -453,6 +455,7 @@ impl RpcMethods for NodeRpcHandler {
             // Create full block
             let block = Block {
                 header: header.clone(),
+                uncles: vec![],
                 transactions: vec![coinbase_tx],
             };
 
@@ -516,6 +519,7 @@ impl RpcMethods for NodeRpcHandler {
                     prev_block: [0u8; 32],
                     merkle_root: bitquan_types::GENESIS_HASH_BYTES,
                     pqc_agg_hint: [0u8; 32],
+                    uncles_hash: [0u8; 32],
                     time: bitquan_types::GENESIS_TIME,
                     bits: bitquan_types::GENESIS_BITS,
                     nonce: bitquan_types::GENESIS_NONCE,
@@ -554,6 +558,7 @@ impl RpcMethods for NodeRpcHandler {
                 prev_block: prev_hash,
                 merkle_root,
                 pqc_agg_hint: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
@@ -613,6 +618,7 @@ impl RpcMethods for NodeRpcHandler {
             // Create full block
             let block = Block {
                 header: header.clone(),
+                uncles: vec![],
                 transactions,
             };
 
@@ -752,12 +758,12 @@ impl RpcMethods for NodeRpcHandler {
             .add_output(recipient_script, output_value)
             .add_output(change_script, change_value);
 
-        // Sign transaction with wallet
         let tx = tx
             .build_and_sign(|msg| {
-                wallet.sign(msg).map_err(|e| {
+                let sig = wallet.sign(msg).map_err(|e| {
                     bitquan_types::error::Error::Invalid(format!("Signing failed: {}", e))
-                })
+                })?;
+                Ok((sig, wallet.public_key.clone()))
             })
             .map_err(|e| RpcError::InternalError(format!("Failed to build transaction: {}", e)))?;
 
