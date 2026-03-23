@@ -3,16 +3,8 @@ name: Performance Benchmarks
 on:
   push:
     branches: [ main, develop ]
-    paths:
-      - 'benches/**'
-      - 'src/**'
-      - 'crates/**'
   pull_request:
     branches: [ main, develop ]
-    paths:
-      - 'benches/**'
-      - 'src/**'
-      - 'crates/**'
   schedule:
     - cron: '0 1 * * 1'  # Weekly at 1 AM UTC
   workflow_dispatch:
@@ -21,11 +13,32 @@ permissions:
   contents: read
 
 jobs:
+  # Detect code changes to skip benchmarks on non-code changes
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'benches/**'
+              - 'src/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+
   # Performance benchmarks
   benchmarks:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout

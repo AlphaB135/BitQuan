@@ -273,5 +273,17 @@
       "sig_algo": 1,
       "witnesses": []
     }
-  ]
+  ],
+  "consensus_params": {
+    "target_block_time": 600,
+    "difficulty_adjustment_interval": 2016,
+    "max_block_size": 4000000,
+    "max_transaction_size": 1000000,
+    "coinbase_maturity": 100,
+    "subsidy_halving_interval": 210000,
+    "initial_subsidy": 50000000000000000000,
+    "pow_algo": "sha256d",
+    "min_difficulty_bits": 471859199,
+    "max_difficulty_bits": 545259519
+  }
 }
