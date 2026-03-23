@@ -3,6 +3,7 @@
 /.trunk/tmp/
 data/
 .agents
+HANDOFF.md
 
 CLAUDE.md
 # Test/temp files
@@ -382,3 +383,4 @@ proptest-regressions/
 
 # Dual-agent communication (ephemeral)
 .agent-comms/
+HANDOFF.md
