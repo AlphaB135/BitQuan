@@ -5,6 +5,7 @@ ARG CARGO_CHEF_VERSION=0.1.67
 # Stage 1: cargo-chef planner
 FROM rust:1.82-slim AS planner
 WORKDIR /app
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 RUN CARGO_CHEF_URL="https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-x86_64-unknown-linux-musl.tar.gz" \
     && curl -fsSL "$CARGO_CHEF_URL" | tar xz -C /usr/local/cargo/bin/
 COPY . .
