@@ -2,7 +2,7 @@
 # BitQuan node - multi-stage build with dependency caching
 
 # Stage 1: Build dependencies (cached layer)
-FROM rust:1.87-slim AS builder
+FROM rust:1.85-slim AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
