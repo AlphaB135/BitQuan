@@ -48,11 +48,11 @@ subtle = "2.6"
 hidapi = { version = "2.6", optional = true }
 
 # Async support
-tokio = { version = "1.49", features = ["full"], optional = true }
+tokio = { version = "1.50", features = ["full"], optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
-proptest = "1.4"
+proptest = "1.10"
 criterion = "0.5"
 
 # [[bench]]
