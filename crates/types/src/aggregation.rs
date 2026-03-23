@@ -8,8 +8,8 @@
 //! This reduces the weight of multi-input transactions by collapsing redundant
 //! signatures into a single witness payload, significantly increasing TPS.
 
-use std::collections::HashSet;
 use crate::{Transaction, Witness};
+use std::collections::HashSet;
 
 /// Evaluates if all signatures in a transaction come from the same public key.
 /// If they do, it aggregates them by retaining only the first signature in a single witness,
@@ -81,15 +81,19 @@ mod tests {
     #[test]
     fn test_aggregate_same_sender_success() {
         let mut tx = dummy_tx();
-        
+
         // 3 inputs, all from pubkey 'A'
         tx.witnesses = vec![
-            Witness { signatures: vec![make_dummy_sig(0xAA, 1)] },
-            Witness { signatures: vec![make_dummy_sig(0xAA, 2), make_dummy_sig(0xAA, 3)] },
+            Witness {
+                signatures: vec![make_dummy_sig(0xAA, 1)],
+            },
+            Witness {
+                signatures: vec![make_dummy_sig(0xAA, 2), make_dummy_sig(0xAA, 3)],
+            },
         ];
 
         let aggregated = aggregate_same_sender(&mut tx);
-        
+
         assert!(aggregated);
         assert_eq!(tx.witnesses.len(), 1);
         assert_eq!(tx.witnesses[0].signatures.len(), 1);
@@ -100,15 +104,19 @@ mod tests {
     #[test]
     fn test_aggregate_different_senders_fails() {
         let mut tx = dummy_tx();
-        
+
         // Inputs from pubkey 'A' and pubkey 'B'
         tx.witnesses = vec![
-            Witness { signatures: vec![make_dummy_sig(0xAA, 1)] },
-            Witness { signatures: vec![make_dummy_sig(0xBB, 2)] },
+            Witness {
+                signatures: vec![make_dummy_sig(0xAA, 1)],
+            },
+            Witness {
+                signatures: vec![make_dummy_sig(0xBB, 2)],
+            },
         ];
 
         let aggregated = aggregate_same_sender(&mut tx);
-        
+
         assert!(!aggregated); // Should not aggregate
         assert_eq!(tx.witnesses.len(), 2); // Unchanged
     }
@@ -116,14 +124,14 @@ mod tests {
     #[test]
     fn test_aggregate_single_sig_ignored() {
         let mut tx = dummy_tx();
-        
+
         // Only 1 input, no need to aggregate
-        tx.witnesses = vec![
-            Witness { signatures: vec![make_dummy_sig(0xAA, 1)] },
-        ];
+        tx.witnesses = vec![Witness {
+            signatures: vec![make_dummy_sig(0xAA, 1)],
+        }];
 
         let aggregated = aggregate_same_sender(&mut tx);
-        
+
         assert!(!aggregated); // Already optimized
     }
 }

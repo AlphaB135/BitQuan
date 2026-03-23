@@ -224,20 +224,12 @@ pub fn asert_next_target(
     // For compact targets with exponent >= 29, the value exceeds u128 range.
     // In that case we clamp to u128::MAX for calculation purposes.
     let anchor_u128 = if anchor_target[0..16] == [0u8; 16] {
-        u128::from_be_bytes(
-            anchor_target[16..32]
-                .try_into()
-                .unwrap_or([0u8; 16]),
-        )
+        u128::from_be_bytes(anchor_target[16..32].try_into().unwrap_or([0u8; 16]))
     } else {
         u128::MAX
     };
     let max_u128 = if max_target[0..16] == [0u8; 16] {
-        u128::from_be_bytes(
-            max_target[16..32]
-                .try_into()
-                .unwrap_or([0u8; 16]),
-        )
+        u128::from_be_bytes(max_target[16..32].try_into().unwrap_or([0u8; 16]))
     } else {
         u128::MAX
     };
@@ -431,13 +423,11 @@ mod tests {
         assert_eq!(next, anchor, "ASERT should be identity for perfect timing");
 
         // Fast blocks => target decreases
-        let next_fast =
-            asert_next_target(anchor, height_delta, expected_time / 2, &params, None);
+        let next_fast = asert_next_target(anchor, height_delta, expected_time / 2, &params, None);
         assert!(next_fast < anchor, "Fast blocks should decrease target");
 
         // Slow blocks => target increases
-        let next_slow =
-            asert_next_target(anchor, height_delta, expected_time * 2, &params, None);
+        let next_slow = asert_next_target(anchor, height_delta, expected_time * 2, &params, None);
         assert!(next_slow > anchor, "Slow blocks should increase target");
     }
 
@@ -587,7 +577,10 @@ mod tests {
         let expected_time = height_delta * params.difficulty.target_block_time as i64;
 
         let result = asert_next_target(anchor, height_delta, expected_time, &params, None);
-        assert_eq!(result, anchor, "ASERT should be identity for perfect timing");
+        assert_eq!(
+            result, anchor,
+            "ASERT should be identity for perfect timing"
+        );
     }
 
     #[test]
@@ -685,8 +678,7 @@ mod tests {
             }),
         );
 
-        let without_guard =
-            asert_next_target(anchor, window, expected as i64 - 1, &no_guard, None);
+        let without_guard = asert_next_target(anchor, window, expected as i64 - 1, &no_guard, None);
 
         assert_eq!(with_guard, compact_to_target(DEVNET_MAX_BITS));
         assert!(without_guard < compact_to_target(DEVNET_MAX_BITS));

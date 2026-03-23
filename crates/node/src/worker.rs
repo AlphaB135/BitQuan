@@ -761,7 +761,9 @@ async fn handle_block(
                         }
                     };
 
-                    let payout_script = if !u_block.transactions.is_empty() && !u_block.transactions[0].outputs.is_empty() {
+                    let payout_script = if !u_block.transactions.is_empty()
+                        && !u_block.transactions[0].outputs.is_empty()
+                    {
                         u_block.transactions[0].outputs[0].script_pubkey.clone()
                     } else {
                         Vec::new() // Will fail consensus if invalid
@@ -774,7 +776,10 @@ async fn handle_block(
                     });
                 }
                 _ => {
-                    let msg = format!("Missing Uncle {} for consensus validation", hex::encode(&u_hash[..8]));
+                    let msg = format!(
+                        "Missing Uncle {} for consensus validation",
+                        hex::encode(&u_hash[..8])
+                    );
                     log::warn!("{}", msg);
                     let _ = peer.send_message(Message::Reject {
                         message: "block".to_string(),
@@ -791,7 +796,14 @@ async fn handle_block(
     // Uses total_fees from UTXO validation for STRICT coinbase reward check.
     // This prevents the inflation bug where miners claim subsidy + 1 BTC without fees.
     let mut engine = ctx.consensus.lock().await;
-    match engine.validate_block_with_fees(&block, height, total_fees, median_time_past, &uncles_ctx, &past_uncle_hashes) {
+    match engine.validate_block_with_fees(
+        &block,
+        height,
+        total_fees,
+        median_time_past,
+        &uncles_ctx,
+        &past_uncle_hashes,
+    ) {
         Ok(report) => {
             log::info!(
                 "✅ Block {} consensus valid (weight: {} WU, sigs: {})",
@@ -1929,7 +1941,7 @@ mod tests {
                 prev_block: [0u8; 32],
                 merkle_root: [0u8; 32],
                 pqc_agg_hint: [0u8; 32],
-               uncles_hash: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: 0,
                 bits: 0x1d00ffff,
                 nonce: 0,
@@ -2034,7 +2046,7 @@ mod tests {
                 prev_block: [0u8; 32],
                 merkle_root: [0u8; 32],
                 pqc_agg_hint: [0u8; 32],
-               uncles_hash: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: 0,
                 bits: 0x1d00ffff,
                 nonce: 0,

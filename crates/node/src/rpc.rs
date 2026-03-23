@@ -970,12 +970,8 @@ fn storage_to_rpc(err: StorageError) -> RpcError {
 fn difficulty_from_bits(bits: u32) -> f64 {
     let max_bytes = bitquan_consensus::compact_to_target(GENESIS_BITS);
     let target_bytes = bitquan_consensus::compact_to_target(bits);
-    let max_val = u128::from_be_bytes(
-        max_bytes[16..32].try_into().unwrap_or([0u8; 16]),
-    );
-    let target_val = u128::from_be_bytes(
-        target_bytes[16..32].try_into().unwrap_or([0u8; 16]),
-    );
+    let max_val = u128::from_be_bytes(max_bytes[16..32].try_into().unwrap_or([0u8; 16]));
+    let target_val = u128::from_be_bytes(target_bytes[16..32].try_into().unwrap_or([0u8; 16]));
     if target_val == 0 {
         return 0.0;
     }

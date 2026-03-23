@@ -26,7 +26,9 @@ mod tests;
 mod comprehensive_tests;
 
 pub use asert::{asert_next_target, BurstGuardState, GuardContext, FP_SCALE};
-pub use difficulty::{compact_to_target, target_to_compact, target_to_compact_u64, DifficultyState};
+pub use difficulty::{
+    compact_to_target, target_to_compact, target_to_compact_u64, DifficultyState,
+};
 pub use economic::{
     EconomicConfig, EconomicError, EconomicManager, EconomicStats, RewardEvent, SlashEvent,
     SlashReason, StakeInfo,
@@ -516,7 +518,6 @@ pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> Result<usize, Con
         .ok_or(ConsensusError::WeightOverflow("total transaction weight"))
 }
 
-
 /// Calculates block weight according to BQIP-0002.
 ///
 /// Formula: sum of all transaction weights
@@ -579,11 +580,15 @@ pub fn validate_block(
 
     // Enforce Uncle limits natively for Uncle reward distribution
     if block.uncles.len() > 2 {
-        return Err(ConsensusError::InvalidSignature("Block contains more than 2 uncles".to_string()));
+        return Err(ConsensusError::InvalidSignature(
+            "Block contains more than 2 uncles".to_string(),
+        ));
     }
 
     if block.uncles.len() != uncles_ctx.len() {
-        return Err(ConsensusError::InvalidSignature("Mismatched UncleContext length".to_string()));
+        return Err(ConsensusError::InvalidSignature(
+            "Mismatched UncleContext length".to_string(),
+        ));
     }
 
     // Check for duplicate uncles within this block (Closes #132)
@@ -600,17 +605,24 @@ pub fn validate_block(
     // GHOST Uncle Validation
     for (uncle_header, uncle_ctx) in block.uncles.iter().zip(uncles_ctx.iter()) {
         if uncle_header != &uncle_ctx.header {
-             return Err(ConsensusError::InvalidSignature("Uncle header mismatch with context".to_string()));
+            return Err(ConsensusError::InvalidSignature(
+                "Uncle header mismatch with context".to_string(),
+            ));
         }
-        
+
         let depth = height.saturating_sub(uncle_ctx.height);
         if depth == 0 || depth > 7 {
-            return Err(ConsensusError::InvalidSignature(format!("Uncle depth {} invalid (must be 1-7)", depth)));
+            return Err(ConsensusError::InvalidSignature(format!(
+                "Uncle depth {} invalid (must be 1-7)",
+                depth
+            )));
         }
-        
+
         let uncle_hash = crate::pow::header_hash(&uncle_ctx.header);
         if past_uncle_hashes.contains(&uncle_hash) {
-            return Err(ConsensusError::InvalidSignature("Uncle double inclusion detected".to_string()));
+            return Err(ConsensusError::InvalidSignature(
+                "Uncle double inclusion detected".to_string(),
+            ));
         }
 
         // Validate Uncle PoW
@@ -723,9 +735,8 @@ fn validate_block_header(
     }
 
     // Verify block hash meets the PoW target (Closes #131)
-    crate::pow::check_header_pow(header).map_err(|e| {
-        ConsensusError::InvalidSignature(format!("PoW verification failed: {e}"))
-    })?;
+    crate::pow::check_header_pow(header)
+        .map_err(|e| ConsensusError::InvalidSignature(format!("PoW verification failed: {e}")))?;
 
     // Validate merkle root matches transactions
     let calculated_merkle = calculate_merkle_root(&block.transactions)?;
@@ -821,16 +832,23 @@ fn validate_transaction_fees(
 
     // Calculate Nephew and Uncle rewards
     let mut total_uncle_rewards = 0u128;
-    let mut expected_uncle_rewards: std::collections::HashMap<Vec<u8>, u128> = std::collections::HashMap::new();
+    let mut expected_uncle_rewards: std::collections::HashMap<Vec<u8>, u128> =
+        std::collections::HashMap::new();
 
-    let nephew_reward = params.reward_schedule.nephew_reward(height, uncles_ctx.len());
+    let nephew_reward = params
+        .reward_schedule
+        .nephew_reward(height, uncles_ctx.len());
 
     for uncle_ctx in uncles_ctx {
-        let uncle_reward = params.reward_schedule.uncle_reward(height, uncle_ctx.height);
+        let uncle_reward = params
+            .reward_schedule
+            .uncle_reward(height, uncle_ctx.height);
         total_uncle_rewards = total_uncle_rewards
             .checked_add(uncle_reward)
             .ok_or(ConsensusError::WeightOverflow("uncle reward sum"))?;
-        *expected_uncle_rewards.entry(uncle_ctx.payout_script.clone()).or_insert(0u128) += uncle_reward;
+        *expected_uncle_rewards
+            .entry(uncle_ctx.payout_script.clone())
+            .or_insert(0u128) += uncle_reward;
     }
 
     // Strict validation: Coinbase <= Subsidy + Fees + NephewBonus
@@ -848,10 +866,13 @@ fn validate_transaction_fees(
     }
 
     // Verify each uncle received its exact reward
-    let mut actual_uncle_rewards: std::collections::HashMap<Vec<u8>, u128> = std::collections::HashMap::new();
+    let mut actual_uncle_rewards: std::collections::HashMap<Vec<u8>, u128> =
+        std::collections::HashMap::new();
     for output in &block.transactions[0].outputs {
         if expected_uncle_rewards.contains_key(&output.script_pubkey) {
-            *actual_uncle_rewards.entry(output.script_pubkey.clone()).or_insert(0u128) += output.value;
+            *actual_uncle_rewards
+                .entry(output.script_pubkey.clone())
+                .or_insert(0u128) += output.value;
         }
     }
 

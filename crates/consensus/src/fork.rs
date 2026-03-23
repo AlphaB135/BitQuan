@@ -181,7 +181,11 @@ impl ForkChoice {
 
     /// Computes the weight of a subtree rooted at the given block hash.
     fn subtree_weight(&self, hash: &[u8; 32]) -> U256 {
-        let mut weight = self.nodes.get(hash).map(|n| n.block_work()).unwrap_or_else(U256::zero);
+        let mut weight = self
+            .nodes
+            .get(hash)
+            .map(|n| n.block_work())
+            .unwrap_or_else(U256::zero);
         if let Some(children) = self.children.get(hash) {
             for child in children {
                 weight = weight.saturating_add(self.subtree_weight(child));
@@ -193,7 +197,7 @@ impl ForkChoice {
     /// Finds the tip using the GHOST protocol strategy.
     fn compute_ghost_tip(&self) -> Option<[u8; 32]> {
         let mut current = self.genesis_hash?;
-        
+
         loop {
             let children = match self.children.get(&current) {
                 Some(c) if !c.is_empty() => c,
@@ -202,7 +206,7 @@ impl ForkChoice {
 
             let mut best_child = current;
             let mut max_weight = U256::zero();
-            
+
             for child in children {
                 let weight = self.subtree_weight(child);
                 if weight > max_weight {
@@ -210,16 +214,19 @@ impl ForkChoice {
                     best_child = *child;
                 } else if weight == max_weight {
                     // Tie-breaking: prefer earlier timestamp, then lower hash
-                    if let (Some(best_node), Some(child_node)) = (self.nodes.get(&best_child), self.nodes.get(child)) {
-                        if child_node.header.time < best_node.header.time 
-                            || (child_node.header.time == best_node.header.time && child < &best_child) 
+                    if let (Some(best_node), Some(child_node)) =
+                        (self.nodes.get(&best_child), self.nodes.get(child))
+                    {
+                        if child_node.header.time < best_node.header.time
+                            || (child_node.header.time == best_node.header.time
+                                && child < &best_child)
                         {
                             best_child = *child;
                         }
                     }
                 }
             }
-            
+
             if best_child == current {
                 break; // Should not happen since children is non-empty
             }
@@ -274,7 +281,7 @@ impl ForkChoice {
 
         // Insert node
         self.nodes.insert(hash, node);
-        
+
         // Add to children map
         self.children.entry(parent_hash).or_default().push(hash);
 
@@ -283,7 +290,7 @@ impl ForkChoice {
         let old_tip = self.best_tip;
 
         let is_new_tip_hash = new_tip != old_tip;
-        
+
         let reorg_info = if is_new_tip_hash {
             let reorg = self.compute_reorg(old_tip, new_tip)?;
             self.best_tip = new_tip;
@@ -292,7 +299,7 @@ impl ForkChoice {
             None
         };
 
-        // For backward compatibility with the tests, we return whether *this* block became the tip, 
+        // For backward compatibility with the tests, we return whether *this* block became the tip,
         // OR if the tip changed. The previous logic returned `is_new_tip` as true if we extended the tip.
         let this_is_tip = new_tip == Some(hash);
 

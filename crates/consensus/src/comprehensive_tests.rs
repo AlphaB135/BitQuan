@@ -249,7 +249,7 @@ fn test_fee_calculation_precision() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x207fffff,
             nonce: 0,
@@ -293,7 +293,7 @@ fn test_fee_overflow_protection() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x207fffff,
             nonce: 0,
@@ -341,7 +341,7 @@ fn test_validate_block_with_fees() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x207fffff,
             nonce: 0,
@@ -353,7 +353,8 @@ fn test_validate_block_with_fees() {
 
     // Call the function - it may fail but that's OK for this test
     // We're just testing that the function exists and has the correct signature
-    let _result = engine.validate_block_with_fees(&block, 0, 0, 0, &[], &std::collections::HashSet::new());
+    let _result =
+        engine.validate_block_with_fees(&block, 0, 0, 0, &[], &std::collections::HashSet::new());
 
     // The test passes as long as we can call the function without compilation errors
 }
@@ -382,7 +383,7 @@ fn test_validate_block_with_fees_invalid_fees() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x207fffff,
             nonce: 0,
@@ -394,7 +395,14 @@ fn test_validate_block_with_fees_invalid_fees() {
 
     // Should fail due to fee mismatch (but might fail for other reasons like signature or merkle)
     // The important thing is that the function can be called with fee validation
-    let _result = engine.validate_block_with_fees(&block, 0, total_fees, 0, &[], &std::collections::HashSet::new());
+    let _result = engine.validate_block_with_fees(
+        &block,
+        0,
+        total_fees,
+        0,
+        &[],
+        &std::collections::HashSet::new(),
+    );
     // We don't assert on the result since it could fail for multiple reasons
     // Test passes if the function call compiles
 }
@@ -439,7 +447,7 @@ fn dust_output_rejection() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x207fffff,
             nonce: 0,
@@ -501,7 +509,7 @@ fn op_return_dust_allowed() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x207fffff,
             nonce: 0,
@@ -586,7 +594,7 @@ fn proof_of_work_boundary_values() {
         prev_block: [0u8; 32],
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1700000000,
         bits: DEVNET_MAX_BITS,
         nonce: 0,
@@ -704,7 +712,10 @@ fn weight_calculation_with_max_values() {
         Ok(weight) => {
             // BQIP-0002 weight = base_bytes*4 + witness_bytes*1
             // With 100 inputs/outputs and 100 witnesses, weight should be substantial
-            assert!(weight > 0, "Weight should be positive for valid transaction");
+            assert!(
+                weight > 0,
+                "Weight should be positive for valid transaction"
+            );
         }
         Err(ConsensusError::WeightOverflow(_)) => {
             // Overflow detection is acceptable for extreme cases
@@ -720,7 +731,7 @@ fn make_header(prev: [u8; 32], bits: u32, time: u32, nonce: u64) -> BlockHeader 
         prev_block: prev,
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time,
         bits,
         nonce,
@@ -736,7 +747,7 @@ fn create_valid_block() -> Block {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
-                uncles_hash: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x207fffff,
             nonce: 0,

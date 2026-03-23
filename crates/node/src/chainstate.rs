@@ -495,7 +495,7 @@ mod tests {
                 prev_block: [0u8; 32],
                 merkle_root: [0u8; 32],
                 pqc_agg_hint: [0u8; 32],
-               uncles_hash: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: 1234567890,
                 bits: 0x207fffff,
                 nonce: 0,
@@ -519,7 +519,8 @@ mod tests {
     fn append_dummy(state: &ChainState, block: &mut Block) -> [u8; 32] {
         block.header.prev_block = state.get_tip();
         let hash = pow::header_hash(&block.header);
-        state.append_block(block, hash)
+        state
+            .append_block(block, hash)
             .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
         hash
     }

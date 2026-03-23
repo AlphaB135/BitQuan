@@ -56,7 +56,7 @@ impl StratumAuth {
             hash.copy_from_slice(&result);
             hash
         });
-        
+
         Self {
             username,
             password_hash,
@@ -65,7 +65,7 @@ impl StratumAuth {
             client_ip,
         }
     }
-    
+
     /// Verify password against stored hash.
     pub fn verify_password(&self, password: &str) -> bool {
         match self.password_hash {
@@ -103,23 +103,23 @@ impl RateLimitState {
             window_start: now,
         }
     }
-    
+
     /// Check if share submission is within rate limits.
     pub fn check_share_rate(&mut self, max_rate: f64) -> bool {
         let now = Instant::now();
         let window_duration = now.duration_since(self.window_start);
-        
+
         // Reset window every second
         if window_duration.as_secs() >= 1 {
             self.share_count = 0;
             self.window_start = now;
         }
-        
+
         // Check if we're within the rate limit
         if self.share_count as f64 >= max_rate {
             return false;
         }
-        
+
         self.share_count += 1;
         self.last_share_time = now;
         true
@@ -180,7 +180,7 @@ pub struct StratumServer {
     share_tx: Option<mpsc::Sender<ShareJob>>,
     /// Share result receiver (from verifier pool).
     share_result_rx: Option<mpsc::Receiver<ShareResult>>,
-    
+
     // Security and connection tracking
     /// Connection count per IP address.
     connections_per_ip: Arc<DashMap<String, usize>>,
@@ -208,7 +208,7 @@ pub struct StratumConfig {
     pub vardiff_target_time: f64,
     /// Vardiff adjustment rate.
     pub vardiff_adjust_rate: f64,
-    
+
     // Security and DoS protection settings
     /// Enable authentication for miners.
     pub require_auth: bool,
@@ -234,11 +234,11 @@ impl Default for StratumConfig {
             enable_vardiff: true,
             vardiff_target_time: 15.0,
             vardiff_adjust_rate: 0.05,
-            
+
             // Security defaults
             require_auth: false,
             max_connections_per_ip: 3,
-            max_share_rate: 10.0, // 10 shares/second max
+            max_share_rate: 10.0,    // 10 shares/second max
             connection_timeout: 300, // 5 minutes
             max_connections: 100,
             enable_rate_limiting: true,
@@ -320,7 +320,7 @@ pub struct MinerSession {
     pub extranonce1: u32,
     /// Current job_id being worked on.
     pub current_job_id: Arc<tokio::sync::RwLock<u64>>,
-    
+
     // Security and authentication fields
     /// Authentication context (if required).
     pub auth: Option<StratumAuth>,
@@ -350,7 +350,7 @@ impl MinerSession {
         getrandom::getrandom(&mut extranonce1_bytes)
             .expect("Failed to generate secure extranonce1");
         let extranonce1 = u32::from_le_bytes(extranonce1_bytes);
-        
+
         let now = std::time::Instant::now();
 
         Self {
@@ -383,19 +383,23 @@ impl MinerSession {
     pub fn reject_share(&self) {
         self.shares_rejected.fetch_add(1, Ordering::Relaxed);
     }
-    
+
     /// Authenticate miner with username and password.
-    pub fn authenticate(&mut self, username: String, password: Option<String>) -> bitquan_types::Result<()> {
+    pub fn authenticate(
+        &mut self,
+        username: String,
+        password: Option<String>,
+    ) -> bitquan_types::Result<()> {
         let auth = StratumAuth::new(username.clone(), password, self.client_ip.clone());
-        
+
         // For now, accept any authentication (in production, this would check against a database)
         self.auth = Some(auth);
         self.is_authenticated = true;
         self.address = username;
-        
+
         Ok(())
     }
-    
+
     /// Check if session is authenticated (if required).
     pub fn is_authorized(&self, require_auth: bool) -> bool {
         if !require_auth {
@@ -403,14 +407,14 @@ impl MinerSession {
         }
         self.is_authenticated
     }
-    
+
     /// Update last activity timestamp.
     pub fn update_activity(&self) {
         if let Ok(mut last_activity) = self.last_activity.try_lock() {
             *last_activity = std::time::Instant::now();
         }
     }
-    
+
     /// Check if connection has timed out.
     pub fn is_timed_out(&self, timeout_seconds: u64) -> bool {
         if let Ok(last_activity) = self.last_activity.try_lock() {
@@ -419,7 +423,7 @@ impl MinerSession {
             false // If we can't check, assume not timed out
         }
     }
-    
+
     /// Check if share submission is within rate limits.
     pub fn check_rate_limit(&self, max_rate: f64) -> bool {
         if let Ok(mut rate_limit) = self.rate_limit.try_lock() {
@@ -781,7 +785,7 @@ impl StratumServer {
             vardiff,
             share_tx: None,
             share_result_rx: None,
-            
+
             // Security fields
             connections_per_ip: Arc::new(DashMap::new()),
             total_connections: Arc::new(AtomicUsize::new(0)),
@@ -794,25 +798,26 @@ impl StratumServer {
     pub fn set_template_manager(&mut self, manager: Arc<PoolTemplateManager>) {
         self.template_manager = Some(manager);
     }
-    
+
     /// Check if IP address is allowed to connect.
     #[allow(dead_code)]
     fn is_ip_allowed(&self, ip: &str) -> bool {
         // Check if IP is banned
         if let Some(ban_time) = self.banned_ips.get(ip) {
-            if ban_time.elapsed().as_secs() < 3600 { // 1 hour ban
+            if ban_time.elapsed().as_secs() < 3600 {
+                // 1 hour ban
                 return false;
             } else {
                 // Ban expired, remove it
                 self.banned_ips.remove(ip);
             }
         }
-        
+
         // Check allow list
         if self.config.allow_list.is_empty() {
             return true; // No restrictions
         }
-        
+
         self.config.allow_list.iter().any(|allowed| {
             allowed == ip || {
                 let parts: Vec<&str> = ip.split('.').take(2).collect();
@@ -821,42 +826,51 @@ impl StratumServer {
             }
         })
     }
-    
+
     /// Check if IP has exceeded connection limit.
     #[allow(dead_code)]
     fn is_connection_limit_exceeded(&self, ip: &str) -> bool {
         let count = self.connections_per_ip.get(ip).map(|c| *c).unwrap_or(0);
         count >= self.config.max_connections_per_ip
     }
-    
+
     /// Check if total connection limit is exceeded.
     #[allow(dead_code)]
     fn is_total_connection_limit_exceeded(&self) -> bool {
-        self.total_connections.load(std::sync::atomic::Ordering::Relaxed) >= self.config.max_connections
+        self.total_connections
+            .load(std::sync::atomic::Ordering::Relaxed)
+            >= self.config.max_connections
     }
-    
+
     /// Register a new connection.
     #[allow(dead_code)]
     fn register_connection(&self, ip: &str) -> bitquan_types::Result<()> {
         if !self.is_ip_allowed(ip) {
-            return Err(bitquan_types::Error::Invalid("IP address not allowed or banned".to_string()));
+            return Err(bitquan_types::Error::Invalid(
+                "IP address not allowed or banned".to_string(),
+            ));
         }
-        
+
         if self.is_connection_limit_exceeded(ip) {
-            return Err(bitquan_types::Error::Invalid("Too many connections from this IP".to_string()));
+            return Err(bitquan_types::Error::Invalid(
+                "Too many connections from this IP".to_string(),
+            ));
         }
-        
+
         if self.is_total_connection_limit_exceeded() {
-            return Err(bitquan_types::Error::Invalid("Server connection limit exceeded".to_string()));
+            return Err(bitquan_types::Error::Invalid(
+                "Server connection limit exceeded".to_string(),
+            ));
         }
-        
+
         // Increment connection counters
         *self.connections_per_ip.entry(ip.to_string()).or_insert(0) += 1;
-        self.total_connections.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        
+        self.total_connections
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         Ok(())
     }
-    
+
     /// Unregister a connection.
     #[allow(dead_code)]
     fn unregister_connection(&self, ip: &str) {
@@ -867,16 +881,18 @@ impl StratumServer {
                 self.connections_per_ip.remove(ip);
             }
         }
-        
-        self.total_connections.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+
+        self.total_connections
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
     }
-    
+
     /// Ban an IP address for security violations.
     #[allow(dead_code)]
     fn ban_ip(&self, ip: &str, reason: &str) {
-        self.banned_ips.insert(ip.to_string(), std::time::Instant::now());
+        self.banned_ips
+            .insert(ip.to_string(), std::time::Instant::now());
         eprintln!("Banned IP {} for: {}", ip, reason);
-        
+
         // Disconnect all sessions from this IP
         self.peers.retain(|_, session| session.client_ip != ip);
     }
@@ -1109,14 +1125,16 @@ async fn handle_client(
 ) -> Result<()> {
     let peer_key = addr.to_string();
     let client_ip = addr.ip().to_string();
-    
+
     // Check IP allowance and connection limits
     let is_allowed = {
         if let Some(ban_time) = banned_ips.get(&client_ip) {
             ban_time.elapsed().as_secs() >= 3600
-        } else { true }
+        } else {
+            true
+        }
     };
-    
+
     if !is_allowed {
         eprintln!("Stratum: Connection rejected from banned IP {}", client_ip);
         return Ok(());
@@ -1661,7 +1679,12 @@ mod tests {
 
     #[test]
     fn miner_session_creation() {
-        let session = MinerSession::new(PowAlgo::Sha256d, "test@localhost".to_string(), 1.0, "127.0.0.1".to_string());
+        let session = MinerSession::new(
+            PowAlgo::Sha256d,
+            "test@localhost".to_string(),
+            1.0,
+            "127.0.0.1".to_string(),
+        );
         assert_eq!(session.algo, PowAlgo::Sha256d);
         assert_eq!(session.address, "test@localhost");
         assert_eq!(session.difficulty, 1.0);
@@ -1671,7 +1694,12 @@ mod tests {
 
     #[test]
     fn share_counters() {
-        let session = MinerSession::new(PowAlgo::Sha256d, "test".to_string(), 1.0, "127.0.0.1".to_string());
+        let session = MinerSession::new(
+            PowAlgo::Sha256d,
+            "test".to_string(),
+            1.0,
+            "127.0.0.1".to_string(),
+        );
 
         session.accept_share();
         session.accept_share();

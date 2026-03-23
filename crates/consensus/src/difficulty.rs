@@ -4,8 +4,7 @@
 //! Difficulty conversion utilities and ASERT-backed retarget state.
 
 use crate::{
-    asert_next_target, BurstGuardState, ConsensusParams, GuardContext,
-    pow::compact_to_target_bytes,
+    asert_next_target, pow::compact_to_target_bytes, BurstGuardState, ConsensusParams, GuardContext,
 };
 
 /// Converts a 32-byte big-endian target back to compact `bits` form.
@@ -288,10 +287,7 @@ mod tests {
 
         // Round-trip: compact -> target -> compact should preserve bits
         let roundtrip = target_to_compact(&target);
-        assert_eq!(
-            roundtrip, bits,
-            "Round-trip should preserve compact bits"
-        );
+        assert_eq!(roundtrip, bits, "Round-trip should preserve compact bits");
 
         // Verify mantissa bytes at correct position
         // exponent=29, byte_pos=26, start=32-26-3=3

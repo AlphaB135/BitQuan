@@ -257,7 +257,6 @@ pub fn randomx_pow_hash_cached(
 ) -> Result<[u8; 32]> {
     use randomx_rs::{RandomXCache, RandomXVM};
 
-
     // Get or create cached VM for this seed
     let vm_ref = vm_cache
         .lock()
@@ -421,41 +420,51 @@ impl PowEngine for EthashEngine {
 
 /// Computes Ethash PoW hash using cached data to prevent DoS.
 #[cfg(feature = "ethash")]
-pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mutex<EthashCache>>) -> Result<[u8; 32]> {
-    use ethash::{hashimoto_light};
+pub fn ethash_pow_hash_cached(
+    preimage: &[u8],
+    cache_size: &u32,
+    cache: &Arc<Mutex<EthashCache>>,
+) -> Result<[u8; 32]> {
+    use ethash::hashimoto_light;
     use ethereum_types::{H256, H64};
-    
+
     // Convert preimage to H256 format
     let header_hash = H256::from_slice(preimage);
-    
+
     // Calculate epoch from cache size (simplified - normally derived from block number)
     let epoch = (*cache_size / 32) as u32; // Rough approximation
-    
+
     // Get or create cached data for this epoch
-    let cache_ref = cache.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire Ethash cache lock: {}", e)))?
+    let cache_ref = cache
+        .lock()
+        .map_err(|e| {
+            bitquan_types::Error::Invalid(format!("Failed to acquire Ethash cache lock: {}", e))
+        })?
         .get_cache(epoch)?;
-    
+
     // Use a simple nonce for now (in real implementation, this would be mining nonce)
     let nonce = H64::default();
-    
+
     // Get cache data
     let cache_data = {
-        let cache_guard = cache_ref.lock().map_err(|e| bitquan_types::Error::Invalid(format!("Failed to acquire Ethash cache data lock: {}", e)))?;
+        let cache_guard = cache_ref.lock().map_err(|e| {
+            bitquan_types::Error::Invalid(format!(
+                "Failed to acquire Ethash cache data lock: {}",
+                e
+            ))
+        })?;
         if let Some(ref data) = *cache_guard {
             data.clone()
         } else {
-            return Err(bitquan_types::Error::Invalid("Ethash cache not initialized".to_string()));
+            return Err(bitquan_types::Error::Invalid(
+                "Ethash cache not initialized".to_string(),
+            ));
         }
     };
-    
+
     // Compute hashimoto light (Ethash PoW) - simpler version for light clients
-    let (_mix_hash, result_hash) = hashimoto_light(
-        header_hash,
-        nonce,
-        epoch as usize,
-        &cache_data,
-    );
-    
+    let (_mix_hash, result_hash) = hashimoto_light(header_hash, nonce, epoch as usize, &cache_data);
+
     // Return result hash (32 bytes)
     let mut out = [0u8; 32];
     out.copy_from_slice(result_hash.as_fixed_bytes());
@@ -467,20 +476,19 @@ pub fn ethash_pow_hash_cached(preimage: &[u8], cache_size: &u32, cache: &Arc<Mut
 pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
     // Create temporary cache for legacy compatibility
     let cache = Arc::new(Mutex::new(EthashCache::new()));
-    ethash_pow_hash_cached(preimage, cache_size, &cache)
-        .unwrap_or_else(|_e| {
-            // In legacy compatibility mode, we should never fail, but if we do,
-            // return a fallback hash to maintain API compatibility
-            use sha3::{Digest, Keccak256};
-            let mut hasher = Keccak256::new();
-            hasher.update(b"Ethash-fallback-");
-            hasher.update(cache_size.to_le_bytes());
-            hasher.update(preimage);
-            let result = hasher.finalize();
-            let mut out = [0u8; 32];
-            out.copy_from_slice(&result);
-            out
-        })
+    ethash_pow_hash_cached(preimage, cache_size, &cache).unwrap_or_else(|_e| {
+        // In legacy compatibility mode, we should never fail, but if we do,
+        // return a fallback hash to maintain API compatibility
+        use sha3::{Digest, Keccak256};
+        let mut hasher = Keccak256::new();
+        hasher.update(b"Ethash-fallback-");
+        hasher.update(cache_size.to_le_bytes());
+        hasher.update(preimage);
+        let result = hasher.finalize();
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&result);
+        out
+    })
 }
 
 /// Fallback Ethash implementation when feature is not enabled
