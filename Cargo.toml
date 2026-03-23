@@ -75,5 +75,5 @@ opt-level = 3
 
 [profile.dev.package.bq-crypto]
 opt-level = 1
-[profile.dev.package.bq-pqc-dilithium-seeded]
+[profile.dev.package.pqc-dilithium-seeded]
 opt-level = 1

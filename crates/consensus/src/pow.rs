@@ -255,8 +255,6 @@ pub fn randomx_pow_hash_cached(
     seed: &[u8; 32],
     vm_cache: &Arc<Mutex<RandomXVMCache>>,
 ) -> Result<[u8; 32]> {
-    use randomx_rs::{RandomXCache, RandomXVM};
-
     // Get or create cached VM for this seed
     let vm_ref = vm_cache
         .lock()
@@ -425,11 +423,11 @@ pub fn ethash_pow_hash_cached(
     cache_size: &u32,
     cache: &Arc<Mutex<EthashCache>>,
 ) -> Result<[u8; 32]> {
+    use bigint::{H256, H64};
     use ethash::hashimoto_light;
-    use ethereum_types::{H256, H64};
 
     // Convert preimage to H256 format
-    let header_hash = H256::from_slice(preimage);
+    let header_hash = H256::from(preimage);
 
     // Calculate epoch from cache size (simplified - normally derived from block number)
     let epoch = (*cache_size / 32) as u32; // Rough approximation
@@ -463,11 +461,12 @@ pub fn ethash_pow_hash_cached(
     };
 
     // Compute hashimoto light (Ethash PoW) - simpler version for light clients
-    let (_mix_hash, result_hash) = hashimoto_light(header_hash, nonce, epoch as usize, &cache_data);
+    let (_mix_hash, result_hash) =
+        hashimoto_light(&header_hash, nonce, epoch as usize, &cache_data);
 
     // Return result hash (32 bytes)
     let mut out = [0u8; 32];
-    out.copy_from_slice(result_hash.as_fixed_bytes());
+    out.copy_from_slice(&result_hash.0);
     Ok(out)
 }
 
