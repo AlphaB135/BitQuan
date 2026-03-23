@@ -29,6 +29,7 @@ const STRATUM_QUEUE_CAP: usize = 1024;
 
 /// Authentication credentials for miner sessions.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct StratumAuth {
     /// Miner username/wallet address.
     pub username: String,
@@ -42,6 +43,7 @@ pub struct StratumAuth {
     pub client_ip: String,
 }
 
+#[allow(dead_code)]
 impl StratumAuth {
     /// Create new authentication context.
     pub fn new(username: String, password: Option<String>, client_ip: String) -> Self {
@@ -190,6 +192,7 @@ pub struct StratumServer {
 
 /// Stratum server configuration with security settings.
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct StratumConfig {
     /// Bind address (e.g., "0.0.0.0:3333").
     pub bind_addr: String,
@@ -291,6 +294,7 @@ impl RejectReason {
 
 /// Active miner session.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MinerSession {
     /// Unique session ID.
     pub id: Uuid,
@@ -330,6 +334,7 @@ pub struct MinerSession {
     pub last_activity: Arc<Mutex<std::time::Instant>>,
 }
 
+#[allow(dead_code)]
 impl MinerSession {
     /// Create a new miner session.
     pub fn new(algo: PowAlgo, address: String, difficulty: f64, client_ip: String) -> Self {
@@ -791,6 +796,7 @@ impl StratumServer {
     }
     
     /// Check if IP address is allowed to connect.
+    #[allow(dead_code)]
     fn is_ip_allowed(&self, ip: &str) -> bool {
         // Check if IP is banned
         if let Some(ban_time) = self.banned_ips.get(ip) {
@@ -817,17 +823,20 @@ impl StratumServer {
     }
     
     /// Check if IP has exceeded connection limit.
+    #[allow(dead_code)]
     fn is_connection_limit_exceeded(&self, ip: &str) -> bool {
         let count = self.connections_per_ip.get(ip).map(|c| *c).unwrap_or(0);
         count >= self.config.max_connections_per_ip
     }
     
     /// Check if total connection limit is exceeded.
+    #[allow(dead_code)]
     fn is_total_connection_limit_exceeded(&self) -> bool {
         self.total_connections.load(std::sync::atomic::Ordering::Relaxed) >= self.config.max_connections
     }
     
     /// Register a new connection.
+    #[allow(dead_code)]
     fn register_connection(&self, ip: &str) -> bitquan_types::Result<()> {
         if !self.is_ip_allowed(ip) {
             return Err(bitquan_types::Error::Invalid("IP address not allowed or banned".to_string()));
@@ -849,6 +858,7 @@ impl StratumServer {
     }
     
     /// Unregister a connection.
+    #[allow(dead_code)]
     fn unregister_connection(&self, ip: &str) {
         // Decrement connection counters
         if let Some(mut count) = self.connections_per_ip.get_mut(ip) {
@@ -862,6 +872,7 @@ impl StratumServer {
     }
     
     /// Ban an IP address for security violations.
+    #[allow(dead_code)]
     fn ban_ip(&self, ip: &str, reason: &str) {
         self.banned_ips.insert(ip.to_string(), std::time::Instant::now());
         eprintln!("Banned IP {} for: {}", ip, reason);
@@ -1019,6 +1030,10 @@ impl StratumServer {
                     let vardiff = self.vardiff.clone();
                     let share_tx = self.share_tx.clone();
 
+                    let connections_per_ip = Arc::clone(&self.connections_per_ip);
+                    let total_connections = Arc::clone(&self.total_connections);
+                    let banned_ips = Arc::clone(&self.banned_ips);
+
                     tokio::spawn(async move {
                         if let Err(e) = handle_client(
                             stream,
@@ -1029,6 +1044,9 @@ impl StratumServer {
                             template_manager,
                             vardiff,
                             share_tx,
+                            connections_per_ip,
+                            total_connections,
+                            banned_ips,
                         )
                         .await
                         {
@@ -1085,8 +1103,41 @@ async fn handle_client(
     template_manager: Option<Arc<PoolTemplateManager>>,
     vardiff: Option<VarDiff>,
     share_tx: Option<mpsc::Sender<ShareJob>>,
+    connections_per_ip: Arc<DashMap<String, usize>>,
+    total_connections: Arc<AtomicUsize>,
+    banned_ips: Arc<DashMap<String, std::time::Instant>>,
 ) -> Result<()> {
     let peer_key = addr.to_string();
+    let client_ip = addr.ip().to_string();
+    
+    // Check IP allowance and connection limits
+    let is_allowed = {
+        if let Some(ban_time) = banned_ips.get(&client_ip) {
+            ban_time.elapsed().as_secs() >= 3600
+        } else { true }
+    };
+    
+    if !is_allowed {
+        eprintln!("Stratum: Connection rejected from banned IP {}", client_ip);
+        return Ok(());
+    }
+
+    // Check connection limits
+    let ip_count = connections_per_ip.get(&client_ip).map(|c| *c).unwrap_or(0);
+    if ip_count >= config.max_connections_per_ip {
+        eprintln!("Stratum: Too many connections from IP {}", client_ip);
+        return Ok(());
+    }
+
+    if total_connections.load(Ordering::Relaxed) >= config.max_connections {
+        eprintln!("Stratum: Server total connection limit reached");
+        return Ok(());
+    }
+
+    // Register connection
+    *connections_per_ip.entry(client_ip.clone()).or_insert(0) += 1;
+    total_connections.fetch_add(1, Ordering::Relaxed);
+
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -1098,7 +1149,7 @@ async fn handle_client(
         PowAlgo::Sha256d,
         addr.to_string(),
         config.default_difficulty,
-        addr.ip().to_string(),
+        client_ip.clone(),
     );
     peers.insert(peer_key.clone(), session);
 
@@ -1111,6 +1162,11 @@ async fn handle_client(
                 break;
             }
             Ok(_) => {
+                // Update activity for timeout detection
+                if let Some(session) = peers.get(&peer_key) {
+                    *session.last_activity.lock().await = std::time::Instant::now();
+                }
+
                 let request: JsonRpcRequest = match serde_json::from_str(&line) {
                     Ok(req) => req,
                     Err(e) => {
@@ -1154,6 +1210,15 @@ async fn handle_client(
         }
     }
 
+    // Unregister and cleanup
+    if let Some(mut count) = connections_per_ip.get_mut(&client_ip) {
+        *count -= 1;
+        if *count == 0 {
+            drop(count);
+            connections_per_ip.remove(&client_ip);
+        }
+    }
+    total_connections.fetch_sub(1, Ordering::Relaxed);
     peers.remove(&peer_key);
     Ok(())
 }
@@ -1300,6 +1365,16 @@ async fn handle_submit(
         Some(s) => s,
         None => return ShareSubmitResult::Error(-20004, "session not found".to_string()),
     };
+
+    // Rate limiting check
+    if _config.enable_rate_limiting {
+        let mut rate_limit = session.rate_limit.lock().await;
+        if !rate_limit.check_share_rate(_config.max_share_rate) {
+            session.reject_share();
+            metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader); // Using InvalidHeader as a generic reject for rate limit
+            return ShareSubmitResult::Error(-20005, "rate limit exceeded".to_string());
+        }
+    }
 
     // Check for duplicate submission
     if session.check_and_mark_duplicate(nonce).await {

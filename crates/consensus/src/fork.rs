@@ -211,9 +211,9 @@ impl ForkChoice {
                 } else if weight == max_weight {
                     // Tie-breaking: prefer earlier timestamp, then lower hash
                     if let (Some(best_node), Some(child_node)) = (self.nodes.get(&best_child), self.nodes.get(child)) {
-                        if child_node.header.time < best_node.header.time {
-                            best_child = *child;
-                        } else if child_node.header.time == best_node.header.time && child < &best_child {
+                        if child_node.header.time < best_node.header.time 
+                            || (child_node.header.time == best_node.header.time && child < &best_child) 
+                        {
                             best_child = *child;
                         }
                     }

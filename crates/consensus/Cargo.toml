@@ -10,6 +10,7 @@ description = "Consensus rules and validation primitives for BitQuan."
 [features]
 default = []
 randomx = ["dep:randomx-rs"]  # Feature flag for RandomX PoW engine (testnet-only)
+ethash = ["dep:ethash", "dep:ethereum-types"]
 
 [dependencies]
 bq-crypto = { path = "../crypto", version = "0.1.0" }
@@ -23,6 +24,8 @@ serde.workspace = true
 clap.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 randomx-rs = { version = "1.3", optional = true }
+ethash = { version = "0.1.2", optional = true }
+ethereum-types = { version = "0.14", optional = true, default-features = false }
 primitive-types = { version = "0.12", default-features = false }
 maxminddb = "0.27"
 ipnet = "2.9"

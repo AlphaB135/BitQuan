@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! BIP39 mnemonic seed phrase support for wallet backup and recovery.
 //!
 //! Implements BIP39 standard for generating human-readable backup phrases
