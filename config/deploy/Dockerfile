@@ -1,9 +1,12 @@
 # syntax=docker/dockerfile:1
 
+ARG CARGO_CHEF_VERSION=0.1.67
+
 # Stage 1: cargo-chef planner
 FROM rust:1.82-slim AS planner
 WORKDIR /app
-RUN cargo install cargo-chef --locked
+RUN CARGO_CHEF_URL="https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-x86_64-unknown-linux-musl.tar.gz" \
+    && curl -fsSL "$CARGO_CHEF_URL" | tar xz -C /usr/local/cargo/bin/
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
@@ -17,9 +20,12 @@ RUN apt-get update && apt-get install -y \
     clang \
     cmake \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cargo install cargo-chef --locked
+ARG CARGO_CHEF_VERSION
+RUN CARGO_CHEF_URL="https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-x86_64-unknown-linux-musl.tar.gz" \
+    && curl -fsSL "$CARGO_CHEF_URL" | tar xz -C /usr/local/cargo/bin/
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
