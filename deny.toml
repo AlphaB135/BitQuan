@@ -9,6 +9,9 @@ ignore = [
     # protobuf 2.28.0 vulnerability from prometheus 0.13.4
     # Will upgrade prometheus after stabilizing metrics
     "RUSTSEC-2024-0437",
+    # rsa crate timing side-channel (transitive via jsonwebtoken 10.x)
+    # Only used in local JWT signing, not exposed to network timing attacks
+    "RUSTSEC-2023-0071",
 ]
 
 [licenses]
