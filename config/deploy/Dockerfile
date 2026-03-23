@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# BitQuan node - multi-stage build with cargo-chef dependency caching
 
 ARG CARGO_CHEF_VERSION=0.1.67
 
