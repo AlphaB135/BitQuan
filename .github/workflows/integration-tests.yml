@@ -301,7 +301,7 @@ jobs:
           wait
 
           # Memory stress test
-          timeout 60s cargo test --test memory_stress --release || true
+          timeout 60s cargo test --test memory_stress --release
 
       - name: Test under load
         run: |
