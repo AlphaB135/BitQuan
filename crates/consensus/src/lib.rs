@@ -586,6 +586,17 @@ pub fn validate_block(
         return Err(ConsensusError::InvalidSignature("Mismatched UncleContext length".to_string()));
     }
 
+    // Check for duplicate uncles within this block (Closes #132)
+    let mut current_uncle_hashes = std::collections::HashSet::new();
+    for uncle in &block.uncles {
+        let hash = crate::pow::header_hash(uncle);
+        if !current_uncle_hashes.insert(hash) {
+            return Err(ConsensusError::InvalidSignature(
+                "Duplicate uncle header within same block".to_string(),
+            ));
+        }
+    }
+
     // GHOST Uncle Validation
     for (uncle_header, uncle_ctx) in block.uncles.iter().zip(uncles_ctx.iter()) {
         if uncle_header != &uncle_ctx.header {
@@ -710,6 +721,11 @@ fn validate_block_header(
     if target == 0 || target > 0x2100ffff {
         return Err(ConsensusError::InvalidDifficultyTarget(target));
     }
+
+    // Verify block hash meets the PoW target (Closes #131)
+    crate::pow::check_header_pow(header).map_err(|e| {
+        ConsensusError::InvalidSignature(format!("PoW verification failed: {e}"))
+    })?;
 
     // Validate merkle root matches transactions
     let calculated_merkle = calculate_merkle_root(&block.transactions)?;

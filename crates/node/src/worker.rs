@@ -737,15 +737,29 @@ async fn handle_block(
             match ctx.storage.get_block(&u_hash).await {
                 Ok(Some(u_block)) => {
                     // Try to discover height (scan from tip downward up to 10 blocks)
-                    let mut u_height = height.saturating_sub(1);
+                    // If not found, reject the block (Closes #133)
+                    let mut u_height = None;
                     for h in (height.saturating_sub(10)..height).rev() {
                         if let Ok(Some(b)) = ctx.storage.get_block_by_height(h).await {
                             if bitquan_consensus::pow::header_hash(&b.header) == u_hash {
-                                u_height = h;
+                                u_height = Some(h);
                                 break;
                             }
                         }
                     }
+
+                    let u_height = match u_height {
+                        Some(h) => h,
+                        None => {
+                            log::warn!(
+                                "Rejecting block: uncle height not found in chain scan (uncle hash: {})",
+                                hex::encode(&u_hash[..8])
+                            );
+                            return Err(WorkerError::InvalidData(
+                                "Uncle block not found on main chain within depth 10".to_string(),
+                            ));
+                        }
+                    };
 
                     let payout_script = if !u_block.transactions.is_empty() && !u_block.transactions[0].outputs.is_empty() {
                         u_block.transactions[0].outputs[0].script_pubkey.clone()
