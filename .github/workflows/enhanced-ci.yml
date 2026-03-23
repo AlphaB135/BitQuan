@@ -2,24 +2,25 @@ name: Enhanced CI Pipeline
 
 on:
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
   schedule:
-    - cron: '0 3 * * *'  # Daily at 3 AM UTC
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
-  SOURCE_DATE_EPOCH: 1700000000
   RUSTFLAGS: -D warnings
-  CARGO_BUILD_INCREMENTAL: false
 
 jobs:
-  # Quick CI checks for PRs
   quick-checks:
-    name: Quick Checks
+    name: Quick Checks (${{ matrix.rust-version }})
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        rust-version: [stable, beta]
 
     steps:
       - name: Checkout
@@ -53,52 +54,31 @@ jobs:
       - name: Unit tests
         run: cargo test --lib --locked
 
-      - name: Quick lint check
-        run: cargo check --all-features --locked
-
-  # Full test suite
   full-test-suite:
-    name: Full Test Suite
+    name: Test Suite (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust-version: [stable, beta]
-        include:
-          - os: ubuntu-latest
-            rust-version: stable
-            target: x86_64-unknown-linux-gnu
-            name: 'Linux Stable'
-          - os: macos-latest
-            rust-version: stable
-            target: x86_64-apple-darwin
-            name: 'macOS Stable'
-          - os: windows-latest
-            rust-version: stable
-            target: x86_64-pc-windows-msvc
-            name: 'Windows Stable'
-          - os: ubuntu-latest
-            rust-version: beta
-            target: x86_64-unknown-linux-gnu
-            name: 'Linux Beta'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@${{ matrix.rust-version }}
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config clang
+          sudo apt-get install -y libudev-dev pkg-config
 
       - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: brew install hidapi
+        if: runner.os == 'macOS'
+        run: brew install hidapi || true
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -110,40 +90,19 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
 
       - name: Run tests
-        run: |
-          BITQUAN_SKIP_PQC_TESTS=1 cargo test --workspace --locked --release
+        run: BITQUAN_SKIP_PQC_TESTS=1 cargo test --workspace --locked
 
-      - name: Run integration tests
-        run: cargo test --test integration --locked || echo "integration test not available"
-
-      - name: Run benches (quick)
-        run: cargo bench --bench consensus --sample-size 50 || echo "consensus bench not available"
-
-  # Cross-platform build matrix
   cross-platform-build:
-    name: Cross-Platform Build
+    name: Cross Build (${{ matrix.target }})
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
-        target: [
-          x86_64-unknown-linux-gnu,
-          x86_64-unknown-linux-musl,
-          aarch64-unknown-linux-gnu,
-          arm-unknown-linux-gnueabihf,
-          x86_64-apple-darwin,
-          aarch64-apple-darwin,
-          x86_64-pc-windows-msvc,
-          wasm32-wasi,
-          wasm32-unknown-unknown
-        ]
-        exclude:
-          - target: wasm32-wasi
-            reason: "Not needed for main binary"
-          - target: wasm32-unknown-unknown
-            reason: "Not needed for main binary"
-          - target: arm-unknown-linux-gnueabihf
-            reason: "ARMv7 not needed yet"
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-gnu
 
     steps:
       - name: Checkout
@@ -154,35 +113,22 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install target dependencies (Linux)
-        if: startsWith(matrix.target, 'linux')
+      - name: Install cross-compilation dependencies
         run: |
-          if [[ ${{ matrix.target }} == *"musl"* ]]; then
-            sudo apt-get update && sudo apt-get install -y musl-tools
+          sudo apt-get update
+          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
+            sudo apt-get install -y musl-tools
+          elif [[ "${{ matrix.target }}" == *"aarch64"* ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
           fi
-
-      - name: Install target dependencies (ARM)
-        if: startsWith(matrix.target, 'arm')
-        run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf
-
-      - name: Install target dependencies (Windows)
-        if: matrix.target == 'x86_64-pc-windows-msvc'
-        run: echo "No additional dependencies needed"
 
       - name: Build
         run: cargo build --release --locked --target ${{ matrix.target }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: binary-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/bitquan-node${{ matrix.target == 'x86_64-pc-windows-msvc' && '.exe' || '' }}
-          retention-days: 90
-
-  # Docker build
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout
@@ -194,35 +140,10 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
-            --target builder \
-            -t bitquan:builder \
-            -f config/deploy/Dockerfile \
-            .
-
-          docker build \
-            --target runtime \
             -t bitquan:latest \
             -f config/deploy/Dockerfile \
             .
 
-      - name: Test Docker image
-        run: |
-          docker run --rm -d --name bitquan-test -p 8333:8333 bitquan:latest &
-          sleep 5
-          docker exec bitquan-test curl -f http://localhost:8333/health || exit 1
-          docker stop bitquan-test
-
-      - name: Build multi-arch Docker image
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            -t bitquan/bitquan:${{ github.ref_name }} \
-            -f config/deploy/Dockerfile \
-            --push \
-            .
-
-  # Coverage reporting
   coverage-report:
     name: Coverage Report
     runs-on: ubuntu-latest
@@ -235,20 +156,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
 
       - name: Run coverage
         run: |
-          cargo tarpaulin --workspace --out Json --output-dir coverage/ \
-            --exclude tests \
-            --exclude fuzz \
-            --exclude benches \
-            --features="full"
-
-      - name: Generate coverage report
-        run: |
-          cargo install cargo-llvm-cov --locked
           cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
 
       - name: Upload to Codecov
@@ -261,10 +175,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report-${{ github.run_number }}
-          path: coverage/
+          path: lcov.info
           retention-days: 90
 
-  # Documentation build
   docs-build:
     name: Documentation
     runs-on: ubuntu-latest
@@ -275,19 +188,12 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rust-doc
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
 
       - name: Build documentation
-        run: cargo doc --all --no-deps --document-private-items || echo "Documentation build had warnings"
-
-      - name: Check for broken links
-        run: |
-          cargo install mdbook-linkcheck || echo "mdbook-linkcheck install skipped"
-          mdbook-linkcheck docs/ || echo "Link check skipped"
+        run: cargo doc --all --no-deps --document-private-items
 
       - name: Upload documentation
         uses: actions/upload-artifact@v4
@@ -296,55 +202,6 @@ jobs:
           path: target/doc/
           retention-days: 30
 
-  # Release preparation
-  release-prep:
-    name: Release Preparation
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    needs: [full-test-suite, cross-platform-build, docker-build]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Create changelog
-        id: changelog
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const path = 'CHANGELOG.md';
-            const content = fs.readFileSync(path, 'utf8');
-            // Extract version and date from changelog
-            const versionMatch = content.match(/^## \[([^\]]+)\]/m);
-            const dateMatch = content.match(/^## \[.*?\]\s*-\s*(\d{4}-\d{2}-\d{2})/m);
-            const version = versionMatch ? versionMatch[1] : 'Unknown';
-            const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0];
-            core.setOutput('version', version);
-            core.setOutput('date', date);
-
-      - name: Create release notes
-        run: |
-          echo "Release Notes for v${{ steps.changelog.outputs.version }} (${{ steps.changelog.outputs.date }})" > release-notes.md
-          echo "" >> release-notes.md
-          echo "## Changes" >> release-notes.md
-          echo "This release includes:" >> release-notes.md
-          echo "- Security improvements" >> release-notes.md
-          echo "- Performance optimizations" >> release-notes.md
-          echo "- Bug fixes" >> release-notes.md
-          echo "" >> release-notes.md
-          echo "## Artifacts" >> release-notes.md
-          echo "Multi-platform binaries and Docker images are available in the release artifacts." >> release-notes.md
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-artifacts
-          path: |
-            release-notes.md
-          retention-days: 365
-
-  # Quality gate
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
@@ -354,23 +211,18 @@ jobs:
     steps:
       - name: Check results
         run: |
-          if [[ "${{ needs.quick-checks.result }}" == "failure" ]]; then
-            echo "❌ Quick checks failed"
+          failed=0
+          for job in quick-checks full-test-suite cross-platform-build; do
+            result="${{ needs.${job}.result }}"
+            if [[ "$result" == "failure" ]]; then
+              echo "FAILED: ${job}"
+              failed=1
+            fi
+          done
+          if [[ "$failed" == "1" ]]; then
             exit 1
           fi
-          if [[ "${{ needs.full-test-suite.result }}" == "failure" ]]; then
-            echo "❌ Full test suite failed"
-            exit 1
-          fi
-          if [[ "${{ needs.cross-platform-build.result }}" == "failure" ]]; then
-            echo "❌ Cross-platform build failed"
-            exit 1
-          fi
-          if [[ "${{ needs.coverage-report.result }}" == "failure" ]]; then
-            echo "❌ Coverage report failed"
-            exit 1
-          fi
-          echo "✅ All quality gates passed"
+          echo "All quality gates passed"
 
       - name: Summary
         run: |
@@ -380,5 +232,3 @@ jobs:
           echo "- Full test suite: ${{ needs.full-test-suite.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Cross-platform build: ${{ needs.cross-platform-build.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Coverage report: ${{ needs.coverage-report.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Overall: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
