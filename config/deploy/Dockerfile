@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # BitQuan node - multi-stage build with cargo-chef dependency caching
 
-FROM rust:1.82-slim AS planner
+FROM rust:1.84-slim AS planner
 ARG TARGETARCH
 WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
@@ -12,7 +12,7 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 2: Build dependencies (cached layer)
-FROM rust:1.82-slim AS builder
+FROM rust:1.84-slim AS builder
 ARG TARGETARCH
 WORKDIR /app
 
