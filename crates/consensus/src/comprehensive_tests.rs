@@ -19,6 +19,7 @@ use bq_crypto::CryptoRegistry;
 
 /// Convert u64 value to [u8; 32] big-endian target for test helpers.
 /// Matches the encoding used by u128_to_bytes in asert.rs.
+#[allow(dead_code)]
 fn u64_to_target(val: u64) -> [u8; 32] {
     let mut out = [0u8; 32];
     out[24..32].copy_from_slice(&val.to_be_bytes());
