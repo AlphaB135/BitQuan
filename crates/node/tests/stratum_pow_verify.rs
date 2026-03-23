@@ -20,6 +20,7 @@ async fn test_share_valid_sha256d_verification_logic() {
         prev_block: [0u8; 32],
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567890,
         bits: DEVNET_MAX_BITS, // 0x207fffff
         nonce: 12345,
@@ -82,6 +83,7 @@ fn test_share_invalid_too_high_hash() {
         prev_block: [0u8; 32],
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567890,
         bits: 0x1d00ffff, // Hard difficulty
         nonce: 1,         // Unlikely to meet target
@@ -114,6 +116,7 @@ async fn test_share_stale_on_new_template() {
         prev_block: [0u8; 32],
         merkle_root: [1u8; 32], // Different merkle root
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567890,
         bits: 0x207fffff,
         nonce: 0,
@@ -138,6 +141,7 @@ async fn test_share_stale_on_new_template() {
         prev_block: [1u8; 32], // Different prev_block
         merkle_root: [2u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567900,
         bits: 0x207fffff,
         nonce: 0,
@@ -220,6 +224,7 @@ async fn test_share_valid_randomx_meets_target() {
         prev_block: [0u8; 32],
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567890,
         bits: 0x207fffff, // Very easy
         nonce: 0,

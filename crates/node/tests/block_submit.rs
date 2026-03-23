@@ -27,6 +27,7 @@ fn create_test_block(nonce: u64, bits: u32) -> Block {
         prev_block: [0u8; 32],
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 1234567890,
         bits,
         nonce,
@@ -35,6 +36,7 @@ fn create_test_block(nonce: u64, bits: u32) -> Block {
 
     Block {
         header,
+        uncles: vec![],
         transactions: vec![dummy_transaction()],
     }
 }
@@ -198,6 +200,7 @@ async fn test_block_submit_with_valid_nonce() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1234567890,
             bits,
             nonce,
