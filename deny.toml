@@ -12,6 +12,10 @@ ignore = [
     # rsa crate timing side-channel (transitive via jsonwebtoken 10.x)
     # Only used in local JWT signing, not exposed to network timing attacks
     "RUSTSEC-2023-0071",
+    # time crate RFC 2822 parsing stack exhaustion (RUSTSEC-2026-0009)
+    # Transitive via rcgen. We don't parse user-provided RFC 2822 input.
+    # Cannot downgrade: rcgen 0.14 requires time ^0.3.35
+    "RUSTSEC-2026-0009",
 ]
 
 [licenses]
