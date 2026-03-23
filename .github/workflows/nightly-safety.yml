@@ -57,7 +57,7 @@ jobs:
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
         timeout-minutes: 30
       - name: Upload coverage to artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: lcov.info

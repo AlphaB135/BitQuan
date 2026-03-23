@@ -33,7 +33,7 @@ jobs:
           chmod +x dist/bitquan-node
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bitquan-linux-x86_64
           path: dist/bitquan-node
@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: bitquan-linux-x86_64
           path: dist

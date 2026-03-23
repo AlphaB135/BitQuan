@@ -60,7 +60,7 @@ jobs:
 
     - name: Upload fuzz artifacts
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: fuzz-crash-${{ matrix.target }}
         path: |
@@ -126,7 +126,7 @@ jobs:
         echo "Generated on: $(date)" >> fuzz_report.md
 
     - name: Upload fuzz report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: fuzz-report
         path: fuzz_report.md
