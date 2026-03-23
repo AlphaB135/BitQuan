@@ -70,7 +70,7 @@ Updated main README.md to point to new documentation structure:
 
 ## Remaining Work
 
-- [ ] Clean up remaining `._` duplicate files (macOS resource forks)
+- [x] Clean up remaining `._` duplicate files (macOS resource forks) ✅ COMPLETED
 - [ ] Complete moving any remaining root-level files
 - [ ] Add missing getting-started content (quick-start.md, installation.md)
 - [ ] Validate all internal links work correctly
