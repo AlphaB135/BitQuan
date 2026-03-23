@@ -1,0 +1,31 @@
+[workspace]
+[package]
+name = "bitquan-wallet"
+version = "0.1.0"
+description = "BitQuan PQC Wallet"
+authors = ["BitQuan Team"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.0", features = [] }
+
+[dependencies]
+tauri = { version = "1.0", features = ["shell-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+hex = "0.4"
+rand = "0.8"
+zeroize = "1.5"
+secrecy = "0.8"
+
+# Local crates - using absolute paths to avoid workspace conflicts
+bitquan-consensus = { path = "/Users/alphab/BitQuan/crates/consensus" }
+bitquan-types = { path = "/Users/alphab/BitQuan/crates/types" }
+bq-crypto = { path = "/Users/alphab/BitQuan/crates/crypto" }
+wallet = { path = "/Users/alphab/BitQuan/crates/wallet" }
+pqc-dilithium-seeded = { path = "/Users/alphab/BitQuan/crates/pqc-dilithium-seeded" }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

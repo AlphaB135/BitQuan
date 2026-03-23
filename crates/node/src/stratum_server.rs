@@ -1,38 +1,24 @@
 //! Stratum V1 mining server for BitQuan hybrid PoW.
 //!
 //! Supports external miners connecting via TCP to submit SHA-256d or RandomX shares.
-//!
-//! # PUBLIC API JUSTIFICATION
-//!
-//! This module provides a public API for the Stratum mining server.
-//! Many functions, fields, and methods are part of the library's public API even if not
-//! used directly in the binary. These allow external users to:
-//! - Configure and run a Stratum mining server
-//! - Monitor mining metrics and miner sessions
-//! - Integrate custom mining pool logic
-//!
-//! Therefore, dead_code warnings are allowed for this module.
 
-#![allow(dead_code)]
-
-use bitquan_consensus::pow::{
-    meets_target, randomx_pow_hash, sha256d_pow_hash, target_from_bits, PowAlgo,
-};
+use bitquan_consensus::pow::{meets_target, sha256d_pow_hash, target_from_bits, PowAlgo};
 use bitquan_types::{Block, Error, NetworkId, Result};
 use dashmap::DashMap;
-use log::{debug, error, info, warn};
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
+
+use bitquan_consensus::pow::randomx_pow_hash;
 
 use crate::block_submit::{BlockSubmitter, SubmitResult as BlockSubmitResult};
 use crate::pool_template::{BlockTemplate, PoolTemplateManager};
@@ -41,24 +27,120 @@ use crate::vardiff::VarDiff;
 /// Share queue capacity (bounded channel size).
 const STRATUM_QUEUE_CAP: usize = 1024;
 
+/// Authentication credentials for miner sessions.
+#[derive(Debug, Clone)]
+pub struct StratumAuth {
+    /// Miner username/wallet address.
+    pub username: String,
+    /// Optional password hash (SHA-256).
+    pub password_hash: Option<[u8; 32]>,
+    /// Session identifier.
+    pub session_id: Uuid,
+    /// When authentication was completed.
+    pub authorized_at: Instant,
+    /// Client IP address for logging.
+    pub client_ip: String,
+}
+
+impl StratumAuth {
+    /// Create new authentication context.
+    pub fn new(username: String, password: Option<String>, client_ip: String) -> Self {
+        let password_hash = password.map(|p| {
+            use sha2::{Digest, Sha256};
+            let mut hasher = Sha256::new();
+            hasher.update(p.as_bytes());
+            let result = hasher.finalize();
+            let mut hash = [0u8; 32];
+            hash.copy_from_slice(&result);
+            hash
+        });
+        
+        Self {
+            username,
+            password_hash,
+            session_id: Uuid::new_v4(),
+            authorized_at: Instant::now(),
+            client_ip,
+        }
+    }
+    
+    /// Verify password against stored hash.
+    pub fn verify_password(&self, password: &str) -> bool {
+        match self.password_hash {
+            Some(stored_hash) => {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(password.as_bytes());
+                let result = hasher.finalize();
+                let mut hash = [0u8; 32];
+                hash.copy_from_slice(&result);
+                hash == stored_hash
+            }
+            None => true, // No password required
+        }
+    }
+}
+
+/// Rate limiting state per connection.
+#[derive(Debug, Clone)]
+pub struct RateLimitState {
+    /// Last share submission time.
+    pub last_share_time: Instant,
+    /// Share count in current window.
+    pub share_count: u32,
+    /// Window start time.
+    pub window_start: Instant,
+}
+
+impl RateLimitState {
+    pub fn new() -> Self {
+        let now = Instant::now();
+        Self {
+            last_share_time: now,
+            share_count: 0,
+            window_start: now,
+        }
+    }
+    
+    /// Check if share submission is within rate limits.
+    pub fn check_share_rate(&mut self, max_rate: f64) -> bool {
+        let now = Instant::now();
+        let window_duration = now.duration_since(self.window_start);
+        
+        // Reset window every second
+        if window_duration.as_secs() >= 1 {
+            self.share_count = 0;
+            self.window_start = now;
+        }
+        
+        // Check if we're within the rate limit
+        if self.share_count as f64 >= max_rate {
+            return false;
+        }
+        
+        self.share_count += 1;
+        self.last_share_time = now;
+        true
+    }
+}
+
 /// Share verification job sent to worker pool.
 #[derive(Debug, Clone)]
 struct ShareJob {
-    #[allow(dead_code)]
-    session_id: Uuid, // Reserved for future analytics/tracking
+    session_id: Uuid,
     peer_key: String,
     algo: PowAlgo,
     template: BlockTemplate,
     nonce: u64,
     #[allow(dead_code)]
-    submitted_at: Instant, // Reserved for future analytics/latency measurement
+    submitted_at: Instant,
 }
 
 /// Share verification result from worker pool.
 #[derive(Debug, Clone)]
 struct ShareResult {
     #[allow(dead_code)]
-    session_id: Uuid, // Reserved for future analytics/tracking
+    session_id: Uuid,
     peer_key: String,
     verdict: ShareVerdict,
     template: BlockTemplate,
@@ -76,7 +158,7 @@ enum ShareSubmitResult {
     Error(i32, String),
 }
 
-/// Stratum V1 mining server.
+/// Stratum V1 mining server with security enhancements.
 pub struct StratumServer {
     /// TCP listener for incoming miner connections.
     listener: Option<TcpListener>,
@@ -96,9 +178,17 @@ pub struct StratumServer {
     share_tx: Option<mpsc::Sender<ShareJob>>,
     /// Share result receiver (from verifier pool).
     share_result_rx: Option<mpsc::Receiver<ShareResult>>,
+    
+    // Security and connection tracking
+    /// Connection count per IP address.
+    connections_per_ip: Arc<DashMap<String, usize>>,
+    /// Total active connections.
+    total_connections: Arc<AtomicUsize>,
+    /// Banned IP addresses.
+    banned_ips: Arc<DashMap<String, std::time::Instant>>,
 }
 
-/// Stratum server configuration.
+/// Stratum server configuration with security settings.
 #[derive(Clone, Debug)]
 pub struct StratumConfig {
     /// Bind address (e.g., "0.0.0.0:3333").
@@ -115,6 +205,20 @@ pub struct StratumConfig {
     pub vardiff_target_time: f64,
     /// Vardiff adjustment rate.
     pub vardiff_adjust_rate: f64,
+    
+    // Security and DoS protection settings
+    /// Enable authentication for miners.
+    pub require_auth: bool,
+    /// Maximum connections per IP address.
+    pub max_connections_per_ip: usize,
+    /// Share submission rate limit per connection (shares/second).
+    pub max_share_rate: f64,
+    /// Connection timeout in seconds.
+    pub connection_timeout: u64,
+    /// Maximum concurrent connections.
+    pub max_connections: usize,
+    /// Enable IP-based rate limiting.
+    pub enable_rate_limiting: bool,
 }
 
 impl Default for StratumConfig {
@@ -127,12 +231,21 @@ impl Default for StratumConfig {
             enable_vardiff: true,
             vardiff_target_time: 15.0,
             vardiff_adjust_rate: 0.05,
+            
+            // Security defaults
+            require_auth: false,
+            max_connections_per_ip: 3,
+            max_share_rate: 10.0, // 10 shares/second max
+            connection_timeout: 300, // 5 minutes
+            max_connections: 100,
+            enable_rate_limiting: true,
         }
     }
 }
 
 /// Share verification result.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // All variants reserved for Phase 8
 pub enum ShareVerdict {
     /// Share accepted - meets difficulty.
     Accept {
@@ -203,11 +316,23 @@ pub struct MinerSession {
     pub extranonce1: u32,
     /// Current job_id being worked on.
     pub current_job_id: Arc<tokio::sync::RwLock<u64>>,
+    
+    // Security and authentication fields
+    /// Authentication context (if required).
+    pub auth: Option<StratumAuth>,
+    /// Client IP address for rate limiting.
+    pub client_ip: String,
+    /// Rate limiting state.
+    pub rate_limit: Arc<Mutex<RateLimitState>>,
+    /// Whether this session is authenticated.
+    pub is_authenticated: bool,
+    /// Last activity time for timeout detection.
+    pub last_activity: Arc<Mutex<std::time::Instant>>,
 }
 
 impl MinerSession {
     /// Create a new miner session.
-    pub fn new(algo: PowAlgo, address: String, difficulty: f64) -> Result<Self> {
+    pub fn new(algo: PowAlgo, address: String, difficulty: f64, client_ip: String) -> Self {
         // Duplicate cache: keep last 4096 nonces
         // SAFETY: 4096 is a non-zero constant
         #[allow(clippy::unwrap_used)]
@@ -216,16 +341,23 @@ impl MinerSession {
 
         // Assign cryptographically secure extranonce1
         let mut extranonce1_bytes = [0u8; 4];
-        getrandom::getrandom(&mut extranonce1_bytes).map_err(|e| {
-            Error::Internal(format!("Failed to generate secure extranonce1: {}", e))
-        })?;
+        #[allow(clippy::expect_used)]
+        getrandom::getrandom(&mut extranonce1_bytes)
+            .expect("Failed to generate secure extranonce1");
         let extranonce1 = u32::from_le_bytes(extranonce1_bytes);
+        
+        let now = std::time::Instant::now();
 
-        Ok(Self {
+        Self {
             id: Uuid::new_v4(),
             algo,
             address,
             difficulty,
+            client_ip,
+            auth: None,
+            is_authenticated: false,
+            rate_limit: Arc::new(Mutex::new(RateLimitState::new())),
+            last_activity: Arc::new(Mutex::new(now)),
             shares_ok: AtomicU64::new(0),
             shares_rejected: AtomicU64::new(0),
             connected_at: std::time::Instant::now(),
@@ -234,7 +366,7 @@ impl MinerSession {
             duplicate_cache,
             extranonce1,
             current_job_id: Arc::new(tokio::sync::RwLock::new(0)),
-        })
+        }
     }
 
     /// Increment accepted shares.
@@ -245,6 +377,51 @@ impl MinerSession {
     /// Increment rejected shares.
     pub fn reject_share(&self) {
         self.shares_rejected.fetch_add(1, Ordering::Relaxed);
+    }
+    
+    /// Authenticate miner with username and password.
+    pub fn authenticate(&mut self, username: String, password: Option<String>) -> bitquan_types::Result<()> {
+        let auth = StratumAuth::new(username.clone(), password, self.client_ip.clone());
+        
+        // For now, accept any authentication (in production, this would check against a database)
+        self.auth = Some(auth);
+        self.is_authenticated = true;
+        self.address = username;
+        
+        Ok(())
+    }
+    
+    /// Check if session is authenticated (if required).
+    pub fn is_authorized(&self, require_auth: bool) -> bool {
+        if !require_auth {
+            return true;
+        }
+        self.is_authenticated
+    }
+    
+    /// Update last activity timestamp.
+    pub fn update_activity(&self) {
+        if let Ok(mut last_activity) = self.last_activity.try_lock() {
+            *last_activity = std::time::Instant::now();
+        }
+    }
+    
+    /// Check if connection has timed out.
+    pub fn is_timed_out(&self, timeout_seconds: u64) -> bool {
+        if let Ok(last_activity) = self.last_activity.try_lock() {
+            last_activity.elapsed().as_secs() > timeout_seconds
+        } else {
+            false // If we can't check, assume not timed out
+        }
+    }
+    
+    /// Check if share submission is within rate limits.
+    pub fn check_rate_limit(&self, max_rate: f64) -> bool {
+        if let Ok(mut rate_limit) = self.rate_limit.try_lock() {
+            rate_limit.check_share_rate(max_rate)
+        } else {
+            true // If we can't check, allow it
+        }
     }
 
     /// Get total accepted shares.
@@ -293,6 +470,7 @@ impl MinerSession {
     }
 
     /// Update current job_id.
+    #[allow(dead_code)] // Reserved for job template rotation (Phase 8)
     pub async fn set_job_id(&self, job_id: u64) {
         let mut current = self.current_job_id.write().await;
         *current = job_id;
@@ -398,6 +576,7 @@ impl StratumMetrics {
     }
 
     /// Get rejected shares for specific reason.
+    #[allow(dead_code)] // Reserved for metrics API
     pub fn get_rejected_by_reason(&self, algo: PowAlgo, reason: RejectReason) -> u64 {
         let key = (algo, reason.as_str());
         self.shares_rejected
@@ -417,6 +596,7 @@ impl StratumMetrics {
     }
 
     /// Get last valid share timestamp.
+    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_last_valid_share_timestamp(&self) -> u64 {
         self.last_valid_share_timestamp.load(Ordering::Relaxed)
     }
@@ -443,21 +623,25 @@ impl StratumMetrics {
     }
 
     /// Get total blocks submitted.
+    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_submitted(&self) -> u64 {
         self.blocks_submitted_total.load(Ordering::Relaxed)
     }
 
     /// Get total blocks accepted.
+    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_accepted(&self) -> u64 {
         self.blocks_accepted_total.load(Ordering::Relaxed)
     }
 
     /// Get total blocks rejected.
+    #[allow(dead_code)] // Reserved for metrics export (Phase 8)
     pub fn get_blocks_rejected(&self) -> u64 {
         self.blocks_rejected_total.load(Ordering::Relaxed)
     }
 
     /// Format metrics as Prometheus text format.
+    #[allow(dead_code)] // Reserved for /metrics endpoint (Phase 8)
     pub fn format_prometheus(&self, active_miners: usize) -> String {
         let mut output = String::new();
 
@@ -592,12 +776,98 @@ impl StratumServer {
             vardiff,
             share_tx: None,
             share_result_rx: None,
+            
+            // Security fields
+            connections_per_ip: Arc::new(DashMap::new()),
+            total_connections: Arc::new(AtomicUsize::new(0)),
+            banned_ips: Arc::new(DashMap::new()),
         }
     }
 
     /// Set the pool template manager for real block template generation.
+    #[allow(dead_code)] // Reserved for Phase 8 pool integration
     pub fn set_template_manager(&mut self, manager: Arc<PoolTemplateManager>) {
         self.template_manager = Some(manager);
+    }
+    
+    /// Check if IP address is allowed to connect.
+    fn is_ip_allowed(&self, ip: &str) -> bool {
+        // Check if IP is banned
+        if let Some(ban_time) = self.banned_ips.get(ip) {
+            if ban_time.elapsed().as_secs() < 3600 { // 1 hour ban
+                return false;
+            } else {
+                // Ban expired, remove it
+                self.banned_ips.remove(ip);
+            }
+        }
+        
+        // Check allow list
+        if self.config.allow_list.is_empty() {
+            return true; // No restrictions
+        }
+        
+        self.config.allow_list.iter().any(|allowed| {
+            allowed == ip || {
+                let parts: Vec<&str> = ip.split('.').take(2).collect();
+                let subnet = parts.join(".");
+                allowed.starts_with(&subnet)
+            }
+        })
+    }
+    
+    /// Check if IP has exceeded connection limit.
+    fn is_connection_limit_exceeded(&self, ip: &str) -> bool {
+        let count = self.connections_per_ip.get(ip).map(|c| *c).unwrap_or(0);
+        count >= self.config.max_connections_per_ip
+    }
+    
+    /// Check if total connection limit is exceeded.
+    fn is_total_connection_limit_exceeded(&self) -> bool {
+        self.total_connections.load(std::sync::atomic::Ordering::Relaxed) >= self.config.max_connections
+    }
+    
+    /// Register a new connection.
+    fn register_connection(&self, ip: &str) -> bitquan_types::Result<()> {
+        if !self.is_ip_allowed(ip) {
+            return Err(bitquan_types::Error::Invalid("IP address not allowed or banned".to_string()));
+        }
+        
+        if self.is_connection_limit_exceeded(ip) {
+            return Err(bitquan_types::Error::Invalid("Too many connections from this IP".to_string()));
+        }
+        
+        if self.is_total_connection_limit_exceeded() {
+            return Err(bitquan_types::Error::Invalid("Server connection limit exceeded".to_string()));
+        }
+        
+        // Increment connection counters
+        *self.connections_per_ip.entry(ip.to_string()).or_insert(0) += 1;
+        self.total_connections.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        
+        Ok(())
+    }
+    
+    /// Unregister a connection.
+    fn unregister_connection(&self, ip: &str) {
+        // Decrement connection counters
+        if let Some(mut count) = self.connections_per_ip.get_mut(ip) {
+            *count -= 1;
+            if *count == 0 {
+                self.connections_per_ip.remove(ip);
+            }
+        }
+        
+        self.total_connections.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+    
+    /// Ban an IP address for security violations.
+    fn ban_ip(&self, ip: &str, reason: &str) {
+        self.banned_ips.insert(ip.to_string(), std::time::Instant::now());
+        eprintln!("Banned IP {} for: {}", ip, reason);
+        
+        // Disconnect all sessions from this IP
+        self.peers.retain(|_, session| session.client_ip != ip);
     }
 
     /// Start the Stratum server.
@@ -611,7 +881,7 @@ impl StratumServer {
 
         // Spawn ShareVerifier worker pool
         let worker_count = std::cmp::max(2, num_cpus::get() / 2);
-        info!("Starting {} ShareVerifier workers...", worker_count);
+        println!("Starting {} ShareVerifier workers...", worker_count);
 
         // Wrap receiver in Arc<Mutex> for sharing among workers
         let share_rx = Arc::new(Mutex::new(share_rx));
@@ -627,7 +897,7 @@ impl StratumServer {
                         match rx_lock.recv().await {
                             Some(j) => j,
                             None => {
-                                debug!(
+                                println!(
                                     "ShareVerifier worker {}: job channel closed, exiting",
                                     worker_id
                                 );
@@ -660,18 +930,21 @@ impl StratumServer {
                             };
                             // Send result back; if channel closed, worker exits
                             if tx.send(share_result).await.is_err() {
-                                warn!("ShareVerifier worker {}: result channel closed", worker_id);
+                                eprintln!(
+                                    "ShareVerifier worker {}: result channel closed",
+                                    worker_id
+                                );
                                 break;
                             }
                         }
                         Ok(Err(e)) => {
-                            error!(
+                            eprintln!(
                                 "ShareVerifier worker {}: verification error: {}",
                                 worker_id, e
                             );
                         }
                         Err(e) => {
-                            error!(
+                            eprintln!(
                                 "ShareVerifier worker {}: spawn_blocking join error: {}",
                                 worker_id, e
                             );
@@ -704,7 +977,7 @@ impl StratumServer {
                 )
                 .await;
             }
-            debug!("ShareResult handler: result channel closed, exiting");
+            println!("ShareResult handler: result channel closed, exiting");
         });
 
         let listener = TcpListener::bind(&self.config.bind_addr)
@@ -713,16 +986,16 @@ impl StratumServer {
                 bitquan_types::Error::Invalid(format!("failed to bind Stratum server: {}", e))
             })?;
 
-        info!("Stratum server listening on {}", self.config.bind_addr);
-        info!("  Default difficulty: {}", self.config.default_difficulty);
-        info!("  Network: {:?}", self.config.network);
+        println!("Stratum server listening on {}", self.config.bind_addr);
+        println!("  Default difficulty: {}", self.config.default_difficulty);
+        println!("  Network: {:?}", self.config.network);
 
         self.listener = Some(listener);
 
         // Accept loop
         loop {
             if self.stop_flag.load(Ordering::Relaxed) {
-                info!("Stratum server shutting down...");
+                println!("Stratum server shutting down...");
                 break;
             }
 
@@ -759,12 +1032,12 @@ impl StratumServer {
                         )
                         .await
                         {
-                            error!("Stratum client error {}: {}", addr, e);
+                            eprintln!("Stratum client error {}: {}", addr, e);
                         }
                     });
                 }
                 Ok(Err(e)) => {
-                    error!("Error accepting connection: {}", e);
+                    eprintln!("Error accepting connection: {}", e);
                 }
                 Err(_) => {
                     // Timeout, check stop flag
@@ -777,21 +1050,25 @@ impl StratumServer {
     }
 
     /// Stop the server.
+    #[allow(dead_code)] // Reserved for graceful shutdown
     pub fn stop(&self) {
         self.stop_flag.store(true, Ordering::Relaxed);
     }
 
     /// Get active miner count.
+    #[allow(dead_code)] // Reserved for status API
     pub fn active_miners(&self) -> usize {
         self.peers.len()
     }
 
     /// Get metrics reference.
+    #[allow(dead_code)] // Reserved for metrics export
     pub fn metrics(&self) -> &Arc<StratumMetrics> {
         &self.metrics
     }
 
     /// Get peers reference.
+    #[allow(dead_code)] // Reserved for admin API
     pub fn peers(&self) -> &Arc<DashMap<String, MinerSession>> {
         &self.peers
     }
@@ -814,14 +1091,15 @@ async fn handle_client(
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
 
-    info!("Stratum: New connection from {}", addr);
+    println!("Stratum: New connection from {}", addr);
 
     // Create default session
     let session = MinerSession::new(
         PowAlgo::Sha256d,
         addr.to_string(),
         config.default_difficulty,
-    )?;
+        addr.ip().to_string(),
+    );
     peers.insert(peer_key.clone(), session);
 
     loop {
@@ -829,14 +1107,14 @@ async fn handle_client(
         match reader.read_line(&mut line).await {
             Ok(0) => {
                 // Connection closed
-                info!("Stratum: Client {} disconnected", addr);
+                println!("Stratum: Client {} disconnected", addr);
                 break;
             }
             Ok(_) => {
                 let request: JsonRpcRequest = match serde_json::from_str(&line) {
                     Ok(req) => req,
                     Err(e) => {
-                        warn!("Stratum: Invalid JSON from {}: {}", addr, e);
+                        eprintln!("Stratum: Invalid JSON from {}: {}", addr, e);
                         continue;
                     }
                 };
@@ -870,7 +1148,7 @@ async fn handle_client(
                     .map_err(|e| bitquan_types::Error::Invalid(e.to_string()))?;
             }
             Err(e) => {
-                error!("Stratum: Read error from {}: {}", addr, e);
+                eprintln!("Stratum: Read error from {}: {}", addr, e);
                 break;
             }
         }
@@ -894,7 +1172,7 @@ async fn handle_request(
 ) -> JsonRpcResponse {
     match request.method.as_str() {
         "mining.subscribe" => {
-            debug!("Stratum: {} subscribed", peer_key);
+            println!("Stratum: {} subscribed", peer_key);
             JsonRpcResponse {
                 id: request.id,
                 result: Some(serde_json::json!([
@@ -917,7 +1195,7 @@ async fn handle_request(
                 session.address = username.to_string();
             }
 
-            info!("Stratum: {} authorized as {}", peer_key, username);
+            println!("Stratum: {} authorized as {}", peer_key, username);
             JsonRpcResponse {
                 id: request.id,
                 result: Some(serde_json::json!(true)),
@@ -945,7 +1223,7 @@ async fn handle_request(
 
             match result {
                 ShareSubmitResult::Accepted => {
-                    debug!("Stratum: Share enqueued from {}", peer_key);
+                    println!("Stratum: Share enqueued from {}", peer_key);
                     JsonRpcResponse {
                         id: request.id,
                         result: Some(serde_json::json!({"accepted_for_verification": true})),
@@ -953,7 +1231,7 @@ async fn handle_request(
                     }
                 }
                 ShareSubmitResult::QueueFull => {
-                    warn!("Stratum: Share rejected (queue full) from {}", peer_key);
+                    println!("Stratum: Share rejected (queue full) from {}", peer_key);
                     JsonRpcResponse {
                         id: request.id,
                         result: Some(serde_json::json!(false)),
@@ -964,7 +1242,7 @@ async fn handle_request(
                     }
                 }
                 ShareSubmitResult::Error(code, msg) => {
-                    debug!("Stratum: Share rejected ({}) from {}", msg, peer_key);
+                    println!("Stratum: Share rejected ({}) from {}", msg, peer_key);
                     JsonRpcResponse {
                         id: request.id,
                         result: Some(serde_json::json!(false)),
@@ -974,7 +1252,7 @@ async fn handle_request(
             }
         }
         other => {
-            warn!("Stratum: Unknown method {} from {}", other, peer_key);
+            eprintln!("Stratum: Unknown method {} from {}", other, peer_key);
             JsonRpcResponse {
                 id: request.id,
                 result: None,
@@ -1027,7 +1305,7 @@ async fn handle_submit(
     if session.check_and_mark_duplicate(nonce).await {
         session.reject_share();
         metrics.record_share_rejected(session.algo, RejectReason::Duplicate);
-        warn!(
+        eprintln!(
             "Stratum: Share DUPLICATE from {} (algo={}, nonce={})",
             session.address,
             session.algo.name(),
@@ -1043,7 +1321,7 @@ async fn handle_submit(
             None => {
                 session.reject_share();
                 metrics.record_share_rejected(session.algo, RejectReason::Stale);
-                warn!("Stratum: No template available for {}", session.address);
+                eprintln!("Stratum: No template available for {}", session.address);
                 return ShareSubmitResult::Error(21, "no template".to_string());
             }
         },
@@ -1061,7 +1339,7 @@ async fn handle_submit(
             if submit_job_id != current_job_id {
                 session.reject_share();
                 metrics.record_share_rejected(session.algo, RejectReason::Stale);
-                warn!(
+                eprintln!(
                     "Stratum: Share STALE from {} (job {} != current {})",
                     session.address, submit_job_id, current_job_id
                 );
@@ -1096,7 +1374,7 @@ async fn handle_submit(
             metrics.backpressure_total.fetch_add(1, Ordering::Relaxed);
             session.reject_share();
             metrics.record_share_rejected(session.algo, RejectReason::InvalidHeader);
-            warn!(
+            eprintln!(
                 "Stratum: Share queue FULL, rejecting from {} (backpressure applied)",
                 session.address
             );
@@ -1124,7 +1402,7 @@ async fn handle_share_result(
     let session = match peers.get(&result.peer_key) {
         Some(s) => s,
         None => {
-            warn!("ShareResult handler: session {} not found", result.peer_key);
+            eprintln!("ShareResult handler: session {} not found", result.peer_key);
             return;
         }
     };
@@ -1138,7 +1416,7 @@ async fn handle_share_result(
 
             // Log with hash prefix
             let hash_hex = hex::encode(&hash[..4]);
-            debug!(
+            println!(
                 "Stratum: Share VERIFIED & ACCEPTED from {} (algo={}, diff={:.2}, nonce={}, hash={}…)",
                 session.address,
                 session.algo.name(),
@@ -1151,7 +1429,7 @@ async fn handle_share_result(
             if let Ok(block_target) = target_from_bits(result.template.header.bits) {
                 if meets_target(&hash, &block_target) {
                     // This is a VALID BLOCK!
-                    info!(
+                    println!(
                         "🎉 NEW BLOCK FOUND by {} (algo={}, hash={})",
                         session.address,
                         session.algo.name(),
@@ -1165,8 +1443,8 @@ async fn handle_share_result(
 
                     let block = Block {
                         header: block_header,
-                        uncles: vec![],
                         transactions: result.template.txs.clone(),
+                        uncles: vec![],
                     };
 
                     // Submit to network (async, don't block share processing)
@@ -1189,7 +1467,7 @@ async fn handle_share_result(
                     if let Some(mut session) = peers.get_mut(&result.peer_key) {
                         let new_diff = vd.adjust(time_since, session.difficulty);
                         if (new_diff - session.difficulty).abs() > 0.01 {
-                            info!(
+                            println!(
                                 "Stratum: Adjusting difficulty for {} from {:.2} to {:.2}",
                                 session.address, session.difficulty, new_diff
                             );
@@ -1205,7 +1483,7 @@ async fn handle_share_result(
             session.reject_share();
             metrics.record_share_rejected(session.algo, reason);
 
-            debug!(
+            eprintln!(
                 "Stratum: Share REJECTED from {} (reason={}, algo={}, nonce={})",
                 session.address,
                 reason.as_str(),
@@ -1226,22 +1504,22 @@ async fn submit_block_async(block: Block, metrics: Arc<StratumMetrics>, network_
         Ok(BlockSubmitResult::Accepted { hash, height }) => {
             metrics.record_block_accepted();
             let hash_hex = hex::encode(hash);
-            info!(
+            println!(
                 "[INFO] ✅ Block ACCEPTED by network! hash={} height={:?}",
                 hash_hex, height
             );
         }
         Ok(BlockSubmitResult::Rejected { reason }) => {
             metrics.record_block_rejected();
-            warn!("[WARN] ❌ Block REJECTED by network: reason={}", reason);
+            eprintln!("[WARN] ❌ Block REJECTED by network: reason={}", reason);
         }
         Ok(BlockSubmitResult::Error { message }) => {
             metrics.record_block_rejected();
-            error!("[ERROR] Block submission ERROR: {}", message);
+            eprintln!("[ERROR] Block submission ERROR: {}", message);
         }
         Err(e) => {
             metrics.record_block_rejected();
-            error!("[ERROR] Block submission failed: {}", e);
+            eprintln!("[ERROR] Block submission failed: {}", e);
         }
     }
 }
@@ -1303,14 +1581,12 @@ fn verify_share_pow_sync(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
     #[test]
     fn miner_session_creation() {
-        let session = MinerSession::new(PowAlgo::Sha256d, "test@localhost".to_string(), 1.0)
-            .unwrap_or_else(|e| panic!("Failed to create miner session: {}", e));
+        let session = MinerSession::new(PowAlgo::Sha256d, "test@localhost".to_string(), 1.0, "127.0.0.1".to_string());
         assert_eq!(session.algo, PowAlgo::Sha256d);
         assert_eq!(session.address, "test@localhost");
         assert_eq!(session.difficulty, 1.0);
@@ -1320,8 +1596,7 @@ mod tests {
 
     #[test]
     fn share_counters() {
-        let session = MinerSession::new(PowAlgo::Sha256d, "test".to_string(), 1.0)
-            .unwrap_or_else(|e| panic!("Failed to create miner session: {}", e));
+        let session = MinerSession::new(PowAlgo::Sha256d, "test".to_string(), 1.0, "127.0.0.1".to_string());
 
         session.accept_share();
         session.accept_share();

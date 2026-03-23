@@ -1290,6 +1290,12 @@ pub fn run_stratum_server(
         enable_vardiff: true,
         vardiff_target_time: 15.0,
         vardiff_adjust_rate: 0.05,
+        require_auth: false,
+        max_connections_per_ip: 10,
+        max_share_rate: 10.0,
+        connection_timeout: 300,
+        max_connections: 1000,
+        enable_rate_limiting: true,
     };
 
     println!("Starting BitQuan Stratum Mining Server");
