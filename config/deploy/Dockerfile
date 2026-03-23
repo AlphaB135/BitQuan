@@ -1,23 +1,18 @@
 # syntax=docker/dockerfile:1
 # BitQuan node - multi-stage build with cargo-chef dependency caching
 
-ARG CARGO_CHEF_VERSION=0.1.67
-
-# Stage 1: cargo-chef planner
 FROM rust:1.82-slim AS planner
-ARG CARGO_CHEF_VERSION
 ARG TARGETARCH
 WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 RUN if [ "$TARGETARCH" = "arm64" ]; then ARCH="aarch64"; else ARCH="x86_64"; fi \
-    && curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-${ARCH}-unknown-linux-musl.tar.gz" \
+    && curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v0.1.67/cargo-chef-${ARCH}-unknown-linux-musl.tar.gz" \
     | tar xz -C /usr/local/cargo/bin/
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 2: Build dependencies (cached layer)
 FROM rust:1.82-slim AS builder
-ARG CARGO_CHEF_VERSION
 ARG TARGETARCH
 WORKDIR /app
 
@@ -31,7 +26,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN if [ "$TARGETARCH" = "arm64" ]; then ARCH="aarch64"; else ARCH="x86_64"; fi \
-    && curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-${ARCH}-unknown-linux-musl.tar.gz" \
+    && curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v0.1.67/cargo-chef-${ARCH}-unknown-linux-musl.tar.gz" \
     | tar xz -C /usr/local/cargo/bin/
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
