@@ -123,13 +123,13 @@ fn fp_pow2(x: u64) -> u64 {
     // For fractional part, use lookup table for key values and interpolation
     // Precomputed values for 2^x at key fractional points in 32.32 fixed-point
     let lookup_000 = FP_SCALE; // 2^0 = 1.0
-    let lookup_125 = 4542638083u64; // 2^0.125 ≈ 1.090507732
-    let lookup_250 = 5116992855u64; // 2^0.25 ≈ 1.189207115
-    let lookup_375 = 5765655705u64; // 2^0.375 ≈ 1.296839555
-    let lookup_500 = 6073083756u64; // 2^0.5 ≈ 1.414213562
-    let lookup_625 = 6403640473u64; // 2^0.625 ≈ 1.542210825
-    let lookup_750 = 6758808222u64; // 2^0.75 ≈ 1.681792830
-    let lookup_875 = 7140689098u64; // 2^0.875 ≈ 1.834008086
+    let lookup_125 = 4683695047u64; // 2^0.125 = 1.090507732...
+    let lookup_250 = 5107605667u64; // 2^0.25 = 1.189207115...
+    let lookup_375 = 5569883475u64; // 2^0.375 = 1.296839555...
+    let lookup_500 = 6074000999u64; // 2^0.5 = 1.414213562...
+    let lookup_625 = 6623745058u64; // 2^0.625 = 1.542210825...
+    let lookup_750 = 7223245205u64; // 2^0.75 = 1.681792830...
+    let lookup_875 = 7877004751u64; // 2^0.875 = 1.834008086...
 
     let frac_mult = if frac_part == 0 {
         lookup_000 as u128
@@ -381,10 +381,10 @@ mod tests {
 
     #[test]
     fn fp_pow2_fractional() {
-        // Test: 2^0.5 ≈ 1.414
+        // Test: 2^0.5 = sqrt(2) = 1.4142135623730951...
         let x = FP_SCALE / 2; // 0.5 in fixed-point
         let result = fp_pow2(x);
-        let expected = (1.414 * FP_SCALE as f64) as u64;
+        let expected = (2.0_f64.sqrt() * FP_SCALE as f64) as u64;
 
         assert!((result as i64 - expected as i64).abs() < 50000);
     }
