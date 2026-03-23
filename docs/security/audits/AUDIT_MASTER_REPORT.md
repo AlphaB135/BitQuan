@@ -376,8 +376,7 @@ BitQuan demonstrates strong technical foundations with post-quantum cryptography
 
 ### Supporting Data
 - `audit/cargo_audit.json` - CVE scan results
-- `audit/cargo_deny_output.txt` - License and dependency analysis
-- `audit/current_commit.txt` - Audit commit hash reference
+- Run `cargo deny check` to regenerate license/dependency analysis
 
 ### Verification Checklist
 - [ ] P0 cryptographic fixes implemented
