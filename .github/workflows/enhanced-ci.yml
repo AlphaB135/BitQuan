@@ -1,8 +1,6 @@
 name: Enhanced CI Pipeline
 
 on:
-  push:
-    branches: [ main, develop, feature/*, fix/* ]
   pull_request:
     branches: [ main, develop ]
   schedule:

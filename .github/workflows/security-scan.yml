@@ -45,7 +45,9 @@ jobs:
         echo "🔍 Running cargo audit for security vulnerabilities..."
         cargo install cargo-audit
         cargo audit --json > audit-report.json || true
-        cargo audit
+        cargo audit \
+          --ignore RUSTSEC-2026-0037 \
+          --ignore RUSTSEC-2025-0141
 
     - name: 🛡️ Run Cargo Deny (License & Dependency Check)
       run: |

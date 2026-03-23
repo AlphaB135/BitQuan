@@ -1,0 +1,13 @@
+# cargo-audit configuration
+# https://github.com/rustsec/rustsec/blob/main/cargo-audit/audit.toml.example
+
+[advisories]
+# RUSTSEC-2026-0037: quinn-proto DoS via panic in QUIC transport parameter parsing
+# Transitive dependency via reqwest. Dismissed as tolerable risk -
+# reqwest uses quinn only for HTTP/3 which is not enabled in our config.
+ignored = [
+    "RUSTSEC-2026-0037",
+    # RUSTSEC-2025-0141: bincode is unmaintained
+    # We are aware and tracking migration to bincode 2.x in a future PR.
+    "RUSTSEC-2025-0141",
+]
