@@ -244,11 +244,13 @@ mod tests {
         let mut jwt_auth = manager.into_jwt_auth();
 
         // Create test user for authentication
+        // codeql[rust/hard-coded-cryptographic-value] suppression: test-only value
         jwt_auth
             .add_user_plaintext("admin", "admin123", "admin")
             .expect("Failed to create test user");
 
         // Login should work
+        // codeql[rust/hard-coded-cryptographic-value] suppression: test-only value
         let result = jwt_auth.login("admin", "admin123");
         assert!(result.is_ok());
 

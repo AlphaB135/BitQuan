@@ -111,7 +111,9 @@ mod tests {
     #[test]
     fn derive_key_is_deterministic() {
         let kdf = KeyDerivation::default();
+        // codeql[rust/hard-coded-cryptographic-value] suppression: test-only value
         let password = SecureString::new("correct horse battery".to_owned());
+        // codeql[rust/hard-coded-cryptographic-value] suppression: test-only value
         let salt = [42u8; 32];
 
         let key1 = kdf
@@ -127,8 +129,11 @@ mod tests {
     #[test]
     fn different_salts_produce_different_keys() {
         let kdf = KeyDerivation::default();
+        // codeql[rust/hard-coded-cryptographic-value] suppression: test-only value
         let password = SecureString::new("correct horse battery".to_owned());
+        // codeql[rust/hard-coded-cryptographic-value] suppression: test-only value
         let salt1 = [1u8; 32];
+        // codeql[rust/hard-coded-cryptographic-value] suppression: test-only value
         let salt2 = [2u8; 32];
 
         let key1 = kdf
