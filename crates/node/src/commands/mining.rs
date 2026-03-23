@@ -16,7 +16,7 @@
 
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
-    target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
+    target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
 };
 use bitquan_network::protocol::Message;
 use bitquan_storage::{ChainStore, InMemoryChainStore, RocksDBStore};
@@ -1210,7 +1210,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
             let anchor_target = compact_to_target(anchor.bits);
             let next_target =
                 asert_next_target(anchor_target, height_delta, time_delta, &params, None);
-            let mut next_bits = target_to_compact_u64(next_target);
+            let mut next_bits = target_to_compact(&next_target);
             if next_bits == 0 {
                 next_bits = block_bits;
             }

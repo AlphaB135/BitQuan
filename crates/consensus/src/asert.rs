@@ -12,7 +12,6 @@ use crate::{compact_to_target, pow::DEVNET_MAX_BITS, ConsensusParams};
 pub const FP_SCALE: u64 = 1u64 << 32; // 2^32 = 4294967296
 
 // Maximum/minimum bounds
-pub const MIN_TARGET_U64: u64 = 1;
 
 /// Tracks burst guard activation and cooldown state.
 #[derive(Clone, Debug, Default)]
@@ -208,19 +207,47 @@ fn calculate_asert_exponent_fp(time_delta: i64, expected_time: i64, half_life: u
     ((time_diff_fp + half_life_fp / 2) / half_life_fp) as i64
 }
 
-/// Calculate next ASERT target using pure integer arithmetic
+/// Calculate next ASERT target using pure integer arithmetic.
+///
+/// Operates on 256-bit targets ([u8; 32] big-endian) to avoid the u64
+/// overflow that caused all real difficulty values to collapse to u64::MAX.
 pub fn asert_next_target(
-    anchor_target: u64,
+    anchor_target: [u8; 32],
     height_delta: i64,
     time_delta: i64,
     params: &ConsensusParams,
     guard: Option<GuardContext<'_>>,
-) -> u64 {
-    // Calculate max target at runtime
-    let max_target_u64 = compact_to_target(DEVNET_MAX_BITS);
+) -> [u8; 32] {
+    let max_target = compact_to_target(DEVNET_MAX_BITS);
 
-    // Clamp anchor target to valid range
-    let anchor_clamped = anchor_target.clamp(MIN_TARGET_U64, max_target_u64);
+    // Convert [u8; 32] big-endian to u128.
+    // For compact targets with exponent >= 29, the value exceeds u128 range.
+    // In that case we clamp to u128::MAX for calculation purposes.
+    let anchor_u128 = if anchor_target[0..16] == [0u8; 16] {
+        u128::from_be_bytes(
+            anchor_target[16..32]
+                .try_into()
+                .unwrap_or([0u8; 16]),
+        )
+    } else {
+        u128::MAX
+    };
+    let max_u128 = if max_target[0..16] == [0u8; 16] {
+        u128::from_be_bytes(
+            max_target[16..32]
+                .try_into()
+                .unwrap_or([0u8; 16]),
+        )
+    } else {
+        u128::MAX
+    };
+
+    // Clamp anchor to valid range
+    let anchor_clamped = if anchor_u128 == 0 {
+        1u128 // MIN_TARGET
+    } else {
+        anchor_u128.min(max_u128)
+    };
 
     // Calculate expected time for given height delta
     let expected_time = height_delta * (params.difficulty.target_block_time as i64);
@@ -232,87 +259,97 @@ pub fn asert_next_target(
         params.difficulty.difficulty_half_life,
     );
 
-    // Convert anchor to fixed-point
-    let anchor_fp = (anchor_clamped as u128) << 32;
+    // Convert anchor to fixed-point (64.64 format for u128)
+    let anchor_fp = anchor_clamped << 64;
 
     // Calculate next target: anchor * 2^exponent
-    // Calculate next target: anchor * 2^exponent
-    let next_target_fp = if exponent_fp >= 0 {
+    let next_target_u128 = if exponent_fp >= 0 {
         let exp_fp = fp_pow2(exponent_fp as u64);
-        let anchor_scaled = (anchor_fp >> 32) as u64; // Convert back from fixed-point for multiplication
-        (anchor_scaled as u128) * (exp_fp as u128)
+        // anchor_fp >> 64 recovers anchor_clamped, multiply by exp_fp (in fixed-point)
+        // Result: (anchor_clamped * exp_fp) / FP_SCALE
+        let numerator = (anchor_fp >> 64) * (exp_fp as u128);
+        numerator / (FP_SCALE as u128)
     } else {
         let exp_fp = fp_pow2((-exponent_fp) as u64);
-        let anchor_scaled = (anchor_fp >> 32) as u64; // Convert back from fixed-point for division
-        ((anchor_scaled as u128) * (FP_SCALE as u128)) / (exp_fp as u128)
+        let anchor_val = anchor_fp >> 64;
+        if exp_fp == 0 {
+            anchor_val
+        } else {
+            (anchor_val * (FP_SCALE as u128)) / (exp_fp as u128)
+        }
     };
 
-    // Convert back from fixed-point to integer
-    let next_target = if exponent_fp >= 0 {
-        next_target_fp / (FP_SCALE as u128)
-    } else {
-        next_target_fp
-    };
-
-    // Clamp to valid range and handle overflow
-    let mut result = if next_target > u64::MAX as u128 {
-        u64::MAX
-    } else {
-        next_target as u64
-    };
-
-    result = result.clamp(MIN_TARGET_U64, max_target_u64);
+    // Clamp to valid range
+    let result = next_target_u128.min(max_u128);
+    let result = result.max(1u128); // MIN_TARGET
 
     // Apply burst guard if provided
     if let Some(guard_ctx) = guard {
-        apply_burst_guard_fp(result, height_delta, time_delta, params, guard_ctx)
+        apply_burst_guard_256(result, height_delta, time_delta, params, guard_ctx)
     } else {
-        result
+        let mut out = [0u8; 32];
+        out[16..32].copy_from_slice(&result.to_be_bytes());
+        out
     }
 }
 
-/// Apply burst guard using pure integer arithmetic
-fn apply_burst_guard_fp(
-    next_target: u64,
+/// Convert u128 to [u8; 32] big-endian (placing value in lower 16 bytes).
+#[inline]
+fn u128_to_bytes(val: u128) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    out[16..32].copy_from_slice(&val.to_be_bytes());
+    out
+}
+
+/// Convert u64 to [u8; 32] big-endian (placing value in lower 16 bytes).
+/// Uses the same [16..32] offset as u128_to_bytes for consistency.
+#[inline]
+#[cfg(test)]
+fn u64_to_target(val: u64) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    let val_bytes = val.to_be_bytes();
+    // Place u64 at [24..32] but we need it at [16..32] for consistency
+    // Actually, pad to 16 bytes and place at [16..32]
+    out[16..24].copy_from_slice(&[0u8; 8]); // high 8 bytes zero
+    out[24..32].copy_from_slice(&val_bytes); // low 8 bytes
+    out
+}
+
+/// Apply burst guard using 256-bit targets.
+fn apply_burst_guard_256(
+    next_target: u128,
     height_delta: i64,
     time_delta: i64,
     params: &ConsensusParams,
     guard_ctx: GuardContext<'_>,
-) -> u64 {
+) -> [u8; 32] {
     let window = params.difficulty.burst_guard_window as i64;
-    // Convert f64 ratio to fixed-point using integer arithmetic
-    // floor_ratio is typically 0.5, so we convert it to fixed-point precisely
     let floor_ratio_fp = params.difficulty.burst_guard_floor_ratio_fp;
 
-    // Check if guard should be active
     let guard_active = guard_ctx.current_height >= guard_ctx.activation_height
         && height_delta >= window
         && time_delta > 0;
 
     if !guard_active {
         guard_ctx.state.update(guard_ctx.current_height, params);
-        return next_target;
+        return u128_to_bytes(next_target);
     }
 
-    // Calculate expected time and floor threshold using u128 to prevent overflow
     let expected_time_fp =
         (height_delta as u128) * (params.difficulty.target_block_time as u128) * (FP_SCALE as u128);
     let floor_threshold_fp = (expected_time_fp * floor_ratio_fp as u128) / (FP_SCALE as u128);
     let actual_time_fp = (time_delta as u128) * (FP_SCALE as u128);
 
-    // Check if guard should trigger (only if not in cooldown)
     let should_trigger = actual_time_fp < floor_threshold_fp
         && !guard_ctx.state.cooldown_active(guard_ctx.current_height);
 
     if should_trigger {
         let cooldown = params.difficulty.burst_guard_cooldown_blocks;
         guard_ctx.state.trigger(guard_ctx.current_height, cooldown);
-
-        // Return maximum target (easiest difficulty) when guard triggers
         compact_to_target(DEVNET_MAX_BITS)
     } else {
         guard_ctx.state.update(guard_ctx.current_height, params);
-        next_target
+        u128_to_bytes(next_target)
     }
 }
 
@@ -323,6 +360,13 @@ mod tests {
     use crate::{
         compact_to_target, ConsensusParams, DifficultyParams, DifficultyState, RewardSchedule,
     };
+
+    /// Convert u64 value to [u8; 32] big-endian target for test helpers.
+    fn u64_to_target(val: u64) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        out[24..32].copy_from_slice(&val.to_be_bytes());
+        out
+    }
 
     fn params() -> ConsensusParams {
         ConsensusParams {
@@ -343,83 +387,69 @@ mod tests {
 
     #[test]
     fn fp_multiplication_basic() {
-        // Test: 2.5 * 4.0 = 10.0
         let a = (2.5 * FP_SCALE as f64) as u64;
         let b = (4.0 * FP_SCALE as f64) as u64;
         let result = fp_mul(a, b);
         let expected = (10.0 * FP_SCALE as f64) as u64;
-
-        assert!((result as i64 - expected as i64).abs() < 1000); // Allow small rounding error
+        assert!((result as i64 - expected as i64).abs() < 1000);
     }
 
     #[test]
     fn fp_division_basic() {
-        // Test: 10.0 / 4.0 = 2.5
         let a = (10.0 * FP_SCALE as f64) as u64;
         let b = (4.0 * FP_SCALE as f64) as u64;
         let result = fp_div(a, b);
         let expected = (2.5 * FP_SCALE as f64) as u64;
-
-        assert!((result as i64 - expected as i64).abs() < 1000); // Allow small rounding error
+        assert!((result as i64 - expected as i64).abs() < 1000);
     }
 
     #[test]
     fn fp_pow2_basic() {
-        // Test: 2^1 = 2
-        let x = FP_SCALE; // 1.0 in fixed-point
+        let x = FP_SCALE;
         let result = fp_pow2(x);
         let expected = (2.0 * FP_SCALE as f64) as u64;
-
-        println!(
-            "fp_pow2_basic: result={}, expected={}, diff={}",
-            result,
-            expected,
-            (result as i64 - expected as i64).abs()
-        );
         assert!((result as i64 - expected as i64).abs() < 10000);
     }
 
     #[test]
     fn fp_pow2_fractional() {
-        // Test: 2^0.5 = sqrt(2) = 1.4142135623730951...
-        let x = FP_SCALE / 2; // 0.5 in fixed-point
+        let x = FP_SCALE / 2;
         let result = fp_pow2(x);
         let expected = (2.0_f64.sqrt() * FP_SCALE as f64) as u64;
-
         assert!((result as i64 - expected as i64).abs() < 50000);
     }
 
     #[test]
     fn asert_basic_functionality() {
         let params = params();
-        let anchor = 50000u64;
+        let anchor = u64_to_target(50000);
         let height_delta = 20;
         let expected_time = height_delta * params.difficulty.target_block_time as i64;
 
         // Perfect timing => no change (within 1%)
         let next = asert_next_target(anchor, height_delta, expected_time, &params, None);
-        let diff = next.abs_diff(anchor);
-        assert!(diff < anchor / 100, "ASERT should be within 1% for perfect timing");
+        assert_eq!(next, anchor, "ASERT should be identity for perfect timing");
 
         // Fast blocks => target decreases
-        let next_fast = asert_next_target(anchor, height_delta, expected_time / 2, &params, None);
+        let next_fast =
+            asert_next_target(anchor, height_delta, expected_time / 2, &params, None);
         assert!(next_fast < anchor, "Fast blocks should decrease target");
 
         // Slow blocks => target increases
-        let next_slow = asert_next_target(anchor, height_delta, expected_time * 2, &params, None);
+        let next_slow =
+            asert_next_target(anchor, height_delta, expected_time * 2, &params, None);
         assert!(next_slow > anchor, "Slow blocks should increase target");
     }
 
     #[test]
     fn asert_deterministic_same_inputs() {
         let params = params();
-        let anchor = 50000u64;
+        let anchor = u64_to_target(50000);
         let height_delta = 15;
         let time_delta = 8000;
 
         let result1 = asert_next_target(anchor, height_delta, time_delta, &params, None);
         let result2 = asert_next_target(anchor, height_delta, time_delta, &params, None);
-
         assert_eq!(result1, result2);
     }
 
@@ -429,7 +459,6 @@ mod tests {
         let max_target = compact_to_target(DEVNET_MAX_BITS);
         let anchor = max_target;
 
-        // Even with very slow blocks, should not exceed max target
         let next = asert_next_target(anchor, 1, 10000, &params, None);
         assert!(next <= max_target);
     }
@@ -437,24 +466,22 @@ mod tests {
     #[test]
     fn asert_clamps_to_min_target() {
         let params = params();
-        let anchor = MIN_TARGET_U64;
+        let anchor = u64_to_target(1);
 
-        // Even with very fast blocks, should not go below min target
         let next = asert_next_target(anchor, 100, 1, &params, None);
-        assert!(next >= MIN_TARGET_U64);
+        assert!(next > [0u8; 32], "ASERT should never return zero target");
     }
 
     #[test]
     fn asert_monotonic_with_increasing_time() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
         let height_delta = 10;
 
         let result1 = asert_next_target(anchor, height_delta, 5000, &params, None);
         let result2 = asert_next_target(anchor, height_delta, 6000, &params, None);
         let result3 = asert_next_target(anchor, height_delta, 7000, &params, None);
 
-        // Longer time should result in higher target (lower difficulty)
         assert!(result1 < result2);
         assert!(result2 < result3);
     }
@@ -462,16 +489,15 @@ mod tests {
     #[test]
     fn burst_guard_triggers_for_fast_blocks() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
         let window = params.difficulty.burst_guard_window as i64;
 
-        // Very fast blocks should trigger guard (80% of boundary)
         let expected_time_fp =
             (params.difficulty.target_block_time as u128) * (window as u128) * (FP_SCALE as u128);
         let boundary_time_fp = (expected_time_fp
             * params.difficulty.burst_guard_floor_ratio_fp as u128)
             / (FP_SCALE as u128);
-        let fast_time_fp = (boundary_time_fp * 8) / 10; // 80% of boundary
+        let fast_time_fp = (boundary_time_fp * 8) / 10;
         let fast_time = (fast_time_fp / (FP_SCALE as u128)) as i64;
 
         let mut guard_state = BurstGuardState::default();
@@ -483,7 +509,6 @@ mod tests {
 
         let result = asert_next_target(anchor, window, fast_time, &params, Some(guard_ctx));
 
-        // Should return max target when guard triggers
         assert_eq!(result, compact_to_target(DEVNET_MAX_BITS));
         assert!(guard_state.is_active());
     }
@@ -491,9 +516,8 @@ mod tests {
     #[test]
     fn burst_guard_ignores_small_window() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
 
-        // Small window should not trigger guard even with fast blocks
         let mut guard_state = BurstGuardState::default();
         let guard_ctx = GuardContext {
             state: &mut guard_state,
@@ -503,7 +527,6 @@ mod tests {
 
         let result = asert_next_target(anchor, 5, 100, &params, Some(guard_ctx));
 
-        // Should not trigger guard for small window
         assert!(!guard_state.is_active());
         assert_ne!(result, compact_to_target(DEVNET_MAX_BITS));
     }
@@ -511,7 +534,7 @@ mod tests {
     #[test]
     fn burst_guard_cooldown_respected() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
         let window = params.difficulty.burst_guard_window as i64;
         let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64;
         let fast_time = ((params.difficulty.target_block_time as i64 * window) as f64
@@ -549,52 +572,43 @@ mod tests {
         let params = params();
         let max_target = compact_to_target(DEVNET_MAX_BITS);
 
-        // Test with maximum values
-        let result = asert_next_target(u64::MAX, 1, 1, &params, None);
+        let result = asert_next_target(u64_to_target(u64::MAX), 1, 1, &params, None);
         assert!(result <= max_target);
 
-        // Test with minimum values
-        let result = asert_next_target(1, u64::MAX as i64, i64::MAX, &params, None);
-        assert!(result >= MIN_TARGET_U64);
+        let result = asert_next_target(u64_to_target(1), u64::MAX as i64, i64::MAX, &params, None);
+        assert!(result > [0u8; 32]);
     }
 
     #[test]
     fn asert_unchanged_when_on_time() {
         let params = params();
-        let anchor = 50000u64;
+        let anchor = u64_to_target(50000);
         let height_delta = 20;
         let expected_time = height_delta * params.difficulty.target_block_time as i64;
 
         let result = asert_next_target(anchor, height_delta, expected_time, &params, None);
-
-        // Should be very close to anchor when timing is perfect
-        let diff = result.abs_diff(anchor);
-        assert!(diff < anchor / 100); // Within 1%
+        assert_eq!(result, anchor, "ASERT should be identity for perfect timing");
     }
 
     #[test]
     fn asert_increases_when_blocks_slow() {
         let params = params();
-        let anchor = 50000u64;
+        let anchor = u64_to_target(50000);
         let height_delta = 10;
         let slow_time = height_delta * params.difficulty.target_block_time as i64 * 2;
 
         let result = asert_next_target(anchor, height_delta, slow_time, &params, None);
-
-        // Should increase target for slow blocks
         assert!(result > anchor);
     }
 
     #[test]
     fn asert_decreases_when_blocks_fast() {
         let params = params();
-        let anchor = 50000u64;
+        let anchor = u64_to_target(50000);
         let height_delta = 10;
         let fast_time = height_delta * params.difficulty.target_block_time as i64 / 2;
 
         let result = asert_next_target(anchor, height_delta, fast_time, &params, None);
-
-        // Should decrease target for fast blocks
         assert!(result < anchor);
     }
 
@@ -648,22 +662,17 @@ mod tests {
             &params,
             None,
         );
-
-        // Note: This test validates ASERT consistency between state machine and direct calculation.
-        // The core ASERT logic is working correctly with pure integer arithmetic.
-        // The implementation now uses 100% deterministic integer-based fixed-point math.
     }
 
     #[test]
     fn timestamp_attack_resilience() {
         let guard = params();
         let no_guard = params_no_guard();
-        let anchor = 42_000u64;
+        let anchor = u64_to_target(42_000);
         let window = guard.difficulty.burst_guard_window as i64;
         let floor_ratio = guard.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64;
         let expected = (guard.difficulty.target_block_time as i64 * window) as f64 * floor_ratio;
 
-        // Test with guard
         let with_guard = asert_next_target(
             anchor,
             window,
@@ -676,10 +685,9 @@ mod tests {
             }),
         );
 
-        // Test without guard
-        let without_guard = asert_next_target(anchor, window, expected as i64 - 1, &no_guard, None);
+        let without_guard =
+            asert_next_target(anchor, window, expected as i64 - 1, &no_guard, None);
 
-        // Guard should prevent extreme difficulty adjustment
         assert_eq!(with_guard, compact_to_target(DEVNET_MAX_BITS));
         assert!(without_guard < compact_to_target(DEVNET_MAX_BITS));
     }
@@ -687,18 +695,14 @@ mod tests {
     #[test]
     fn guard_does_not_trigger_on_boundary() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
         let window = params.difficulty.burst_guard_window as i64;
-        // Calculate boundary time exactly as ASERT algorithm does
-        // boundary_time = floor(expected_time * floor_ratio)
+
         let expected_time_fp =
             (window as u128) * (params.difficulty.target_block_time as u128) * (FP_SCALE as u128);
         let floor_threshold_fp = (expected_time_fp
             * params.difficulty.burst_guard_floor_ratio_fp as u128)
             / (FP_SCALE as u128);
-
-        // To get exact boundary, we need to account for integer division truncation
-        // The actual boundary should be ceil(floor_threshold_fp / FP_SCALE)
         let boundary_time = floor_threshold_fp.div_ceil(FP_SCALE as u128) as i64;
 
         let mut guard_state = BurstGuardState::default();
@@ -710,7 +714,6 @@ mod tests {
 
         let result = asert_next_target(anchor, window, boundary_time, &params, Some(guard_ctx));
 
-        // Should not trigger guard exactly on boundary
         assert!(!guard_state.is_active());
         assert_ne!(result, compact_to_target(DEVNET_MAX_BITS));
     }
@@ -718,7 +721,7 @@ mod tests {
     #[test]
     fn guard_triggers_on_fast_streak_exact_window() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
         let window = params.difficulty.burst_guard_window as i64;
         let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64;
         let fast_time = ((params.difficulty.target_block_time as i64 * window) as f64
@@ -734,7 +737,6 @@ mod tests {
 
         let result = asert_next_target(anchor, window, fast_time, &params, Some(guard_ctx));
 
-        // Should trigger guard for fast streak
         assert!(guard_state.is_active());
         assert_eq!(result, compact_to_target(DEVNET_MAX_BITS));
     }
@@ -742,9 +744,8 @@ mod tests {
     #[test]
     fn guard_ignores_single_outlier() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
 
-        // Single fast block should not trigger guard
         let mut guard_state = BurstGuardState::default();
         let guard_ctx = GuardContext {
             state: &mut guard_state,
@@ -761,7 +762,7 @@ mod tests {
     #[test]
     fn guard_cooldown_blocks_respected() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
         let window = params.difficulty.burst_guard_window as i64;
         let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64;
         let fast_time = ((params.difficulty.target_block_time as i64 * window) as f64
@@ -770,7 +771,6 @@ mod tests {
 
         let mut guard_state = BurstGuardState::default();
 
-        // Trigger guard
         {
             let guard_ctx = GuardContext {
                 state: &mut guard_state,
@@ -785,17 +785,14 @@ mod tests {
             .expect("Guard state should have trigger height after activation");
         let cooldown = params.difficulty.burst_guard_cooldown_blocks;
 
-        // Should be in cooldown
         assert!(guard_state.cooldown_active(trigger_height + cooldown / 2));
-
-        // Should not be in cooldown after period
         assert!(!guard_state.cooldown_active(trigger_height + cooldown + 1));
     }
 
     #[test]
     fn guard_no_flap_on_boundary() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
         let window = params.difficulty.burst_guard_window as i64;
         let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64;
         let boundary_time =
@@ -803,7 +800,6 @@ mod tests {
 
         let mut guard_state = BurstGuardState::default();
 
-        // Just above boundary - should trigger
         {
             let guard_ctx = GuardContext {
                 state: &mut guard_state,
@@ -814,7 +810,6 @@ mod tests {
         }
         assert!(guard_state.is_active());
 
-        // Exactly on boundary - should not trigger again
         {
             let guard_ctx = GuardContext {
                 state: &mut guard_state,
@@ -824,20 +819,18 @@ mod tests {
             asert_next_target(anchor, window, boundary_time, &params, Some(guard_ctx));
         }
 
-        // Should still be in cooldown, not retriggered
         assert!(guard_state.is_active());
     }
 
     #[test]
     fn guard_long_run_stability() {
         let params = params();
-        let anchor = 10000u64;
+        let anchor = u64_to_target(10000);
         let window = params.difficulty.burst_guard_window as i64;
         let normal_time = params.difficulty.target_block_time as i64 * window;
 
         let mut guard_state = BurstGuardState::default();
 
-        // Long run of normal timing should not trigger guard
         for i in 1..=100 {
             let guard_ctx = GuardContext {
                 state: &mut guard_state,
@@ -854,12 +847,11 @@ mod tests {
     #[test]
     fn property_tests_asert_deterministic() {
         let params = params();
-        let anchor = 50000u64;
+        let anchor = u64_to_target(50000);
         let height_delta = 15;
         let time_delta = 8000;
 
-        // Multiple calls with same inputs should give same outputs
-        let results: Vec<u64> = (0..10)
+        let results: Vec<[u8; 32]> = (0..10)
             .map(|_| asert_next_target(anchor, height_delta, time_delta, &params, None))
             .collect();
 
@@ -872,12 +864,17 @@ mod tests {
     fn property_tests_asert_always_positive() {
         let params = params();
 
-        // ASERT should never return zero or negative
         for anchor in [1u64, 1000, 1000000, u64::MAX] {
             for height_delta in [-100i64, -1, 0, 1, 100] {
                 for time_delta in [-1000i64, -1, 0, 1, 1000] {
-                    let result = asert_next_target(anchor, height_delta, time_delta, &params, None);
-                    assert!(result > 0);
+                    let result = asert_next_target(
+                        u64_to_target(anchor),
+                        height_delta,
+                        time_delta,
+                        &params,
+                        None,
+                    );
+                    assert!(result > [0u8; 32]);
                 }
             }
         }
@@ -888,11 +885,16 @@ mod tests {
         let params = params();
         let max_target = compact_to_target(DEVNET_MAX_BITS);
 
-        // ASERT should never exceed maximum target
         for anchor in [1u64, 1000, 1000000, u64::MAX] {
             for height_delta in [-100i64, -1, 0, 1, 100] {
                 for time_delta in [-1000i64, -1, 0, 1, 1000] {
-                    let result = asert_next_target(anchor, height_delta, time_delta, &params, None);
+                    let result = asert_next_target(
+                        u64_to_target(anchor),
+                        height_delta,
+                        time_delta,
+                        &params,
+                        None,
+                    );
                     assert!(result <= max_target);
                 }
             }
@@ -902,7 +904,7 @@ mod tests {
     #[test]
     fn property_tests_asert_monotonic_increasing_time() {
         let params = params();
-        let anchor = 50000u64;
+        let anchor = u64_to_target(50000);
         let height_delta = 10;
 
         let mut prev_result = asert_next_target(anchor, height_delta, 1000, &params, None);
@@ -916,7 +918,6 @@ mod tests {
 
     #[test]
     fn test_half_life_mainnet_per_bip0340() {
-        // Phase 4: 120s block time with 4-hour half-life for faster difficulty adjustment
         let mainnet = DifficultyParams::mainnet();
         assert_eq!(
             mainnet.difficulty_half_life, 14_400,
@@ -926,7 +927,6 @@ mod tests {
 
     #[test]
     fn test_half_life_testnet_faster() {
-        // Testnet uses faster 4-hour half-life for quicker adjustment
         let testnet = DifficultyParams::testnet();
         assert_eq!(
             testnet.difficulty_half_life, 14_400,
@@ -936,7 +936,6 @@ mod tests {
 
     #[test]
     fn test_half_life_regtest_instant() {
-        // Regtest uses 10-minute half-life for instant mining
         let regtest = DifficultyParams::regtest();
         assert_eq!(
             regtest.difficulty_half_life, 600,
@@ -946,7 +945,6 @@ mod tests {
 
     #[test]
     fn test_phase3_defaults_uses_testnet() {
-        // phase3_defaults should use testnet (4-hour) for backward compatibility
         let defaults = DifficultyParams::phase3_defaults();
         let testnet = DifficultyParams::testnet();
         assert_eq!(

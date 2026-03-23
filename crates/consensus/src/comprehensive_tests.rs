@@ -11,18 +11,25 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use super::*;
-use crate::asert::MIN_TARGET_U64;
 use bitquan_types::Witness;
 use bitquan_types::{
     genesis, Block, BlockHeader, NetworkId, SigAlgorithm, Transaction, TxIn, TxOut,
 };
 use bq_crypto::CryptoRegistry;
 
+/// Convert u64 value to [u8; 32] big-endian target for test helpers.
+/// Matches the encoding used by u128_to_bytes in asert.rs.
+fn u64_to_target(val: u64) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    out[24..32].copy_from_slice(&val.to_be_bytes());
+    out
+}
+
 #[test]
 fn asert_extreme_time_delta() {
     // Test ASERT with reasonable extreme time deltas (not i64::MIN/MAX to avoid overflow)
     let params = ConsensusParams::phase3_defaults();
-    let anchor = 1000u64;
+    let anchor = u64_to_target(1000);
 
     // Large positive delta (should increase target, easier difficulty)
     let large_time = 3600i64; // 1 hour instead of 10 min
@@ -40,7 +47,7 @@ fn asert_zero_height_delta() {
     // Test ASERT with zero height delta - this is actually an edge case that
     // may not be meaningful in practice. The ASERT formula requires height progression.
     let params = ConsensusParams::phase3_defaults();
-    let anchor = 1000u64;
+    let anchor = u64_to_target(1000);
 
     // Zero height delta means no time has passed, so target should be calculated based on time=0
     // This is an edge case - just verify it doesn't crash and returns something reasonable
@@ -48,7 +55,7 @@ fn asert_zero_height_delta() {
     // With zero time delta and zero height, ASERT should return close to anchor
     // (implementation dependent, so we just check it's in valid range)
     let max_target = compact_to_target(DEVNET_MAX_BITS);
-    assert!(result >= MIN_TARGET_U64 && result <= max_target);
+    assert!(result > [0u8; 32] && result <= max_target);
 }
 
 #[test]
@@ -56,21 +63,21 @@ fn asert_negative_height_delta() {
     // Test ASERT with negative height delta (going backwards in time/height)
     // This is an edge case that represents a reorg or time sync issue
     let params = ConsensusParams::phase3_defaults();
-    let anchor = 1000u64;
+    let anchor = u64_to_target(1000);
 
     // Negative height delta - just verify it returns a valid result
     // The behavior is implementation-dependent for this edge case
     let result = asert_next_target(anchor, -1, 600, &params, None);
     let max_target = compact_to_target(DEVNET_MAX_BITS);
     // Should return something in valid range
-    assert!(result >= MIN_TARGET_U64 && result <= max_target);
+    assert!(result > [0u8; 32] && result <= max_target);
 }
 
 #[test]
 fn burst_guard_multiple_fast_blocks() {
     // Test burst guard with multiple fast blocks in sequence
     let params = ConsensusParams::phase3_defaults();
-    let anchor = 10000u64;
+    let anchor = u64_to_target(10000);
     let window = params.difficulty.burst_guard_window as i64;
     let floor_ratio = params.difficulty.burst_guard_floor_ratio_fp as f64 / FP_SCALE as f64;
     let fast_time =

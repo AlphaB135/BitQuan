@@ -3,41 +3,58 @@
 
 //! Difficulty conversion utilities and ASERT-backed retarget state.
 
-use crate::{asert_next_target, BurstGuardState, ConsensusParams, GuardContext};
+use crate::{
+    asert_next_target, BurstGuardState, ConsensusParams, GuardContext,
+    pow::compact_to_target_bytes,
+};
 
-/// Converts compact representation (`bits`) into a 64-bit integer target value.
-/// Uses pure integer arithmetic to ensure deterministic behavior.
-pub fn compact_to_target(bits: u32) -> u64 {
-    if bits == 0 {
+/// Converts a 32-byte big-endian target back to compact `bits` form.
+///
+/// Follows Bitcoin's compact encoding: size byte (bits 24-31) + 23-bit
+/// mantissa (bits 0-22). The mantissa is the most significant 3 bytes
+/// of the target (excluding leading zeros), with the sign bit cleared.
+pub fn target_to_compact(target: &[u8; 32]) -> u32 {
+    // Find first non-zero byte
+    let mut size = 32usize;
+    for (i, &b) in target.iter().enumerate() {
+        if b != 0 {
+            size = 32 - i;
+            break;
+        }
+    }
+
+    if size == 0 {
+        return 0;
+    }
+    if size > 32 {
         return 0;
     }
 
-    let exponent = bits >> 24;
-    let mantissa = bits & 0x007fffff;
-    let sign = bits & 0x00800000;
-
-    // Apply sign if negative
-    if sign != 0 {
-        return 0;
-    }
-
-    // Check for overflow (u64 can hold up to ~1.8e19)
-    // Formula: mantissa * 256^(exponent-3)
-    // If exponent >= 11, then exponent-3 >= 8, shift is >= 64, which panics/overflows u64
-    if exponent >= 11 {
-        return u64::MAX;
-    }
-
-    if exponent <= 3 {
-        (mantissa as u64) >> (8 * (3 - exponent))
+    // Extract top 3 bytes as mantissa
+    let start = 32 - size;
+    let mantissa = if size >= 3 {
+        ((target[start] as u32) << 16)
+            | ((target[start + 1] as u32) << 8)
+            | (target[start + 2] as u32)
     } else {
-        (mantissa as u64) << (8 * (exponent - 3))
-    }
+        let mut m = 0u32;
+        for &b in &target[start..] {
+            m = (m << 8) | (b as u32);
+        }
+        m <<= (3 - size as u32) * 8;
+        m
+    };
+
+    // Clear sign bit (bit 23 of mantissa)
+    let compact = mantissa & 0x007f_ffff;
+
+    compact | ((size as u32) << 24)
 }
 
-/// Converts a 256-bit target (as u64 for simplified difficulty) to compact form.
+/// Backward-compatible alias: converts u64 target to compact form.
 ///
-/// Note: This is a simplified version for the prototype. Real Bitcoin uses U256.
+/// Note: This loses precision for targets exceeding u64 range.
+/// Prefer `target_to_compact` with [u8; 32] for full 256-bit support.
 pub fn target_to_compact_u64(target: u64) -> u32 {
     if target == 0 {
         return 0;
@@ -58,6 +75,14 @@ pub fn target_to_compact_u64(target: u64) -> u32 {
     compact | (size << 24)
 }
 
+/// Converts compact `bits` to a 32-byte big-endian target.
+///
+/// Wrapper around `compact_to_target_bytes` from pow module.
+/// Returns [0; 32] on invalid bits (instead of error).
+pub fn compact_to_target(bits: u32) -> [u8; 32] {
+    compact_to_target_bytes(bits).unwrap_or([0u8; 32])
+}
+
 /// Difficulty adjustment state for ASERT algorithm.
 #[derive(Clone, Debug)]
 pub struct DifficultyState {
@@ -67,8 +92,8 @@ pub struct DifficultyState {
     pub anchor_time: u64,
     /// Target (bits) of the anchor block.
     pub anchor_bits: u32,
-    /// Target (u64) of the anchor block.
-    pub anchor_target: u64,
+    /// Target ([u8; 32]) of the anchor block.
+    pub anchor_target: [u8; 32],
     guard_state: BurstGuardState,
     guard_activation_height: u64,
 }
@@ -93,7 +118,7 @@ impl DifficultyState {
 
     /// Returns the compact representation of the anchor target.
     pub fn anchor_bits(&self) -> u32 {
-        target_to_compact_u64(self.anchor_target)
+        target_to_compact(&self.anchor_target)
     }
 
     /// Computes the next target for the specified block height/timestamp and updates the anchor.
@@ -121,7 +146,7 @@ impl DifficultyState {
         self.anchor_time = next_timestamp;
         self.anchor_target = next_target;
 
-        target_to_compact_u64(next_target)
+        target_to_compact(&next_target)
     }
 
     #[cfg(test)]
@@ -159,7 +184,7 @@ mod tests {
     fn conversion_round_trip_reasonable() {
         let bits = 0x1d00ffff;
         let target = compact_to_target(bits);
-        let reconverted = target_to_compact_u64(target);
+        let reconverted = target_to_compact(&target);
         assert!(reconverted > 0);
     }
 
@@ -257,18 +282,21 @@ mod tests {
 
     #[test]
     fn compact_to_target_reconstructs_mantissa() {
-        // Test that compact_to_target correctly reconstructs the mantissa
-        // The size byte determines where the 23-bit mantissa is placed in the u64
-        let bits = 0x057fffff; // Size=5, mantissa=0x007fffff (max mantissa)
+        // 0x1d7fffff: exponent=29, mantissa=0x7fffff (max 23-bit mantissa)
+        let bits = 0x1d7fffff;
         let target = compact_to_target(bits);
 
-        // Verify the mantissa is correctly positioned
-        // For size=5, the mantissa should be shifted left by 8*(5-3) = 16 bits
-        let expected_mantissa_pos = 8 * (5 - 3);
-        let reconstructed_mantissa = (target >> expected_mantissa_pos) & 0x007fffff;
+        // Round-trip: compact -> target -> compact should preserve bits
+        let roundtrip = target_to_compact(&target);
         assert_eq!(
-            reconstructed_mantissa, 0x007fffff,
-            "Mantissa should be correctly reconstructed"
+            roundtrip, bits,
+            "Round-trip should preserve compact bits"
         );
+
+        // Verify mantissa bytes at correct position
+        // exponent=29, byte_pos=26, start=32-26-3=3
+        assert_eq!(target[3], 0x7f);
+        assert_eq!(target[4], 0xff);
+        assert_eq!(target[5], 0xff);
     }
 }

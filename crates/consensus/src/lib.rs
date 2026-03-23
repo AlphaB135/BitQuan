@@ -26,7 +26,7 @@ mod tests;
 mod comprehensive_tests;
 
 pub use asert::{asert_next_target, BurstGuardState, GuardContext, FP_SCALE};
-pub use difficulty::{compact_to_target, target_to_compact_u64, DifficultyState};
+pub use difficulty::{compact_to_target, target_to_compact, target_to_compact_u64, DifficultyState};
 pub use economic::{
     EconomicConfig, EconomicError, EconomicManager, EconomicStats, RewardEvent, SlashEvent,
     SlashReason, StakeInfo,
