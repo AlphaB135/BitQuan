@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 
 # Stage 1: cargo-chef planner
-FROM rust:1.83-slim AS planner
+FROM rust:1.82-slim AS planner
 WORKDIR /app
-RUN cargo install cargo-chef
+RUN cargo install cargo-chef --locked
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 2: Build dependencies (cached layer)
-FROM rust:1.83-slim AS builder
+FROM rust:1.82-slim AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cargo install cargo-chef
+RUN cargo install cargo-chef --locked
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
