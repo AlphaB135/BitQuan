@@ -54,6 +54,13 @@ const KEY_PRUNING_MODE: &[u8] = b"pruning_mode";
 const KEY_PRUNING_HEIGHT: &[u8] = b"pruning_height";
 const KEY_LAST_PRUNED: &[u8] = b"last_pruned";
 const KEY_TOTAL_PRUNED: &[u8] = b"total_pruned";
+// Sync state persistence keys (#78)
+const KEY_SYNC_STATE: &[u8] = b"sync_state";
+const KEY_SYNC_HEADER_HEIGHT: &[u8] = b"sync_header_height";
+const KEY_SYNC_BLOCK_HEIGHT: &[u8] = b"sync_block_height";
+const KEY_SYNC_BEST_HEIGHT: &[u8] = b"sync_best_height";
+const KEY_SYNC_LAST_HASH: &[u8] = b"sync_last_hash";
+const KEY_SYNC_TIMESTAMP: &[u8] = b"sync_timestamp";
 
 /// Current database version
 const DB_VERSION: u32 = 1;
@@ -217,7 +224,6 @@ impl RecoveryManager {
         info!("Verifying block integrity");
 
         let height = store.height()?;
-        let mut corrupted_blocks = 0;
 
         // Sample verification for large databases
         let sample_size = std::cmp::min(100, height as usize);
@@ -230,23 +236,39 @@ impl RecoveryManager {
         for i in 0..sample_size {
             let check_height = if step > 0 { i as u64 * step } else { 0 };
 
-            if let Some(block) = store.get_block_by_height(check_height)? {
-                // Verify block hash matches header
-                let expected_hash = block_hash(&block.header);
-                let actual_hash = block_hash(&block.header);
+            // Get the stored block_id (hash) from height_index
+            let cf_height = store
+                .db
+                .cf_handle(CF_HEIGHT_INDEX)
+                .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
 
-                if expected_hash != actual_hash {
-                    error!("Corrupted block at height {}", check_height);
-                    corrupted_blocks += 1;
+            let stored_block_id = store
+                .db
+                .get_cf(&cf_height, check_height.to_le_bytes())
+                .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+            if let Some(block_id_bytes) = stored_block_id {
+                // Verify the stored hash matches the recomputed hash from the block header
+                let mut stored_hash = [0u8; 32];
+                stored_hash.copy_from_slice(&block_id_bytes);
+
+                if let Some(block) = store.get_block_by_height(check_height)? {
+                    let recomputed_hash = block_hash(&block.header);
+
+                    if stored_hash != recomputed_hash {
+                        error!("Corrupted block at height {}", check_height);
+                        return Err(StorageError::DatabaseError(format!(
+                            "Hash mismatch at height {}: stored={}, recomputed={}",
+                            check_height,
+                            hex::encode(stored_hash),
+                            hex::encode(recomputed_hash)
+                        )));
+                    }
+                } else {
+                    // Block has been pruned - cannot verify hash integrity
+                    warn!("Skipping integrity check for pruned block at height {} (block data not available)", check_height);
                 }
             }
-        }
-
-        if corrupted_blocks > 0 {
-            return Err(StorageError::DatabaseError(format!(
-                "Found {} corrupted blocks",
-                corrupted_blocks
-            )));
         }
 
         info!("Block integrity verification completed");
@@ -345,6 +367,21 @@ pub fn block_hash(header: &BlockHeader) -> [u8; 32] {
 /// RocksDB-backed chain store with persistent storage
 pub struct RocksDBStore {
     db: Arc<DB>,
+}
+
+/// Persistent sync state for resume after restart (#78).
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct SyncState {
+    /// Last synced header height
+    pub header_height: u64,
+    /// Last synced block height
+    pub block_height: u64,
+    /// Best known peer height
+    pub best_known_height: u64,
+    /// Hash of last synced header
+    pub last_header_hash: [u8; 32],
+    /// Timestamp of last sync
+    pub last_sync_timestamp: u64,
 }
 
 impl RocksDBStore {
@@ -750,19 +787,23 @@ impl RocksDBStore {
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?
             .and_then(|bytes| bincode::deserialize(&bytes).ok());
 
+        // Default value when no timestamp is stored - this should only happen
+        // for newly created databases or databases where timestamps weren't recorded
+        const DEFAULT_METADATA_VALUE: u64 = 0;
+
         let last_pruned = self
             .db
             .get_cf(&meta_cf, KEY_LAST_PRUNED)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?
             .and_then(|bytes| bincode::deserialize(&bytes).ok())
-            .unwrap_or(0);
+            .unwrap_or(DEFAULT_METADATA_VALUE);
 
         let total_pruned = self
             .db
             .get_cf(&meta_cf, KEY_TOTAL_PRUNED)
             .map_err(|e| StorageError::DatabaseError(e.to_string()))?
             .and_then(|bytes| bincode::deserialize(&bytes).ok())
-            .unwrap_or(0);
+            .unwrap_or(DEFAULT_METADATA_VALUE);
 
         Ok(crate::PruningMetadata {
             mode,
@@ -770,6 +811,159 @@ impl RocksDBStore {
             last_pruned,
             total_pruned,
         })
+    }
+
+    // ========================================================================
+    // SYNC STATE PERSISTENCE (#78)
+    // ========================================================================
+
+    /// Save sync state for resume after restart.
+    pub fn save_sync_state(&self, state: &SyncState) -> Result<(), StorageError> {
+        let meta_cf = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+
+        let mut batch = WriteBatch::default();
+
+        // Save individual fields for partial updates
+        batch.put_cf(
+            &meta_cf,
+            KEY_SYNC_HEADER_HEIGHT,
+            state.header_height.to_le_bytes(),
+        );
+        batch.put_cf(
+            &meta_cf,
+            KEY_SYNC_BLOCK_HEIGHT,
+            state.block_height.to_le_bytes(),
+        );
+        batch.put_cf(
+            &meta_cf,
+            KEY_SYNC_BEST_HEIGHT,
+            state.best_known_height.to_le_bytes(),
+        );
+        batch.put_cf(&meta_cf, KEY_SYNC_LAST_HASH, state.last_header_hash);
+        batch.put_cf(
+            &meta_cf,
+            KEY_SYNC_TIMESTAMP,
+            state.last_sync_timestamp.to_le_bytes(),
+        );
+
+        // Also save as a single blob for atomic restore
+        let state_bytes = serialize::to_bytes(state)?;
+        batch.put_cf(&meta_cf, KEY_SYNC_STATE, &state_bytes);
+
+        self.db
+            .write_opt(batch, &Self::sync_write_opts())
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+        info!(
+            "Saved sync state: headers={}, blocks={}",
+            state.header_height, state.block_height
+        );
+        Ok(())
+    }
+
+    /// Load sync state for resume after restart.
+    pub fn load_sync_state(&self) -> Result<SyncState, StorageError> {
+        let meta_cf = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+
+        // Try to load from single blob first
+        if let Some(bytes) = self
+            .db
+            .get_cf(&meta_cf, KEY_SYNC_STATE)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+        {
+            if let Ok(state) = serialize::from_bytes::<SyncState>(&bytes) {
+                info!(
+                    "Loaded sync state from blob: headers={}, blocks={}",
+                    state.header_height, state.block_height
+                );
+                return Ok(state);
+            }
+        }
+
+        // Fall back to loading individual fields
+        let header_height = self
+            .db
+            .get_cf(&meta_cf, KEY_SYNC_HEADER_HEIGHT)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+            .map(|b| u64::from_le_bytes(b.try_into().unwrap_or([0; 8])))
+            .unwrap_or(0);
+
+        let block_height = self
+            .db
+            .get_cf(&meta_cf, KEY_SYNC_BLOCK_HEIGHT)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+            .map(|b| u64::from_le_bytes(b.try_into().unwrap_or([0; 8])))
+            .unwrap_or(0);
+
+        let best_known_height = self
+            .db
+            .get_cf(&meta_cf, KEY_SYNC_BEST_HEIGHT)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+            .map(|b| u64::from_le_bytes(b.try_into().unwrap_or([0; 8])))
+            .unwrap_or(0);
+
+        let last_header_hash = self
+            .db
+            .get_cf(&meta_cf, KEY_SYNC_LAST_HASH)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+            .map(|b| {
+                let mut hash = [0u8; 32];
+                if b.len() == 32 {
+                    hash.copy_from_slice(&b);
+                }
+                hash
+            })
+            .unwrap_or([0u8; 32]);
+
+        let last_sync_timestamp = self
+            .db
+            .get_cf(&meta_cf, KEY_SYNC_TIMESTAMP)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+            .map(|b| u64::from_le_bytes(b.try_into().unwrap_or([0; 8])))
+            .unwrap_or(0);
+
+        let state = SyncState {
+            header_height,
+            block_height,
+            best_known_height,
+            last_header_hash,
+            last_sync_timestamp,
+        };
+
+        info!(
+            "Loaded sync state from fields: headers={}, blocks={}",
+            state.header_height, state.block_height
+        );
+        Ok(state)
+    }
+
+    /// Clear sync state (after successful sync completion).
+    pub fn clear_sync_state(&self) -> Result<(), StorageError> {
+        let meta_cf = self
+            .db
+            .cf_handle(CF_META)
+            .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+
+        let mut batch = WriteBatch::default();
+        batch.delete_cf(&meta_cf, KEY_SYNC_STATE);
+        batch.delete_cf(&meta_cf, KEY_SYNC_HEADER_HEIGHT);
+        batch.delete_cf(&meta_cf, KEY_SYNC_BLOCK_HEIGHT);
+        batch.delete_cf(&meta_cf, KEY_SYNC_BEST_HEIGHT);
+        batch.delete_cf(&meta_cf, KEY_SYNC_LAST_HASH);
+        batch.delete_cf(&meta_cf, KEY_SYNC_TIMESTAMP);
+
+        self.db
+            .write_opt(batch, &Self::sync_write_opts())
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?;
+
+        info!("Cleared sync state");
+        Ok(())
     }
 
     /// Prune block data before the specified height.
@@ -819,7 +1013,14 @@ impl RocksDBStore {
 
             // Parse height from key (assuming key is height encoded as bytes)
             if key.len() >= 8 {
-                let height = u64::from_le_bytes(key[..8].try_into().unwrap_or([0u8; 8]));
+                let height = u64::from_le_bytes({
+                    let key_bytes: [u8; 8] = key[..8].try_into().unwrap_or_else(|_| {
+                        // Invalid key format - log error and skip
+                        error!("Invalid height index key: length < 8 bytes");
+                        [0u8; 8]
+                    });
+                    key_bytes
+                });
 
                 if height >= before_height {
                     break; // Reached non-prunable height
@@ -884,9 +1085,10 @@ impl RocksDBStore {
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
 
         // Get current metadata or create new
-        let mut metadata = self
-            .get_pruning_metadata()
-            .unwrap_or_else(|_| crate::PruningMetadata::new(crate::PruningMode::default()));
+        let mut metadata = self.get_pruning_metadata().unwrap_or_else(|e| {
+            error!("Failed to get pruning metadata, using default: {}", e);
+            crate::PruningMetadata::new(crate::PruningMode::default())
+        });
 
         metadata.record_pruning(new_pruning_height, blocks_pruned);
 
@@ -1129,6 +1331,25 @@ impl ChainStore for RocksDBStore {
             .db
             .cf_handle(CF_UNDO)
             .ok_or_else(|| StorageError::DatabaseError("undo CF not found".into()))?;
+        let cf_blocks = self
+            .db
+            .cf_handle(CF_BLOCKS)
+            .ok_or_else(|| StorageError::DatabaseError("blocks CF not found".into()))?;
+        let cf_headers = self
+            .db
+            .cf_handle(CF_HEADERS)
+            .ok_or_else(|| StorageError::DatabaseError("headers CF not found".into()))?;
+        let cf_height = self
+            .db
+            .cf_handle(CF_HEIGHT_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
+        let cf_tx = self
+            .db
+            .cf_handle(CF_TX_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("tx_index CF not found".into()))?;
+
+        // Get current height before updating (needed for cleanup)
+        let current_height = self.height()?;
 
         // Load undo data for this block
         let undo_data = self
@@ -1187,6 +1408,22 @@ impl ChainStore for RocksDBStore {
         }
 
         batch.put_cf(&cf_meta, KEY_HEIGHT, new_height.to_le_bytes());
+
+        // C2 FIX: Clean up orphan data for the disconnected block
+        // Without this, stale data remains after reorg and can conflict with new chain
+        batch.delete_cf(&cf_blocks, block_id);
+        batch.delete_cf(&cf_headers, block_id);
+        // Delete height index entry (blocks are 0-indexed, so height key is height-1)
+        if current_height > 0 {
+            batch.delete_cf(&cf_height, (current_height - 1).to_le_bytes());
+        }
+        // Delete transaction index entries for all transactions in this block
+        for tx in &block.transactions {
+            let txid = tx.txid();
+            batch.delete_cf(&cf_tx, txid);
+        }
+        // Delete undo data (no longer needed after disconnect)
+        batch.delete_cf(&cf_undo, block_id);
 
         self.db
             .write_opt(batch, &Self::sync_write_opts())
@@ -1299,6 +1536,7 @@ impl RocksDBStore {
     /// Legacy disconnect method for blocks without undo data.
     /// This is less efficient but provides backwards compatibility.
     fn disconnect_block_legacy(&mut self, block: &Block) -> Result<(), StorageError> {
+        let block_id = Self::block_id(&block.header);
         let mut batch = WriteBatch::default();
         let cf_utxo = self
             .db
@@ -1308,6 +1546,25 @@ impl RocksDBStore {
             .db
             .cf_handle(CF_META)
             .ok_or_else(|| StorageError::DatabaseError("meta CF not found".into()))?;
+        let cf_blocks = self
+            .db
+            .cf_handle(CF_BLOCKS)
+            .ok_or_else(|| StorageError::DatabaseError("blocks CF not found".into()))?;
+        let cf_headers = self
+            .db
+            .cf_handle(CF_HEADERS)
+            .ok_or_else(|| StorageError::DatabaseError("headers CF not found".into()))?;
+        let cf_height = self
+            .db
+            .cf_handle(CF_HEIGHT_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
+        let cf_tx = self
+            .db
+            .cf_handle(CF_TX_INDEX)
+            .ok_or_else(|| StorageError::DatabaseError("tx_index CF not found".into()))?;
+
+        // Get current height before updating (needed for cleanup)
+        let current_height = self.height()?;
 
         // Revert UTXO changes
         for tx in block.transactions.iter() {
@@ -1361,6 +1618,19 @@ impl RocksDBStore {
         }
 
         batch.put_cf(&cf_meta, KEY_HEIGHT, new_height.to_le_bytes());
+
+        // C2 FIX: Clean up orphan data for the disconnected block (legacy version)
+        batch.delete_cf(&cf_blocks, block_id);
+        batch.delete_cf(&cf_headers, block_id);
+        // Delete height index entry (blocks are 0-indexed, so height key is height-1)
+        if current_height > 0 {
+            batch.delete_cf(&cf_height, (current_height - 1).to_le_bytes());
+        }
+        // Delete transaction index entries for all transactions in this block
+        for tx in &block.transactions {
+            let txid = tx.txid();
+            batch.delete_cf(&cf_tx, txid);
+        }
 
         self.db
             .write_opt(batch, &Self::sync_write_opts())

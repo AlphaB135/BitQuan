@@ -24,6 +24,11 @@ pub enum AsyncStoreError {
     /// Operation was cancelled
     #[error("Operation cancelled")]
     Cancelled,
+
+    /// No valid headers found for the given locators
+    /// This indicates the peer's chain doesn't connect to ours
+    #[error("No valid headers found - peer chain incompatible")]
+    NoValidHeaders,
 }
 
 /// Result type for async storage operations
@@ -364,9 +369,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_store_wrapper() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let path = temp_dir.path().join("test.db");
-        let rocks_store = RocksDBStore::open(path).unwrap();
+        let rocks_store = RocksDBStore::open(path).expect("Failed to open RocksDB store");
         let async_store = AsyncStoreWrapper::new(rocks_store);
 
         test_async_store(&async_store).await.unwrap();

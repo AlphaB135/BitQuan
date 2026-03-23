@@ -4,6 +4,7 @@
 pub mod ban_manager;
 pub mod connection_manager;
 pub mod dos_protection;
+pub mod height_validation;
 pub mod noise; // Noise Protocol encryption for P2P
 pub mod rate_limiter;
 pub mod reputation;
@@ -34,12 +35,14 @@ pub use dos_protection::{
 pub use rate_limiter::{
     MessageType, MessageTypeLimits, RateLimitConfig, RateLimitError, RateLimiter,
 };
-pub use reputation::{
-    PeerReputation, ReputationAction, ReputationConfig, ReputationManager, ReputationStats,
-    Violation,
-};
 pub use security_manager::{
     PeerSecurityStatus, SecurityError, SecurityEvent, SecurityManager, SecurityStatistics,
+};
+
+pub use height_validation::{
+    blocks_behind, range_size, sync_progress, validate_height_range, validate_peer_height,
+    validate_request_range, HeightResult, HeightValidationError, MAX_SANITY_HEIGHT_DIFF,
+    MAX_UNVERIFIED_HEIGHT_DIFF,
 };
 
 pub use discovery::{

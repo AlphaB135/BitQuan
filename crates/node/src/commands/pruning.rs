@@ -216,16 +216,15 @@ pub fn check_disk_space(datadir: &str) -> Result<()> {
     println!("Data directory: {}", datadir);
     println!();
 
-    let path = std::path::Path::new(datadir);
-
     // Get disk space information
     #[cfg(unix)]
     {
+        let path = std::path::Path::new(datadir);
         let stats = nix::sys::statvfs::statvfs(path)
             .map_err(|e| Error::Invalid(format!("Failed to get disk stats: {}", e)))?;
 
-        let total_bytes = u64::from(stats.blocks()) * stats.fragment_size();
-        let available_bytes = u64::from(stats.files_available()) * stats.fragment_size();
+        let total_bytes = (stats.blocks() as u64) * (stats.fragment_size() as u64);
+        let available_bytes = (stats.files_available() as u64) * (stats.fragment_size() as u64);
         let used_bytes = total_bytes.saturating_sub(available_bytes);
 
         let total_gb = total_bytes / (1024 * 1024 * 1024);

@@ -449,7 +449,7 @@ mod tests {
         };
         let mut manager = ConnectionManager::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
-        let ip = "127.0.0.1".parse().unwrap();
+        let ip = "127.0.0.1".parse().expect("Invalid IP address in test");
 
         // Should accept inbound connection
         assert!(manager.accept_inbound_connection(peer, ip, None).is_ok());
@@ -473,8 +473,8 @@ mod tests {
 
         let peer1 = format!("test_peer_{}", rand::random::<u64>());
         let peer2 = format!("test_peer_{}", rand::random::<u64>());
-        let ip1 = "127.0.0.1".parse().unwrap();
-        let ip2 = "127.0.0.2".parse().unwrap();
+        let ip1 = "127.0.0.1".parse().expect("Invalid IP address in test");
+        let ip2 = "127.0.0.2".parse().expect("Invalid IP address in test");
 
         // Should accept first two connections
         assert!(manager.accept_inbound_connection(peer1, ip1, None).is_ok());
@@ -482,7 +482,7 @@ mod tests {
 
         // Should reject third connection
         let peer3 = format!("test_peer_{}", rand::random::<u64>());
-        let ip3 = "127.0.0.3".parse().unwrap();
+        let ip3 = "127.0.0.3".parse().expect("Invalid IP address in test");
         assert!(matches!(
             manager.accept_inbound_connection(peer3, ip3, None),
             Err(ConnectionError::GlobalLimitReached)
@@ -494,7 +494,7 @@ mod tests {
         let config = ConnectionConfig::default();
         let mut manager = ConnectionManager::new(config);
         let peer = format!("test_peer_{}", rand::random::<u64>());
-        let ip = "127.0.0.1".parse().unwrap();
+        let ip = "127.0.0.1".parse().expect("Invalid IP address in test");
 
         // Should accept outbound connection
         assert!(manager.initiate_outbound_connection(peer, ip, None).is_ok());
@@ -510,7 +510,7 @@ mod tests {
         let mut manager = ConnectionManager::new(config);
 
         let peer = format!("test_peer_{}", rand::random::<u64>());
-        let ip = "127.0.0.1".parse().unwrap();
+        let ip = "127.0.0.1".parse().expect("Invalid IP address in test");
 
         assert!(manager
             .accept_inbound_connection(peer.clone(), ip, None)

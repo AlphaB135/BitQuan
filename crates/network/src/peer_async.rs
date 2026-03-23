@@ -3,6 +3,7 @@
 //! This module provides an async version of the Peer struct that properly
 //! protects against Slowloris attacks using tokio::time::timeout.
 
+use crate::discovery::PeerBook;
 use crate::protocol::{Message, MessageEnvelope, P2pError, MAX_MESSAGE_SIZE, PROTOCOL_VERSION};
 use bitquan_types::error::{Error, Result as TypesResult};
 use bitquan_types::ext::ResultExt;
@@ -341,6 +342,8 @@ pub struct AsyncPeerManager {
     current_height: Arc<Mutex<u64>>,
     /// Network magic.
     magic: [u8; 4],
+    /// Optional peer book for updating claimed heights.
+    peer_book: Option<Arc<Mutex<PeerBook>>>,
 }
 
 impl AsyncPeerManager {
@@ -351,7 +354,16 @@ impl AsyncPeerManager {
             max_peers,
             current_height: Arc::new(Mutex::new(0)),
             magic: crate::protocol::network_magic(network),
+            peer_book: None,
         }
+    }
+
+    /// Sets the peer book for tracking claimed heights.
+    ///
+    /// This allows the manager to update PeerBook with heights
+    /// received during version handshake.
+    pub fn set_peer_book(&mut self, peer_book: Arc<Mutex<PeerBook>>) {
+        self.peer_book = Some(peer_book);
     }
 
     /// Updates blockchain height.
@@ -361,11 +373,14 @@ impl AsyncPeerManager {
     }
 
     /// Adds an inbound peer.
+    ///
+    /// Returns Ok(Some(start_height)) with the peer's claimed blockchain height,
+    /// or Ok(None) if the peer didn't provide a height.
     pub async fn add_peer_inbound(
         &self,
         stream: TcpStream,
         addr: SocketAddr,
-    ) -> Result<(), P2pError> {
+    ) -> Result<Option<u64>, P2pError> {
         let mut peers = self.peers.lock().await;
 
         if peers.len() >= self.max_peers {
@@ -376,12 +391,29 @@ impl AsyncPeerManager {
         let height = *self.current_height.lock().await;
         peer.handshake_inbound(height).await?;
 
+        let peer_height = peer.start_height;
         peers.push(peer);
-        Ok(())
+
+        // Update PeerBook with claimed height
+        if let Some(ref peer_book) = self.peer_book {
+            if let Some(height) = peer_height {
+                let addr_str = addr.to_string();
+                let mut book = peer_book.lock().await;
+                if let Some(p) = book.get_peer_mut(&addr_str) {
+                    p.claimed_height = Some(height);
+                    log::debug!("Updated peer {} claimed_height to {}", addr_str, height);
+                }
+            }
+        }
+
+        Ok(peer_height)
     }
 
     /// Connects to a peer (outbound).
-    pub async fn connect_peer(&self, addr: SocketAddr) -> Result<(), P2pError> {
+    ///
+    /// Returns Ok(Some(start_height)) with the peer's claimed blockchain height,
+    /// or Ok(None) if the peer didn't provide a height.
+    pub async fn connect_peer(&self, addr: SocketAddr) -> Result<Option<u64>, P2pError> {
         let mut peers = self.peers.lock().await;
 
         if peers.len() >= self.max_peers {
@@ -396,8 +428,22 @@ impl AsyncPeerManager {
         let height = *self.current_height.lock().await;
         peer.handshake_outbound(height).await?;
 
+        let peer_height = peer.start_height;
         peers.push(peer);
-        Ok(())
+
+        // Update PeerBook with claimed height
+        if let Some(ref peer_book) = self.peer_book {
+            if let Some(height) = peer_height {
+                let addr_str = addr.to_string();
+                let mut book = peer_book.lock().await;
+                if let Some(p) = book.get_peer_mut(&addr_str) {
+                    p.claimed_height = Some(height);
+                    log::debug!("Updated peer {} claimed_height to {}", addr_str, height);
+                }
+            }
+        }
+
+        Ok(peer_height)
     }
 
     /// Broadcasts a message to all ready peers.
@@ -433,6 +479,36 @@ impl AsyncPeerManager {
             .iter()
             .filter(|p| p.state == PeerState::Ready)
             .count()
+    }
+
+    /// Get a peer's claimed height (from version handshake).
+    ///
+    /// Returns None if peer hasn't completed handshake or didn't provide height.
+    pub async fn get_peer_height(&self, addr: SocketAddr) -> Option<u64> {
+        let peers = self.peers.lock().await;
+        peers
+            .iter()
+            .find(|p| p.addr == addr)
+            .and_then(|p| p.start_height)
+    }
+
+    /// Get all peers with their claimed heights.
+    ///
+    /// Returns a vector of (addr, start_height) tuples for peers that
+    /// successfully completed version handshake.
+    pub async fn get_peer_heights(&self) -> Vec<(SocketAddr, u64)> {
+        let peers = self.peers.lock().await;
+        peers
+            .iter()
+            .filter(|p| p.state == PeerState::Ready && p.start_height.is_some())
+            .map(|p| {
+                (
+                    p.addr,
+                    p.start_height
+                        .expect("Peer should have start height if filter passes"),
+                )
+            })
+            .collect()
     }
 }
 

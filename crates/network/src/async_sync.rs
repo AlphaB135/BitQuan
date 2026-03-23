@@ -490,8 +490,8 @@ impl AsyncSyncManager {
 
     /// Discover best height from peers asynchronously
     pub async fn discover_best_height(&self) -> std::result::Result<u64, AsyncSyncError> {
-        // Collect peer addresses before any await to avoid holding lock across await
-        let best_peers = {
+        // Collect peer addresses and their claimed heights before any await
+        let (peer_addrs, peer_heights): (Vec<String>, Vec<Option<u64>>) = {
             let peer_book = self
                 .peer_book
                 .lock()
@@ -501,26 +501,42 @@ impl AsyncSyncManager {
             if peers.is_empty() {
                 return Err(AsyncSyncError::NoPeersAvailable);
             }
-            peers
+
+            // Extract addresses and their claimed heights
+            let mut addrs = Vec::new();
+            let mut heights = Vec::new();
+            for addr in &peers {
+                if let Some(peer) = peer_book.get_peer(addr) {
+                    addrs.push(addr.clone());
+                    heights.push(peer.claimed_height);
+                }
+            }
+            (addrs, heights)
         };
 
         // Get current height as fallback
         let current_progress = self.get_sync_progress().await?;
         let mut best_height = current_progress.local_height;
 
-        // Query peers asynchronously with timeout
-        let peer_heights = futures::future::join_all(best_peers.iter().map(|_peer_addr| {
-            async move {
-                // In a real implementation, this would query the peer
-                // For now, simulate with a delay and increment
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                Ok::<u64, AsyncSyncError>(current_progress.local_height + 10)
+        // Process peer heights
+        for (addr, height_opt) in peer_addrs.iter().zip(peer_heights.iter()) {
+            if let Some(height) = height_opt {
+                // Sanity check: reject heights more than 1000 blocks ahead (Sybil protection)
+                let local_height = current_progress.local_height;
+                if *height > local_height && *height <= local_height + 1000 {
+                    log::info!("✓ Peer {} claims height {}", addr, height);
+                    best_height = best_height.max(*height);
+                } else if *height > local_height + 1000 {
+                    log::warn!(
+                        "⚠ Peer {} claims unreasonable height {} (local: {})",
+                        addr,
+                        height,
+                        local_height
+                    );
+                }
+            } else {
+                log::debug!("Peer {} has no claimed_height", addr);
             }
-        }))
-        .await;
-
-        for height in peer_heights.into_iter().flatten() {
-            best_height = best_height.max(height);
         }
 
         self.chain_sync.set_best_height(best_height).await?;
@@ -830,19 +846,28 @@ mod tests {
     async fn test_async_chain_sync() {
         let sync = AsyncChainSync::new(100);
 
-        let progress = sync.get_progress().await.unwrap();
+        let progress = sync
+            .get_progress()
+            .await
+            .expect("Failed to get sync progress in test");
         assert_eq!(progress.local_height, 100);
         assert_eq!(progress.best_height, 100);
 
-        sync.set_best_height(150).await.unwrap();
+        sync.set_best_height(150)
+            .await
+            .expect("Failed to set best height in test");
 
-        let progress = sync.get_progress().await.unwrap();
+        let progress = sync
+            .get_progress()
+            .await
+            .expect("Failed to get sync progress in test");
         assert_eq!(progress.best_height, 150);
     }
 
     #[tokio::test]
     async fn test_async_sync_manager() {
-        let noise_config = Arc::new(NoiseConfig::generate().unwrap());
+        let noise_config =
+            Arc::new(NoiseConfig::generate().expect("Failed to generate noise config in test"));
         let peer_manager = Arc::new(PeerManager::new(10, NetworkId::Regtest, noise_config));
         let peer_book = Arc::new(Mutex::new(PeerBook::new()));
         let network_id = NetworkId::Regtest;
@@ -859,10 +884,16 @@ mod tests {
             storage,
         );
 
-        let progress = sync_manager.get_sync_progress().await.unwrap();
+        let progress = sync_manager
+            .get_sync_progress()
+            .await
+            .expect("Failed to get sync progress in test");
         assert_eq!(progress.local_height, 100);
 
-        let needs_sync = sync_manager.needs_sync().await.unwrap();
+        let needs_sync = sync_manager
+            .needs_sync()
+            .await
+            .expect("Failed to check sync needs in test");
         assert!(!needs_sync);
     }
 }

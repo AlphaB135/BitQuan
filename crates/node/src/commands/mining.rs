@@ -44,14 +44,14 @@ const QBITS_PER_BQ: u128 = 1_000_000_000_000_000_000;
 /// Format qbits as BQ using pure integer arithmetic.
 /// SECURITY: Never use f64 for money! Floating point causes precision loss.
 /// Example: 1_500_000_000_000_000_000 -> "1.500000000000000000"
-fn format_bq(qbits: u128) -> String {
+pub fn format_bq(qbits: u128) -> String {
     let whole = qbits / QBITS_PER_BQ;
     let frac = qbits % QBITS_PER_BQ;
     format!("{}.{:018}", whole, frac)
 }
 
 /// Load difficulty_bits from network config file
-fn load_difficulty_from_config(network: NetworkId) -> Result<u32> {
+pub fn load_difficulty_from_config(network: NetworkId) -> Result<u32> {
     let config_file = match network {
         NetworkId::Mainnet => "config/mainnet.toml",
         NetworkId::Testnet => "config/testnet.toml",
@@ -87,7 +87,7 @@ fn load_difficulty_from_config(network: NetworkId) -> Result<u32> {
 }
 
 /// Load block from disk or create test block
-fn load_block_placeholder() -> Result<Block> {
+pub fn load_block_placeholder() -> Result<Block> {
     // Load block from disk or create test block
     let block = Block {
         header: bitquan_types::BlockHeader {
@@ -550,16 +550,26 @@ pub fn mine_once(
 
 /// Options for continuous mining operations
 pub struct MiningOptions {
-    datadir: String,
-    payout_script_hex: String,
-    bits_override: u32,
-    max_nonce: u64,
-    threads: usize,
-    limit_blocks: Option<u64>,
-    network: NetworkId,
-    pow_mode: crate::PowMode,
-    hybrid_weights: Option<Vec<(bitquan_consensus::pow::PowAlgo, f32)>>,
-    peers: Vec<String>,
+    /// Data directory for blockchain storage
+    pub datadir: String,
+    /// Payout script in hexadecimal format
+    pub payout_script_hex: String,
+    /// Override for difficulty bits
+    pub bits_override: u32,
+    /// Maximum nonce value to try
+    pub max_nonce: u64,
+    /// Number of mining threads
+    pub threads: usize,
+    /// Optional limit on number of blocks to mine
+    pub limit_blocks: Option<u64>,
+    /// Network identifier
+    pub network: NetworkId,
+    /// Proof-of-work algorithm mode
+    pub pow_mode: crate::PowMode,
+    /// Optional weights for hybrid mining algorithms
+    pub hybrid_weights: Option<Vec<(bitquan_consensus::pow::PowAlgo, f32)>>,
+    /// List of peer addresses to connect
+    pub peers: Vec<String>,
 }
 
 /// Continuous mining with persistent RocksDB storage

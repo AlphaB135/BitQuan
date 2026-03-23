@@ -343,7 +343,7 @@ pub mod address {
     /// Encodes a public key hash to a Bech32m address.
     ///
     /// Uses witness version 1 (for post-quantum signatures).
-    /// Format: bq1<bech32m-encoded-hash>
+    /// Format: `bq1<bech32m-encoded-hash>`
     pub fn encode(pubkey_hash: &[u8; 32]) -> String {
         encode_with_hrp(pubkey_hash, HRP_MAINNET)
     }

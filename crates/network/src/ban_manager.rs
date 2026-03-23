@@ -504,7 +504,7 @@ mod tests {
     fn test_ip_banning() {
         let config = BanConfig::default();
         let mut manager = BanManager::new(config);
-        let ip = "192.168.1.100".parse().unwrap();
+        let ip = "192.168.1.100".parse().expect("Invalid IP address in test");
 
         // Ban IP
         assert!(manager

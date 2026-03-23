@@ -8,13 +8,28 @@
 use bitquan_consensus::pow;
 use bitquan_storage::async_store::{AsyncChainStore, AsyncStoreError};
 use bitquan_types::{Block, BlockHeader, Result};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// Maximum number of block hashes to keep in rolling history cache.
 /// This covers most practical IBD scenarios without excessive memory usage.
 const MAX_HISTORY_SIZE: usize = 1000;
+
+/// Maximum age of validated headers in cache (2 hours).
+/// Headers older than this are considered stale and must be re-validated.
+const MAX_HEADER_AGE: Duration = Duration::from_secs(2 * 60 * 60);
+
+/// Maximum number of validated headers to keep in memory.
+/// Prevents unbounded memory growth while allowing reasonable cache size.
+const MAX_VALIDATED_HEADERS: usize = 5000;
+
+/// Type alias for validated headers cache entry.
+type ValidatedHeaderEntry = (BlockHeader, Instant);
+
+/// Type alias for validated headers cache.
+type ValidatedHeadersMap = HashMap<[u8; 32], ValidatedHeaderEntry>;
 
 /// Blockchain state information.
 #[derive(Clone)]
@@ -28,6 +43,10 @@ pub struct ChainState {
     /// Optional reference to async chain store for full chain access.
     /// This allows find_headers_after to query blocks beyond the cache.
     store: Option<Arc<dyn AsyncChainStore>>,
+    /// Validated headers cache with timestamps.
+    /// Maps block hash -> (header, validation_time).
+    /// Only headers validated within MAX_HEADER_AGE are returned.
+    validated_headers: Arc<Mutex<ValidatedHeadersMap>>,
 }
 
 impl ChainState {
@@ -38,6 +57,7 @@ impl ChainState {
             tip_hash: Arc::new(Mutex::new([0u8; 32])),
             history: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_HISTORY_SIZE))),
             store: None,
+            validated_headers: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -61,6 +81,7 @@ impl ChainState {
             tip_hash: Arc::new(Mutex::new([0u8; 32])),
             history: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_HISTORY_SIZE))),
             store: Some(store),
+            validated_headers: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -263,6 +284,14 @@ impl ChainState {
             }
         }
 
+        // If no headers found and start_height was 0, this means:
+        // 1. No locators matched our chain
+        // 2. Our chain is empty or doesn't have the requested blocks
+        // This indicates an incompatible peer - return error instead of empty
+        if headers.is_empty() && !locators.is_empty() {
+            return Err(AsyncStoreError::NoValidHeaders);
+        }
+
         Ok(headers)
     }
 
@@ -276,6 +305,14 @@ impl ChainState {
     /// Without a store, this uses only the in-memory history cache (limited to
     /// MAX_HISTORY_SIZE blocks). For full chain access, use the async version with
     /// a store attached.
+    ///
+    /// # Returns
+    /// - Vector of headers if found
+    /// - Empty vector if no headers available (fallback to cache)
+    ///
+    /// # Behavior on Error
+    /// If async version returns `NoValidHeaders`, this falls back to
+    /// cache-only implementation instead of propagating the error.
     pub fn find_headers_after(&self, locators: &[[u8; 32]], limit: usize) -> Vec<BlockHeader> {
         // If store is available and we have a runtime, use async version
         if self.store.is_some() {
@@ -284,10 +321,14 @@ impl ChainState {
                 let locators = locators.to_vec();
 
                 return handle.block_on(async move {
-                    self_clone
-                        .find_headers_after_async(&locators, limit)
-                        .await
-                        .unwrap_or_else(|_| Vec::new())
+                    match self_clone.find_headers_after_async(&locators, limit).await {
+                        Ok(headers) => headers,
+                        Err(AsyncStoreError::NoValidHeaders) => {
+                            // Fall back to cache-only implementation
+                            self_clone.find_headers_after_cached(&locators, limit)
+                        }
+                        Err(_) => Vec::new(), // Other errors return empty
+                    }
                 });
             }
         }
@@ -299,10 +340,24 @@ impl ChainState {
     /// Cache-only implementation using only in-memory history.
     ///
     /// This is a limited fallback that works without a store but is bounded by
-    /// MAX_HISTORY_SIZE. Returns headers from the rolling cache only.
+    /// MAX_HISTORY_SIZE. Returns ONLY validated headers from cache.
+    ///
+    /// # Security Note
+    /// This function NO LONGER returns fake headers with zeroed fields.
+    /// It only returns headers that have been explicitly validated via
+    /// `cache_validated_header()`. This prevents accepting invalid peer data.
     fn find_headers_after_cached(&self, locators: &[[u8; 32]], limit: usize) -> Vec<BlockHeader> {
-        // Get history snapshot
-        let Ok(history) = self.history.lock() else {
+        // Get validated headers snapshot
+        let Ok(validated) = self.validated_headers.lock() else {
+            return Vec::new();
+        };
+
+        // Clean up stale entries first (prevent unbounded growth)
+        let now = Instant::now();
+        let mut start_index = None;
+        let history = if let Ok(h) = self.history.lock() {
+            h
+        } else {
             return Vec::new();
         };
 
@@ -311,47 +366,93 @@ impl ChainState {
         }
 
         let history_len = history.len();
-        let mut start_index = 0; // Default: start from beginning (genesis)
 
         // Find first locator that exists in our cache
         if !locators.is_empty() {
             for locator in locators {
                 for (idx, cached_hash) in history.iter().enumerate() {
                     if *cached_hash == *locator {
-                        start_index = idx + 1; // Start AFTER this block
+                        start_index = Some(idx + 1); // Start AFTER this block
                         break;
                     }
                 }
-                if start_index > 0 && start_index < history_len {
-                    break;
+                if let Some(idx) = start_index {
+                    if idx < history_len {
+                        break;
+                    }
                 }
             }
         }
 
-        // Return "headers" (just hashes from cache - can't construct full headers without store)
-        // Note: This is limited - without store we can't return full BlockHeader objects
-        // In production, use find_headers_after_async with a store
+        let start_idx = start_index.unwrap_or(0);
+
+        // Only return validated headers that are not stale
         let mut result = Vec::new();
-        for i in start_index..(start_index.saturating_add(limit)) {
+        for i in start_idx..(start_idx.saturating_add(limit)) {
             if i >= history_len {
                 break;
             }
-            // We only have the hash, not the full header
-            // Return empty header with the hash as prev_block (indicator of limitation)
-            result.push(BlockHeader {
-                version: 0,
-                prev_block: history[i],
-                merkle_root: [0u8; 32],
-                pqc_agg_hint: [0u8; 32],
-               uncles_hash: [0u8; 32],
-                time: 0,
-                bits: 0,
-                nonce: 0,
-                algo_id: 0,
-            });
+            let block_hash = history[i];
+
+            // Check if this header is validated and not too old
+            if let Some((header, validated_at)) = validated.get(&block_hash) {
+                if now.duration_since(*validated_at) < MAX_HEADER_AGE {
+                    result.push(header.clone());
+                }
+                // Skip stale headers - they must be re-validated
+            }
+            // Skip unvalidated headers - do NOT return fake headers
         }
 
         result
+    }
+
+    /// Cache a validated block header with timestamp.
+    ///
+    /// This should be called after a header has been fully validated
+    /// (PoW checked, signature verified, etc.) to allow it to be
+    /// returned in future `find_headers_after` calls.
+    ///
+    /// # Arguments
+    /// * `hash` - The block hash (32 bytes)
+    /// * `header` - The validated block header
+    ///
+    /// # Behavior
+    /// - Stores header with current timestamp
+    /// - Enforces MAX_VALIDATED_HEADERS limit (evicts oldest if needed)
+    /// - Overwrites existing entry if present (refreshes timestamp)
+    pub fn cache_validated_header(&self, hash: [u8; 32], header: BlockHeader) {
+        if let Ok(mut validated) = self.validated_headers.lock() {
+            // Enforce maximum cache size by evicting oldest entries
+            if validated.len() >= MAX_VALIDATED_HEADERS {
+                // Find and remove the oldest entry
+                if let Some(oldest_key) = validated
+                    .iter()
+                    .min_by_key(|(_, (_, time))| time)
+                    .map(|(k, _)| *k)
+                {
+                    validated.remove(&oldest_key);
+                }
+            }
+
+            // Insert/refresh the validated header
+            validated.insert(hash, (header, Instant::now()));
+        }
+    }
+
+    /// Clear all validated headers from cache.
+    ///
+    /// This should be called on chain reorg to prevent serving
+    /// headers from orphaned chains.
+    pub fn clear_validated_headers(&self) {
+        if let Ok(mut validated) = self.validated_headers.lock() {
+            validated.clear();
+        }
+    }
+
+    /// Get the number of headers currently in the validation cache.
+    pub fn validated_cache_size(&self) -> usize {
+        self.validated_headers.lock().map(|v| v.len()).unwrap_or(0)
     }
 }
 
@@ -502,6 +603,8 @@ mod tests {
         // Add some blocks
         for i in 0..5 {
             state.append_block(&block, [i as u8; 32]).unwrap();
+            // Cache the validated header so it can be returned by find_headers_after
+            state.cache_validated_header([i as u8; 32], block.header.clone());
         }
 
         // Empty locators should return from beginning (cache-only fallback)
@@ -536,6 +639,8 @@ mod tests {
         // Add 20 blocks
         for i in 0..20 {
             state.append_block(&block, [i as u8; 32]).unwrap();
+            // Cache the validated header so it can be returned by find_headers_after
+            state.cache_validated_header([i as u8; 32], block.header.clone());
         }
 
         // Send locator = block 10 (middle)
@@ -571,6 +676,8 @@ mod tests {
         // Add some blocks
         for i in 0..5 {
             state.append_block(&block, [i as u8; 32]).unwrap();
+            // Cache the validated header so it can be returned by find_headers_after
+            state.cache_validated_header([i as u8; 32], block.header.clone());
         }
 
         // Send unknown locator

@@ -302,7 +302,7 @@ mod tests {
             }
             _ => {
                 // Test code: unreachable is OK
-                unreachable!("Expected Inv message for TX");
+                panic!("Expected Inv message for TX");
             }
         }
 
@@ -314,7 +314,7 @@ mod tests {
             }
             _ => {
                 // Test code: unreachable is OK
-                unreachable!("Expected Inv message for Block");
+                panic!("Expected Inv message for Block");
             }
         }
     }

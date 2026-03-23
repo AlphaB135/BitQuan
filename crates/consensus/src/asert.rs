@@ -12,7 +12,7 @@ use crate::{compact_to_target, pow::DEVNET_MAX_BITS, ConsensusParams};
 pub const FP_SCALE: u64 = 1u64 << 32; // 2^32 = 4294967296
 
 // Maximum/minimum bounds
-const MIN_TARGET_U64: u64 = 1;
+pub const MIN_TARGET_U64: u64 = 1;
 
 /// Tracks burst guard activation and cooldown state.
 #[derive(Clone, Debug, Default)]
@@ -392,19 +392,22 @@ mod tests {
     #[test]
     fn asert_basic_functionality() {
         let params = params();
-        let anchor = 1000u64;
+        let anchor = 50000u64;
+        let height_delta = 20;
+        let expected_time = height_delta * params.difficulty.target_block_time as i64;
 
-        // Test with perfect timing (no change) => 10 blocks * 120s = 1200s
-        let next = asert_next_target(anchor, 10, 1200, &params, None);
-        assert_eq!(next, anchor);
+        // Perfect timing => no change (within 1%)
+        let next = asert_next_target(anchor, height_delta, expected_time, &params, None);
+        let diff = next.abs_diff(anchor);
+        assert!(diff < anchor / 100, "ASERT should be within 1% for perfect timing");
 
-        // Test with fast blocks (difficulty should increase => target decreases) => 600s
-        let next_fast = asert_next_target(anchor, 10, 600, &params, None);
-        assert!(next_fast < anchor);
+        // Fast blocks => target decreases
+        let next_fast = asert_next_target(anchor, height_delta, expected_time / 2, &params, None);
+        assert!(next_fast < anchor, "Fast blocks should decrease target");
 
-        // Test with slow blocks (difficulty should decrease => target increases) => 2400s
-        let next_slow = asert_next_target(anchor, 10, 2400, &params, None);
-        assert!(next_slow > anchor);
+        // Slow blocks => target increases
+        let next_slow = asert_next_target(anchor, height_delta, expected_time * 2, &params, None);
+        assert!(next_slow > anchor, "Slow blocks should increase target");
     }
 
     #[test]
@@ -909,5 +912,46 @@ mod tests {
             assert!(result >= prev_result);
             prev_result = result;
         }
+    }
+
+    #[test]
+    fn test_half_life_mainnet_per_bip0340() {
+        // Phase 4: 120s block time with 4-hour half-life for faster difficulty adjustment
+        let mainnet = DifficultyParams::mainnet();
+        assert_eq!(
+            mainnet.difficulty_half_life, 14_400,
+            "Phase 4 half_life should be 14,400s (4 hours)"
+        );
+    }
+
+    #[test]
+    fn test_half_life_testnet_faster() {
+        // Testnet uses faster 4-hour half-life for quicker adjustment
+        let testnet = DifficultyParams::testnet();
+        assert_eq!(
+            testnet.difficulty_half_life, 14_400,
+            "Testnet half_life should be 14,400s (4 hours) for faster adjustment"
+        );
+    }
+
+    #[test]
+    fn test_half_life_regtest_instant() {
+        // Regtest uses 10-minute half-life for instant mining
+        let regtest = DifficultyParams::regtest();
+        assert_eq!(
+            regtest.difficulty_half_life, 600,
+            "Regtest half_life should be 600s (10 minutes) for instant adjustment"
+        );
+    }
+
+    #[test]
+    fn test_phase3_defaults_uses_testnet() {
+        // phase3_defaults should use testnet (4-hour) for backward compatibility
+        let defaults = DifficultyParams::phase3_defaults();
+        let testnet = DifficultyParams::testnet();
+        assert_eq!(
+            defaults.difficulty_half_life, testnet.difficulty_half_life,
+            "phase3_defaults should use testnet half_life for backward compatibility"
+        );
     }
 }

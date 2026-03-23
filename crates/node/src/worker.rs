@@ -1242,6 +1242,23 @@ async fn handle_headers(
 
         valid_count += 1;
         block_hashes.push(hash);
+
+        // Validate timestamp is not too far in the future (2 hours)
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if u64::from(header.time) > now + 7200 {
+            log::warn!(
+                " Header {}/{} has future timestamp ({} > {})",
+                idx + 1,
+                headers.len(),
+                header.time,
+                now + 7200
+            );
+            let _ = peer.add_ban_score(20);
+            break;
+        }
     }
 
     log::info!(
@@ -1322,47 +1339,86 @@ async fn handle_getblocks(
         hex::encode(&stop_hash[..8])
     );
 
-    // Find the first locator hash that exists in our chain
-    for (i, locator_hash) in locator_hashes.iter().enumerate() {
-        log::trace!(
-            "Checking locator {}/{}: {}",
-            i + 1,
+    // C5 FIX: Limit locator hashes to prevent DoS (Bitcoin uses ~500 max)
+    const MAX_LOCATOR_HASHES: usize = 500;
+    if locator_hashes.len() > MAX_LOCATOR_HASHES {
+        log::warn!(
+            "Peer {} sent too many locators ({}), limiting to {}",
+            peer.addr,
             locator_hashes.len(),
-            hex::encode(&locator_hash[..8])
+            MAX_LOCATOR_HASHES
         );
-
-        // Check if this block exists in our chain
-        match ctx.storage.get_block(locator_hash).await {
-            Ok(Some(_block)) => {
-                log::info!(
-                    "✅ Found common ancestor at locator {}: {}",
-                    i,
-                    hex::encode(&locator_hash[..8])
-                );
-                break;
-            }
-            Ok(None) => {
-                log::trace!("❌ Locator not found: {}", hex::encode(&locator_hash[..8]));
-            }
-            Err(e) => {
-                log::error!("Storage error checking locator: {}", e);
-            }
-        }
     }
+
+    // Find the height of the common ancestor to start announcing AFTER it
+    // This prevents announcing blocks the peer already has (chain split prevention)
+    let mut start_height = 0u64;
 
     // Build inventory of blocks to announce
     let mut inv: Vec<bitquan_network::protocol::InvVector> = Vec::new();
 
-    // For now, announce blocks from height 0 up to our tip
-    // In a full implementation, we would:
-    // 1. Get the height of the common ancestor
-    // 2. Fetch blocks from (ancestor_height + 1) to tip
-    // 3. Limit to 500 blocks per message
+    // Get chain height once for validation
+    let chain_height = match ctx.storage.height().await {
+        Ok(h) => h,
+        Err(e) => {
+            log::error!("Failed to get chain height: {}", e);
+            return Ok(false);
+        }
+    };
 
-    let mut height = 0u64;
+    // C5 FIX: Check each locator hash to find common ancestor (limited to prevent DoS)
+    for locator_hash in locator_hashes.iter().take(MAX_LOCATOR_HASHES) {
+        match ctx.storage.get_block(locator_hash).await {
+            Ok(Some(_)) => {
+                // Found common ancestor - now find its height
+                // Use pre-fetched chain_height for validation
+
+                // Search for the ancestor's height
+                let mut found_height = None;
+                for h in 0..=chain_height {
+                    if let Ok(Some(block)) = ctx.storage.get_block_by_height(h).await {
+                        let block_hash = header_hash(&block.header);
+                        if block_hash == *locator_hash {
+                            found_height = Some(h);
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(h) = found_height {
+                    start_height = h + 1;
+                    log::info!(
+                        "✅ Common ancestor at height {}, starting from {}",
+                        h,
+                        start_height
+                    );
+                }
+                break;
+            }
+            Ok(None) => {
+                // This locator doesn't exist in our chain, try next
+            }
+            Err(e) => {
+                log::error!("Storage error checking locator: {}", e);
+                break;
+            }
+        }
+    }
+
+    let mut height = start_height;
     let limit = 500; // Max blocks to announce per GetBlocks response
 
-    while inv.len() < limit {
+    // C5 FIX: Validate start_height is within bounds
+    if start_height > chain_height {
+        log::debug!(
+            "📤 Start height {} exceeds chain height {}, nothing to announce",
+            start_height,
+            chain_height
+        );
+        return Ok(true);
+    }
+
+    while inv.len() < limit && height <= chain_height {
         match ctx.storage.get_block_by_height(height).await {
             Ok(Some(block)) => {
                 let block_hash = header_hash(&block.header);
@@ -1569,6 +1625,7 @@ pub(crate) async fn validate_block_utxos(
 pub async fn perform_version_handshake(
     peer: &mut Peer,
     network: NetworkId,
+    height: u64,
 ) -> Result<(), WorkerError> {
     use bitquan_network::protocol::{Message, PROTOCOL_VERSION};
 
@@ -1605,7 +1662,7 @@ pub async fn perform_version_handshake(
                     .unwrap_or_default()
                     .as_secs(),
                 user_agent: env!("CARGO_PKG_NAME").to_string(),
-                start_height: 0, // TODO: Get from chain state
+                start_height: height,
             };
 
             peer.send_message(our_version)?;
