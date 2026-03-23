@@ -310,10 +310,10 @@ Recent Updates:
 - P2P TCP socket I/O implementation complete
 - Reward maturity integration tests (100-block maturity)
 - Noise Protocol encryption for P2P (ephemeral keys - V1)
+- GHOST Protocol with uncle block validation and tokenomics
+- Phase 4 ASERT difficulty (120s block time, 14,400s half-life)
+- Data integrity hardening (C1-C7 vulnerabilities resolved)
 - Code cleanup and documentation improvements
-- **Major Refactor**: Migrated all values to `u128` (18 decimals)
-- **Genesis Verified**: Validated genesis block generation with new precision
-- **E2E Validated**: Full transaction flow tested (116 blocks, tx confirmed)
 
 See [docs/archive/](docs/archive/) for historical audits and planning documents.
 
