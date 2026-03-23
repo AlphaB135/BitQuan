@@ -430,7 +430,7 @@ pub fn ethash_pow_hash_cached(
     let header_hash = H256::from(preimage);
 
     // Calculate epoch from cache size (simplified - normally derived from block number)
-    let epoch = (*cache_size / 32) as u32; // Rough approximation
+    let epoch = *cache_size / 32; // Rough approximation
 
     // Get or create cached data for this epoch
     let cache_ref = cache
