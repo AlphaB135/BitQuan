@@ -49,6 +49,7 @@ sha2.workspace = true
 zeroize.workspace = true
 tokio = { version = "1.50", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
+openssl-sys = { version = "0.9", features = ["vendored"] }
 uuid = { version = "1.22", features = ["v4", "serde"] }
 dashmap = "6.1"
 lru = "0.16"
@@ -57,6 +58,9 @@ warp = { version = "0.4", features = ["server"] }
 async-trait = "0.1.89"
 prometheus = "0.14"
 lazy_static = "1.4"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 default = ["rocksdb-backend"]
