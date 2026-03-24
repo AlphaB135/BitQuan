@@ -59,13 +59,25 @@ jobs:
       - name: Install cross-compilation tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
+          sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu cmake
+      - name: Build OpenSSL for musl target
+        run: |
+          OPENSSL_VERSION=3.3.2
+          curl -L "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" | tar xz
+          cd "openssl-${OPENSSL_VERSION}"
+          ./Configure linux-x86_64 no-shared no-tests --prefix=/usr/local/musl-ssl
+          make -j"$(nproc)"
+          sudo make install
       - name: Add targets and build libraries
+        env:
+          OPENSSL_DIR: /usr/local/musl-ssl
+          OPENSSL_STATIC: 1
+          PKG_CONFIG_ALLOW_CROSS: 1
         run: |
           rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-gnu wasm32-unknown-unknown
           # Build only library crates for cross targets.
-          # Full workspace builds require native C++ (randomx-rs) and
-          # musl OpenSSL which are not available for cross-compilation.
+          # Binaries require native C++ (randomx-rs) which is
+          # impractical for cross-compilation in CI.
           cargo build --lib --target x86_64-unknown-linux-musl
           cargo build --lib --target aarch64-unknown-linux-gnu
           cargo build --lib --target wasm32-unknown-unknown
