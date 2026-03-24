@@ -92,17 +92,17 @@ The enhanced CI/CD pipeline includes:
 The pipeline implements strict quality gates:
 
 ### Required Checks
-- ✅ Format check (`cargo fmt`)
-- ✅ Linting (`cargo clippy`)
-- ✅ Unit tests
-- ✅ Integration tests
-- ✅ Security scan
-- ✅ Build on all target platforms
+-  Format check (`cargo fmt`)
+-  Linting (`cargo clippy`)
+-  Unit tests
+-  Integration tests
+-  Security scan
+-  Build on all target platforms
 
 ### Optional Checks
-- 📊 Code coverage (reported but not blocking)
-- 🔍 Documentation (deployed but not blocking)
-- 🚀 Performance benchmarks (monitored but not blocking)
+-  Code coverage (reported but not blocking)
+-  Documentation (deployed but not blocking)
+-  Performance benchmarks (monitored but not blocking)
 
 ## Performance
 

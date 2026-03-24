@@ -63,7 +63,7 @@ jobs:
 
       - name: Verify preflight scripts exist
         run: |
-          echo "✅ Checking preflight scripts..."
+          echo " Checking preflight scripts..."
           test -f scripts/preflight/preflight.sh && echo "Found preflight.sh" || exit 1
           test -x scripts/preflight/preflight.sh && echo "Preflight.sh is executable" || chmod +x scripts/preflight/preflight.sh
 
@@ -197,18 +197,18 @@ jobs:
           EXIT_CODE=0
           if [ -f reports/mainnet/preflight_report.md ]; then
             if grep -q "✗ FAIL" reports/mainnet/preflight_report.md; then
-              echo "❌ Mainnet preflight failed"
+              echo " Mainnet preflight failed"
               EXIT_CODE=1
             else
-              echo "✅ Mainnet preflight passed"
+              echo " Mainnet preflight passed"
             fi
           fi
           if [ -f reports/testnet/preflight_report.md ]; then
             if grep -q "✗ FAIL" reports/testnet/preflight_report.md; then
-              echo "❌ Testnet preflight failed"
+              echo " Testnet preflight failed"
               EXIT_CODE=1
             else
-              echo "✅ Testnet preflight passed"
+              echo " Testnet preflight passed"
             fi
           fi
           exit $EXIT_CODE

@@ -262,11 +262,11 @@ jobs:
       - name: Pre-deployment checklist
         run: |
           echo "🚨 MAINNET DEPLOYMENT - PRE-DEPLOYMENT CHECKLIST 🚨"
-          echo "✅ Security scan passed"
-          echo "✅ All tests passed"
-          echo "✅ Infrastructure validated"
-          echo "✅ Staging deployment successful"
-          echo "✅ Testnet deployment successful"
+          echo " Security scan passed"
+          echo " All tests passed"
+          echo " Infrastructure validated"
+          echo " Staging deployment successful"
+          echo " Testnet deployment successful"
           echo ""
           echo "Version: ${{ needs.build-and-test.outputs.version }}"
           echo "Commit: ${{ github.sha }}"
@@ -281,7 +281,7 @@ jobs:
 
       - name: Deploy to Mainnet
         run: |
-          echo "🚀 DEPLOYING TO MAINNET 🚀"
+          echo " DEPLOYING TO MAINNET "
           # Mainnet deployment with zero-downtime strategy
           kubectl set image deployment/bitquan-node \
             bitquan-node=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-test.outputs.version }} \
@@ -297,9 +297,9 @@ jobs:
             echo "Health check $i/30..."
             if curl -f http://mainnet.bitquan.network/health && \
                curl -f http://mainnet.bitquan.network/metrics; then
-              echo "✅ Mainnet health check passed"
+              echo " Mainnet health check passed"
             else
-              echo "❌ Mainnet health check failed!"
+              echo " Mainnet health check failed!"
               if [ "${{ github.event.inputs.force_deploy }}" != "true" ]; then
                 echo "Rolling back..."
                 kubectl rollout undo deployment/bitquan-node -n bitquan-mainnet

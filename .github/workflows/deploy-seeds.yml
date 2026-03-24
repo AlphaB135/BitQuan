@@ -121,7 +121,7 @@ jobs:
                 curl -s http://localhost:8332 || echo "Node may still be starting..."
           ENDSSH
 
-            echo "✅ Deployed to $host"
+            echo " Deployed to $host"
           done
 
       - name: Dry run summary
@@ -143,7 +143,7 @@ jobs:
       - name: Notify deployment status
         if: ${{ !inputs.dry_run }}
         run: |
-          echo "✅ Deployment completed successfully"
+          echo " Deployment completed successfully"
           echo "Environment: ${{ inputs.environment }}"
           echo "Tag: ${{ inputs.tag }}"
           # Could integrate with Slack/Discord here
