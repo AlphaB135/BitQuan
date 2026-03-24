@@ -58,11 +58,11 @@ jobs:
       - name: Install cross
         run: cargo install cross --locked
       - name: Build for musl (static Linux binary)
-        run: cross build --target x86_64-unknown-linux-musl --lib
+        run: cross build --target x86_64-unknown-linux-musl --lib --target-dir target-musl
       - name: Build for aarch64 (ARM64 Linux)
-        run: cross build --target aarch64-unknown-linux-gnu --lib
+        run: cross build --target aarch64-unknown-linux-gnu --lib --target-dir target-aarch64
       - name: Build for wasm32 (WebAssembly)
-        run: rustup target add wasm32-unknown-unknown && cargo build --target wasm32-unknown-unknown --lib
+        run: rustup target add wasm32-unknown-unknown && cargo build --target wasm32-unknown-unknown --lib --target-dir target-wasm
 
   fuzz:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')
