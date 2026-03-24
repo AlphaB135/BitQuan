@@ -60,19 +60,19 @@ async fn rpc_post(
         }))
         .send()
         .await
-        .map_err(|e| format!("Connection failed: {}", e))?;
+        .map_err(|e| format!("Connection failed: {e}"))?;
 
     let json: serde_json::Value = resp
         .json()
         .await
-        .map_err(|e| format!("Invalid JSON: {}", e))?;
+        .map_err(|e| format!("Invalid JSON: {e}"))?;
 
     if let Some(error) = json.get("error").and_then(|e| e.as_object()) {
         let msg = error
             .get("message")
             .and_then(|m| m.as_str())
             .unwrap_or("unknown error");
-        return Err(format!("RPC error: {}", msg));
+        return Err(format!("RPC error: {msg}"));
     }
 
     Ok(json["result"].clone())
@@ -121,7 +121,12 @@ struct Model {
 impl Model {
     fn new(rpc_tx: mpsc::Sender<NodeEvent>) -> Self {
         let hashrate_history: Vec<u64> = (0..50)
-            .map(|i| 30u64 + (i as f64 * 0.5).sin().abs() as u64 * 20 + (i % 7) as u64 * 3)
+            .map(|i| {
+                let sin_val = (f64::from(i) * 0.5).sin().abs() * 20.0;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let sin_int = sin_val as u64;
+                30u64 + sin_int + u64::try_from(i % 7).unwrap_or(0) * 3
+            })
             .collect();
 
         Self {
@@ -129,20 +134,16 @@ impl Model {
             messages: vec![
                 Line::styled("BitQuan Dashboard v0.1.0", Color::Cyan),
                 Line::from(""),
-                Line::from(
-                    Span::raw("  Press ")
-                        + Span::styled("i", Style::default().bold())
-                        + Span::raw(" to type, ")
-                        + Span::styled("Ctrl+C", Style::default().bold())
-                        + Span::raw(" to quit"),
-                ),
-                Line::from(
-                    Span::raw("  Type ")
-                        + Span::styled("help", Style::default().bold())
-                        + Span::raw(" for commands, ")
-                        + Span::styled("1/2/3", Style::default().bold())
-                        + Span::raw(" to switch tabs"),
-                ),
+                (Span::raw("  Press ")
+                    + Span::styled("i", Style::default().bold())
+                    + Span::raw(" to type, ")
+                    + Span::styled("Ctrl+C", Style::default().bold())
+                    + Span::raw(" to quit")),
+                (Span::raw("  Type ")
+                    + Span::styled("help", Style::default().bold())
+                    + Span::raw(" for commands, ")
+                    + Span::styled("1/2/3", Style::default().bold())
+                    + Span::raw(" to switch tabs")),
                 Line::from(""),
             ],
             input: Input::default(),
@@ -170,12 +171,12 @@ impl Model {
         }
 
         self.messages
-            .push(Line::styled(format!("> {}", cmd), Color::Cyan));
+            .push(Line::styled(format!("> {cmd}"), Color::Cyan));
         self.input.reset();
 
         let parts: Vec<&str> = cmd.split_whitespace().collect();
         let command = parts.first().copied().unwrap_or("");
-        let args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+        let args: Vec<String> = parts[1..].iter().map(|s| (*s).to_string()).collect();
 
         match command {
             "help" => {
@@ -189,7 +190,7 @@ impl Model {
                     .push(Line::styled("  Fetching...", Color::DarkGray));
                 let tx = self.rpc_tx.clone();
                 let cmd_owned = command.to_string();
-                let _ = tokio::spawn(async move {
+                drop(tokio::spawn(async move {
                     let lines = match cmd_owned.as_str() {
                         "status" | "getinfo" => rpc_status().await,
                         "mining" => rpc_mining().await,
@@ -199,7 +200,7 @@ impl Model {
                         _ => vec![],
                     };
                     let _ = tx.send(NodeEvent::CommandOutput(lines)).await;
-                });
+                }));
             }
             "peers" => {
                 if self.peers.is_empty() {
@@ -228,7 +229,7 @@ impl Model {
             }
             _ => {
                 self.messages.push(Line::styled(
-                    format!("  Unknown command: {}", command),
+                    format!("  Unknown command: {command}"),
                     Color::Red,
                 ));
                 self.messages
@@ -241,59 +242,39 @@ impl Model {
         vec![
             Line::styled("Available Commands:", Style::default().bold()),
             Line::from(""),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("help", Color::Yellow)
-                    + Span::raw("                    Show this help"),
-            ),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("status", Color::Yellow)
-                    + Span::raw("                  Node info (RPC)"),
-            ),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("mining", Color::Yellow)
-                    + Span::raw("                  Mining info (RPC)"),
-            ),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("peers", Color::Yellow)
-                    + Span::raw("                    Connected peers"),
-            ),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("tx <txid>", Color::Yellow)
-                    + Span::raw("              Transaction (RPC)"),
-            ),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("send <addr> <amt>", Color::Yellow)
-                    + Span::raw("       Send funds (RPC)"),
-            ),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("history", Color::Yellow)
-                    + Span::raw("                  Wallet history (RPC)"),
-            ),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("clear", Color::Yellow)
-                    + Span::raw("                    Clear log"),
-            ),
-            Line::from(
-                Span::raw("  ")
-                    + Span::styled("quit", Color::Yellow)
-                    + Span::raw("                     Exit"),
-            ),
+            (Span::raw("  ")
+                + Span::styled("help", Color::Yellow)
+                + Span::raw("                    Show this help")),
+            (Span::raw("  ")
+                + Span::styled("status", Color::Yellow)
+                + Span::raw("                  Node info (RPC)")),
+            (Span::raw("  ")
+                + Span::styled("mining", Color::Yellow)
+                + Span::raw("                  Mining info (RPC)")),
+            (Span::raw("  ")
+                + Span::styled("peers", Color::Yellow)
+                + Span::raw("                    Connected peers")),
+            (Span::raw("  ")
+                + Span::styled("tx <txid>", Color::Yellow)
+                + Span::raw("              Transaction (RPC)")),
+            (Span::raw("  ")
+                + Span::styled("send <addr> <amt>", Color::Yellow)
+                + Span::raw("       Send funds (RPC)")),
+            (Span::raw("  ")
+                + Span::styled("history", Color::Yellow)
+                + Span::raw("                  Wallet history (RPC)")),
+            (Span::raw("  ")
+                + Span::styled("clear", Color::Yellow)
+                + Span::raw("                    Clear log")),
+            (Span::raw("  ")
+                + Span::styled("quit", Color::Yellow)
+                + Span::raw("                     Exit")),
             Line::from(""),
-            Line::from(
-                Span::raw("  Keys: ")
-                    + Span::styled("1/2/3", Color::Green)
-                    + Span::raw(" tabs  ")
-                    + Span::styled("Tab", Color::Green)
-                    + Span::raw(" cycle"),
-            ),
+            (Span::raw("  Keys: ")
+                + Span::styled("1/2/3", Color::Green)
+                + Span::raw(" tabs  ")
+                + Span::styled("Tab", Color::Green)
+                + Span::raw(" cycle")),
         ]
     }
 }
@@ -331,7 +312,8 @@ fn handle_node_event(model: &mut Model, event: NodeEvent) {
             model.hashrate = hashrate;
             model.difficulty = difficulty;
             // Push to sparkline history (keep 50 points)
-            let h = hashrate as u64;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let h = hashrate.max(0.0) as u64;
             model.hashrate_history.push(h);
             if model.hashrate_history.len() > 50 {
                 let _ = model.hashrate_history.remove(0);
@@ -361,7 +343,7 @@ fn handle_node_event(model: &mut Model, event: NodeEvent) {
     }
 }
 
-fn update(model: &mut Model, event: Event) {
+fn update(model: &mut Model, event: &Event) {
     if let Event::Key(key) = event {
         if key.kind != KeyEventKind::Press {
             return;
@@ -402,7 +384,7 @@ fn update(model: &mut Model, event: Event) {
                 KeyCode::Enter => model.submit_command(),
                 KeyCode::Esc => model.input_mode = InputMode::Normal,
                 _ => {
-                    let _ = model.input.handle_event(&event);
+                    let _ = model.input.handle_event(event);
                 }
             },
         }
@@ -501,7 +483,7 @@ fn view(model: &Model, frame: &mut ratatui::Frame) {
         sync_display,
         " | ".into(),
         Span::styled(
-            format!(" {} ", online_text),
+            format!(" {online_text} "),
             Style::default().fg(online_color).bold(),
         ),
     ]))
@@ -574,7 +556,7 @@ fn render_hashrate_panel(model: &Model, frame: &mut ratatui::Frame, area: Rect) 
     let sparkline = Sparkline::default()
         .block(
             Block::bordered()
-                .title(format!(" Hashrate ({}) ", hr_display))
+                .title(format!(" Hashrate ({hr_display}) "))
                 .border_style(Style::default().fg(Color::DarkGray)),
         )
         .data(&model.hashrate_history)
@@ -585,7 +567,9 @@ fn render_hashrate_panel(model: &Model, frame: &mut ratatui::Frame, area: Rect) 
 fn render_blocks_panel(model: &Model, frame: &mut ratatui::Frame, area: Rect) {
     let items: Vec<ListItem> = (0..5)
         .map(|i| {
-            let height = model.block_height.saturating_sub(i as u64);
+            let height = model
+                .block_height
+                .saturating_sub(u64::try_from(i).unwrap_or(0));
             let style = if i == 0 {
                 Style::default().fg(Color::Green).bold()
             } else {
@@ -619,10 +603,10 @@ fn render_wallet_panel(model: &Model, frame: &mut ratatui::Frame, area: Rect) {
     let wallet = Paragraph::new(vec![
         Line::from(""),
         Line::from(Span::styled("  Address:", Style::default().bold())),
-        Line::from(format!("  {}", addr)),
+        Line::from(format!("  {addr}")),
         Line::from(""),
         Line::from(Span::styled("  Balance:", Style::default().bold())),
-        Line::from(Span::styled(format!("  {} BQ", balance), Color::Green)),
+        Line::from(Span::styled(format!("  {balance} BQ"), Color::Green)),
     ])
     .block(
         Block::bordered()
@@ -659,7 +643,7 @@ fn render_utxo_panel(frame: &mut ratatui::Frame, area: Rect) {
         )),
         Line::from(""),
         Line::from("  Total UTXOs:    3"),
-        Line::from(Span::raw("  Total Value:    ") + Span::styled("1,234.56 BQ", Color::Green)),
+        (Span::raw("  Total Value:    ") + Span::styled("1,234.56 BQ", Color::Green)),
         Line::from("  Largest:        500.00 BQ"),
         Line::from("  Smallest:       0.12 BQ"),
     ])
@@ -752,12 +736,13 @@ fn render_input_bar(model: &Model, frame: &mut ratatui::Frame, area: Rect) {
 
     let width = inner.width.max(3) - 2;
     let scroll = model.input.visual_scroll(width as usize);
-    let input_text = Paragraph::new(model.input.value()).scroll((0, scroll as u16));
+    let input_text =
+        Paragraph::new(model.input.value()).scroll((0, u16::try_from(scroll).unwrap_or(0)));
     frame.render_widget(input_text, inner);
 
     if model.input_mode == InputMode::Editing {
         let cursor_x = model.input.visual_cursor().max(scroll) - scroll + 1;
-        frame.set_cursor_position((inner.x + cursor_x as u16, inner.y));
+        frame.set_cursor_position((inner.x + u16::try_from(cursor_x).unwrap_or(0), inner.y));
     }
 }
 
@@ -770,18 +755,18 @@ async fn rpc_status() -> Vec<Line<'static>> {
             if let Some(obj) = result.as_object() {
                 let mut entries: Vec<(String, String)> = obj
                     .iter()
-                    .map(|(k, v)| (k.clone(), format!("{}", v)))
+                    .map(|(k, v)| (k.clone(), format!("{v}")))
                     .collect();
                 entries.sort_by(|a, b| a.0.cmp(&b.0));
                 for (key, val) in entries {
-                    lines.push(Line::from(format!("    {}: {}", key, val)));
+                    lines.push(Line::from(format!("    {key}: {val}")));
                 }
             } else {
-                lines.push(Line::from(format!("  {}", result)));
+                lines.push(Line::from(format!("  {result}")));
             }
             lines
         }
-        Err(e) => vec![Line::styled(format!("  Error: {}", e), Color::Red)],
+        Err(e) => vec![Line::styled(format!("  Error: {e}"), Color::Red)],
     }
 }
 
@@ -797,17 +782,17 @@ async fn rpc_mining() -> Vec<Line<'static>> {
             } else if hashrate > 1_000.0 {
                 format!("{:.2} KH/s", hashrate / 1_000.0)
             } else {
-                format!("{:.0} H/s", hashrate)
+                format!("{hashrate:.0} H/s")
             };
 
             vec![
                 Line::styled("  Mining Info", Style::default().bold()),
-                Line::from(format!("    Blocks:     {}", blocks)),
-                Line::from(format!("    Difficulty: {:.4}", difficulty)),
-                Line::from(format!("    Hashrate:   {}", hr)),
+                Line::from(format!("    Blocks:     {blocks}")),
+                Line::from(format!("    Difficulty: {difficulty:.4}")),
+                Line::from(format!("    Hashrate:   {hr}")),
             ]
         }
-        Err(e) => vec![Line::styled(format!("  Error: {}", e), Color::Red)],
+        Err(e) => vec![Line::styled(format!("  Error: {e}"), Color::Red)],
     }
 }
 
@@ -827,14 +812,14 @@ async fn rpc_tx_detail(args: &[String]) -> Vec<Line<'static>> {
             )];
             if let Some(obj) = result.as_object() {
                 for (key, val) in obj {
-                    lines.push(Line::from(format!("    {}: {}", key, val)));
+                    lines.push(Line::from(format!("    {key}: {val}")));
                 }
             } else {
-                lines.push(Line::from(format!("  {}", result)));
+                lines.push(Line::from(format!("  {result}")));
             }
             lines
         }
-        Err(e) => vec![Line::styled(format!("  Error: {}", e), Color::Red)],
+        Err(e) => vec![Line::styled(format!("  Error: {e}"), Color::Red)],
     }
 }
 
@@ -854,53 +839,58 @@ async fn rpc_send(args: &[String]) -> Vec<Line<'static>> {
             let txid = result.as_str().unwrap_or("unknown");
             vec![
                 Line::styled("  Transaction sent!", Color::Green),
-                Line::from(format!("  TXID: {}", txid)),
+                Line::from(format!("  TXID: {txid}")),
             ]
         }
-        Err(e) => vec![Line::styled(format!("  Send failed: {}", e), Color::Red)],
+        Err(e) => vec![Line::styled(format!("  Send failed: {e}"), Color::Red)],
     }
 }
 
 async fn rpc_history() -> Vec<Line<'static>> {
-    match rpc_post("listtransactions", serde_json::json!([])).await {
-        Ok(result) => {
-            if let Some(arr) = result.as_array() {
-                let mut lines = vec![Line::styled(
-                    format!("  {} transactions:", arr.len()),
-                    Color::Cyan,
-                )];
-                for (i, tx) in arr.iter().take(10).enumerate() {
-                    let txid = tx["txid"].as_str().unwrap_or("?");
-                    let short = &txid[..8.min(txid.len())];
-                    let confirmations = tx["confirmations"].as_u64().unwrap_or(0);
-                    let status = if confirmations >= 6 {
-                        Color::Green
-                    } else {
-                        Color::Yellow
-                    };
-                    lines.push(Line::from(
-                        Span::raw(format!(
-                            "    #{} {}  [{} conf]",
-                            i + 1,
-                            short,
-                            confirmations
-                        ))
-                        .style(status),
-                    ));
-                }
-                if arr.len() > 10 {
-                    lines.push(Line::from(format!("    ... and {} more", arr.len() - 10)));
-                }
-                lines
-            } else {
-                vec![Line::from("  No transactions found.")]
-            }
-        }
-        Err(_) => vec![
-            Line::from("  Wallet history: not yet available on RPC."),
-            Line::from("  (listtransactions RPC endpoint pending)"),
-        ],
-    }
+    rpc_post("listtransactions", serde_json::json!([]))
+        .await
+        .map_or_else(
+            |_| {
+                vec![
+                    Line::from("  Wallet history: not yet available on RPC."),
+                    Line::from("  (listtransactions RPC endpoint pending)"),
+                ]
+            },
+            |result| {
+                result.as_array().map_or_else(
+                    || vec![Line::from("  No transactions found.")],
+                    |arr| {
+                        let mut lines = vec![Line::styled(
+                            format!("  {} transactions:", arr.len()),
+                            Color::Cyan,
+                        )];
+                        for (i, tx) in arr.iter().take(10).enumerate() {
+                            let txid = tx["txid"].as_str().unwrap_or("?");
+                            let short = &txid[..8.min(txid.len())];
+                            let confirmations = tx["confirmations"].as_u64().unwrap_or(0);
+                            let status = if confirmations >= 6 {
+                                Color::Green
+                            } else {
+                                Color::Yellow
+                            };
+                            lines.push(Line::from(
+                                Span::raw(format!(
+                                    "    #{} {}  [{} conf]",
+                                    i + 1,
+                                    short,
+                                    confirmations
+                                ))
+                                .style(status),
+                            ));
+                        }
+                        if arr.len() > 10 {
+                            lines.push(Line::from(format!("    ... and {} more", arr.len() - 10)));
+                        }
+                        lines
+                    },
+                )
+            },
+        )
 }
 
 // -- Background RPC task (runs in tokio::spawn) -------------------------
@@ -928,45 +918,36 @@ async fn node_rpc_task(tx: mpsc::Sender<NodeEvent>) {
         }
 
         // Fetch mining info (hashrate, difficulty)
-        match fetch_mining_info(&client, rpc_url).await {
-            Ok(info) => {
-                let _ = tx
-                    .send(NodeEvent::MiningInfo {
-                        hashrate: info.hashrate,
-                        difficulty: info.difficulty,
-                    })
-                    .await;
-            }
-            Err(_) => {
-                // Mining info fetch failed, skip silently
-            }
+        if let Ok(info) = fetch_mining_info(&client, rpc_url).await {
+            let _ = tx
+                .send(NodeEvent::MiningInfo {
+                    hashrate: info.hashrate,
+                    difficulty: info.difficulty,
+                })
+                .await;
+        } else {
+            // Mining info fetch failed, skip silently
         }
 
         // Fetch peer list
-        match fetch_peer_list(&client, rpc_url).await {
-            Ok(peers) => {
-                let _ = tx.send(NodeEvent::PeersUpdated(peers)).await;
-            }
-            Err(_) => {
-                // Peer list fetch failed, skip silently
-            }
+        if let Ok(peers) = fetch_peer_list(&client, rpc_url).await {
+            let _ = tx.send(NodeEvent::PeersUpdated(peers)).await;
+        } else {
+            // Peer list fetch failed, skip silently
         }
 
         // Fetch wallet info (graceful — RPC may not be
         // implemented yet)
-        match fetch_wallet_info(&client, rpc_url).await {
-            Ok(info) => {
-                let _ = tx
-                    .send(NodeEvent::WalletInfo {
-                        address: info.address,
-                        balance: info.balance,
-                    })
-                    .await;
-            }
-            Err(_) => {
-                // Wallet RPCs not implemented yet,
-                // skip silently
-            }
+        if let Ok(info) = fetch_wallet_info(&client, rpc_url).await {
+            let _ = tx
+                .send(NodeEvent::WalletInfo {
+                    address: info.address,
+                    balance: info.balance,
+                })
+                .await;
+        } else {
+            // Wallet RPCs not implemented yet,
+            // skip silently
         }
 
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1089,7 +1070,7 @@ async fn fetch_wallet_info(
     let balance = if r.is_null() {
         "0".to_string()
     } else {
-        format!("{}", r)
+        format!("{r}")
     };
 
     // Try to get address too
@@ -1132,7 +1113,7 @@ async fn main() -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     let (rpc_tx, rpc_rx) = mpsc::channel(32);
-    let _ = tokio::spawn(node_rpc_task(rpc_tx.clone()));
+    drop(tokio::spawn(node_rpc_task(rpc_tx.clone())));
 
     let mut model = Model::new(rpc_tx);
     let result = run(&mut terminal, &mut model, rpc_rx).await;
@@ -1159,7 +1140,7 @@ async fn run(
                     terminal.draw(|frame| view(model, frame));
             }
             Some(Ok(event)) = events.next() => {
-                update(model, event);
+                update(model, &event);
             }
             Some(node_event) = rpc_rx.recv() => {
                 handle_node_event(model, node_event);
