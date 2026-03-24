@@ -14,7 +14,7 @@ members = [
     "crates/bq-sdk",
     "crates/faucet",
     "crates/tools/preflight",
-    "crates/tools/stress",
+    "crates/tools/stress", "crates/bitquan-cli",
 
 ]
 exclude = ["fuzz", "forks", "tools/bitquan-gui"]
