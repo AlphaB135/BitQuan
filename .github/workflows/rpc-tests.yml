@@ -2,21 +2,38 @@ name: RPC Tests
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/rpc-tests.yml"
+
+concurrency:
+  group: rpc-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
 
 jobs:
   rpc:
+    name: RPC Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config
-      - name: Run RPC crate tests
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
+      - name: Run RPC tests
         env:
           RUST_LOG: warn
         run: cargo test -p bitquan-rpc -q

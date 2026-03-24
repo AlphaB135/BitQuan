@@ -1,0 +1,216 @@
+name: Release Mainnet Build
+
+on:
+  push:
+    tags:
+      - 'v1.0.0*'
+      - 'v1.*.0'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      - name: Run security audit
+        run: cargo audit
+
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+      - name: Run dependency check
+        run: cargo deny check
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Run clippy
+        run: cargo clippy --all-targets -D warnings
+
+  test:
+    name: Test Suite
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run tests
+        run: cargo test --all --locked
+
+  fuzzing:
+    name: Fuzzing Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Run fuzzing
+        run: |
+          cd fuzz
+          cargo fuzz run consensus_fuzz -- -max_total_time=300
+          cargo fuzz run crypto_fuzz -- -max_total_time=300
+  build-release:
+    name: Build ${{ matrix.target }}
+    needs: [security-audit, dependency-check, code-quality, test, fuzzing]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: bitquan-node-linux-x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: bitquan-node-linux-aarch64
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: bitquan-node-macos-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: bitquan-node-macos-aarch64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact: bitquan-node-windows-x86_64.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build release binary
+        run: |
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --release --locked --target ${{ matrix.target }} -p bitquan-node
+          else
+            cargo build --release --locked --target ${{ matrix.target }} -p bitquan-node
+          fi
+
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/bitquan-node.exe dist/${{ matrix.artifact }}
+          else
+            cp target/${{ matrix.target }}/release/bitquan-node dist/${{ matrix.artifact }}
+            chmod +x dist/${{ matrix.artifact }}
+          fi
+
+      - name: Generate SHA256 checksum
+        run: |
+          cd dist
+          sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+          cat ${{ matrix.artifact }}.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/${{ matrix.artifact }}
+            dist/${{ matrix.artifact }}.sha256
+          retention-days: 90
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: release-artifacts
+
+      - name: Collect binaries
+        run: |
+          mkdir -p release
+          find release-artifacts -type f -exec cp {} release/ \;
+          ls -lh release/
+
+      - name: Generate combined SHA256SUMS
+        run: |
+          cd release
+          cat *.sha256 > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: BitQuan ${{ github.ref_name || inputs.tag }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'rc') || contains(inputs.tag, 'rc') }}
+          files: |
+            release/*
+          body: |
+            ## BitQuan Release ${{ github.ref_name || inputs.tag }}
+
+            ### Artifacts
+
+            - `bitquan-node-linux-x86_64`: Linux x86_64 binary
+            - `bitquan-node-linux-aarch64`: Linux ARM64 binary
+            - `SHA256SUMS`: Combined checksums
+
+            ### Verification
+
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+
+            ### Documentation
+
+            - [MAINNET_ANNOUNCEMENT.md](./docs/MAINNET_ANNOUNCEMENT.md)
+            - [SECURITY.md](./SECURITY.md)
+
+            **Note:** Mainnet enforces SHA-256d PoW only. RandomX is testnet-only.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # TODO: Add cosign attestation (keyless OIDC or manual key)
+  # TODO: Generate SBOM with cargo-auditable or cargo-about

@@ -1,0 +1,213 @@
+name: Benchmark Regression Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'benches/**'
+      - 'src/**'
+      - 'crates/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'benches/**'
+      - 'src/**'
+      - 'crates/**'
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly at 2 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark-ci:
+    name: Benchmark CI
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Install benchmark tools
+        run: |
+          cargo install cargo-criterion --locked
+          cargo install cargo-benchcmp --locked
+
+      - name: Run benchmarks
+        run: |
+          cargo criterion --all-features --sample-size 100 --measurement-time 3s --warm-up-time 1s
+
+      - name: Generate benchmark report
+        run: |
+          cd target/criterion
+          find . -name "*.json" | while read -r file; do
+            echo "Benchmark: $file"
+            jq -r '
+              if .aggregates then
+                .aggregates | to_entries | .[] |
+                "\(.key): Mean=\(.value.mean)µs, StdDev=\(.value.std_dev)µs"
+              elif .results then
+                "\(.results): Mean=\(.value.mean)µs, StdDev=\(.value.std_dev)µs"
+              else empty
+              end
+            ' "$file"
+          done > benchmark-results.txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_number }}
+          path: target/criterion/
+          retention-days: 30
+
+  benchmark-regression:
+    name: Benchmark Regression Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Install benchmark tools
+        run: |
+          cargo install cargo-criterion --locked
+          cargo install cargo-benchcmp --locked
+
+      - name: Find previous benchmark artifact
+        id: find-artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.run_id - 1,
+            });
+            const match = artifacts.data.artifacts.find((a) => a.name.startsWith('benchmark-results-'));
+            if (match) {
+              core.setOutput('artifact-id', match.id);
+              core.setOutput('artifact-name', match.name);
+            }
+
+      - name: Download previous benchmark
+        if: steps.find-artifact.outputs.artifact-id
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.find-artifact.outputs.artifact-name }}
+
+      - name: Run benchmarks
+        run: |
+          cargo criterion --all-features --sample-size 100 --measurement-time 3s --warm-up-time 1s
+
+      - name: Compare benchmarks
+        run: |
+          if [ -d "benchmark-results" ]; then
+            cargo benchcmp benchmark-results target/criterion/ > regression-report.txt || true
+            echo "::warning::Potential performance regression detected"
+          fi
+
+      - name: Check for regressions
+        run: |
+          if [ -f regression-report.txt ]; then
+            if grep -q "improvement" regression-report.txt; then
+              echo "✅ Some improvements detected"
+            fi
+            if grep -q "regression" regression-report.txt; then
+              echo "🚨 Performance regressions detected:"
+              cat regression-report.txt
+              exit 1
+            fi
+          fi
+
+  benchmark-integration:
+    name: Integration Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Run integration benchmarks
+        run: |
+          cargo test --release --lib --test benches -- features="integration_benchmarks" -- --nocapture
+
+      - name: Upload integration results
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-bench-${{ github.run_number }}
+          path: target/debug/deps/integration_bench*
+          retention-days: 30
+
+  benchmark-performance:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install performance tools
+        run: |
+          cargo install cargo-flamegraph
+          cargo install cargo-miri
+
+      - name: Run flamegraph profiling
+        run: |
+          cargo flamegraph --bin bitquan-node --release --profile=release -- \
+            --network=regtest --config config/regtest.toml --peers=10
+
+      - name: Generate performance report
+        run: |
+          echo "Performance Metrics:" > performance-report.md
+          echo "- Flamegraph generated" >> performance-report.md
+          echo "- Memory usage: $(du -sh target/release/)" >> performance-report.md
+          echo "- Binary size: $(ls -lh target/release/bitquan-node | awk '{print $5}')" >> performance-report.md
+
+      - name: Upload performance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results-${{ github.run_number }}
+          path: |
+            flamegraph.svg
+            performance-report.md
+          retention-days: 30

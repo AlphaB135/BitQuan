@@ -1,12 +1,22 @@
-name: Security Scan (Optimized)
+name: Security Scan
 
 on:
   push:
-    branches: [ main, develop, feature/*, fix/* ]
+    branches: [main]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/security-scan.yml"
   schedule:
-    - cron: '0 2 * * *'
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -14,107 +24,88 @@ permissions:
   id-token: write
   actions: read
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
 jobs:
   security-scan:
-    name: Comprehensive Security Analysis
+    name: Security Analysis
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
+      - name: Install security tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny, cargo-cyclonedx
+      - name: Cargo Deny
+        run: cargo deny check
+      - name: Clippy security lints
+        run: |
+          cargo clippy --lib --bins --all-features -- -D warnings \
+            -W clippy::panic \
+            -W clippy::unimplemented \
+            -W clippy::unwrap_used \
+            -W clippy::expect_used
+      - name: Secret scanning (PR only)
+        if: github.event_name == "pull_request"
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+      - name: SBOM generation
+        run: cargo cyclonedx --format json > sbom.json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 90
 
-    - name: Setup Rust Toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-        components: rustfmt, clippy
-
-    - name: Cache Dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Install System Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev pkg-config
-
-    - name: Install Security Tools
-      uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-deny, cargo-cyclonedx
-
-    - name: Run Cargo Deny
-      run: cargo deny check
-
-    - name: Run Clippy Security Lints
-      run: |
-        cargo clippy --lib --bins --all-features -- -D warnings \
-          -W clippy::panic \
-          -W clippy::unimplemented \
-          -W clippy::unwrap_used \
-          -W clippy::expect_used
-
-    - name: Secret Scanning with TruffleHog
-      if: github.event_name == 'pull_request'
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        base: ${{ github.event.repository.default_branch }}
-        head: HEAD
-        extra_args: --only-verified
-
-    - name: SBOM Generation
-      run: cargo cyclonedx --format json > sbom.json
-
-    - name: Upload SBOM Artifact
-      uses: actions/upload-artifact@v6
-      with:
-        name: sbom
-        path: sbom.json
-        retention-days: 90
-
-  codeql-analysis:
+  codeql:
     name: CodeQL SAST
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
-
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: 'rust'
-
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-      with:
-        category: "/language:rust"
+      - uses: actions/checkout@v6
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: rust
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:rust"
 
   ossf-scorecard:
-    name: OSSF Security Scorecard
+    name: OSSF Scorecard
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == "push" && github.ref == "refs/heads/main"
     steps:
-    - name: Checkout
-      uses: actions/checkout@v6
-      with:
-        persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
 
-    - name: Run OSSF Scorecard
-      uses: ossf/scorecard-action@v2.4.3
-      with:
-        results_file: results.sarif
-        results_format: sarif
-        publish_results: true
-
-    - name: Upload SARIF results to code scanning
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: results.sarif
+  audit:
+    name: Rust Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
