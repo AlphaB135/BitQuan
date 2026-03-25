@@ -351,11 +351,12 @@ impl Mempool {
 
             if let Some(mut group) = self.entries.remove(&next_key) {
                 group.sort_by(|a, b| a.tie_breaker.cmp(&b.tie_breaker));
-                while let Some(entry) = group.pop() {
+                while !group.is_empty() {
                     if collected.len() == limit {
                         self.entries.insert(next_key, group);
                         return collected;
                     }
+                    let entry = group.pop().unwrap();
                     let entry_size = entry.tx.serialized_size_hint().unwrap_or(0);
                     self.size_bytes = self.size_bytes.saturating_sub(entry_size);
 
