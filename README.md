@@ -3,7 +3,10 @@
   <img src="https://raw.githubusercontent.com/AlphaB135/BitQuan/main/docs/img/BitQuan.png" alt="BitQuan Logo" width="200"/>
 </div>
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/security.yml?branch=main)](https://github.com/AlphaB135/BitQuan/actions)
+[![Fast PR](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/fast-pr.yml?branch=main&label=CI)](https://github.com/AlphaB135/BitQuan/actions/workflows/fast-pr.yml)
+[![Integration Tests](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/integration-tests.yml?branch=main&label=Integration)](https://github.com/AlphaB135/BitQuan/actions/workflows/integration-tests.yml)
+[![RPC Tests](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/rpc-tests.yml?branch=main&label=RPC)](https://github.com/AlphaB135/BitQuan/actions/workflows/rpc-tests.yml)
+[![Preflight](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/preflight.yml?branch=main&label=Preflight)](https://github.com/AlphaB135/BitQuan/actions/workflows/preflight.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Rust](https://img.shields.io/badge/rust-stable-orange)](https://www.rust-lang.org)
 [![Post-Quantum](https://img.shields.io/badge/Cryptography-Dilithium5-purple)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
@@ -16,15 +19,15 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Core Protocol | ✅ Complete | ASERT difficulty, P2P sync |
-| Cryptography | ✅ Complete | Dilithium5 signatures |
-| Data Integrity | ✅ Fixed | C1-C7 vulnerabilities resolved |
-| Documentation | ✅ Complete | Production guides, BQIPs |
-| Unit Tests | ✅ 600+ passing | 142+ consensus tests |
-| Internal Audit | ✅ Complete | Security hardening done |
-| External Audit | ⏳ Pending | Q3 2026 target |
-| Testnet | ⏳ Q2 2026 | Public launch |
-| Mainnet | 🔜 Q4 2026 | Post-audit |
+| Core Protocol | Complete | ASERT difficulty, P2P sync |
+| Cryptography | Complete | Dilithium5 signatures |
+| Data Integrity | Fixed | C1-C7 vulnerabilities resolved |
+| Documentation | Complete | Production guides, BQIPs |
+| Unit Tests | 600+ passing | 142+ consensus tests |
+| Internal Audit | Complete | Security hardening done |
+| External Audit | Pending | Q3 2026 target |
+| Testnet | Q2 2026 | Public launch |
+| Mainnet | Q4 2026 | Post-audit |
 
 **Recent Fixes**: Data integrity (C1-C7), P2P sync, ASERT difficulty, unwrap elimination
 
@@ -49,7 +52,7 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 | [REDDIT_ROAST_RESPONSE.md](docs/REDDIT_ROAST_RESPONSE.md) | Honest response to criticism, what's fixed |
 
 ### Full Documentation
-[📚 Complete Documentation Site](https://alphab135.github.io/BitQuan/)
+[Complete Documentation Site](https://alphab135.github.io/BitQuan/)
 
 ## Core Principles
 
@@ -71,7 +74,7 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 |--------|---------|---------|-------|
 | Signature Size | ~73 bytes | 4,595 bytes | **63x** |
 | Layer 1 TPS | ~7 | < 1 | By design |
-| Quantum Security | ❌ Vulnerable | ✅ Dilithium5 | NIST standard |
+| Quantum Security | Vulnerable | Dilithium5 | NIST standard |
 
 **This is a deliberate trade-off**: We prioritize quantum security today over layer 1 efficiency.
 
@@ -244,10 +247,10 @@ BitQuan intentionally does **NOT** include:
 ## Roadmap
 
 ```
-Q1 2026: ✅ Security hardening (complete)
-Q2 2026: ⏳ Public testnet launch
-Q3 2026: ⏳ External security audit
-Q4 2026: 🔜 Mainnet launch (post-audit)
+Q1 2026: Security hardening (complete)
+Q2 2026: Public testnet launch
+Q3 2026: External security audit
+Q4 2026: Mainnet launch (post-audit)
 2027+:    Layer 2 development (ZK-Rollup)
 ```
 
@@ -275,9 +278,9 @@ bitquan/
 
 | Phase | Status | Date |
 |-------|--------|------|
-| Internal Audit | ✅ Complete | Feb 2026 |
-| Code Hardening | ✅ Complete | Feb 2026 |
-| External Audit | ⏳ Planned | Q3 2026 |
+| Internal Audit | Complete | Feb 2026 |
+| Code Hardening | Complete | Feb 2026 |
+| External Audit | Planned | Q3 2026 |
 
 **Resolved Issues**: C1-C7 data integrity, P2P sync, unwrap elimination
 
@@ -409,10 +412,10 @@ cargo clippy -- -D clippy::unwrap_used
 BitQuan is a spare-time open-source project.
 
 ### Ways to Help
-- ⭐ Star and share the repository
-- 🐛 Report bugs via [GitHub Issues](https://github.com/AlphaB135/BitQuan/issues)
-- 💻 Submit pull requests (see [Contributing](#contributing))
-- 💰 Donate via [PayPal](https://paypal.me/AtsadawutKhunthong) for CI/audit costs
+- Star and share the repository
+- Report bugs via [GitHub Issues](https://github.com/AlphaB135/BitQuan/issues)
+- Submit pull requests (see [Contributing](#contributing))
+- Donate via [PayPal](https://paypal.me/AtsadawutKhunthong) for CI/audit costs
 
 ### Contact
 - **Issues**: https://github.com/AlphaB135/BitQuan/issues
