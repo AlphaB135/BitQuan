@@ -390,7 +390,7 @@ pub async fn wallet_send(
         println!();
 
         // Save transaction to pending file (simple local broadcast)
-        println!("📡 Saving transaction to pending pool...");
+        println!("Broadcasting transaction to pending pool...");
 
         let data_dir = Path::new(datadir);
         std::fs::create_dir_all(data_dir)
