@@ -1,4 +1,0 @@
-# BitQuan Testnet Faucet Dependencies
-Flask>=3.0.0
-requests>=2.32.0
-gunicorn>=22.0.0

@@ -1,13 +1,24 @@
 /target/
 **/*.rs.bk
-/.trunk/tmp/
 data/
 .agents
 HANDOFF.md
 
-CLAUDE.md
-# Test/temp files
-genesis.json
+# Build artifacts in vendor crates
+crates/pqc-dilithium-seeded/pkg/
+crates/pqc-dilithium-seeded/www/
+crates/pqc-dilithium-seeded/.cargo-ok
+crates/pqc-dilithium-seeded/Cargo.toml.orig
+
+# Root junk
+*.rs
+!crates/*/src/**/*.rs
+!crates/*/tests/**/*.rs
+html.html
+seeds.sql
+migrations/
+src-tauri/
+test_api_endpoints.sh
 *.keystore
 command.txt
 MY_WALLET_INFO.txt
