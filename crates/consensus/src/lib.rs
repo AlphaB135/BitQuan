@@ -476,6 +476,18 @@ pub enum ConsensusError {
     /// Invalid difficulty target value.
     #[error("invalid difficulty target: {0:#x}")]
     InvalidDifficultyTarget(u32),
+    /// Uncle validation failed.
+    #[error("invalid uncle: {0}")]
+    InvalidUncle(String),
+    /// Coinbase validation failed.
+    #[error("invalid coinbase: {0}")]
+    InvalidCoinbase(String),
+    /// Fee validation failed.
+    #[error("fee validation: {0}")]
+    FeeValidation(String),
+    /// Proof-of-Work verification failed.
+    #[error("PoW verification failed: {0}")]
+    InvalidPoW(String),
 }
 
 /// Calculates transaction weight according to BQIP-0007 (BQSegWit).
@@ -580,13 +592,13 @@ pub fn validate_block(
 
     // Enforce Uncle limits natively for Uncle reward distribution
     if block.uncles.len() > 2 {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidUncle(
             "Block contains more than 2 uncles".to_string(),
         ));
     }
 
     if block.uncles.len() != uncles_ctx.len() {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidUncle(
             "Mismatched UncleContext length".to_string(),
         ));
     }
@@ -596,7 +608,7 @@ pub fn validate_block(
     for uncle in &block.uncles {
         let hash = crate::pow::header_hash(uncle);
         if !current_uncle_hashes.insert(hash) {
-            return Err(ConsensusError::InvalidSignature(
+            return Err(ConsensusError::InvalidUncle(
                 "Duplicate uncle header within same block".to_string(),
             ));
         }
@@ -605,14 +617,14 @@ pub fn validate_block(
     // GHOST Uncle Validation
     for (uncle_header, uncle_ctx) in block.uncles.iter().zip(uncles_ctx.iter()) {
         if uncle_header != &uncle_ctx.header {
-            return Err(ConsensusError::InvalidSignature(
+            return Err(ConsensusError::InvalidUncle(
                 "Uncle header mismatch with context".to_string(),
             ));
         }
 
         let depth = height.saturating_sub(uncle_ctx.height);
         if depth == 0 || depth > 7 {
-            return Err(ConsensusError::InvalidSignature(format!(
+            return Err(ConsensusError::InvalidUncle(format!(
                 "Uncle depth {} invalid (must be 1-7)",
                 depth
             )));
@@ -620,14 +632,14 @@ pub fn validate_block(
 
         let uncle_hash = crate::pow::header_hash(&uncle_ctx.header);
         if past_uncle_hashes.contains(&uncle_hash) {
-            return Err(ConsensusError::InvalidSignature(
+            return Err(ConsensusError::InvalidUncle(
                 "Uncle double inclusion detected".to_string(),
             ));
         }
 
         // Validate Uncle PoW
         crate::pow::check_header_pow(&uncle_ctx.header)
-            .map_err(|e| ConsensusError::InvalidSignature(format!("Uncle PoW invalid: {}", e)))?;
+            .map_err(|e| ConsensusError::InvalidUncle(format!("Uncle PoW invalid: {}", e)))?;
     }
 
     // Calculate block weight using BQIP-0002 formula (with overflow protection)
@@ -736,7 +748,7 @@ fn validate_block_header(
 
     // Verify block hash meets the PoW target (Closes #131)
     crate::pow::check_header_pow(header)
-        .map_err(|e| ConsensusError::InvalidSignature(format!("PoW verification failed: {e}")))?;
+        .map_err(|e| ConsensusError::InvalidPoW(format!("{e}")))?;
 
     // Validate merkle root matches transactions
     let calculated_merkle = calculate_merkle_root(&block.transactions)?;
@@ -750,7 +762,7 @@ fn validate_block_header(
 /// Validates coinbase transaction according to Bitcoin rules
 fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), ConsensusError> {
     if block.transactions.is_empty() {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidCoinbase(
             "Block must contain at least one transaction".to_string(),
         ));
     }
@@ -759,21 +771,21 @@ fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), Cons
 
     // Coinbase must have exactly one input with null prev_txid and prev_vout = MAX
     if coinbase.inputs.len() != 1 {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidCoinbase(
             "Coinbase must have exactly one input".to_string(),
         ));
     }
 
     let coinbase_input = &coinbase.inputs[0];
     if coinbase_input.prev_txid != [0u8; 32] || coinbase_input.prev_vout != u32::MAX {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidCoinbase(
             "Invalid coinbase input".to_string(),
         ));
     }
 
     // Coinbase scriptSig must be at least 2 bytes and at most 100 bytes
     if coinbase_input.script_sig.len() < 2 || coinbase_input.script_sig.len() > 100 {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidCoinbase(
             "Invalid coinbase script length".to_string(),
         ));
     }
@@ -782,7 +794,7 @@ fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), Cons
     for tx in block.transactions.iter().skip(1) {
         for input in &tx.inputs {
             if input.prev_txid == [0u8; 32] && input.prev_vout == u32::MAX {
-                return Err(ConsensusError::InvalidSignature(
+                return Err(ConsensusError::InvalidCoinbase(
                     "Non-coinbase transaction has coinbase input".to_string(),
                 ));
             }
@@ -822,7 +834,7 @@ fn validate_transaction_fees(
     // Use validate_block_with_fees() or calculate fees externally.
     //
     let fees = total_fees.ok_or_else(|| {
-        ConsensusError::InvalidSignature(
+        ConsensusError::FeeValidation(
             "Total fees MUST be provided for coinbase validation. \
              Use validate_block_with_fees() or calculate from UTXO set. \
              Blocks with unknown fees CANNOT be accepted (inflation risk)."
@@ -879,7 +891,7 @@ fn validate_transaction_fees(
     for (script, expected_val) in expected_uncle_rewards {
         let actual_val = actual_uncle_rewards.get(&script).copied().unwrap_or(0);
         if actual_val < expected_val {
-            return Err(ConsensusError::InvalidSignature(format!(
+            return Err(ConsensusError::FeeValidation(format!(
                 "Uncle miner reward missing or insufficient: expected {}, found {}",
                 expected_val, actual_val
             )));
