@@ -41,7 +41,7 @@ blake3 = "1.8.3"
 getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
-proptest = "1.10"
+proptest = "1.11"
 hex = "0.4"
 tempfile = "3"
 criterion = "0.5"
