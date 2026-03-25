@@ -747,8 +747,7 @@ fn validate_block_header(
     }
 
     // Verify block hash meets the PoW target (Closes #131)
-    crate::pow::check_header_pow(header)
-        .map_err(|e| ConsensusError::InvalidPoW(format!("{e}")))?;
+    crate::pow::check_header_pow(header).map_err(|e| ConsensusError::InvalidPoW(format!("{e}")))?;
 
     // Validate merkle root matches transactions
     let calculated_merkle = calculate_merkle_root(&block.transactions)?;
