@@ -458,7 +458,8 @@ pub fn mine_once(
     };
 
     // Load pending transactions from file (with signature validation)
-    let (pending_txs, _valid_txids, cleanup) = load_pending_transactions(Path::new("data"));
+    let (pending_txs, _valid_txids, cleanup) =
+        load_pending_transactions(Path::new("data/chainstate"));
     if !pending_txs.is_empty() {
         println!(
             "Found {} valid pending transaction(s) to include",
