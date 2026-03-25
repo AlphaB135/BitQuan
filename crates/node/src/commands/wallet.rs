@@ -398,6 +398,36 @@ pub async fn wallet_send(
 
         let pending_path = data_dir.join("pending_transactions.jsonl");
 
+        // Double-spend check: verify no pending tx already uses the same UTXOs
+        if pending_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&pending_path) {
+                for line in content.lines() {
+                    if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
+                        if let Some(tx_str) = entry.get("tx").and_then(|v| v.as_str()) {
+                            if let Ok(existing_tx) =
+                                serde_json::from_str::<bitquan_types::Transaction>(tx_str)
+                            {
+                                for input in &signed_tx.inputs {
+                                    for existing_input in &existing_tx.inputs {
+                                        if input.prev_txid == existing_input.prev_txid
+                                            && input.prev_vout == existing_input.prev_vout
+                                        {
+                                            return invalid(format!(
+                                                "Double-spend detected: UTXO {}:{} \
+                                                 already spent in pending transaction",
+                                                hex::encode(input.prev_txid),
+                                                input.prev_vout
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Append transaction to pending file (JSONL format - one JSON per line)
         let tx_id = hex::encode(signed_tx.txid());
         // Serialize transaction as JSON string (prevents u128 overflow when embedded)
