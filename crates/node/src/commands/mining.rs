@@ -113,9 +113,7 @@ type PendingTransactionsResult = (Vec<Transaction>, Vec<[u8; 32]>, Box<dyn FnOnc
 /// Returns (valid_transactions, included_txids, cleanup_fn)
 /// - Validates Dilithium5 signatures before inclusion
 /// - Cleanup removes only successfully included transactions
-pub fn load_pending_transactions(
-    chain_network: NetworkId,
-) -> PendingTransactionsResult {
+pub fn load_pending_transactions(chain_network: NetworkId) -> PendingTransactionsResult {
     use std::io::BufRead;
 
     let pending_path = PathBuf::from("data/pending_transactions.jsonl");
