@@ -32,6 +32,7 @@ use bq_crypto::{
 use std::collections::VecDeque;
 use std::fs;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -113,10 +114,13 @@ type PendingTransactionsResult = (Vec<Transaction>, Vec<[u8; 32]>, Box<dyn FnOnc
 /// Returns (valid_transactions, included_txids, cleanup_fn)
 /// - Validates Dilithium5 signatures before inclusion
 /// - Cleanup removes only successfully included transactions
-pub fn load_pending_transactions(chain_network: NetworkId) -> PendingTransactionsResult {
+pub fn load_pending_transactions(
+    datadir: &Path,
+    chain_network: NetworkId,
+) -> PendingTransactionsResult {
     use std::io::BufRead;
 
-    let pending_path = PathBuf::from("data/pending_transactions.jsonl");
+    let pending_path = datadir.join("pending_transactions.jsonl");
     let mut valid_transactions = Vec::new();
     let mut valid_txids = Vec::new();
 
@@ -469,7 +473,8 @@ pub fn mine_once(
     };
 
     // Load pending transactions from file (with signature validation)
-    let (pending_txs, _valid_txids, cleanup) = load_pending_transactions(network);
+    let (pending_txs, _valid_txids, cleanup) =
+        load_pending_transactions(Path::new("data/chainstate"), network);
     if !pending_txs.is_empty() {
         println!(
             "Found {} valid pending transaction(s) to include",
@@ -905,7 +910,8 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         // Load pending transactions from file (with signature validation)
         println!("TRACE: About to load pending transactions...");
-        let (pending_txs, _valid_txids, cleanup) = load_pending_transactions(network);
+        let (pending_txs, _valid_txids, cleanup) =
+            load_pending_transactions(Path::new(&datadir), network);
         println!("TRACE: Loaded {} pending transactions", pending_txs.len());
         if !pending_txs.is_empty() {
             println!(

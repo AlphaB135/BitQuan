@@ -301,7 +301,7 @@ fn coinbase_validation() {
         header: BlockHeader::default(),
         transactions: vec![bad_coinbase]
     }, 0);
-    assert!(matches!(result, Err(ConsensusError::InvalidSignature(_))));
+    assert!(matches!(result, Err(ConsensusError::InvalidCoinbase(_))));
 }
 
 #[test]

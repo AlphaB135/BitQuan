@@ -5,7 +5,7 @@ use bitquan_consensus::{utxo::OutPoint, MempoolPolicy};
 use bitquan_types::{checked, Error, Result, Transaction};
 use bq_crypto::rng::{RandomSource, RngService};
 use log::warn;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// BQIP-0007: Witness scale factor — base bytes cost 4 WU each, witness bytes cost 1 WU.
 const WITNESS_SCALE_FACTOR: usize = 4;
@@ -66,6 +66,8 @@ impl MempoolEntry {
 pub struct Mempool {
     /// Entries organized by fee-per-weight (descending order via BTreeMap)
     entries: BTreeMap<u64, Vec<MempoolEntry>>,
+    /// Index from txid to fee_rate bucket for O(1) lookup
+    txid_index: HashMap<[u8; 32], u64>,
     /// Tracks spent outpoints to prevent double-spend within mempool
     spent_outpoints: HashSet<OutPoint>,
     /// RNG for tie-breaking
@@ -95,6 +97,7 @@ impl Mempool {
         let rng = RngService::new().map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
         Ok(Self {
             entries: BTreeMap::new(),
+            txid_index: HashMap::new(),
             spent_outpoints: HashSet::new(),
             rng,
             size_bytes: 0,
@@ -108,6 +111,7 @@ impl Mempool {
         let rng = RngService::new().map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
         Ok(Self {
             entries: BTreeMap::new(),
+            txid_index: HashMap::new(),
             spent_outpoints: HashSet::new(),
             rng,
             size_bytes: 0,
@@ -268,8 +272,11 @@ impl Mempool {
 
         self.size_bytes = checked!(self.size_bytes.checked_add(tx_size), "size_bytes update")?;
 
-        let bucket = self.entries.entry(entry.fee_per_weight).or_default();
+        let txid = entry.tx.txid();
+        let fee_rate = entry.fee_per_weight;
+        let bucket = self.entries.entry(fee_rate).or_default();
         bucket.push(entry);
+        self.txid_index.insert(txid, fee_rate);
         Ok(())
     }
 
@@ -317,6 +324,8 @@ impl Mempool {
                         let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
                         self.spent_outpoints.remove(&outpoint);
                     }
+
+                    self.txid_index.remove(&entry.tx.txid());
                 }
             }
         }
@@ -342,11 +351,12 @@ impl Mempool {
 
             if let Some(mut group) = self.entries.remove(&next_key) {
                 group.sort_by(|a, b| a.tie_breaker.cmp(&b.tie_breaker));
-                while let Some(entry) = group.pop() {
+                while !group.is_empty() {
                     if collected.len() == limit {
                         self.entries.insert(next_key, group);
                         return collected;
                     }
+                    let entry = group.pop().unwrap();
                     let entry_size = entry.tx.serialized_size_hint().unwrap_or(0);
                     self.size_bytes = self.size_bytes.saturating_sub(entry_size);
 
@@ -356,6 +366,7 @@ impl Mempool {
                         self.spent_outpoints.remove(&outpoint);
                     }
 
+                    self.txid_index.remove(&entry.tx.txid());
                     collected.push(entry);
                 }
             }
@@ -397,35 +408,22 @@ impl Mempool {
 
     /// Looks up a transaction by txid (for P2P transaction relay).
     pub fn get_transaction(&self, txid: &[u8; 32]) -> Option<Transaction> {
-        for (_fee_rate, entries) in self.entries.iter() {
-            for entry in entries {
-                if entry.tx.txid() == *txid {
-                    return Some(entry.tx.clone());
-                }
-            }
-        }
-        None
+        let fee_rate = self.txid_index.get(txid)?;
+        let entries = self.entries.get(fee_rate)?;
+        entries
+            .iter()
+            .find(|e| &e.tx.txid() == txid)
+            .map(|e| e.tx.clone())
     }
 
     /// Checks if a transaction exists in the mempool (for P2P Inv handling).
     pub fn contains(&self, txid: &[u8; 32]) -> bool {
-        for (_fee_rate, entries) in self.entries.iter() {
-            for entry in entries {
-                if entry.tx.txid() == *txid {
-                    return true;
-                }
-            }
-        }
-        false
+        self.txid_index.contains_key(txid)
     }
 
     /// Returns all transaction IDs in the mempool (for P2P GetMempool).
     pub fn txids(&self) -> Vec<[u8; 32]> {
-        self.entries
-            .values()
-            .flatten()
-            .map(|entry| entry.tx.txid())
-            .collect()
+        self.txid_index.keys().copied().collect()
     }
 }
 
@@ -455,6 +453,7 @@ impl Default for Mempool {
 
             Self {
                 entries: BTreeMap::new(),
+                txid_index: HashMap::new(),
                 spent_outpoints: HashSet::new(),
                 rng,
                 size_bytes: 0,
