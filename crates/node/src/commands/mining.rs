@@ -18,7 +18,6 @@ use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
     target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
 };
-use std::path::Path;
 use bitquan_network::protocol::Message;
 use bitquan_storage::{ChainStore, InMemoryChainStore, RocksDBStore};
 use bitquan_types::{
@@ -33,6 +32,7 @@ use bq_crypto::{
 use std::collections::VecDeque;
 use std::fs;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -458,8 +458,7 @@ pub fn mine_once(
     };
 
     // Load pending transactions from file (with signature validation)
-    let (pending_txs, _valid_txids, cleanup) =
-        load_pending_transactions(Path::new("data"));
+    let (pending_txs, _valid_txids, cleanup) = load_pending_transactions(Path::new("data"));
     if !pending_txs.is_empty() {
         println!(
             "Found {} valid pending transaction(s) to include",
@@ -895,8 +894,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         // Load pending transactions from file (with signature validation)
         println!("TRACE: About to load pending transactions...");
-        let (pending_txs, _valid_txids, cleanup) =
-            load_pending_transactions(Path::new(&datadir));
+        let (pending_txs, _valid_txids, cleanup) = load_pending_transactions(Path::new(&datadir));
         println!("TRACE: Loaded {} pending transactions", pending_txs.len());
         if !pending_txs.is_empty() {
             println!(
