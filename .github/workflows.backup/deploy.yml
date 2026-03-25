@@ -75,7 +75,7 @@ jobs:
 
           # Check if nodes file has any active nodes
           if ! grep -v '^#' "$NODES_FILE" | grep -v '^$' > /dev/null 2>&1; then
-            echo "  No nodes configured in $NODES_FILE"
+            echo "⚠️  No nodes configured in $NODES_FILE"
             echo "Please add node addresses to the file to enable deployment."
             echo "Skipping deployment (this is not an error)."
             exit 0
@@ -85,5 +85,5 @@ jobs:
 
       - name: Verify deployment
         run: |
-          echo " Deployment workflow completed"
+          echo "✅ Deployment workflow completed"
           echo "Note: Add health check commands for your cluster nodes here"

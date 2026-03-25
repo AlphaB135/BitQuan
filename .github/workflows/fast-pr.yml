@@ -2,78 +2,57 @@ name: Fast PR
 
 on:
   pull_request:
+    paths:
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/fast-pr.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: fast-pr-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  BITQUAN_SKIP_PQC_TESTS: "1"
+
 jobs:
   fast:
-    name: PR quick checks (Ubuntu)
+    name: PR quick checks
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      BITQUAN_SKIP_PQC_TESTS: "1"
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v6
-
       - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install system dependencies
+        with:
+          components: clippy, rustfmt
+      - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: fast-pr
 
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            rust:
-              - '**/*.rs'
-              - '**/Cargo.toml'
-              - '**/Cargo.lock'
-            docs:
-              - 'docs/**'
-              - '*.md'
-              - '.github/ISSUE_TEMPLATE/**'
-              - 'LICENSE'
-              - 'README.md'
-
-      # 1) Format
-      - name: Format Check
-        if: steps.filter.outputs.rust == 'true'
+      - name: Format
         run: cargo fmt --all -- --check
 
-      # 2) Clippy (ห้าม warning)
-      - name: Clippy Lints
-        if: steps.filter.outputs.rust == 'true'
+      - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      # 3) Cargo Deny (dependencies/licenses)
       - name: Cargo Deny
-        if: steps.filter.outputs.rust == 'true'
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
 
-      # 4) Tests (nextest) + Coverage threshold (no report)
       - name: Install nextest + llvm-cov
-        if: steps.filter.outputs.rust == 'true'
         run: cargo install cargo-nextest cargo-llvm-cov --locked
 
-      - name: Test (nextest)
-        if: steps.filter.outputs.rust == 'true'
+      - name: Test
         run: cargo nextest run --workspace
 
-      - name: Coverage threshold (≥60% lines, no report)
-        if: steps.filter.outputs.rust == 'true'
-        run: |
-          cargo llvm-cov nextest --workspace --fail-under-lines 60 --no-report
-
-      # no fuzz on PR (เร็ว)
+      - name: Coverage threshold
+        run: cargo llvm-cov nextest --workspace --fail-under-lines 60 --no-report

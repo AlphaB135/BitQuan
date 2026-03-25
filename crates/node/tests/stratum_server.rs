@@ -10,7 +10,12 @@ use bitquan_types::NetworkId;
 
 #[test]
 fn miner_session_lifecycle() {
-    let session = MinerSession::new(PowAlgo::Sha256d, "miner1@pool".to_string(), 1.0).unwrap();
+    let session = MinerSession::new(
+        PowAlgo::Sha256d,
+        "miner1@pool".to_string(),
+        1.0,
+        "127.0.0.1".to_string(),
+    );
 
     assert_eq!(session.algo, PowAlgo::Sha256d);
     assert_eq!(session.address, "miner1@pool");
@@ -112,6 +117,12 @@ fn stratum_server_creation() {
         enable_vardiff: true,
         vardiff_target_time: 15.0,
         vardiff_adjust_rate: 0.05,
+        require_auth: false,
+        max_connections_per_ip: 3,
+        max_share_rate: 10.0,
+        connection_timeout: 300,
+        max_connections: 100,
+        enable_rate_limiting: true,
     };
 
     let server = StratumServer::new(config.clone());
@@ -131,6 +142,12 @@ async fn stratum_server_lifecycle() {
         enable_vardiff: true,
         vardiff_target_time: 15.0,
         vardiff_adjust_rate: 0.05,
+        require_auth: false,
+        max_connections_per_ip: 3,
+        max_share_rate: 10.0,
+        connection_timeout: 300,
+        max_connections: 100,
+        enable_rate_limiting: true,
     };
 
     let mut server = StratumServer::new(config);
@@ -172,11 +189,26 @@ fn randomx_share_metrics() {
 
 #[test]
 fn multiple_miners_tracking() {
-    let session1 = MinerSession::new(PowAlgo::Sha256d, "miner1".to_string(), 1.0).unwrap();
-    let session2 = MinerSession::new(PowAlgo::Sha256d, "miner2".to_string(), 2.0).unwrap();
+    let session1 = MinerSession::new(
+        PowAlgo::Sha256d,
+        "miner1".to_string(),
+        1.0,
+        "127.0.0.1".to_string(),
+    );
+    let session2 = MinerSession::new(
+        PowAlgo::Sha256d,
+        "miner2".to_string(),
+        2.0,
+        "127.0.0.1".to_string(),
+    );
 
     #[cfg(feature = "randomx")]
-    let session3 = MinerSession::new(PowAlgo::RandomX, "miner3".to_string(), 1.0).unwrap();
+    let session3 = MinerSession::new(
+        PowAlgo::RandomX,
+        "miner3".to_string(),
+        1.0,
+        "127.0.0.1".to_string(),
+    );
 
     // Simulate activity
     session1.accept_share();

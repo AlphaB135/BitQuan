@@ -297,6 +297,7 @@ fn u128_to_bytes(val: u128) -> [u8; 32] {
 /// Uses the same [16..32] offset as u128_to_bytes for consistency.
 #[inline]
 #[cfg(test)]
+#[allow(dead_code)]
 fn u64_to_target(val: u64) -> [u8; 32] {
     let mut out = [0u8; 32];
     let val_bytes = val.to_be_bytes();

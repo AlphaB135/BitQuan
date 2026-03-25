@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag to release (defaults to ref that triggered the workflow)'
+        required: false
+
+permissions:
+  contents: write
+  attestations: write
+  id-token: write
+
+env:
+  CARGO_TERM_COLOR: always
+  SOURCE_DATE_EPOCH: 1700000000
+  RELEASE_TAG: ${{ github.event.inputs.release_tag != '' && github.event.inputs.release_tag || github.ref_name }}
+  RELEASE_REF: ${{ github.event.inputs.release_tag != '' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.ref }}
+
+jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure tag-backed release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "${{ env.RELEASE_TAG }}" >/dev/null 2>&1; then
+            echo "Release ${{ env.RELEASE_TAG }} already exists"
+          else
+            gh release create "${{ env.RELEASE_TAG }}" \
+              --title "${{ env.RELEASE_TAG }}" \
+              --generate-notes
+          fi
+
+  build-artifacts:
+    name: Build ${{ matrix.os }}
+    needs: prepare-release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: bitquan-node
+            asset_name: bitquan-node-linux-x64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: bitquan-node
+            asset_name: bitquan-node-macos-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: bitquan-node
+            asset_name: bitquan-node-macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: bitquan-node.exe
+            asset_name: bitquan-node-windows-x64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Strip binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+      - name: Create tarball (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
+          shasum -a 512 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha512
+
+      - name: Create zip (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ${{ matrix.asset_name }}.zip ${{ matrix.artifact_name }}
+          certutil -hashfile ${{ matrix.asset_name }}.zip SHA256 > ${{ matrix.asset_name }}.zip.sha256
+          certutil -hashfile ${{ matrix.asset_name }}.zip SHA512 > ${{ matrix.asset_name }}.zip.sha512
+
+      - name: Upload assets to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            gh release upload ${{ env.RELEASE_TAG }} \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha256 \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha512 \
+              --clobber
+          else
+            gh release upload ${{ env.RELEASE_TAG }} \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip.sha256 \
+              target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip.sha512 \
+              --clobber
+          fi
+
+  generate-sbom:
+    name: Generate SBOM
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-sbom
+        run: cargo install cargo-sbom
+
+      - name: Generate SBOM (CycloneDX)
+        run: cargo sbom --output-format cyclone_dx_json_1_4 > sbom.json
+
+      - name: Upload SBOM
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ env.RELEASE_TAG }} sbom.json --clobber
+
+  # SLSA provenance generation (Level 2+)
+  # Note: This uses a reusable workflow from SLSA framework
+  # Automatically generates build provenance attestations
+  provenance:
+    name: Generate SLSA Provenance
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build for provenance
+        run: cargo build --release --locked
+
+      - name: Generate provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            target/release/bitquan-node

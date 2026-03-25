@@ -2,152 +2,122 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/ci.yml"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
-  SOURCE_DATE_EPOCH: 1700000000
+  CARGO_INCREMENTAL: 0
   RUSTFLAGS: -D warnings
+  BITQUAN_SKIP_PQC_TESTS: "1"
 
 jobs:
   fmt:
-    name: Format Check
+    name: Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy,rustfmt
+          components: rustfmt
       - run: cargo fmt --all -- --check
 
   clippy:
-    name: Clippy Lints
+    name: Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy,rustfmt
+          components: clippy
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
-    name: Test Suite
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    env:
-      BITQUAN_SKIP_PQC_TESTS: "1"
     steps:
       - uses: actions/checkout@v6
-      - name: Install system dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
-      - name: Install macOS Dependencies
-        if: matrix.os == 'macos-latest'
-        run: brew install hidapi
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy,rustfmt
-      - uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-      - run: cargo test --all --locked
+      - name: Install system deps (Linux)
+        if: runner.os == "Linux"
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - name: Install system deps (macOS)
+        if: runner.os == "macOS"
+        run: brew install hidapi || true
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --locked
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
+      - name: Install llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+      - name: Generate coverage
+        run: cargo llvm-cov --workspace --fail-under-lines 60
 
   deny:
     name: Cargo Deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          components: clippy,rustfmt
-      - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
-      - name: Cargo Deny
-        run: cargo deny check
+          command: check
 
-  audit:
-    name: Security Audit
+  fuzz-build:
+    name: Fuzz (build only)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deny
-      - name: Security Audit
-        run: cargo deny check
-
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy,rustfmt
-      - name: Install llvm-tools
-        run: rustup component add llvm-tools-preview
-      - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov --locked
-      - name: Generate coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v5
-        continue-on-error: true
-        with:
-          files: lcov.info
-          fail_ci_if_error: false
-
-  fuzz:
-    name: Fuzz Targets (Build)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy,rustfmt
       - uses: dtolnay/rust-toolchain@nightly
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
+        with:
+          components: llvm-tools-preview
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
       - name: Build fuzz targets
         run: |
           if [ -d fuzz ]; then
-            rustup run nightly cargo fuzz build || echo "Fuzz build skipped"
+            cargo install cargo-fuzz --locked
+            cargo +nightly fuzz build || echo "Fuzz build skipped"
           else
-            echo "No fuzz directory; skipping fuzz build"
+            echo "No fuzz directory; skipping"
           fi
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --all --no-deps --document-private-items

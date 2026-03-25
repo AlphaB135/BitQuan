@@ -94,14 +94,20 @@ pub struct RateLimitState {
     pub window_start: Instant,
 }
 
-impl RateLimitState {
-    pub fn new() -> Self {
+impl Default for RateLimitState {
+    fn default() -> Self {
         let now = Instant::now();
         Self {
             last_share_time: now,
             share_count: 0,
             window_start: now,
         }
+    }
+}
+
+impl RateLimitState {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Check if share submission is within rate limits.

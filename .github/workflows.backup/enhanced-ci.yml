@@ -1,6 +1,8 @@
 name: Enhanced CI Pipeline
 
 on:
+  push:
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
   schedule:
@@ -15,7 +17,7 @@ jobs:
   quick-checks:
     name: Quick Checks (${{ matrix.rust-version }})
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: contains(fromJSON('["push","pull_request"]'), github.event_name)
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -57,7 +59,7 @@ jobs:
   full-test-suite:
     name: Test Suite (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'pull_request'
+    if: contains(fromJSON('["push","pull_request"]'), github.event_name)
     strategy:
       fail-fast: false
       matrix:
@@ -95,7 +97,7 @@ jobs:
   cross-platform-build:
     name: Cross Build (${{ matrix.target }})
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: contains(fromJSON('["push","pull_request"]'), github.event_name)
     strategy:
       fail-fast: false
       matrix:
@@ -128,7 +130,7 @@ jobs:
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: contains(fromJSON('["push","pull_request"]'), github.event_name)
 
     steps:
       - name: Checkout

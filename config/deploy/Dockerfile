@@ -1,24 +1,8 @@
 # syntax=docker/dockerfile:1
-# BitQuan node - multi-stage build with cargo-chef dependency caching
+# BitQuan node - multi-stage build with dependency caching
 
-ARG CARGO_CHEF_VERSION=0.1.67
-
-# Stage 1: cargo-chef planner
-FROM rust:1.82-slim AS planner
-ARG CARGO_CHEF_VERSION
-ARG TARGETARCH
-WORKDIR /app
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-RUN if [ "$TARGETARCH" = "arm64" ]; then ARCH="aarch64"; else ARCH="x86_64"; fi \
-    && curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-${ARCH}-unknown-linux-musl.tar.gz" \
-    | tar xz -C /usr/local/cargo/bin/
-COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
-
-# Stage 2: Build dependencies (cached layer)
-FROM rust:1.82-slim AS builder
-ARG CARGO_CHEF_VERSION
-ARG TARGETARCH
+# Stage 1: Build dependencies (cached layer)
+FROM rustlang/rust:nightly-slim AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
@@ -27,22 +11,21 @@ RUN apt-get update && apt-get install -y \
     clang \
     cmake \
     build-essential \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN if [ "$TARGETARCH" = "arm64" ]; then ARCH="aarch64"; else ARCH="x86_64"; fi \
-    && curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-${ARCH}-unknown-linux-musl.tar.gz" \
-    | tar xz -C /usr/local/cargo/bin/
-COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+# Create dummy main to cache dependencies
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs
+COPY Cargo.toml Cargo.lock ./
+COPY crates crates/
+RUN cargo build --release && rm -rf src
 
-# Stage 3: Build application
+# Stage 2: Build application
 FROM builder AS build
 COPY . .
 RUN cargo build --release --bin bitquan-node \
     && strip target/release/bitquan-node
 
-# Stage 4: Runtime
+# Stage 3: Runtime
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y \
