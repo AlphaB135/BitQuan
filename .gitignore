@@ -45,10 +45,14 @@ forks/
 crates/wallet/*.json
 
 # Tauri build artifacts
-tools/bitquan-gui/src-tauri/target/
-tools/bitquan-gui/target/
-tools/bitquan-gui/dist/
-tools/bitquan-gui/src-tauri/Cargo.lock
+tools/
+!crates/tools/bitquan-gui/src-tauri/target/
+tools/
+!crates/tools/bitquan-gui/target/
+tools/
+!crates/tools/bitquan-gui/dist/
+tools/
+!crates/tools/bitquan-gui/src-tauri/Cargo.lock
 
 # Added by Multi-Agent Workflow Kit
 /.agents
@@ -334,6 +338,7 @@ agents/
 **/ψ/
 templates/
 tools/
+!crates/tools/
 
 # Web Landing Page
 bitquan-web/
@@ -364,6 +369,7 @@ skill
 ψ/
 templates/
 tools/
+!crates/tools/
 
 # Development artifacts (root directory garbage)
 gen_*.rs
