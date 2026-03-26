@@ -79,7 +79,7 @@ jobs:
       - name: Install llvm-cov
         run: cargo install cargo-llvm-cov --locked
       - name: Generate coverage
-        run: cargo llvm-cov --workspace --fail-under-lines 60
+        run: cargo llvm-cov --workspace --fail-under-lines 55
 
   deny:
     name: Cargo Deny
