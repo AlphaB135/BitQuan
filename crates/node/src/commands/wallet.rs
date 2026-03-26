@@ -930,10 +930,7 @@ pub fn wallet_unlock(
     let sec_pw = bq_crypto::wallet::SecureString::new(password);
     match session.unlock(&sec_pw) {
         Ok(()) => {
-            println!(
-                "Wallet unlocked (timeout: {}s)",
-                timeout.as_secs()
-            );
+            println!("Wallet unlocked (timeout: {}s)", timeout.as_secs());
             Ok(())
         }
         Err(bq_crypto::wallet::SessionError::TooManyAttempts {
@@ -949,13 +946,9 @@ pub fn wallet_unlock(
             )))
         }
         Err(bq_crypto::wallet::SessionError::InvalidPassword) => {
-            Err(Error::Invalid(
-                "invalid password".to_string(),
-            ))
+            Err(Error::Invalid("invalid password".to_string()))
         }
-        Err(e) => Err(Error::Invalid(format!(
-            "unlock failed: {e}"
-        ))),
+        Err(e) => Err(Error::Invalid(format!("unlock failed: {e}"))),
     }
 }
 

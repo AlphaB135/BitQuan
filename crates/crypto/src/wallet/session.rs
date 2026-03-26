@@ -25,9 +25,7 @@ pub enum SessionError {
     #[error("session is locked")]
     SessionLocked,
     /// Too many failed attempts; caller must wait.
-    #[error(
-        "too many attempts ({attempts}); wait {wait_secs}s"
-    )]
+    #[error("too many attempts ({attempts}); wait {wait_secs}s")]
     TooManyAttempts {
         /// Consecutive failed unlock attempts.
         attempts: u32,
@@ -112,10 +110,7 @@ impl WalletSession {
     /// On failure an exponential backoff delay is enforced and
     /// the caller receives [`SessionError::TooManyAttempts`] if
     /// they must wait before trying again.
-    pub fn unlock(
-        &self,
-        password: &SecureString,
-    ) -> Result<(), SessionError> {
+    pub fn unlock(&self, password: &SecureString) -> Result<(), SessionError> {
         // Prevent concurrent unlock attempts (anti parallel brute-force).
         let _guard = self
             .unlock_mutex
@@ -172,9 +167,7 @@ impl WalletSession {
             .lock()
             .map_err(|_| SessionError::SessionLocked)?;
 
-        let cached = slot
-            .as_mut()
-            .ok_or(SessionError::SessionLocked)?;
+        let cached = slot.as_mut().ok_or(SessionError::SessionLocked)?;
 
         if cached.is_expired(self.timeout) {
             *slot = None;
@@ -199,27 +192,21 @@ impl WalletSession {
         self.unlocked_key
             .lock()
             .ok()
-            .and_then(|slot| {
-                slot.as_ref().map(|c| !c.is_expired(self.timeout))
-            })
+            .and_then(|slot| slot.as_ref().map(|c| !c.is_expired(self.timeout)))
             .unwrap_or(false)
     }
 
     /// Returns the current count of consecutive failed attempts.
     pub fn failed_attempts(&self) -> u32 {
-        self.failed_attempts
-            .lock()
-            .map(|a| *a)
-            .unwrap_or(0)
+        self.failed_attempts.lock().map(|a| *a).unwrap_or(0)
     }
 
     // -- private helpers -------------------------------------------
 
     fn record_failure(&self) {
-        if let (Ok(mut attempts), Ok(mut last)) = (
-            self.failed_attempts.lock(),
-            self.last_failed_at.lock(),
-        ) {
+        if let (Ok(mut attempts), Ok(mut last)) =
+            (self.failed_attempts.lock(), self.last_failed_at.lock())
+        {
             *attempts += 1;
             *last = Some(Instant::now());
         }
@@ -268,8 +255,7 @@ mod tests {
     fn make_keystore() -> Keystore {
         let private = SecurePrivateKey::new(vec![1, 2, 3, 4]);
         let password = SecureString::new("test-password".into());
-        Keystore::new(&private, &password, "bq1test".into())
-            .expect("keystore creation failed")
+        Keystore::new(&private, &password, "bq1test".into()).expect("keystore creation failed")
     }
 
     #[test]
@@ -332,8 +318,7 @@ mod tests {
     #[test]
     fn session_timeout() {
         let ks = make_keystore();
-        let session =
-            WalletSession::with_timeout(ks, Duration::from_millis(50));
+        let session = WalletSession::with_timeout(ks, Duration::from_millis(50));
         let pw = SecureString::new("test-password".into());
 
         session.unlock(&pw).expect("unlock failed");

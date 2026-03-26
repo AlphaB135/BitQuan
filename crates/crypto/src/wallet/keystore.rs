@@ -8,16 +8,14 @@ use zeroize::Zeroize;
 
 use super::{
     encryption::{EncryptedData, EncryptionError, Encryptor},
-    kdf::{CALIBRATION_TARGET_MS, KeyDerivation},
+    kdf::{KeyDerivation, CALIBRATION_TARGET_MS},
     secure_types::{SecurePrivateKey, SecureString},
 };
 
 /// Reconstructs a `KeyDerivation` from the parameters stored in
 /// `EncryptedData::kdf_params`, ensuring decrypt uses the same
 /// parameters that were used during encrypt.
-fn kdf_from_stored_params(
-    encrypted: &EncryptedData,
-) -> KeyDerivation {
+fn kdf_from_stored_params(encrypted: &EncryptedData) -> KeyDerivation {
     KeyDerivation::new(
         encrypted.kdf_params.memory_cost_kib,
         encrypted.kdf_params.time_cost,

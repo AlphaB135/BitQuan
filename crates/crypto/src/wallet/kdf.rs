@@ -127,13 +127,8 @@ impl KeyDerivation {
     /// wall-clock time, and adjusts iterations proportionally.
     ///
     /// Returns the calibrated `time_cost` value.
-    pub fn calibrate(
-        &mut self,
-        password: &SecureString,
-        target_ms: u64,
-    ) -> u32 {
-        let cal_salt =
-            Self::generate_salt().unwrap_or([0u8; 32]);
+    pub fn calibrate(&mut self, password: &SecureString, target_ms: u64) -> u32 {
+        let cal_salt = Self::generate_salt().unwrap_or([0u8; 32]);
 
         let mut tuned: u64 = self.time_cost as u64;
 
@@ -155,12 +150,10 @@ impl KeyDerivation {
             }
 
             // target : current :: target_cost : current_cost
-            let target_cost =
-                (self.time_cost as u64 * target_ms) / elapsed_ms;
+            let target_cost = (self.time_cost as u64 * target_ms) / elapsed_ms;
             // Weighted average with previous rounds.
             let round_u64 = round as u64;
-            tuned =
-                (round_u64 * tuned + target_cost) / (round_u64 + 1);
+            tuned = (round_u64 * tuned + target_cost) / (round_u64 + 1);
         }
 
         tuned = tuned.max(MIN_TIME_COST as u64);
