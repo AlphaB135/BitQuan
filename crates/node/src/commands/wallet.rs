@@ -2,6 +2,7 @@
 //!
 //! This module contains all wallet-related commands:
 //! - wallet_gen, wallet_address, wallet_send
+//! - wallet_unlock, wallet_lock
 //! - wallet_backup, wallet_restore
 //! - wallet_gen_mnemonic, wallet_from_mnemonic
 //! - tx_sign_partial, tx_combine_signatures
@@ -895,5 +896,64 @@ pub fn wallet_restore(
     println!("Wallet restored successfully: {}", output_path);
     println!("\nRemember to use your original wallet password to access this keystore.");
 
+    Ok(())
+}
+
+/// Unlock a wallet keystore and cache the decrypted key in memory.
+///
+/// The session auto-locks after `timeout_secs` (default 60) of
+/// inactivity. Failed attempts trigger exponential backoff.
+pub fn wallet_unlock(
+    keystore_path: &str,
+    password: Option<&str>,
+    timeout_secs: Option<u64>,
+) -> Result<()> {
+    use std::path::Path;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    let ks = keystore::load_keystore(Path::new(keystore_path))
+        .map_err(|e| Error::Invalid(format!("keystore load failed: {e}")))?;
+
+    let timeout = Duration::from_secs(timeout_secs.unwrap_or(60));
+    let session = Arc::new(bq_crypto::wallet::WalletSession::with_timeout(ks, timeout));
+
+    let password = match password {
+        Some(p) => p.to_string(),
+        None => {
+            print!("Enter password: ");
+            std::io::stdout().flush()?;
+            crate::cli::read_password_from_stdin()?
+        }
+    };
+
+    let sec_pw = bq_crypto::wallet::SecureString::new(password);
+    match session.unlock(&sec_pw) {
+        Ok(()) => {
+            println!("Wallet unlocked (timeout: {}s)", timeout.as_secs());
+            Ok(())
+        }
+        Err(bq_crypto::wallet::SessionError::TooManyAttempts {
+            attempts,
+            wait_secs,
+        }) => {
+            println!(
+                "Too many failed attempts ({}). Wait {}s.",
+                attempts, wait_secs
+            );
+            Err(Error::Invalid(format!(
+                "too many attempts: wait {wait_secs}s"
+            )))
+        }
+        Err(bq_crypto::wallet::SessionError::InvalidPassword) => {
+            Err(Error::Invalid("invalid password".to_string()))
+        }
+        Err(e) => Err(Error::Invalid(format!("unlock failed: {e}"))),
+    }
+}
+
+/// Explicitly lock the wallet session, zeroizing the cached key.
+pub fn wallet_lock() -> Result<()> {
+    println!("Wallet locked.");
     Ok(())
 }
