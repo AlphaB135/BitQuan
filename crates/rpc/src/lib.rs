@@ -94,7 +94,7 @@ impl Default for RpcConfig {
             rate_limit_requests: 100, // 100 requests per window
             rate_limit_window: 1,     // 1 minute window
             cooldown_duration: Duration::from_secs(5), // 5 second cooldown
-            require_jwt_auth: false,  // Disabled by default for backwards compatibility
+            require_jwt_auth: true,   // Require authentication by default
             jwt_max_age_secs: 60,     // Ethereum Engine API default
         }
     }
