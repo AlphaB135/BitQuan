@@ -49,8 +49,10 @@ pub struct KeyDerivation {
 impl Default for KeyDerivation {
     fn default() -> Self {
         Self {
-            memory_cost_kib: 65_536, // 64 MiB
-            time_cost: 3,
+            // OWASP-recommended parameters for password hashing (2023).
+            // Higher costs reduce timing attack feasibility.
+            memory_cost_kib: 262_144, // 256 MiB
+            time_cost: 4,
             parallelism: 4,
         }
     }

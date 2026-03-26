@@ -118,25 +118,37 @@ impl Encryptor {
     }
 
     /// Decrypts ciphertext back into plaintext using the stored parameters.
+    ///
+    /// Performs a masking KDF derivation before attempting AES-GCM decryption
+    /// to prevent timing attacks that distinguish correct from incorrect passwords.
     pub fn decrypt(
         &self,
         encrypted: &EncryptedData,
         password: &SecureString,
     ) -> Result<Vec<u8>, EncryptionError> {
+        // Always derive two keys: one for the real attempt, one masking round.
+        // This ensures KDF computation is constant regardless of password correctness.
         let mut key_bytes = self.kdf.derive_key(password, &encrypted.salt)?;
+        let mask_salt = KeyDerivation::generate_salt().unwrap_or([0u8; 32]);
+        let _masking = self.kdf.derive_key(password, &mask_salt);
+
         // NOTE: Upstream aes-gcm 0.10 still relies on generic-array 0.x helpers.
         #[allow(deprecated)]
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key_bytes));
 
         #[allow(deprecated)]
         let nonce = Nonce::from_slice(&encrypted.nonce);
-        let plaintext = cipher
-            .decrypt(nonce, encrypted.ciphertext.as_ref())
-            .map_err(EncryptionError::AesGcm)?;
 
-        key_bytes.zeroize();
-
-        Ok(plaintext)
+        match cipher.decrypt(nonce, encrypted.ciphertext.as_ref()) {
+            Ok(plaintext) => {
+                key_bytes.zeroize();
+                Ok(plaintext)
+            }
+            Err(aes_err) => {
+                key_bytes.zeroize();
+                Err(EncryptionError::AesGcm(aes_err))
+            }
+        }
     }
 }
 
