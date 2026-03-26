@@ -300,7 +300,7 @@ bitquan/
 
 **Do NOT open public issues for security vulnerabilities.**
 
-Email: security@bitquan.org
+Email: bitquan.dev@proton.me
 
 Response SLA:
 - Acknowledgment: 24 hours
@@ -371,7 +371,7 @@ See [LICENSE](LICENSE) for details.
 - Repository: https://github.com/AlphaB135/BitQuan
 - Issues: https://github.com/AlphaB135/BitQuan/issues
 - Discussions: https://github.com/AlphaB135/BitQuan/discussions
-- Security: security@bitquan.org
+- Security: bitquan.dev@proton.me
 
 ## Contributing
 
@@ -431,8 +431,8 @@ If you like this project, consider buying me a beer (or a server):
 ### Contact
 - **Issues**: https://github.com/AlphaB135/BitQuan/issues
 - **Discussions**: https://github.com/AlphaB135/BitQuan/discussions
-- **Security**: security@bitquan.org
-- **Email**: security@bitquan.org
+- **Security**: bitquan.dev@proton.me
+- **Email**: bitquan.dev@proton.me
 
 ---
 
