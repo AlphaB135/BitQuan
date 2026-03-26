@@ -349,7 +349,12 @@ pub async fn wallet_send(
             .get_block_by_height(0)
             .ok()
             .flatten()
-            .and_then(|block| block.transactions.first().map(|tx| (tx.network, tx.genesis_hash)))
+            .and_then(|block| {
+                block
+                    .transactions
+                    .first()
+                    .map(|tx| (tx.network, tx.genesis_hash))
+            })
             .unwrap_or((
                 bitquan_types::NetworkId::Mainnet,
                 bitquan_types::genesis::GENESIS_HASH_BYTES,
