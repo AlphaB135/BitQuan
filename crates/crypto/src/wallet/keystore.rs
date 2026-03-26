@@ -8,8 +8,22 @@ use zeroize::Zeroize;
 
 use super::{
     encryption::{EncryptedData, EncryptionError, Encryptor},
+    kdf::{CALIBRATION_TARGET_MS, KeyDerivation},
     secure_types::{SecurePrivateKey, SecureString},
 };
+
+/// Reconstructs a `KeyDerivation` from the parameters stored in
+/// `EncryptedData::kdf_params`, ensuring decrypt uses the same
+/// parameters that were used during encrypt.
+fn kdf_from_stored_params(
+    encrypted: &EncryptedData,
+) -> KeyDerivation {
+    KeyDerivation::new(
+        encrypted.kdf_params.memory_cost_kib,
+        encrypted.kdf_params.time_cost,
+        encrypted.kdf_params.parallelism,
+    )
+}
 
 /// Error type for keystore operations.
 #[derive(thiserror::Error, Debug)]
@@ -43,12 +57,19 @@ pub struct Keystore {
 
 impl Keystore {
     /// Constructs a new keystore from a plaintext private key and password.
+    ///
+    /// Automatically calibrates KDF parameters to target
+    /// `CALIBRATION_TARGET_MS` per derivation on the current hardware,
+    /// then stores the tuned parameters in the keystore for consistent
+    /// decryption performance.
     pub fn new(
         private_key: &SecurePrivateKey,
         password: &SecureString,
         address: String,
     ) -> Result<Self, KeystoreError> {
-        let encryptor = Encryptor::default();
+        let mut kdf = KeyDerivation::default();
+        kdf.calibrate(password, CALIBRATION_TARGET_MS);
+        let encryptor = Encryptor::with_kdf(kdf);
         let encrypted_private_key = encryptor.encrypt(private_key.as_slice(), password)?;
 
         Ok(Self {
@@ -61,7 +82,8 @@ impl Keystore {
 
     /// Decrypts the private key using the supplied password.
     pub fn unlock(&self, password: &SecureString) -> Result<SecurePrivateKey, KeystoreError> {
-        let encryptor = Encryptor::default();
+        let kdf = kdf_from_stored_params(&self.encrypted_private_key);
+        let encryptor = Encryptor::with_kdf(kdf);
         let plaintext = encryptor
             .decrypt(&self.encrypted_private_key, password)
             .map_err(|err| match err {
