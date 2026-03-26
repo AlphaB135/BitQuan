@@ -3,10 +3,10 @@
   <img src="https://raw.githubusercontent.com/AlphaB135/BitQuan/main/docs/img/BitQuan.png" alt="BitQuan Logo" width="200"/>
 </div>
 
-[![Fast PR](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/fast-pr.yml?branch=main&label=CI)](https://github.com/AlphaB135/BitQuan/actions/workflows/fast-pr.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/ci.yml?branch=main&label=CI)](https://github.com/AlphaB135/BitQuan/actions/workflows/ci.yml)
 [![Integration Tests](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/integration-tests.yml?branch=main&label=Integration)](https://github.com/AlphaB135/BitQuan/actions/workflows/integration-tests.yml)
 [![RPC Tests](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/rpc-tests.yml?branch=main&label=RPC)](https://github.com/AlphaB135/BitQuan/actions/workflows/rpc-tests.yml)
-[![Preflight](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/preflight.yml?branch=main&label=Preflight)](https://github.com/AlphaB135/BitQuan/actions/workflows/preflight.yml)
+[![Fast PR](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/fast-pr.yml?label=PR%20Checks)](https://github.com/AlphaB135/BitQuan/actions/workflows/fast-pr.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Rust](https://img.shields.io/badge/rust-stable-orange)](https://www.rust-lang.org)
 [![Post-Quantum](https://img.shields.io/badge/Cryptography-Dilithium5-purple)](https://csrc.nist.gov/Projects/post-quantum-cryptography)

@@ -12,7 +12,7 @@ on:
       - ".github/workflows/ci.yml"
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -96,9 +96,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: llvm-tools-preview
+      - name: Install nightly (for fuzz)
+        run: rustup toolchain install nightly --component llvm-tools-preview
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
       - uses: Swatinem/rust-cache@v2
