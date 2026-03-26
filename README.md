@@ -23,13 +23,13 @@ A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium
 | Cryptography | Complete | Dilithium5 signatures |
 | Data Integrity | Fixed | C1-C7 vulnerabilities resolved |
 | Documentation | Complete | Production guides, BQIPs |
-| Unit Tests | 600+ passing | 142+ consensus tests |
+| Unit Tests | 795+ passing | Consensus + integration + E2E |
 | Internal Audit | Complete | Security hardening done |
 | External Audit | Pending | Q3 2026 target |
 | Testnet | Q2 2026 | Public launch |
 | Mainnet | Q4 2026 | Post-audit |
 
-**Recent Fixes**: Data integrity (C1-C7), P2P sync, ASERT difficulty, unwrap elimination
+**Recent Fixes**: Keystore brute-force protection, KDF timing hardening, wallet session management, data integrity (C1-C7)
 
 ## Documentation Index
 
@@ -170,8 +170,13 @@ cargo test --all --locked
 
 ## CI Pipelines
 
-- **Fast PR** (`.github/workflows/fast-pr.yml`): Ubuntu-only, runs format, clippy (deny warnings & unwrap_used), cargo-deny, nextest, and coverage threshold (≥80% lines) without generating reports. Target: < 5–7 minutes.
-- **Full Matrix** (`.github/workflows/full-matrix.yml`): On push to `main` and nightly schedule. Tests on Ubuntu/macOS/Windows, generates HTML/LCOV coverage, builds extra targets (musl/aarch64/wasm), runs long fuzz, and nightly security audit.
+- **Fast PR** (`fast-pr.yml`): Ubuntu-only, format + clippy + cargo-deny + nextest + coverage threshold. Target: < 7 minutes.
+- **CI** (`ci.yml`): Full matrix (Ubuntu/macOS/Windows), clippy, docs, coverage, cargo-deny, fuzz build.
+- **Integration Tests** (`integration-tests.yml`): Multi-node, network, database, wallet, security, stress tests.
+- **RPC Tests** (`rpc-tests.yml`): JSON-RPC endpoint tests.
+- **Nightly** (`nightly.yml`): Coverage reporting, security audit.
+- **Release** (`release.yml`, `release-mainnet.yml`): Binary builds and deployment.
+- **Docker** (`docker-multiplatform.yml`): Multi-platform container builds.
 
 Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
 
@@ -205,8 +210,10 @@ Optional: add the `full-ci` label on a PR to run the full matrix on-demand.
 - **Block Weight System**: 4MB blocks with 384 weight units per PQC signature
 - **Difficulty Adjustment**: ASERT algorithm with integer fixed-point arithmetic
 - **Async P2P Networking**: High-performance async network layer with DoS protection
-- **JSON-RPC API**: Standard RPC interface
+- **JSON-RPC API**: Standard RPC interface with JWT authentication
 - **Stratum Mining Pool Support**: Stratum V1 protocol for pool mining
+- **Keystore Security**: Argon2id KDF with auto-tune, AES-256-GCM, brute-force protection
+- **Wallet Session**: Timeout-based key caching with exponential backoff lockout
 - **Memory Safety**: 14 unsafe blocks (all justified with SAFETY comments)
 
 ## Async Network Layer
@@ -258,18 +265,23 @@ Q4 2026: Mainnet launch (post-audit)
 
 ```
 bitquan/
-├── crates/          # Rust workspace crates
-│   ├── consensus/   # Consensus rules and validation
-│   ├── crypto/      # Cryptographic primitives
-│   ├── mempool/     # Transaction pool
-│   ├── network/     # P2P networking
-│   ├── node/        # Main node implementation
-│   ├── rpc/         # JSON-RPC server
-│   ├── storage/     # Database backend
-│   └── types/       # Core data structures
-├── docs/            # Documentation
-├── scripts/         # Utility scripts
-└── bindings/        # Language bindings
+├── crates/              # Rust workspace crates
+│   ├── consensus/       # Consensus rules and validation
+│   ├── crypto/          # Cryptographic primitives (Argon2id, AES-256-GCM, Dilithium5)
+│   ├── mempool/         # Transaction pool
+│   ├── network/         # P2P networking
+│   ├── node/            # Main node implementation
+│   ├── rpc/             # JSON-RPC server with JWT auth
+│   ├── storage/         # Database backend (RocksDB)
+│   ├── types/           # Core data structures
+│   ├── wallet/          # Advanced wallet (multisig, backup, adaptive KDF)
+│   ├── bitquan-cli/     # CLI wallet tool
+│   ├── bq-sdk/          # SDK for third-party integration
+│   ├── faucet/          # Testnet faucet service
+│   ├── pqc-dilithium-seeded/ # C reference Dilithium5 implementation
+│   └── tools/           # Preflight checker, stress tester
+├── docs/                # Documentation (32 sections, 26+ guides)
+└── scripts/             # Utility scripts
 ```
 
 ## Security
@@ -308,15 +320,16 @@ See [SECURITY.md](SECURITY.md) for full policy.
 ## Development Status
 
 Current version: v1.0-audit-20260204 (pre-mainnet)
-Tests: 600+ tests passing (unit + integration + E2E stress)
+Tests: 795+ tests passing (unit + integration + E2E stress)
 Recent Updates:
-- P2P TCP socket I/O implementation complete
-- Reward maturity integration tests (100-block maturity)
-- Noise Protocol encryption for P2P (ephemeral keys - V1)
-- GHOST Protocol with uncle block validation and tokenomics
-- Phase 4 ASERT difficulty (120s block time, 14,400s half-life)
+- Keystore brute-force protection (exponential backoff, progressive lockout)
+- KDF timing-constant password verification
+- Wallet session management with auto-tune Argon2id calibration
+- AES-256-GCM authenticated encryption with stored KDF parameters
+- RPC JWT authentication (default enabled)
+- P2P TCP socket I/O with Noise Protocol encryption
+- ASERT difficulty adjustment (120s block time, 14,400s half-life)
 - Data integrity hardening (C1-C7 vulnerabilities resolved)
-- Code cleanup and documentation improvements
 
 See [docs/archive/](docs/archive/) for historical audits and planning documents.
 
@@ -407,15 +420,13 @@ cargo clippy -- -D clippy::unwrap_used
 ./scripts/install-hooks.sh
 ```
 
-## Support
+## Support BitQuan Development
 
-BitQuan is a spare-time open-source project.
+If you like this project, consider buying me a beer (or a server):
 
-### Ways to Help
-- Star and share the repository
-- Report bugs via [GitHub Issues](https://github.com/AlphaB135/BitQuan/issues)
-- Submit pull requests (see [Contributing](#contributing))
-- Donate via [PayPal](https://paypal.me/AtsadawutKhunthong) for CI/audit costs
+**BTC:** `bc1qmm8ur3rv5cqmmlnh7ztyah2r747qvy8vff2v42`
+**ETH:** `0x8414c09BF901824dC11b742fB74E2D5504C0e1e5`
+**SOL:** `HexzqGPuBZxP6qpUb68693U4r4cirEbnEBRERqYE6pY2`
 
 ### Contact
 - **Issues**: https://github.com/AlphaB135/BitQuan/issues
