@@ -1,0 +1,452 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Packages ────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{amsmath,amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric}
+
+% ── Style ──────────────────────────────────────────────────────
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    urlcolor=blue!60!black,
+    citecolor=blue!60!black,
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small BitQuan Whitepaper}
+\fancyhead[R]{\small \thepage}
+\fancyfoot[C]{\small draft — 2026}
+
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{1em}{}
+
+% ── Listings ───────────────────────────────────────────────────
+\lstset{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{gray},
+    stringstyle=\color{red!70!black},
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+}
+
+% ── Title ──────────────────────────────────────────────────────
+\title{\textbf{BitQuan}\\[0.5em]
+\large A Post-Quantum Proof-of-Work Blockchain\\
+with CRYSTALS-Dilithium5 Signatures}
+
+\author{BitQuan Contributors}
+\date{Version 0.1 — March 2026}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+BitQuan is a proof-of-work blockchain that uses CRYSTALS-Dilithium5 digital signatures, standardized by NIST in FIPS 204, to provide post-quantum security from genesis. Unlike existing blockchains that rely on ECDSA or Ed25519 — both vulnerable to Shor's algorithm on a sufficiently powerful quantum computer — BitQuan achieves 256-bit classical and quantum security without requiring a future migration. This whitepaper describes the protocol design, consensus mechanism, cryptographic foundations, and security analysis of BitQuan.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ═══════════════════════════════════════════════════════════════
+\section{Introduction}
+% ═══════════════════════════════════════════════════════════════
+
+\subsection{The Quantum Threat}
+
+In 1994, Peter Shor demonstrated that a sufficiently large quantum computer could break the elliptic curve and discrete logarithm problems that underpin most blockchain signatures \cite{shor1994}. The National Institute of Standards and Technology (NIST) has warned that ``migration to post-quantum cryptography must begin now'' \cite{nist2024}.
+
+Current blockchain systems using ECDSA (Bitcoin, Ethereum) or Ed25519 (Solana, Cardano) face an existential risk: once a quantum computer with approximately 4,000 logical qubits is built, an attacker could derive private keys from public keys, forge signatures, and steal funds.
+
+\subsection{BitQuan's Approach}
+
+BitQuan addresses this threat by using CRYSTALS-Dilithium5 \cite{dilithium2024} as its sole signature scheme from genesis:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{NIST Standardized}: Selected by NIST in 2024 as FIPS 204, providing regulatory confidence
+    \item \textbf{Security Level 5}: 256-bit security against both classical and quantum adversaries
+    \item \textbf{No Migration Needed}: Unlike post-quantum upgrade proposals for existing chains, BitQuan requires no hard fork or user action
+    \item \textbf{50+ Year Horizon}: Designed to remain secure against quantum computers expected through 2075+
+\end{itemize}
+
+\subsection{Design Principles}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Security First}: Post-quantum cryptography as the foundation, not an add-on
+    \item \textbf{Simplicity}: UTXO model with minimal protocol complexity
+    \item \textbf{Memory Safety}: Implemented in Rust with \texttt{unsafe\_code = "forbid"}
+    \item \textbf{Transparency}: All transactions are publicly verifiable
+\end{enumerate}
+
+% ═══════════════════════════════════════════════════════════════
+\section{Background}
+% ═══════════════════════════════════════════════════════════════
+
+\subsection{Post-Quantum Cryptography}
+
+Post-quantum cryptography (PQC) refers to algorithms that are believed to be secure against both classical and quantum computers. NIST's Post-Quantum Cryptography Standardization Process (2016--2024) evaluated 82 submissions and selected CRYSTALS-Dilithium for digital signatures and CRYSTALS-Kyber for key encapsulation.
+
+\subsection{CRYSTALS-Dilithium}
+
+Dilithium is a lattice-based signature scheme based on the Module-Learning with Errors (MLWE) and Module-Small Integer Solution (MSIS) problems. Key properties:
+
+\begin{table}[H]
+\centering
+\caption{Dilithium Security Levels (NIST FIPS 204)}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Variant} & \textbf{Classical} & \textbf{Quantum} & \textbf{Signature Size} \\
+\midrule
+Dilithium2 & 128-bit & 128-bit & 2,420 bytes \\
+Dilithium3 & 192-bit & 192-bit & 3,309 bytes \\
+\textbf{Dilithium5} & \textbf{256-bit} & \textbf{256-bit} & \textbf{4,627 bytes} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+BitQuan uses Dilithium5 for maximum security margin.
+
+\subsection{Why Not Hybrid Mode?}
+
+A hybrid approach (ECDSA + Dilithium) provides a fallback if Dilithium is broken. However:
+
+\begin{itemize}[leftmargin=*]
+    \item Adds protocol complexity and larger transaction sizes
+    \item ECDSA provides no additional security against quantum adversaries
+    \item If Dilithium5 (NIST Level 5) is broken, all lattice-based cryptography is likely broken, making ECDSA irrelevant
+    \item BitQuan may add optional hybrid mode for interoperability in the future
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════
+\section{Protocol Design}
+% ═══════════════════════════════════════════════════════════════
+
+\subsection{Transaction Model}
+
+BitQuan uses the Unspent Transaction Output (UTXO) model, identical to Bitcoin:
+
+\begin{itemize}[leftmargin=*]
+    \item Each transaction consumes one or more UTXOs (inputs) and creates new UTXOs (outputs)
+    \item Double-spending is prevented by verifying that each input UTXO exists and has not been spent
+    \item Transaction malleability is addressed by signing the serialized transaction without scripts
+\end{itemize}
+
+\subsection{Transaction Structure}
+
+\begin{lstlisting}[caption={Transaction structure (simplified)}]
+struct Transaction {
+    version:    u32,
+    inputs:     Vec<TxIn>,
+    outputs:    Vec<TxOut>,
+    lock_time:  u64,
+    signatures: Vec<DilithiumSignature>,
+}
+
+struct TxIn {
+    prev_txid:  [u8; 32],   // Previous transaction hash
+    prev_index: u32,        // Output index in previous tx
+    script:     Vec<u8>,    // Unlocking script
+}
+
+struct TxOut {
+    value:     u64,         // Amount in qbits (1 BQ = 10^8 qbits)
+    script:     Vec<u8>,    // Locking script (P2PKH or P2SH)
+}
+\end{lstlisting}
+
+\subsection{Address Format}
+
+BitQuan addresses use bech32 encoding with human-readable part \texttt{bq}:
+
+\begin{table}[H]
+\centering
+\caption{Address Types}
+\begin{tabular}{@{}lcl@{}}
+\toprule
+\textbf{Type} & \textbf{Prefix} & \textbf{Description} \\
+\midrule
+P2PKH & \texttt{bq1q} & Pay to Public Key Hash \\
+P2SH & \texttt{bq1p} & Pay to Script Hash \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Address derivation:
+\begin{enumerate}
+    \item Generate Dilithium5 keypair $(pk, sk)$
+    \item Hash public key: $h = \text{BLAKE3}(pk)$
+    \item Encode: $\text{address} = \text{bech32}(\texttt{bq}, 0, h)$
+\end{enumerate}
+
+\subsection{Block Structure}
+
+\begin{lstlisting}[caption={Block structure (simplified)}]
+struct Block {
+    header: BlockHeader,
+    transactions: Vec<Transaction>,
+}
+
+struct BlockHeader {
+    version:       u32,
+    prev_hash:     [u8; 32],
+    merkle_root:   [u8; 32],
+    timestamp:     u64,
+    difficulty:    Compact,
+    nonce:         u64,
+    coinbase_tx:   Transaction,
+}
+\end{lstlisting}
+
+% ═══════════════════════════════════════════════════════════════
+\section{Consensus Mechanism}
+% ═══════════════════════════════════════════════════════════════
+
+\subsection{Proof-of-Work}
+
+BitQuan uses SHA-256d (double SHA-256) as the primary mining algorithm, identical to Bitcoin. A block is valid if:
+
+\begin{equation}
+    \text{SHA256d}(\text{block\_header}) < \text{target}
+\end{equation}
+
+where $\text{target}$ is derived from the compact difficulty bits.
+
+\subsection{ASERT Difficulty Adjustment}
+
+BitQuan uses Aserti3-2D (ASERT) for difficulty adjustment, providing smooth difficulty transitions without the staircase effect of Bitcoin's DAA:
+
+\begin{equation}
+    \Delta D = \left(\frac{\Delta t}{2 \cdot T_{1/2}}\right)^{\log_2{2}} \cdot \left(\frac{1 + \frac{1}{2048}}{1}\right)
+\end{equation}
+
+where $T_{1/2}$ is the half-life parameter (172,800 seconds = 2 days).
+
+\subsection{BurstGuard}
+
+BurstGuard is a novel spike protection mechanism that prevents difficulty manipulation through burst mining:
+
+\begin{itemize}[leftmargin=*]
+    \item Monitors block arrival rate in a sliding window
+    \item If rate exceeds $1.5\times$ normal, applies additional difficulty penalty
+    \item Prevents miners from submitting many blocks rapidly to lower difficulty
+\end{itemize}
+
+\subsection{Chain Selection}
+
+The chain with the highest cumulative difficulty is selected as the canonical chain. In case of a tie, the chain with the lower block hash wins.
+
+% ═══════════════════════════════════════════════════════════════
+\section{Cryptographic Module}
+% ═══════════════════════════════════════════════════════════════
+
+\subsection{Signature Scheme}
+
+\begin{table}[H]
+\centering
+\caption{BitQuan Cryptographic Stack}
+\begin{tabular}{@{}llp{5cm}@{}}
+\toprule
+\textbf{Component} & \textbf{Algorithm} & \textbf{Standard} \\
+\midrule
+Signatures & CRYSTALS-Dilithium5 & NIST FIPS 204 \\
+Key Derivation & Argon2id (256 MiB) & RFC 9106 \\
+Encryption & AES-256-GCM & NIST SP 800-38D \\
+Block Hashing & SHA-256d & NIST FIPS 180-4 \\
+Address Hash & BLAKE3 & BLAKE3 spec \\
+Mnemonic & BIP-39 & BIP-39 standard \\
+Random Numbers & OS CSPRNG & getrandom crate \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Wallet Security}
+
+Wallet private keys are protected by multiple layers:
+
+\begin{enumerate}
+    \item \textbf{Argon2id KDF}: 256 MiB memory, 3 time iterations, 1 parallelism — makes brute-force expensive
+    \item \textbf{AES-256-GCM}: Authenticated encryption prevents tampering with encrypted data
+    \item \textbf{Memory Locking}: \texttt{mlock()} prevents keys from being swapped to disk
+    \item \textbf{Zeroization}: \texttt{zeroize} crate ensures keys are securely erased on drop
+    \item \textbf{Constant-Time}: All comparisons use \texttt{subtle::ConstantTimeEq} to prevent timing attacks
+    \item \textbf{Brute-Force Protection}: Exponential backoff + progressive lockout after failed attempts
+\end{enumerate}
+
+\subsection{Signature Size Trade-off}
+
+Dilithium5 signatures are approximately 42$\times$ larger than ECDSA signatures:
+
+\begin{table}[H]
+\centering
+\caption{Signature Size Comparison}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& \textbf{ECDSA} & \textbf{Ed25519} & \textbf{Dilithium5} \\
+\midrule
+Public Key & 33 B & 32 B & 1,952 B \\
+Signature & 72 B & 64 B & 4,627 B \\
+Total & 105 B & 96 B & 6,579 B \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This is the primary trade-off for quantum resistance: fewer transactions per block, resulting in lower effective TPS. Mitigation strategies include:
+
+\begin{itemize}[leftmargin=*]
+    \item Larger block weight limit (4 MW)
+    \item Future signature aggregation (batch Dilithium)
+    \item Off-chain scaling solutions (payment channels)
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════
+\section{Security Analysis}
+% ═══════════════════════════════════════════════════════════════
+
+\subsection{Post-Quantum Security}
+
+BitQuan's security against quantum adversaries relies on the hardness of the Module-LWE and Module-SIS problems, which are believed to be hard even for quantum computers. NIST's thorough analysis during the standardization process provides confidence in this assumption.
+
+\subsection{Classical Security Properties}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Double-Spend Prevention}: UTXO model with hash-indexed lookup
+    \item \textbf{Transaction Immutability}: Merkle tree commitment in block header
+    \item \textbf{Sybil Resistance}: Proof-of-Work requires computational effort
+    \item \textbf{Eclipse Resistance}: Multiple bootstrap nodes, outbound peer diversity
+\end{itemize}
+
+\subsection{Implementation Security}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{No Unsafe Code}: \texttt{unsafe\_code = "forbid"} enforced at workspace level in Rust
+    \item \textbf{Memory Safety}: Rust's ownership system prevents buffer overflows, use-after-free, data races
+    \item \textbf{Strict Linting}: Clippy with \texttt{-D warnings} — all warnings are errors
+    \item \textbf{Fuzzing}: 24+ hour fuzzing campaigns with 0 crashes
+    \item \textbf{Dependency Auditing}: \texttt{cargo audit} and \texttt{cargo deny} in CI
+\end{itemize}
+
+For the full threat model, see \texttt{docs/THREAT\_MODEL.md} in the repository.
+
+% ═══════════════════════════════════════════════════════════════
+\section{Network Architecture}
+% ═══════════════════════════════════════════════════════════════
+
+\subsection{P2P Protocol}
+
+BitQuan uses a gossip protocol for block and transaction propagation:
+
+\begin{enumerate}
+    \item Nodes connect to bootstrap peers for initial peer discovery
+    \item New blocks and transactions are broadcast to all connected peers
+    \item Peers are scored: misbehavior increases ban score, exceeding threshold triggers disconnect
+    \item Rate limiting and message size limits prevent DoS
+\end{enumerate}
+
+\subsection{RPC Interface}
+
+The JSON-RPC API provides programmatic access to node functionality:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Blockchain}: \texttt{getblockcount}, \texttt{getblockchaininfo}, \texttt{getblockhash}
+    \item \textbf{Mining}: \texttt{getblocktemplate}, \texttt{submitblock}, \texttt{getmininginfo}
+    \item \textbf{Transactions}: \texttt{gettransaction}, \texttt{submittransaction}, \texttt{sendtoaddress}
+    \item \textbf{Network}: \texttt{getnetworkstatus}, \texttt{sync}
+    \item \textbf{Pool}: \texttt{getpoolstats}, \texttt{getminerstats}, \texttt{createpayout}
+\end{itemize}
+
+Authentication uses JWT tokens with HMAC-SHA256 signing.
+
+% ═══════════════════════════════════════════════════════════════
+\section{Performance}
+% ═══════════════════════════════════════════════════════════════
+
+\begin{table}[H]
+\centering
+\caption{Key Performance Metrics}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Operation} & \textbf{Time} \\
+\midrule
+Dilithium5 Key Generation & $\sim$1.2 ms \\
+Dilithium5 Sign & $\sim$0.8 ms \\
+Dilithium5 Verify & $\sim$0.5 ms \\
+Argon2id KDF (256 MiB) & $\sim$1.5 s \\
+Block Validation (100 tx) & $\sim$150 ms \\
+UTXO Lookup (indexed) & $\sim$0.01 ms \\
+Binary Size (stripped) & $\sim$5 MB \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For complete benchmark data, see \texttt{docs/benchmarks/README.md}.
+
+% ═══════════════════════════════════════════════════════════════
+\section{Comparison with Existing Solutions}
+% ═══════════════════════════════════════════════════════════════
+
+\begin{table}[H]
+\centering
+\caption{Feature Comparison}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+& \textbf{BitQuan} & \textbf{Bitcoin} & \textbf{Monero} & \textbf{Kaspa} \\
+\midrule
+Signatures & Dilithium5 & ECDSA & Ed25519 & ECDSA \\
+Quantum Safe & Yes & No & No & No \\
+UTXO Model & Yes & Yes & No & Yes \\
+Block Time & $\sim$10 min & $\sim$10 min & $\sim$2 min & $\sim$1 sec \\
+Language & Rust & C++ & C++ & Go/Rust \\
+Max Supply & 21M & 21M & Unlimited & Unlimited \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For detailed comparison, see \texttt{docs/COMPARISON.md}.
+
+% ═══════════════════════════════════════════════════════════════
+\section{Future Work}
+% ═══════════════════════════════════════════════════════════════
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Signature Aggregation}: Batch Dilithium verification to amortize signature overhead
+    \item \textbf{Hybrid Mode}: Optional ECDSA+Dilithium for interoperability with Bitcoin-like chains
+    \item \textbf{Payment Channels}: Lightning-style off-chain scaling
+    \item \textbf{Smart Contracts}: Minimal scripting language for programmable transactions
+    \item \textbf{Cross-Chain Bridges}: Trustless bridges to Bitcoin and Ethereum
+\end{enumerate}
+
+% ═══════════════════════════════════════════════════════════════
+\section{Conclusion}
+% ═══════════════════════════════════════════════════════════════
+
+BitQuan demonstrates that post-quantum blockchain security is achievable today using NIST-standardized cryptography. By adopting CRYSTALS-Dilithium5 at genesis, BitQuan eliminates the need for a risky migration that existing chains will face. The trade-off — larger signature sizes and lower effective TPS — is an acceptable cost for 50+ years of quantum resistance.
+
+% ═══════════════════════════════════════════════════════════════
+\begin{thebibliography}{9}
+\bibitem{shor1994} P. W. Shor, ``Algorithms for quantum computation: discrete logarithms and factoring,'' in Proceedings of the 35th Annual Symposium on Foundations of Computer Science, 1994.
+\bibitem{nist2024} NIST, ``Post-Quantum Cryptography Standardization,'' 2024. \url{https://csrc.nist.gov/projects/post-quantum-cryptography}
+\bibitem{dilithium2024} NIST, ``FIPS 204: Module-Lattice-Based Digital Signature Standard,'' 2024. \url{https://csrc.nist.gov/pubs/fips/204}
+\end{thebibliography}
+
+\end{document}
