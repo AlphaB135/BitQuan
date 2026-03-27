@@ -22,6 +22,16 @@ We welcome contributions that help deliver a post-quantum secure blockchain. Bef
 
 Thanks for helping secure BitQuan for the next 50+ years.
 
+## Security Reporting
+
+If you discover a security vulnerability, please report it responsibly:
+
+1. **Bug Bounty**: See [`docs/security/BUG_BOUNTY.md`](docs/security/BUG_BOUNTY.md) for scope and rewards
+2. **Direct contact**: bitquan.dev@proton.me
+3. **Coordinated disclosure**: 30-day window before public disclosure
+
+**Do not** open public issues for security vulnerabilities. Use the bug bounty program or direct contact.
+
 ## Logging Security
 
 **CRITICAL**: Never log sensitive data!
