@@ -1,6 +1,6 @@
 # BitQuan Project Metrics
 
-Last Updated: 2025-11-08
+Last Updated: 2026-03-27
 
 ## GitHub Metrics
 
@@ -71,6 +71,25 @@ Last Updated: 2025-11-08
 | Active Addresses | 100+ | 1,000+ | 10,000+ |
 | Daily Transactions | 100+ | 1,000+ | 10,000+ |
 | Network Hashrate | TBD | TBD | TBD |
+
+## Live Metrics (Prometheus)
+
+The node exposes real-time metrics in Prometheus format. See [DASHBOARD_PUBLIC.md](./DASHBOARD_PUBLIC.md) for setup.
+
+### Available Node Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `block_height` | Current chain height |
+| `connected_peers` | P2P peer count |
+| `mempool_size` | Pending transactions |
+| `bitquan_total_transactions` | Cumulative tx count |
+| `bitquan_blocks_per_hour` | Recent mining rate |
+| `bitquan_avg_block_time_seconds` | Block interval (last 100) |
+| `bitquan_active_miners` | Unique miners (24h) |
+| `bitquan_network_hashrate_hps` | Network hash rate |
+| `bitquan_total_blocks_mined` | Cumulative blocks |
+| `bitquan_uptime_seconds` | Node uptime |
 
 ## Next Steps
 
