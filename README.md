@@ -13,6 +13,19 @@
 
 A proof-of-work blockchain with post-quantum security using **CRYSTALS-Dilithium5** signatures.
 
+## Join Testnet
+
+Run a BitQuan testnet node in minutes:
+
+```bash
+git clone https://github.com/AlphaB135/BitQuan.git && cd BitQuan
+docker-compose up -d        # Docker
+# or
+./scripts/testnet-start.sh  # Build from source
+```
+
+See [Testnet Quickstart](docs/testnet/QUICKSTART.md) for full instructions.
+
 ## Project Status
 
 **Current Phase**: Pre-Testnet Development (March 2026)

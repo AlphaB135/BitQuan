@@ -1,52 +1,67 @@
-version: '3.8'
+version: "3.8"
+
+# BitQuan Testnet Stack
+# Usage: docker-compose up -d
+# Then visit http://localhost:3000 for Grafana dashboards
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:16-alpine
-    container_name: prompt_marketplace_db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: prompt_marketplace
+  bitquan-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bitquan-testnet
+    restart: unless-stopped
+    command: >
+      --network testnet
+      --datadir /data/testnet
+      --rpc
+      --rpc-bind 0.0.0.0:19443
+      --mine
+      --threads 2
     ports:
-      - "5433:5432"
+      - "19444:19444"  # P2P
+      - "19443:19443"  # RPC
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d
+      - bitquan-data:/data/testnet
+      - ./config/testnet.toml:/etc/bitquan/testnet.toml:ro
+    environment:
+      - RUST_LOG=info
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-sf", "http://localhost:19443/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  # Meilisearch Search Engine
-  meilisearch:
-    image: getmeili/meilisearch:v1.5
-    container_name: prompt_marketplace_search
-    environment:
-      MEILI_MASTER_KEY: masterKeyForDevelopmentOnly
-      MEILI_ENV: development
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: bitquan-prometheus
+    restart: unless-stopped
     ports:
-      - "7701:7700"
+      - "9090:9090"
     volumes:
-      - meilisearch_data:/meili_data
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
 
-  # MinIO Object Storage (S3 Compatible)
-  minio:
-    image: minio/minio:latest
-    container_name: prompt_marketplace_storage
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: bitquan-grafana
+    restart: unless-stopped
     ports:
-      - "9002:9000"
-      - "9003:9001"
+      - "3000:3000"
     volumes:
-      - minio_data:/data
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/bitquan.json:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
 
 volumes:
-  postgres_data:
-  meilisearch_data:
-  minio_data:
+  bitquan-data:
+  prometheus-data:
+  grafana-data:
