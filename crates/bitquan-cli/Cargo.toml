@@ -8,7 +8,7 @@ rust-version.workspace = true
 description.workspace = true
 
 [dependencies]
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = { version = "0.28", features = ["event-stream"] }
 tui-input = "0.10"
 tokio = { version = "1", features = ["full"] }
