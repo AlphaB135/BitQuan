@@ -29,7 +29,7 @@ rcgen = "0.14"
 # JWT Authentication
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 chrono = { version = "0.4", features = ["serde"] }
-hmac = "0.12"
+hmac = "0.13"
 sha2 = "0.10"
 rand = "0.8"
 argon2 = "0.5"

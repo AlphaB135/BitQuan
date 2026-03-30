@@ -35,7 +35,7 @@ chrono = "0.4"
 clap.workspace = true
 getrandom = "0.2"
 hex.workspace = true
-hmac = "0.12"
+hmac = "0.13"
 log = "0.4"
 nix = { version = "0.29", features = ["fs", "user"] }
 num_cpus = "1.16"
