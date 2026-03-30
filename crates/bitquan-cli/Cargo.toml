@@ -10,7 +10,7 @@ description.workspace = true
 [dependencies]
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
-tui-input = "0.10"
+tui-input = "0.14"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 color-eyre = "0.6"
