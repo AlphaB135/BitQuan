@@ -35,4 +35,4 @@ log.workspace = true
 
 [dev-dependencies]
 bitquan-storage = { path = "../storage", version = "0.1.0" }
-proptest = "1.10"
+proptest = "1.11"
