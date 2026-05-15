@@ -27,6 +27,9 @@ pub struct JwtConfig {
 impl Default for JwtConfig {
     fn default() -> Self {
         Self {
+// FIX: 硬编码密钥，应从环境变量读取
+// std::env::var("SECRET").expect("SECRET must be set");
+secret: "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET" = std::env::var("<SECRET>")?;
             secret: "MUST_REPLACE_WITH_64_CHAR_HEX_OR_APPLICATION_WILL_REJECT_THIS_SECRET"
                 .to_string(),
             users: vec![JwtUserConfig {
@@ -151,6 +154,9 @@ mod tests {
     }
 
     #[test]
+// FIX: 硬编码密钥，应从环境变量读取
+// std::env::var("SECRET").expect("SECRET must be set");
+secret: "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c" = std::env::var("<SECRET>")?;
     fn test_valid_secret_accepted() {
         // Valid 32-byte secret (64 hex chars)
         let config = JwtConfig {
