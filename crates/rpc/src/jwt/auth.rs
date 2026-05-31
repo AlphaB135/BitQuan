@@ -114,8 +114,8 @@ impl JwtAuth {
                 .token_gen
                 .generate(username, &creds.role)
                 .map_err(|e| e.to_string()),
-            Some(_) => Err("Invalid password".to_string()),
-            None => Err("User not found".to_string()),
+            Some(_) => Err("Invalid username or password".to_string()),
+            None => Err("Invalid username or password".to_string()),
         }
     }
 
@@ -137,8 +137,8 @@ impl JwtAuth {
                     .map_err(|e| e.to_string())?;
                 Ok((access_token, refresh_token))
             }
-            Some(_) => Err("Invalid password".to_string()),
-            None => Err("User not found".to_string()),
+            Some(_) => Err("Invalid username or password".to_string()),
+            None => Err("Invalid username or password".to_string()),
         }
     }
 

@@ -243,11 +243,16 @@ impl WalletBackup {
         let temp_path = path.with_extension("tmp");
 
         {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(&temp_path)?;
+            let mut opts = OpenOptions::new();
+            opts.write(true).create(true).truncate(true);
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                opts.mode(0o600); // SECURITY: Only owner can read/write backup
+            }
+
+            let mut file = opts.open(&temp_path)?;
             file.write_all(json.as_bytes())?;
             file.sync_all()?;
         }
@@ -290,15 +295,15 @@ fn derive_key(
 
 /// Computes HMAC-SHA256 for tamper detection
 fn compute_hmac(key: &[u8], salt: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Vec<u8> {
-    use sha2::{Digest, Sha256};
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
 
-    let mut hasher = Sha256::new();
-    hasher.update(key);
-    hasher.update(salt);
-    hasher.update(nonce);
-    hasher.update(ciphertext);
+    let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC can take key of any size");
+    mac.update(salt);
+    mac.update(nonce);
+    mac.update(ciphertext);
 
-    hasher.finalize().to_vec()
+    mac.finalize().into_bytes().to_vec()
 }
 
 #[cfg(test)]

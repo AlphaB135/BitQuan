@@ -437,11 +437,33 @@ impl Default for Mempool {
             warn!("RNG initialization failed during Mempool::default(): {}", e);
             // Create a minimal mempool without RNG for graceful degradation
             // Use deterministic seed for fallback to avoid panic
-            let rng = RngService::new().unwrap_or_else(|_| {
-                // If OS RNG fails, create a deterministic fallback using derive_stream
-                // First create a temporary service with known seed
+            let rng = RngService::new().unwrap_or_else(|e| {
+                // SECURITY (M-5): Never use all-zero seed — it makes RNG fully
+                // predictable and allows attackers to manipulate mempool ordering.
+                // Use timestamp-based seed as absolute minimum fallback.
+                // This is still weak (timestamps are guessable) but prevents the
+                // trivial all-zero prediction attack.
                 use rand::SeedableRng;
-                let seed = [0u8; 32]; // Deterministic seed for fallback
+                use std::time::{SystemTime, UNIX_EPOCH};
+
+                warn!(
+                    "CRITICAL SECURITY WARNING: OS RNG failed ({}), using timestamp-based \
+                     fallback seed. Mempool ordering entropy is degraded. \
+                     Investigate and fix OS RNG immediately!",
+                    e
+                );
+
+                let timestamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                let pid = std::process::id() as u128;
+                let entropy = timestamp ^ (pid << 64);
+
+                let mut seed = [0u8; 32];
+                seed[..16].copy_from_slice(&entropy.to_le_bytes());
+                seed[16..].copy_from_slice(&(!entropy).to_le_bytes());
+
                 let drbg = rand_chacha::ChaCha20Rng::from_seed(seed);
                 let temp_service = RngService {
                     drbg,

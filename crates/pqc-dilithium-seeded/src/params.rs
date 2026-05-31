@@ -72,4 +72,4 @@ pub const SECRETKEYBYTES: usize = 3 * SEEDBYTES
 pub const SIGNBYTES: usize =
   SEEDBYTES + mode_params::L * POLYZ_PACKEDBYTES + POLYVECH_PACKEDBYTES;
 
-pub const RANDOMIZED_SIGNING: bool = cfg!(feature = "random_signing");
+pub const RANDOMIZED_SIGNING: bool = true; // Always true for security

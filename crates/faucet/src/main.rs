@@ -83,14 +83,32 @@ struct RpcResponse {
     error: Option<serde_json::Value>,
 }
 
-/// Extract real client IP from X-Forwarded-For header if present
-/// This is important when running behind a reverse proxy (nginx, cloudflare, etc.)
+/// Extract real client IP for rate limiting.
+///
+/// SECURITY: By default, uses the socket peer address (cannot be spoofed).
+/// Only trusts X-Forwarded-For / X-Real-IP headers when the connection
+/// comes from a TRUSTED_PROXY (set via environment variable).
 fn extract_real_ip(headers: &warp::http::HeaderMap, socket_addr: Option<SocketAddr>) -> String {
-    // Try X-Forwarded-For header first
+    let peer_ip = socket_addr
+        .map(|a| a.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // Only trust forwarded headers if TRUSTED_PROXY env var is set
+    // and the direct peer IP matches the trusted proxy address.
+    let trusted_proxy = env::var("TRUSTED_PROXY").ok();
+    let is_trusted = trusted_proxy
+        .as_ref()
+        .map(|tp| tp == &peer_ip)
+        .unwrap_or(false);
+
+    if !is_trusted {
+        return peer_ip;
+    }
+
+    // Peer is the trusted proxy — extract client IP from forwarded headers
     if let Some(forwarded) = headers.get("x-forwarded-for") {
         if let Ok(forwarded_str) = forwarded.to_str() {
-            // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
-            // We take the FIRST one (original client)
+            // X-Forwarded-For: "client, proxy1, proxy2" — take first (original client)
             if let Some(client_ip) = forwarded_str.split(',').next() {
                 let ip = client_ip.trim();
                 if !ip.is_empty() {
@@ -100,7 +118,6 @@ fn extract_real_ip(headers: &warp::http::HeaderMap, socket_addr: Option<SocketAd
         }
     }
 
-    // Fallback to X-Real-IP header
     if let Some(real_ip) = headers.get("x-real-ip") {
         if let Ok(real_ip_str) = real_ip.to_str() {
             let ip = real_ip_str.trim();
@@ -110,10 +127,8 @@ fn extract_real_ip(headers: &warp::http::HeaderMap, socket_addr: Option<SocketAd
         }
     }
 
-    // Fallback to socket address (direct connection)
-    socket_addr
-        .map(|a| a.ip().to_string())
-        .unwrap_or_else(|| "unknown".to_string())
+    // Fallback to socket address
+    peer_ip
 }
 
 async fn send_to_address(config: &FaucetConfig, address: &str) -> Result<String> {
@@ -217,8 +232,10 @@ async fn main() -> Result<()> {
 
     let rpc_url =
         env::var("BITQUAN_RPC_URL").unwrap_or_else(|_| "http://127.0.0.1:8332".to_string());
-    let rpc_user = env::var("BITQUAN_RPC_USER").unwrap_or_else(|_| "user".to_string());
-    let rpc_pass = env::var("BITQUAN_RPC_PASS").unwrap_or_else(|_| "pass".to_string());
+    let rpc_user = env::var("BITQUAN_RPC_USER")
+        .expect("BITQUAN_RPC_USER env var must be set — refusing to start with default credentials");
+    let rpc_pass = env::var("BITQUAN_RPC_PASS")
+        .expect("BITQUAN_RPC_PASS env var must be set — refusing to start with default credentials");
     let drip_amount = env::var("FAUCET_DRIP_AMOUNT")
         .ok()
         .and_then(|s| s.parse().ok())

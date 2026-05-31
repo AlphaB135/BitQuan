@@ -206,6 +206,8 @@ impl Mnemonic {
             )));
         }
 
+        use bip39::{Mnemonic as Bip39Mnemonic, Language};
+        
         let entropy_bytes = entropy_bits / 8;
         let mut entropy = vec![0u8; entropy_bytes];
 
@@ -225,29 +227,13 @@ impl Mnemonic {
             }
         }
 
-        // Convert to words (simplified BIP39 implementation)
-        let word_count = entropy_bits.div_ceil(11); // 11 bits per word
-        let mut words = Vec::with_capacity(word_count);
+        let bip39_mnemonic = Bip39Mnemonic::from_entropy(&entropy, Language::English)
+            .map_err(|_| WalletError::KeyGenerationFailed("Invalid entropy".to_string()))?;
 
-        for i in 0..word_count {
-            let bit_start = i * 11;
-            let bit_end = (bit_start + 11).min(entropy_bits);
-
-            if bit_end <= entropy_bits {
-                let mut word_index = 0u16;
-                for bit in bit_start..bit_end {
-                    let byte_index = bit / 8;
-                    let bit_offset = bit % 8;
-
-                    if (entropy[byte_index] >> bit_offset) & 1 == 1 {
-                        word_index |= 1 << (bit - bit_start);
-                    }
-                }
-
-                // Use standard BIP39 wordlist (simplified)
-                words.push(format!("word{}", word_index));
-            }
-        }
+        let words: Vec<String> = bip39_mnemonic
+            .word_iter()
+            .map(|w| w.to_string())
+            .collect();
 
         Ok(Self {
             words,
@@ -259,18 +245,18 @@ impl Mnemonic {
 
     /// Parse mnemonic from string
     pub fn from_str(mnemonic: &str, quantum_enhanced: bool) -> Result<Self> {
-        let words: Vec<String> = mnemonic
-            .split_whitespace()
-            .map(|w| w.to_lowercase())
+        use bip39::{Mnemonic as Bip39Mnemonic, Language};
+        
+        // Validate with bip39
+        let bip39_mnemonic = Bip39Mnemonic::from_phrase(mnemonic, Language::English)
+            .map_err(|_| WalletError::InvalidMnemonic("Invalid BIP-39 mnemonic".to_string()))?;
+
+        let words: Vec<String> = bip39_mnemonic
+            .word_iter()
+            .map(|w| w.to_string())
             .collect();
-
-        if words.is_empty() {
-            return Err(SDKError::Wallet(WalletError::InvalidMnemonic(
-                "Empty mnemonic".to_string(),
-            )));
-        }
-
-        let entropy_bits = (words.len() * 11) - (words.len() * 11) % 32;
+            
+        let entropy_bits = bip39_mnemonic.entropy().len() * 8;
 
         Ok(Self {
             words,
@@ -287,20 +273,20 @@ impl Mnemonic {
 
     /// Generate seed from mnemonic
     pub fn to_seed(&self, passphrase: &str) -> Result<[u8; 64]> {
-        use hmac::{Hmac, Mac};
+        use pbkdf2::pbkdf2;
+        use hmac::Hmac;
         use sha2::Sha512;
 
         let mnemonic_str = self.as_string();
         let salt = format!("mnemonic{}", passphrase);
 
-        let mut mac = Hmac::<Sha512>::new_from_slice(salt.as_bytes())
-            .map_err(|e| WalletError::KeyGenerationFailed(e.to_string()))?;
-
-        mac.update(mnemonic_str.as_bytes());
-        let result = mac.finalize().into_bytes();
-
         let mut seed = [0u8; 64];
-        seed.copy_from_slice(&result[..64]);
+        pbkdf2::<Hmac<Sha512>>(
+            mnemonic_str.as_bytes(),
+            salt.as_bytes(),
+            2048,
+            &mut seed,
+        );
 
         Ok(seed)
     }
@@ -598,6 +584,41 @@ impl Wallet for SimpleWallet {
             return Err(SDKError::Wallet(WalletError::WalletLocked));
         }
 
+        // Compute sighash: SHA-256 over all inputs (prev_txid, prev_vout) and
+        // all outputs (amount, script_pubkey) to commit to the transaction data.
+        let sighash = {
+            let mut hasher = sha2::Sha256::new();
+
+            // Commit to all inputs
+            for inp in psbt.inputs.iter() {
+                if let Some(txid_bytes) = inp.get_field(
+                    &crate::psbt::InputKey::PreviousTxid([0u8; 32]),
+                ) {
+                    hasher.update(txid_bytes);
+                }
+                if let Some(vout_bytes) = inp.get_field(
+                    &crate::psbt::InputKey::PreviousOutputIndex(0),
+                ) {
+                    hasher.update(vout_bytes);
+                }
+            }
+
+            // Commit to all outputs
+            for out in psbt.outputs.iter() {
+                if let Some(amount) = out.get_amount() {
+                    hasher.update(&amount.to_le_bytes());
+                }
+                if let Some(script) = out.get_script_pubkey() {
+                    hasher.update(&script);
+                }
+            }
+
+            let hash = hasher.finalize();
+            let mut sighash = [0u8; 32];
+            sighash.copy_from_slice(&hash);
+            sighash
+        };
+
         // Sign each input that needs signing
         for (i, input) in psbt.inputs.iter_mut().enumerate() {
             if input.get_dilithium_signature().is_none() {
@@ -605,8 +626,6 @@ impl Wallet for SimpleWallet {
                 let path = DerivationPath::bq_standard(0, 0, i as u32);
                 let keypair = self.derive_key(&path)?;
 
-                // Sign the input (simplified - need proper sighash)
-                let sighash = [0u8; 32]; // Would compute actual sighash
                 let signature = keypair.sign(&sighash)?;
 
                 input.set_dilithium_signature(signature);

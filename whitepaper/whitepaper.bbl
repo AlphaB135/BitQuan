@@ -1,0 +1,18 @@
+\begin{thebibliography}{1}
+
+\bibitem{shor1994}
+P.~W. Shor, ``Algorithms for quantum computation: Discrete logarithms and factoring,'' in {\em Proceedings of the 35th Annual Symposium on Foundations of Computer Science}, pp.~124--134, IEEE, 1994.
+
+\bibitem{nist2024}
+{National Institute of Standards and Technology}, ``Post-quantum cryptography standardization.'' \url{https://csrc.nist.gov/projects/post-quantum-cryptography}, 2024.
+
+\bibitem{dilithium2024}
+{National Institute of Standards and Technology}, ``{FIPS 204}: Module-lattice-based digital signature standard.'' \url{https://csrc.nist.gov/pubs/fips/204}, 2024.
+
+\bibitem{sike2022}
+W.~Castryck and T.~Decru, ``An efficient key recovery attack on {SIDH},'' in {\em Advances in Cryptology -- EUROCRYPT 2023}, Springer, 2023.
+
+\bibitem{asert}
+M.~Degraaf, J.~Toomim, and T.~van~der Wansem, ``{Aserti3-2D}: Dynamic difficulty adjustment for {Bitcoin Cash}.'' \url{https://github.com/bitcoincashorg/bitcoincash-upgrade-specifications/blob/master/0003-aserti3-2d.md}, 2021.
+
+\end{thebibliography}

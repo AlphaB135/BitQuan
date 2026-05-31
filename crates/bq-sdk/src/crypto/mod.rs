@@ -60,28 +60,26 @@ impl DilithiumKeyPair {
         })
     }
 
-    /// Generate from seed
+    /// Generate deterministic keypair from seed
     pub fn from_seed(seed: &[u8]) -> Result<Self> {
-        // In a real implementation, this would use proper KDF
-        // For now, use seed to generate deterministic keypair
         use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
         hasher.update(seed);
         let hash = hasher.finalize();
 
-        // Use hash as entropy for key generation
-        let mut entropy = [0u8; 32];
+        // Derive SEEDBYTES (32) bytes of entropy from the seed via SHA-256
+        let mut entropy = [0u8; 32]; // SEEDBYTES == 32
         entropy.copy_from_slice(&hash);
 
-        // Generate keypair using entropy (simplified)
-        let keypair = DilithiumKeypair::generate();
-
+        // Generate deterministic keypair using the derived entropy
         let mut public_key = [0u8; PUBLICKEYBYTES];
-        public_key.copy_from_slice(&keypair.public);
-
         let mut private_key = [0u8; SECRETKEYBYTES];
-        private_key.copy_from_slice(keypair.expose_secret());
+        pqc_dilithium_seeded::crypto_sign_keypair(
+            &mut public_key,
+            &mut private_key,
+            Some(&entropy),
+        );
 
         Ok(Self {
             public_key,
@@ -291,9 +289,8 @@ impl ConstantTime {
 
     /// Constant-time zeroization
     pub fn zeroize(data: &mut [u8]) {
-        for byte in data.iter_mut() {
-            *byte = 0;
-        }
+        use zeroize::Zeroize;
+        data.zeroize();
     }
 }
 

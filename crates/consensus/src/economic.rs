@@ -98,6 +98,9 @@ impl GeographicRegion {
 
         match ip {
             IpAddr::V4(ipv4) => {
+                if ipv4.is_private() || ipv4.is_loopback() || ipv4.is_link_local() || ipv4.is_broadcast() || ipv4.is_documentation() || ipv4.is_unspecified() {
+                    return Ok("XX".to_string());
+                }
                 // Simplified IP range mapping for major regions
                 // US IP ranges (key ranges)
                 if Ipv4Net::from_str("64.0.0.0/8")
@@ -570,8 +573,12 @@ impl GeographicRegion {
                     Ok("XX".to_string()) // Unknown for other IPs
                 }
             }
-            IpAddr::V6(_) => {
-                // For IPv6, default to unknown for now
+            IpAddr::V6(ipv6) => {
+                if ipv6.is_loopback() || ipv6.is_unspecified() || ipv6.is_multicast() {
+                    return Ok("XX".to_string());
+                }
+                // Very simplified IPv6 mapping
+                let segments = ipv6.segments();
                 Ok("XX".to_string())
             }
         }
@@ -902,8 +909,13 @@ impl EconomicManager {
             return Err(EconomicError::CooldownActive);
         }
 
-        // Security: Check maximum stake
-        let new_total = stake_info.staked_amount + amount;
+        // Security: Check for u64 overflow before adding stake (H-8)
+        let new_total = stake_info.staked_amount.checked_add(amount).ok_or(
+            EconomicError::StakeOverflow {
+                current: stake_info.staked_amount,
+                additional: amount,
+            },
+        )?;
         if new_total > self.config.max_stake_amount {
             return Err(EconomicError::ExcessiveStake {
                 maximum: self.config.max_stake_amount,
@@ -917,7 +929,13 @@ impl EconomicManager {
         stake_info.stake_lock_time = Some(now); // Start time-lock for new stake
         stake_info.is_bonded = true;
 
-        self.total_staked += amount;
+        // Security: Check for u64 overflow on total_staked (H-8)
+        self.total_staked = self.total_staked.checked_add(amount).ok_or(
+            EconomicError::StakeOverflow {
+                current: self.total_staked,
+                additional: amount,
+            },
+        )?;
         self.update_time_locked_stakes();
         self.update_stats();
 
@@ -1370,18 +1388,29 @@ impl EconomicManager {
         }
     }
 
-    /// Generates unique event ID
+    /// Generates unique event ID using blake3 for collision resistance.
+    ///
+    /// # Security (L-10)
+    /// Previously used `DefaultHasher` (SipHash-1-3) which is not
+    /// collision-resistant under adversarial conditions. Replaced with
+    /// blake3 to ensure event IDs are cryptographically unique.
     fn generate_event_id(&self, prefix: &str) -> String {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        SystemTime::now()
+        let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
-            .hash(&mut hasher);
+            .as_nanos();
+        let pid = std::process::id();
 
-        format!("{}_{}_{:x}", prefix, std::process::id(), hasher.finish())
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&timestamp.to_le_bytes());
+        hasher.update(&pid.to_le_bytes());
+        hasher.update(prefix.as_bytes());
+        // Include total_staked as additional entropy source
+        hasher.update(&self.total_staked.to_le_bytes());
+        let hash = hasher.finalize();
+
+        // Use first 16 hex chars (64 bits) for the ID — sufficient for uniqueness
+        format!("{}_{}_{}", prefix, pid, &hash.to_hex()[..16])
     }
 
     /// Processes unbonding completions
@@ -1681,6 +1710,15 @@ pub enum EconomicError {
         id: String,
         /// The completion time for unbonding
         completion_time: u64,
+    },
+
+    /// Stake arithmetic overflow (H-8)
+    #[error("stake overflow: current {current} + additional {additional} exceeds u64::MAX")]
+    StakeOverflow {
+        /// The current stake amount before the operation
+        current: u64,
+        /// The additional amount that caused the overflow
+        additional: u64,
     },
 }
 

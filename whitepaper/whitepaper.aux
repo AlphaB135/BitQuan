@@ -1,0 +1,116 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{shor1994}
+\citation{nist2024}
+\citation{dilithium2024}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{4}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.1}The Quantum Threat}{4}{subsection.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {1.1.1}Shor's Algorithm and Blockchain Impact}{4}{subsubsection.1.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {1.1.2}Quantum Computing Timeline}{4}{subsubsection.1.1.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Quantum Computing Milestones and Blockchain Risk}}{4}{table.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:quantum-timeline}{{1}{4}{Quantum Computing Milestones and Blockchain Risk}{table.caption.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2}BitQuan's Approach}{5}{subsection.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.3}Design Principles}{5}{subsection.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.4}Monetary Policy}{5}{subsection.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Background}{5}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Post-Quantum Cryptography}{5}{subsection.2.1}\protected@file@percent }
+\citation{sike2022}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.1.1}Hardness Assumptions}{6}{subsubsection.2.1.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces PQC Problem Families}}{6}{table.caption.2}\protected@file@percent }
+\newlabel{tab:pqc-families}{{2}{6}{PQC Problem Families}{table.caption.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}CRYSTALS-Dilithium}{6}{subsection.2.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Dilithium Security Levels (NIST FIPS~204)}}{6}{table.caption.3}\protected@file@percent }
+\newlabel{tab:dilithium-levels}{{3}{6}{Dilithium Security Levels (NIST FIPS~204)}{table.caption.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.1}Dilithium Algorithm Overview}{6}{subsubsection.2.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Why Not Hybrid Mode?}{7}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}BLAKE3 Hash Function}{7}{subsection.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Protocol Design}{7}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Transaction Model}{7}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.1}Formal UTXO Model}{8}{subsubsection.3.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.2}Transaction Walkthrough}{8}{subsubsection.3.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Transaction Lifecycle}{8}{subsection.3.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Transaction lifecycle from creation to confirmation.}}{8}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:tx-lifecycle}{{1}{8}{Transaction lifecycle from creation to confirmation}{figure.caption.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Transaction Structure}{9}{subsection.3.3}\protected@file@percent }
+\newlabel{lst:tx-struct}{{1}{9}{Transaction and UTXO structures (simplified Rust)}{lstlisting.1}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}{\ignorespaces Transaction and UTXO structures (simplified Rust).}}{9}{lstlisting.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Address Format}{9}{subsection.3.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Address Types}}{9}{table.caption.5}\protected@file@percent }
+\newlabel{tab:address-types}{{4}{9}{Address Types}{table.caption.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5}Block Structure}{9}{subsection.3.5}\protected@file@percent }
+\newlabel{lst:block-struct}{{2}{9}{Block and BlockHeader structures (simplified Rust)}{lstlisting.2}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}{\ignorespaces Block and BlockHeader structures (simplified Rust).}}{9}{lstlisting.2}\protected@file@percent }
+\citation{asert}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Consensus Mechanism}{10}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Proof-of-Work}{10}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}Compact Difficulty Encoding}{10}{subsubsection.4.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}Hybrid Mining (Testnet)}{10}{subsubsection.4.1.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Mining Algorithms by Network}}{10}{table.caption.6}\protected@file@percent }
+\newlabel{tab:mining-algos}{{5}{10}{Mining Algorithms by Network}{table.caption.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}ASERT Difficulty Adjustment}{10}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}BurstGuard}{11}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Chain Selection}{11}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Cryptographic Module}{11}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Cryptographic Stack}{11}{subsection.5.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces BitQuan Cryptographic Stack}}{11}{table.caption.7}\protected@file@percent }
+\newlabel{tab:crypto-stack}{{6}{11}{BitQuan Cryptographic Stack}{table.caption.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Wallet Security}{12}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.1}Argon2id KDF Parameters}{12}{subsubsection.5.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces KDF Parameter Comparison}}{12}{table.caption.8}\protected@file@percent }
+\newlabel{tab:kdf-params}{{7}{12}{KDF Parameter Comparison}{table.caption.8}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.2}Brute-Force Lockout Schedule}{12}{subsubsection.5.2.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Progressive Lockout Schedule}}{12}{table.caption.9}\protected@file@percent }
+\newlabel{tab:lockout}{{8}{12}{Progressive Lockout Schedule}{table.caption.9}{}}
+\citation{nakamoto2008}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Signature Size Trade-off}{13}{subsection.5.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Signature Size Comparison}}{13}{table.caption.10}\protected@file@percent }
+\newlabel{tab:sig-sizes}{{9}{13}{Signature Size Comparison}{table.caption.10}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Security Analysis}{13}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Post-Quantum Security}{13}{subsection.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.1.1}Security Level Analysis}{13}{subsubsection.6.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.1.2}``Harvest Now, Decrypt Later'' Resistance}{13}{subsubsection.6.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Attacker Success Probability}{13}{subsection.6.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Attacker Success Probability for Varying $q$ and Confirmation Count $z$}}{14}{table.caption.11}\protected@file@percent }
+\newlabel{tab:attacker-prob}{{10}{14}{Attacker Success Probability for Varying $q$ and Confirmation Count $z$}{table.caption.11}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Classical Security Properties}{14}{subsection.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Implementation Security}{14}{subsection.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.4.1}STRIDE Threat Model Summary}{15}{subsubsection.6.4.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces STRIDE Analysis Summary}}{15}{table.caption.12}\protected@file@percent }
+\newlabel{tab:stride}{{11}{15}{STRIDE Analysis Summary}{table.caption.12}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Network Architecture}{15}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}P2P Protocol}{15}{subsection.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.1}Network Architecture Diagram}{15}{subsubsection.7.1.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Node architecture with trust boundary.}}{15}{figure.caption.13}\protected@file@percent }
+\newlabel{fig:network-arch}{{2}{15}{Node architecture with trust boundary}{figure.caption.13}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.2}P2P Message Types}{16}{subsubsection.7.1.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces P2P Message Types}}{16}{table.caption.14}\protected@file@percent }
+\newlabel{tab:p2p-messages}{{12}{16}{P2P Message Types}{table.caption.14}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}RPC Interface}{16}{subsection.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Performance}{16}{section.8}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {13}{\ignorespaces Key Performance Metrics}}{16}{table.caption.15}\protected@file@percent }
+\newlabel{tab:perf-metrics}{{13}{16}{Key Performance Metrics}{table.caption.15}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Effective TPS Analysis}{17}{subsection.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Limitations and Trade-offs}{17}{subsection.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9}Comparison with Existing Solutions}{17}{section.9}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces Feature Comparison}}{17}{table.caption.16}\protected@file@percent }
+\newlabel{tab:feature-comparison}{{14}{17}{Feature Comparison}{table.caption.16}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.1}Security Comparison}{18}{subsection.9.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Security Model Comparison}}{18}{table.caption.17}\protected@file@percent }
+\newlabel{tab:security-comparison}{{15}{18}{Security Model Comparison}{table.caption.17}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {10}Future Work}{18}{section.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.1}Development Roadmap}{18}{subsection.10.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Development Roadmap}}{18}{table.caption.18}\protected@file@percent }
+\newlabel{tab:roadmap}{{16}{18}{Development Roadmap}{table.caption.18}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {11}Conclusion}{18}{section.11}\protected@file@percent }
+\bibstyle{ieeetr}
+\bibdata{references}
+\bibcite{shor1994}{1}
+\bibcite{nist2024}{2}
+\bibcite{dilithium2024}{3}
+\bibcite{sike2022}{4}
+\bibcite{asert}{5}
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.1}Call to Action}{19}{subsection.11.1}\protected@file@percent }
+\gdef \@abspage@last{19}

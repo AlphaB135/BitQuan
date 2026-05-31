@@ -49,15 +49,30 @@ async fn rpc_post(
     method: &str,
     params: serde_json::Value,
 ) -> std::result::Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
-    let resp = client
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to build client: {e}"))?;
+
+    let mut req = client
         .post(RPC_URL)
         .json(&serde_json::json!({
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
             "id": 1
-        }))
+        }));
+
+    if let Ok(token) = std::env::var("BITQUAN_RPC_TOKEN") {
+        req = req.bearer_auth(token);
+    } else if let Ok(auth) = std::env::var("BITQUAN_RPC_AUTH") {
+        let parts: Vec<&str> = auth.splitn(2, ':').collect();
+        if parts.len() == 2 {
+            req = req.basic_auth(parts[0], Some(parts[1]));
+        }
+    }
+
+    let resp = req
         .send()
         .await
         .map_err(|e| format!("Connection failed: {e}"))?;

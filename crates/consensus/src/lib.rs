@@ -912,7 +912,12 @@ fn validate_transaction_fees(
     Ok(())
 }
 
-/// Calculates merkle root from transactions
+/// Calculates merkle root from transactions.
+///
+/// # Security
+/// Includes mitigation for CVE-2012-2459: rejects blocks where the last two
+/// transactions are identical, which would allow an attacker to mutate the
+/// transaction list while preserving the merkle root.
 pub fn calculate_merkle_root(
     transactions: &[bitquan_types::Transaction],
 ) -> Result<[u8; 32], ConsensusError> {
@@ -922,6 +927,15 @@ pub fn calculate_merkle_root(
 
     // Calculate transaction hashes
     let mut hashes: Vec<[u8; 32]> = transactions.iter().map(hash_transaction).collect();
+
+    // CVE-2012-2459: Reject blocks where the last two transactions are identical.
+    // When the tx count is odd, Bitcoin duplicates the last hash for pairing.
+    // An attacker can exploit this by submitting a block with the last tx
+    // actually duplicated, producing the same merkle root as the honest block
+    // but with a different (invalid) transaction set.
+    if hashes.len() >= 2 && hashes[hashes.len() - 1] == hashes[hashes.len() - 2] {
+        return Err(ConsensusError::MerkleRootMismatch);
+    }
 
     // Build merkle tree
     while hashes.len() > 1 {
@@ -964,6 +978,15 @@ fn hash_transaction(tx: &bitquan_types::Transaction) -> [u8; 32] {
     for output in &tx.outputs {
         hasher.update(&output.value.to_le_bytes());
         hasher.update(&output.script_pubkey);
+    }
+
+    // SECURITY (M-13): Hash witnesses to prevent malleability
+    for witness in &tx.witnesses {
+        for sig in &witness.signatures {
+            hasher.update(&sig.signer_index.to_le_bytes());
+            hasher.update(&sig.signature);
+            hasher.update(&sig.public_key);
+        }
     }
 
     let result = hasher.finalize();
@@ -1056,28 +1079,7 @@ impl ConsensusEngine {
     }
 
     /// Validates a block using the stored registry and RNG state.
-    pub fn validate_block(
-        &mut self,
-        block: &Block,
-        height: u64,
-        median_time_past: u64,
-        uncles_ctx: &[UncleContext],
-        past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
-    ) -> Result<BlockValidationReport, ConsensusError> {
-        // Standard block validation
-        validate_block(
-            block,
-            height,
-            &self.params,
-            &self.registry,
-            self.network_id,
-            self.genesis_hash,
-            None, // Total fees unknown in this context
-            median_time_past,
-            uncles_ctx,
-            past_uncle_hashes,
-        )
-    }
+    ///
 
     /// Validates a block with known total fees (for strict coinbase validation).
     pub fn validate_block_with_fees(

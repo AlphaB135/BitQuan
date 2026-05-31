@@ -357,7 +357,7 @@ pub fn check_block(path: &str) -> Result<()> {
     let mut engine = ConsensusEngine::new(params, registry);
     let block = load_block_placeholder()?;
 
-    match engine.validate_block(&block, 0, 0, &[], &std::collections::HashSet::new()) {
+    match engine.validate_block_with_fees(&block, 0, 0, 0, &[], &std::collections::HashSet::new()) {
         Ok(report) => {
             println!("Block validation successful!");
             println!("  Weight: {} WU", report.block_weight);

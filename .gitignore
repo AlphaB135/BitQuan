@@ -401,3 +401,10 @@ proptest-regressions/
 # Dual-agent communication (ephemeral)
 .agent-comms/
 HANDOFF.md
+
+# Security: secrets and test wallets
+jwt.hex
+data/*/chainstate/jwt.hex
+test_wallet.json
+test-wallets/
+*.hex

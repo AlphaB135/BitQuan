@@ -83,8 +83,8 @@ impl Default for RpcConfig {
             max_header_bytes: 8 * 1024,
             header_read_timeout_ms: 1_000,
             body_read_timeout_ms: 2_500,
-            require_tls: false,
-            allow_self_signed: true, // Allow for dev/test
+            require_tls: true,
+            allow_self_signed: false, // Disallow for production by default
             enable_hsts: true,
             hsts_max_age: 31536000, // 1 year
             hsts_include_subdomains: true,

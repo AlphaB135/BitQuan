@@ -544,6 +544,7 @@ async fn handle_connection<T: methods::RpcMethods>(
         .unwrap_or(0);
 
     // --- Basic Authentication Check ---
+    let mut current_role = None;
     if let Some((username, password)) = &options.basic_auth {
         let auth_header = req
             .headers
@@ -557,7 +558,18 @@ async fn handle_connection<T: methods::RpcMethods>(
                 {
                     if let Ok(creds_str) = std::str::from_utf8(&decoded) {
                         if let Some((u, p)) = creds_str.split_once(':') {
-                            u == username && p == password
+                            use subtle::ConstantTimeEq;
+                            let u_match = if u.len() == username.len() {
+                                bool::from(u.as_bytes().ct_eq(username.as_bytes()))
+                            } else {
+                                false
+                            };
+                            let p_match = if p.len() == password.len() {
+                                bool::from(p.as_bytes().ct_eq(password.as_bytes()))
+                            } else {
+                                false
+                            };
+                            u_match && p_match
                         } else {
                             false
                         }
@@ -598,6 +610,8 @@ async fn handle_connection<T: methods::RpcMethods>(
             stream_inner.flush().await?;
             stream_inner.shutdown().await?;
             return Ok(());
+        } else {
+            current_role = Some("admin".to_string());
         }
     }
     // --- End Basic Authentication Check ---
@@ -619,54 +633,59 @@ async fn handle_connection<T: methods::RpcMethods>(
             peer_ip,
         );
 
-        if let Err(jwt_error) = jwt_result {
-            // Log JWT authentication failure
-            let auth_event = SecurityEvent::new(
-                peer_ip.to_string(),
-                SecurityEventType::AuthenticationFailed,
-                SecuritySeverity::Medium,
-                json!({
-                    "action": "authentication_failed",
-                    "auth_type": "jwt_bearer",
-                    "error": jwt_error,
-                    "has_auth_header": auth_header.is_some(),
-                }),
-            );
-            auth_event.log();
+        match jwt_result {
+            Err(jwt_error) => {
+                // Log JWT authentication failure
+                let auth_event = SecurityEvent::new(
+                    peer_ip.to_string(),
+                    SecurityEventType::AuthenticationFailed,
+                    SecuritySeverity::Medium,
+                    json!({
+                        "action": "authentication_failed",
+                        "auth_type": "jwt_bearer",
+                        "error": jwt_error,
+                        "has_auth_header": auth_header.is_some(),
+                    }),
+                );
+                auth_event.log();
 
-            // Record auth failure for backoff
-            {
-                let mut backoff_map = options.auth_backoff.lock().await;
-                let state = backoff_map
-                    .entry(peer_ip)
-                    .or_insert_with(|| BackoffState::new(5, Duration::from_secs(900)));
-                state.record_failure();
+                // Record auth failure for backoff
+                {
+                    let mut backoff_map = options.auth_backoff.lock().await;
+                    let state = backoff_map
+                        .entry(peer_ip)
+                        .or_insert_with(|| BackoffState::new(5, Duration::from_secs(900)));
+                    state.record_failure();
+                }
+
+                let error_body = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32001,
+                        "message": "Unauthorized",
+                        "data": jwt_error
+                    },
+                    "id": null
+                });
+                let error_json = serde_json::to_string(&error_body).unwrap_or_default();
+                let response = format!(
+                    "HTTP/1.1 401 Unauthorized\r\n\
+                     WWW-Authenticate: Bearer realm=\"BitQuan RPC\"\r\n\
+                     Content-Type: application/json\r\n\
+                     Content-Length: {}\r\n\
+                     Connection: close\r\n\r\n{}",
+                    error_json.len(),
+                    error_json
+                );
+                let stream_inner = buf_reader.into_inner();
+                stream_inner.write_all(response.as_bytes()).await?;
+                stream_inner.flush().await?;
+                stream_inner.shutdown().await?;
+                return Ok(());
             }
-
-            let error_body = serde_json::json!({
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -32001,
-                    "message": "Unauthorized",
-                    "data": jwt_error
-                },
-                "id": null
-            });
-            let error_json = serde_json::to_string(&error_body).unwrap_or_default();
-            let response = format!(
-                "HTTP/1.1 401 Unauthorized\r\n\
-                 WWW-Authenticate: Bearer realm=\"BitQuan RPC\"\r\n\
-                 Content-Type: application/json\r\n\
-                 Content-Length: {}\r\n\
-                 Connection: close\r\n\r\n{}",
-                error_json.len(),
-                error_json
-            );
-            let stream_inner = buf_reader.into_inner();
-            stream_inner.write_all(response.as_bytes()).await?;
-            stream_inner.flush().await?;
-            stream_inner.shutdown().await?;
-            return Ok(());
+            Ok(claims) => {
+                current_role = Some(claims.role);
+            }
         }
     }
     // --- End JWT Bearer Token Authentication ---
@@ -706,7 +725,7 @@ async fn handle_connection<T: methods::RpcMethods>(
             let err_resp = JsonRpcResponse::error(
                 serde_json::Value::Null,
                 error_codes::PARSE_ERROR,
-                format!("Parse error: {e}"),
+                "Parse error: Invalid JSON".to_string(),
             );
             return respond_json(stream, &err_resp, config).await;
         }
@@ -730,7 +749,7 @@ async fn handle_connection<T: methods::RpcMethods>(
         let err_resp = JsonRpcResponse::error(
             serde_json::Value::Null,
             error_codes::INVALID_PARAMS,
-            format!("Invalid request: {e}"),
+            "Invalid request parameters".to_string(),
         );
         return respond_json(stream, &err_resp, config).await;
     }
@@ -741,7 +760,7 @@ async fn handle_connection<T: methods::RpcMethods>(
             let err_resp = JsonRpcResponse::error(
                 serde_json::Value::Null,
                 error_codes::PARSE_ERROR,
-                format!("Parse error: {e}"),
+                "Parse error: Invalid JSON-RPC request".to_string(),
             );
             return respond_json(stream, &err_resp, config).await;
         }
@@ -768,29 +787,48 @@ async fn handle_connection<T: methods::RpcMethods>(
             "Invalid JSON-RPC version".to_string(),
         )
     } else {
-        let response = methods::dispatch_call(
-            handler,
-            &json_request.method,
-            json_request.params,
-            json_request.id,
-        )
-        .await;
+        let role = current_role.as_deref().unwrap_or("client");
+        let is_admin = role == "admin" || role == "node";
+        let is_miner = role == "miner" || is_admin;
+        let is_readonly = role == "readonly" || is_miner || role == "client";
 
-        // Log successful request processing
-        let success_event = SecurityEvent::new(
-            peer_ip.to_string(),
-            SecurityEventType::RequestProcessed,
-            SecuritySeverity::Info,
-            json!({
-                "action": "request_processed_successfully",
-                "method": json_request.method,
-                "has_error": response.error.is_some(),
-                "processing_time_ms": start.elapsed().as_millis()
-            }),
-        );
-        success_event.log();
+        let allowed = match json_request.method.as_str() {
+            "generate" | "generatetoaddress" | "submitblock" | "sendtoaddress" => is_admin,
+            "getwork" | "submitwork" => is_miner,
+            _ => is_readonly,
+        };
 
-        response
+        if !allowed {
+            JsonRpcResponse::error(
+                json_request.id,
+                error_codes::INVALID_REQUEST,
+                "Unauthorized: insufficient permissions for this method".to_string(),
+            )
+        } else {
+            let response = methods::dispatch_call(
+                handler,
+                &json_request.method,
+                json_request.params,
+                json_request.id,
+            )
+            .await;
+
+            // Log successful request processing
+            let success_event = SecurityEvent::new(
+                peer_ip.to_string(),
+                SecurityEventType::RequestProcessed,
+                SecuritySeverity::Info,
+                json!({
+                    "action": "request_processed_successfully",
+                    "method": json_request.method,
+                    "has_error": response.error.is_some(),
+                    "processing_time_ms": start.elapsed().as_millis()
+                }),
+            );
+            success_event.log();
+
+            response
+        }
     };
 
     let result = respond_json(stream, &json_response, config).await;
@@ -873,7 +911,7 @@ fn build_security_headers(config: &RpcConfig) -> String {
         // Security headers
         "X-Content-Type-Options: nosniff".to_string(),
         "X-Frame-Options: DENY".to_string(),
-        "X-XSS-Protection: 1; mode=block".to_string(),
+
         "Referrer-Policy: strict-origin-when-cross-origin".to_string(),
         "Content-Security-Policy: default-src 'none'; script-src 'none'; object-src 'none';"
             .to_string(),
@@ -893,9 +931,6 @@ fn build_security_headers(config: &RpcConfig) -> String {
         );
         headers.push(hsts_header);
     }
-
-    // Remove server signature
-    headers.push("Server: BitQuan".to_string());
 
     headers.join("\r\n")
 }
@@ -933,11 +968,12 @@ impl TokenBucket {
     fn refill(&mut self) {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_refill);
-        let tokens_to_add = (elapsed.as_secs() as u32 * self.refill_rate) / 60;
+        let tokens_to_add = (elapsed.as_millis() as u32 * self.refill_rate) / 60_000;
 
         if tokens_to_add > 0 {
             self.tokens = (self.tokens + tokens_to_add).min(self.max_tokens);
-            self.last_refill = now;
+            let consumed_millis = (tokens_to_add as u64 * 60_000) / self.refill_rate as u64;
+            self.last_refill += Duration::from_millis(consumed_millis);
         }
     }
 
@@ -1046,6 +1082,11 @@ async fn check_rate_limit(
 ) -> bool {
     let mut limiter_map = limiter.lock().await;
 
+    if limiter_map.len() > 10000 {
+        let now = Instant::now();
+        limiter_map.retain(|_, bucket| now.duration_since(bucket.last_refill) < Duration::from_secs(3600));
+    }
+
     let bucket = limiter_map
         .entry(ip)
         .or_insert_with(|| TokenBucket::new(config.rate_limit_requests, config.rate_limit_window));
@@ -1075,7 +1116,7 @@ fn verify_jwt_token(
     jwt_auth: Option<&AuthMethod>,
     max_age_secs: u64,
     peer_ip: IpAddr,
-) -> Result<(), String> {
+) -> Result<crate::jwt::Claims, String> {
     // Check if JWT auth is configured
     let jwt = jwt_auth.ok_or("JWT authentication not configured")?;
 
@@ -1119,5 +1160,5 @@ fn verify_jwt_token(
         claims.sub, claims.role, peer_ip
     );
 
-    Ok(())
+    Ok(claims)
 }

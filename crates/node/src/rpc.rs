@@ -517,6 +517,12 @@ impl RpcMethods for NodeRpcHandler {
         n_blocks: u64,
         _address: Option<String>,
     ) -> Result<Vec<String>, RpcError> {
+        if self.chain_name == "mainnet" {
+            return Err(RpcError::MethodNotFound(
+                "generate is not available on mainnet".to_string(),
+            ));
+        }
+        
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
         use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
 
@@ -653,6 +659,12 @@ impl RpcMethods for NodeRpcHandler {
         n_blocks: u64,
         address: String,
     ) -> Result<Vec<String>, RpcError> {
+        if self.chain_name == "mainnet" {
+            return Err(RpcError::MethodNotFound(
+                "generatetoaddress is not available on mainnet".to_string(),
+            ));
+        }
+
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
         use bitquan_types::{Block, BlockHeader, SigAlgorithm, TxOut};
 

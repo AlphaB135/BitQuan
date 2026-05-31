@@ -238,10 +238,11 @@ pub fn crypto_sign_verify(
   shake256_absorb(&mut state, &buf, K * POLYW1_PACKEDBYTES);
   shake256_finalize(&mut state);
   shake256_squeeze(&mut c2, SEEDBYTES, &mut state);
-  // Doesn't require constant time equality check
-  if c != c2 {
-    Err(SignError::Verify)
-  } else {
+  // SECURITY: constant-time comparison to prevent timing side-channel attacks
+  use subtle::ConstantTimeEq;
+  if bool::from(c.ct_eq(&c2)) {
     Ok(())
+  } else {
+    Err(SignError::Verify)
   }
 }

@@ -8,11 +8,11 @@ use std::path::Path;
 fn main() {
     let wallet = WalletKeypair::generate_dilithium5().expect("Failed to generate wallet");
 
-    // Use default password for development (CHANGE THIS IN PRODUCTION!)
-    let password = "miner_dev_password";
+    let password = std::env::var("MINER_PASSWORD")
+        .expect("MINER_PASSWORD environment variable must be set");
 
     wallet
-        .save_to_file(Path::new("miner_wallet.json"), password)
+        .save_to_file(Path::new("miner_wallet.json"), &password)
         .expect("Failed to save wallet");
 
     let pubkey_hash = wallet.public_key_hash();
@@ -20,5 +20,5 @@ fn main() {
 
     println!("✅ Miner wallet saved to miner_wallet.json");
     println!("📍 Address: {}", addr);
-    println!("⚠️  Password: {}", password);
+    println!("⚠️  Password read from MINER_PASSWORD env var");
 }

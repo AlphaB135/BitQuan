@@ -110,6 +110,11 @@ impl MultisigConfig {
         public_keys: Vec<String>,
         label: Option<String>,
     ) -> Result<Self, MultisigError> {
+        if public_keys.len() > u8::MAX as usize {
+            return Err(MultisigError::InvalidConfig(
+                "Too many public keys (maximum 255)".to_string(),
+            ));
+        }
         let total_signers = public_keys.len() as u8;
 
         // Validation
@@ -220,6 +225,10 @@ impl MultisigWallet {
     }
 
     /// Adds a signature to a pending transaction.
+    ///
+    /// # Security
+    /// The signature is cryptographically verified against the transaction data
+    /// before being accepted. Invalid or forged signatures are rejected.
     pub fn add_signature(
         &self,
         pending: &mut PendingMultisigTx,
@@ -241,7 +250,23 @@ impl MultisigWallet {
             return Err(MultisigError::DuplicateSignature(public_key.to_string()));
         }
 
-        // Add signature
+        // SECURITY FIX (C-3): Cryptographically verify the signature before accepting it.
+        // This prevents collection of invalid/forged signatures that would only be caught
+        // at finalization time, reducing the attack window.
+        let tx_data =
+            hex::decode(&pending.tx_data).map_err(|_| MultisigError::InvalidSignature)?;
+        let tx_hash = {
+            let mut hasher = Sha256::new();
+            hasher.update(&tx_data);
+            hasher.finalize()
+        };
+        let pubkey_bytes =
+            hex::decode(public_key).map_err(|_| MultisigError::InvalidSignature)?;
+        if !self.verify_pqc_signature(signature, &pubkey_bytes, &tx_hash)? {
+            return Err(MultisigError::InvalidSignature);
+        }
+
+        // Signature verified — add it
         let signed_at = unix_timestamp()?;
 
         pending.signatures.push(PartialSignature {
@@ -255,7 +280,7 @@ impl MultisigWallet {
 
     /// Verifies that a pending transaction has enough valid signatures.
     pub fn verify_signatures(&self, pending: &PendingMultisigTx) -> Result<(), MultisigError> {
-        let sig_count = pending.signatures.len() as u8;
+        let sig_count = pending.signatures.len().try_into().unwrap_or(u8::MAX);
 
         if sig_count < self.config.required_sigs {
             return Err(MultisigError::InsufficientSignatures {
@@ -380,7 +405,7 @@ impl PendingMultisigTx {
 
     /// Returns the number of signatures collected.
     pub fn signature_count(&self) -> u8 {
-        self.signatures.len() as u8
+        self.signatures.len().try_into().unwrap_or(u8::MAX)
     }
 
     /// Returns the number of signatures still needed.
@@ -422,9 +447,25 @@ pub struct FinalizedMultisigTx {
 }
 
 impl FinalizedMultisigTx {
-    /// Verifies this transaction is properly signed.
-    pub fn verify(&self) -> Result<(), MultisigError> {
-        let sig_count = self.signatures.len() as u8;
+    /// Verifies the **structural** validity of this finalized transaction.
+    ///
+    /// This checks:
+    /// - Sufficient number of signatures (M-of-N threshold)
+    /// - All signers are authorized members of the multisig config
+    /// - No duplicate signatures from the same signer
+    ///
+    /// # Security Warning
+    /// This method does **NOT** perform cryptographic signature verification.
+    /// It only validates the structural constraints of the multisig scheme.
+    /// Callers **MUST** use [`MultisigWallet::verify_signatures()`] (which holds
+    /// a `CryptoRegistry`) for full cryptographic verification before trusting
+    /// the transaction.
+    ///
+    /// # Renamed from `verify()`
+    /// Previously named `verify()`, which implied cryptographic verification.
+    /// Renamed to `verify_structure()` to prevent false trust (security fix C-4).
+    pub fn verify_structure(&self) -> Result<(), MultisigError> {
+        let sig_count = self.signatures.len().try_into().unwrap_or(u8::MAX);
 
         if sig_count < self.config.required_sigs {
             return Err(MultisigError::InsufficientSignatures {
