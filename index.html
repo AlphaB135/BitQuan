@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BitQuan — Post-Quantum Blockchain</title>
+  <meta name="description" content="A minimal Proof-of-Work blockchain with CRYSTALS-Dilithium5 PQC signatures and UTXO ledger. 50+ year quantum resistance." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink:      #0a0a0a;
+      --ink-mid:  #3a3a3a;
+      --ink-dim:  #787878;
+      --ink-faint:#b8b8b8;
+      --paper:    #faf9f7;
+      --paper-2:  #f2f0ec;
+      --paper-3:  #e8e5df;
+      --rule:     #d0ccc4;
+      --rule-dark:#999490;
+      --font-sans: 'IBM Plex Sans', sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-weight: 400;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page-wrap {
+      position: relative; z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+    header {
+      border-bottom: 1.5px solid var(--ink);
+      padding: 2.5rem 0 2rem;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .logo-mark {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.35rem;
+    }
+    .logo-symbol { width: 40px; height: 40px; flex-shrink: 0; }
+    .logo-symbol svg { width: 100%; height: 100%; }
+    h1 {
+      font-family: var(--font-mono);
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .tagline {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--ink-dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .header-meta { text-align: right; }
+    .status-pill {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border: 1px solid var(--ink);
+      padding: 0.25rem 0.6rem;
+      border-radius: 2px;
+      margin-bottom: 0.5rem;
+    }
+    .header-date {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--ink-dim);
+    }
+    .ticker-bar {
+      border-bottom: 1px solid var(--rule);
+      padding: 0.6rem 0;
+      display: flex;
+      gap: 0;
+      overflow: hidden;
+    }
+    .ticker-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      white-space: nowrap;
+      padding: 0 1.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--ink-mid);
+      border-right: 1px solid var(--rule);
+    }
+    .ticker-item:first-child { padding-left: 0; }
+    .ticker-item:last-child  { border-right: none; }
+    .ticker-label { color: var(--ink-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+    .ticker-value { font-weight: 500; }
+    section {
+      padding: 3rem 0;
+      border-bottom: 1px solid var(--rule);
+    }
+    section:last-of-type { border-bottom: none; }
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .section-num {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.1em;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .section-rule { flex: 1; height: 1px; background: var(--rule); }
+    .hero-section { padding: 4rem 0 3rem; }
+    .hero-statement {
+      font-size: 2.6rem;
+      font-weight: 300;
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      max-width: 680px;
+      margin-bottom: 2rem;
+    }
+    .hero-statement strong { font-weight: 600; }
+    .hero-sub {
+      font-size: 1rem;
+      color: var(--ink-mid);
+      max-width: 520px;
+      line-height: 1.75;
+      font-weight: 300;
+    }
+    .principle-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+    }
+    .principle-card {
+      padding: 1.5rem;
+      border: 1px solid var(--rule);
+      margin: -1px 0 0 -1px;
+      transition: background 0.2s;
+    }
+    .principle-card:hover { background: var(--paper-2); }
+    .principle-num {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.1em;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+    .principle-title {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-bottom: 0.6rem;
+    }
+    .principle-body {
+      font-size: 0.82rem;
+      color: var(--ink-mid);
+      line-height: 1.6;
+      font-weight: 300;
+    }
+    .metric-table { width: 100%; border-collapse: collapse; }
+    .metric-table thead th {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      text-align: left;
+      padding: 0.5rem 1rem 0.5rem 0;
+      border-bottom: 1.5px solid var(--ink);
+      font-weight: 400;
+    }
+    .metric-table tbody tr {
+      border-bottom: 1px solid var(--rule);
+      transition: background 0.15s;
+    }
+    .metric-table tbody tr:hover { background: var(--paper-2); }
+    .metric-table tbody td {
+      padding: 0.85rem 1rem 0.85rem 0;
+      font-size: 0.88rem;
+      vertical-align: middle;
+    }
+    .metric-table tbody td:first-child {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+    .metric-val { font-family: var(--font-mono); font-size: 0.82rem; }
+    .tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.58rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid var(--rule-dark);
+      color: var(--ink-mid);
+      padding: 0.15rem 0.4rem;
+      border-radius: 2px;
+    }
+    .tag.active { border-color: var(--ink); color: var(--ink); }
+    .timeline { display: flex; flex-direction: column; }
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 6rem 1.5rem 1fr;
+      gap: 0 1rem;
+      align-items: stretch;
+    }
+    .timeline-date {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--ink-dim);
+      padding-top: 1.1rem;
+      display: flex;
+      align-items: flex-start;
+    }
+    .timeline-spine {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .timeline-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--ink-faint);
+      border: 1.5px solid var(--ink-mid);
+      margin-top: 1.15rem;
+      flex-shrink: 0;
+    }
+    .timeline-item.done .timeline-dot { background: var(--ink); border-color: var(--ink); }
+    .timeline-item.current .timeline-dot {
+      background: var(--ink); border-color: var(--ink);
+      box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--ink);
+    }
+    .timeline-line { width: 1px; flex: 1; background: var(--rule); margin-top: 2px; }
+    .timeline-item:last-child .timeline-line { display: none; }
+    .timeline-content {
+      padding: 0.9rem 0 1.2rem;
+      border-bottom: 1px solid var(--rule);
+    }
+    .timeline-item:last-child .timeline-content { border-bottom: none; }
+    .timeline-label {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+    .timeline-desc { font-size: 0.8rem; color: var(--ink-mid); font-weight: 300; }
+    .code-block {
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--ink);
+      padding: 1.25rem 1.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.75;
+      color: var(--ink-mid);
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+    .code-block .comment { color: var(--ink-faint); font-style: italic; }
+    .code-block .cmd { color: var(--ink); font-weight: 500; }
+    .code-block .flag { color: var(--ink-mid); }
+    .tradeoff-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin: 1.5rem 0;
+    }
+    .tradeoff-side { padding: 1.5rem; border: 1px solid var(--rule); }
+    .tradeoff-side:first-child { border-right: none; }
+    .tradeoff-head {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      margin-bottom: 0.75rem;
+    }
+    .tradeoff-value {
+      font-size: 1.6rem;
+      font-weight: 300;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .tradeoff-unit { font-family: var(--font-mono); font-size: 0.7rem; color: var(--ink-dim); margin-top: 0.25rem; }
+    .tradeoff-note { font-size: 0.75rem; color: var(--ink-mid); margin-top: 0.75rem; font-weight: 300; }
+    .bar-visual { margin: 0.75rem 0 0.25rem; height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--ink); border-radius: 2px; }
+    .callout {
+      border-left: 3px solid var(--ink);
+      padding: 1rem 1.5rem;
+      margin: 2rem 0;
+      background: var(--paper-2);
+    }
+    .callout p { font-size: 0.9rem; font-style: italic; font-weight: 300; color: var(--ink-mid); line-height: 1.7; }
+    .callout cite {
+      display: block; margin-top: 0.5rem;
+      font-family: var(--font-mono); font-size: 0.65rem;
+      letter-spacing: 0.08em; color: var(--ink-dim); font-style: normal;
+    }
+    footer {
+      border-top: 1.5px solid var(--ink);
+      padding: 2rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .footer-left { font-family: var(--font-mono); font-size: 0.7rem; color: var(--ink-dim); }
+    .footer-links { display: flex; gap: 1.5rem; }
+    .footer-links a {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--ink-mid);
+      text-decoration: none;
+      letter-spacing: 0.06em;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover { color: var(--ink); }
+    .prose {
+      font-size: 0.9rem; color: var(--ink-mid);
+      line-height: 1.8; font-weight: 300; max-width: 640px;
+    }
+    .prose + .prose { margin-top: 1rem; }
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: var(--paper-3);
+      padding: 0.1em 0.3em;
+      border-radius: 2px;
+    }
+    @media (max-width: 640px) {
+      h1 { font-size: 1.5rem; }
+      .hero-statement { font-size: 1.8rem; }
+      .principle-grid { grid-template-columns: 1fr; }
+      .tradeoff-pair { grid-template-columns: 1fr; }
+      .tradeoff-side:first-child { border-right: 1px solid var(--rule); border-bottom: none; }
+      .ticker-bar { flex-direction: column; }
+      .ticker-item { border-right: none; border-bottom: 1px solid var(--rule); padding: 0.35rem 0; }
+      header { flex-direction: column; align-items: flex-start; }
+      .header-meta { text-align: left; }
+      footer { flex-direction: column; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate { opacity: 0; animation: fadeUp 0.5s ease forwards; }
+    .delay-1 { animation-delay: 0.05s; }
+    .delay-2 { animation-delay: 0.12s; }
+    .delay-3 { animation-delay: 0.2s; }
+    .delay-4 { animation-delay: 0.28s; }
+    .delay-5 { animation-delay: 0.36s; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- HEADER -->
+  <header class="animate">
+    <div class="logo-block">
+      <div class="logo-mark">
+        <div class="logo-symbol">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,3 35,11.5 35,28.5 20,37 5,28.5 5,11.5" stroke="#0a0a0a" stroke-width="1.5" fill="none"/>
+            <polygon points="20,10 28,14.5 28,25.5 20,30 12,25.5 12,14.5" stroke="#0a0a0a" stroke-width="1" fill="none"/>
+            <circle cx="20" cy="20" r="3" fill="#0a0a0a"/>
+            <line x1="20" y1="3"  x2="20" y2="10" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="20" y1="30" x2="20" y2="37" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="35" y1="11.5" x2="28" y2="14.5" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="35" y1="28.5" x2="28" y2="25.5" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="5"  y1="11.5" x2="12" y2="14.5" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="5"  y1="28.5" x2="12" y2="25.5" stroke="#0a0a0a" stroke-width="1"/>
+          </svg>
+        </div>
+        <h1>BitQuan</h1>
+      </div>
+      <p class="tagline">Post-Quantum Blockchain &middot; Apache 2.0 &middot; Rust</p>
+    </div>
+    <div class="header-meta">
+      <div class="status-pill">Pre-Testnet &middot; 2026</div>
+      <p class="header-date">AlphaB135 / BitQuan</p>
+    </div>
+  </header>
+
+  <!-- TICKER -->
+  <div class="ticker-bar animate delay-1">
+    <div class="ticker-item">
+      <span class="ticker-label">Supply</span>
+      <span class="ticker-value">21,000,000 BQ</span>
+    </div>
+    <div class="ticker-item">
+      <span class="ticker-label">Precision</span>
+      <span class="ticker-value">10^18 qbits</span>
+    </div>
+    <div class="ticker-item">
+      <span class="ticker-label">Signature</span>
+      <span class="ticker-value">Dilithium5</span>
+    </div>
+    <div class="ticker-item">
+      <span class="ticker-label">Tests</span>
+      <span class="ticker-value">795+ passing</span>
+    </div>
+    <div class="ticker-item">
+      <span class="ticker-label">Language</span>
+      <span class="ticker-value">Rust 1.82+</span>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <section class="hero-section animate delay-2">
+    <h2 class="hero-statement">
+      A blockchain designed<br/>
+      to outlast the<br/>
+      <strong>quantum era.</strong>
+    </h2>
+    <p class="hero-sub">
+      BitQuan is a minimal Proof-of-Work blockchain secured by CRYSTALS-Dilithium5 &mdash;
+      a NIST-approved post-quantum signature scheme. Built with deliberate simplicity:
+      no smart contracts, no governance tokens, no DeFi. Just value transfer,
+      for the next 50 years.
+    </p>
+  </section>
+
+  <!-- 01. PRINCIPLES -->
+  <section class="animate delay-3">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <span class="section-title">Core Principles</span>
+      <div class="section-rule"></div>
+    </div>
+    <div class="principle-grid">
+      <div class="principle-card">
+        <span class="principle-num">P.01</span>
+        <div class="principle-title">Quantum-Resistant</div>
+        <p class="principle-body">CRYSTALS-Dilithium5 signatures. NIST standard. Provably secure against Shor&rsquo;s algorithm and known quantum attacks.</p>
+      </div>
+      <div class="principle-card">
+        <span class="principle-num">P.02</span>
+        <div class="principle-title">Proven Consensus</div>
+        <p class="principle-body">Longest valid chain rule. ASERT difficulty adjustment. No checkpoints, no governance, no trusted third parties.</p>
+      </div>
+      <div class="principle-card">
+        <span class="principle-num">P.03</span>
+        <div class="principle-title">Simple &amp; Secure</div>
+        <p class="principle-body">No smart contracts. No DeFi. Pure value transfer. Complexity is the enemy of security &mdash; we chose simplicity.</p>
+      </div>
+      <div class="principle-card">
+        <span class="principle-num">P.04</span>
+        <div class="principle-title">Hard Supply</div>
+        <p class="principle-body">Exactly 21,000,000 BQ. SHA-256d mining with RandomX support. Predictable issuance, no surprises.</p>
+      </div>
+      <div class="principle-card">
+        <span class="principle-num">P.05</span>
+        <div class="principle-title">Memory Safety</div>
+        <p class="principle-body">Written in Rust. Only 14 <code>unsafe</code> blocks, all justified. Minimal <code>unwrap()</code> in production paths.</p>
+      </div>
+      <div class="principle-card">
+        <span class="principle-num">P.06</span>
+        <div class="principle-title">Open Source</div>
+        <p class="principle-body">Apache 2.0 license. Fully auditable. No backdoors. External security audit targeted Q3 2026.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02. TRADEOFFS -->
+  <section class="animate delay-4">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <span class="section-title">Honest Trade-offs</span>
+      <div class="section-rule"></div>
+    </div>
+    <p class="prose">
+      Post-quantum security has a cost. We don&rsquo;t hide it.
+      Dilithium5 signatures are <strong>63&times; larger</strong> than Bitcoin&rsquo;s ECDSA.
+      Layer 1 throughput is intentionally low &mdash; scalability lives at Layer 2.
+    </p>
+    <div class="tradeoff-pair">
+      <div class="tradeoff-side">
+        <div class="tradeoff-head">Bitcoin &middot; ECDSA</div>
+        <div class="tradeoff-value">73</div>
+        <div class="tradeoff-unit">bytes per signature</div>
+        <div class="bar-visual"><div class="bar-fill" style="width:1.6%"></div></div>
+        <div class="tradeoff-note">Classical security.<br/>Vulnerable to Shor&rsquo;s algorithm on a sufficiently large quantum computer.</div>
+      </div>
+      <div class="tradeoff-side">
+        <div class="tradeoff-head">BitQuan &middot; Dilithium5</div>
+        <div class="tradeoff-value">4,595</div>
+        <div class="tradeoff-unit">bytes per signature</div>
+        <div class="bar-visual"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="tradeoff-note">NIST post-quantum standard.<br/>50+ year quantum resistance, by design.</div>
+      </div>
+    </div>
+    <div class="callout">
+      <p>&ldquo;Emergency hard forks for post-quantum migration are risky and disruptive. We made the deliberate choice to pay the cost today, so users don&rsquo;t pay a far greater cost later.&rdquo;</p>
+      <cite>&mdash; BitQuan &middot; POST_QUANTUM_TRADEOFFS.md</cite>
+    </div>
+    <table class="metric-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Bitcoin</th>
+          <th>BitQuan</th>
+          <th>Rationale</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Signature Size</td>
+          <td class="metric-val">~73 bytes</td>
+          <td class="metric-val">4,595 bytes</td>
+          <td><span class="tag">PQ Security</span></td>
+        </tr>
+        <tr>
+          <td>Layer 1 TPS</td>
+          <td class="metric-val">~7</td>
+          <td class="metric-val">&lt; 1</td>
+          <td><span class="tag">By Design</span></td>
+        </tr>
+        <tr>
+          <td>Quantum Resistance</td>
+          <td class="metric-val">Vulnerable</td>
+          <td class="metric-val">Dilithium5</td>
+          <td><span class="tag active">NIST Std</span></td>
+        </tr>
+        <tr>
+          <td>Scaling Strategy</td>
+          <td class="metric-val">SegWit / L2</td>
+          <td class="metric-val">ZK-Rollup / L2</td>
+          <td><span class="tag">BQIP-0004</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 03. QUICKSTART -->
+  <section class="animate delay-5">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <span class="section-title">Quick Start</span>
+      <div class="section-rule"></div>
+    </div>
+    <p class="prose">Run a testnet node in minutes. Requires Rust 1.82+ or Docker.</p>
+    <div class="code-block">
+      <span class="comment"># Clone and run via Docker</span><br/>
+      <span class="cmd">git clone</span> https://github.com/AlphaB135/BitQuan.git<br/>
+      <span class="cmd">cd</span> BitQuan<br/>
+      <span class="cmd">docker-compose up</span> <span class="flag">-d</span><br/>
+      <br/>
+      <span class="comment"># Or build from source (Rust 1.82+)</span><br/>
+      <span class="cmd">cargo build</span> <span class="flag">--release</span><br/>
+      <span class="cmd">./scripts/testnet-start.sh</span><br/>
+      <br/>
+      <span class="comment"># Generate a Dilithium5 wallet</span><br/>
+      <span class="cmd">./target/release/bitquan-node</span> wallet-gen <span class="flag">--output</span> wallet.keystore
+    </div>
+    <p class="prose">Wallet addresses use the prefix <code>bq1q&hellip;</code> &mdash; human-readable, unambiguous, quantum-safe.</p>
+  </section>
+
+  <!-- 04. ROADMAP -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <span class="section-title">Roadmap</span>
+      <div class="section-rule"></div>
+    </div>
+    <div class="timeline">
+      <div class="timeline-item done">
+        <div class="timeline-date">Q4 2025</div>
+        <div class="timeline-spine">
+          <div class="timeline-dot"></div>
+          <div class="timeline-line"></div>
+        </div>
+        <div class="timeline-content">
+          <div class="timeline-label">Core Protocol <span class="tag active">Complete</span></div>
+          <div class="timeline-desc">ASERT difficulty, P2P sync, UTXO ledger, Dilithium5 cryptography, internal audit, 795+ unit tests.</div>
+        </div>
+      </div>
+      <div class="timeline-item current">
+        <div class="timeline-date">Q2 2026</div>
+        <div class="timeline-spine">
+          <div class="timeline-dot"></div>
+          <div class="timeline-line"></div>
+        </div>
+        <div class="timeline-content">
+          <div class="timeline-label">Public Testnet <span class="tag active">Now</span></div>
+          <div class="timeline-desc">Open testnet launch. Community node operators welcome. Bug bounty program active.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Q3 2026</div>
+        <div class="timeline-spine">
+          <div class="timeline-dot"></div>
+          <div class="timeline-line"></div>
+        </div>
+        <div class="timeline-content">
+          <div class="timeline-label">External Audit <span class="tag">Pending</span></div>
+          <div class="timeline-desc">Independent third-party security audit. Full disclosure. No mainnet without audit sign-off.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Q4 2026</div>
+        <div class="timeline-spine">
+          <div class="timeline-dot"></div>
+          <div class="timeline-line"></div>
+        </div>
+        <div class="timeline-content">
+          <div class="timeline-label">Mainnet <span class="tag">Target</span></div>
+          <div class="timeline-desc">Post-audit mainnet launch. Layer 2 work begins: ZK-Rollup, payment channels (BQIP-0004).</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05. STATUS -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <span class="section-title">Component Status</span>
+      <div class="section-rule"></div>
+    </div>
+    <table class="metric-table">
+      <thead>
+        <tr><th>Component</th><th>Status</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Core Protocol</td><td><span class="tag active">Complete</span></td><td style="font-size:0.83rem;color:var(--ink-mid);">ASERT difficulty, P2P sync</td></tr>
+        <tr><td>Cryptography</td><td><span class="tag active">Complete</span></td><td style="font-size:0.83rem;color:var(--ink-mid);">Dilithium5 signatures (NIST)</td></tr>
+        <tr><td>Data Integrity</td><td><span class="tag active">Fixed</span></td><td style="font-size:0.83rem;color:var(--ink-mid);">C1&ndash;C7 vulnerabilities resolved</td></tr>
+        <tr><td>Unit Tests</td><td><span class="tag active">795+</span></td><td style="font-size:0.83rem;color:var(--ink-mid);">Consensus + integration + E2E</td></tr>
+        <tr><td>Internal Audit</td><td><span class="tag active">Complete</span></td><td style="font-size:0.83rem;color:var(--ink-mid);">Security hardening done</td></tr>
+        <tr><td>External Audit</td><td><span class="tag">Pending</span></td><td style="font-size:0.83rem;color:var(--ink-mid);">Q3 2026 target</td></tr>
+        <tr><td>Testnet</td><td><span class="tag active">Q2 2026</span></td><td style="font-size:0.83rem;color:var(--ink-mid);">Public launch</td></tr>
+        <tr><td>Mainnet</td><td><span class="tag">Q4 2026</span></td><td style="font-size:0.83rem;color:var(--ink-mid);">Post-audit</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-left">
+      BitQuan &copy; 2026 &middot; AlphaB135<br/>
+      <span style="opacity:0.6;">Apache License 2.0 &middot; No warranty expressed or implied.</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/AlphaB135/BitQuan" target="_blank">GitHub</a>
+      <a href="https://github.com/AlphaB135/BitQuan/blob/main/docs/POST_QUANTUM_TRADEOFFS.md" target="_blank">Tradeoffs</a>
+      <a href="https://github.com/AlphaB135/BitQuan/blob/main/docs/testnet/QUICKSTART.md" target="_blank">Testnet</a>
+      <a href="https://alphab135.github.io/BitQuan/" target="_blank">Docs</a>
+    </div>
+  </footer>
+
+</div>
+<script>
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.opacity = '1';
+        e.target.style.transform = 'translateY(0)';
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('section:not(.hero-section)').forEach(el => {
+    if (!el.classList.contains('animate')) {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(16px)';
+      el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+      obs.observe(el);
+    }
+  });
+</script>
+</body>
+</html>
