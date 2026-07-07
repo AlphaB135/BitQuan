@@ -542,7 +542,8 @@ impl DoSProtection {
         // Update peak rate
         let elapsed = now.duration_since(usage.window_start);
         if !elapsed.is_zero() {
-            let current_rate = total_bytes / elapsed.as_secs();
+            let secs = elapsed.as_secs().max(1);
+            let current_rate = total_bytes / secs;
             usage.peak_rate = usage.peak_rate.max(current_rate);
         }
 

@@ -741,13 +741,20 @@ async fn handle_block(
                 engine.set_difficulty_state(difficulty_state);
             }
             Ok(None) => {
-                log::warn!(
-                    "Parent block {} not found in storage. Skipping ASERT enforcement.",
+                log::error!(
+                    "❌ Parent block {} not found in storage. Rejecting block.",
                     hex::encode(&block.header.prev_block[..8])
                 );
+                return Err(WorkerError::InvalidData(format!(
+                    "parent block {} not found in storage",
+                    hex::encode(&block.header.prev_block[..8])
+                )));
             }
             Err(e) => {
-                log::error!("Failed to fetch parent block from storage: {}. Skipping ASERT enforcement.", e);
+                log::error!("❌ Failed to fetch parent block from storage: {}. Rejecting block.", e);
+                return Err(WorkerError::Storage(format!(
+                    "failed to fetch parent block: {}", e
+                )));
             }
         }
     }
