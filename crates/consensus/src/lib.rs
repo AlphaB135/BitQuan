@@ -575,6 +575,7 @@ pub fn validate_block(
     network_id: bitquan_types::NetworkId,
     genesis_hash: [u8; 32],
     total_fees: Option<u128>,
+    median_time_past: u64,
     network_adjusted_time: u64,
     expected_bits: Option<u32>,
     uncles_ctx: &[UncleContext],
