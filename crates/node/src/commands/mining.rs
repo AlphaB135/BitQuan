@@ -339,7 +339,11 @@ pub fn check_block(path: &str) -> Result<()> {
     let mut engine = ConsensusEngine::new(params, registry);
     let block = load_block_placeholder()?;
 
-    match engine.validate_block(&block, 0, 0) {
+    let network_adjusted_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    match engine.validate_block(&block, 0, 0, network_adjusted_time) {
         Ok(report) => {
             println!("Block validation successful!");
             println!("  Weight: {} WU", report.block_weight);

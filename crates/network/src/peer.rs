@@ -142,21 +142,15 @@ pub fn read_frame<R: Read>(reader: &mut R) -> TypesResult<Vec<u8>> {
 }
 
 /// Exchange magic byte through encrypted channel.
-/// SECURITY: This is sent AFTER Noise handshake, so it's encrypted.
-fn do_handshake_encrypted(stream: &mut NoiseTransport) -> io::Result<()> {
-    // Exchange magic byte through encrypted channel
-    stream.write_all(&[0x42])?;
-    stream.flush()?;
-
-    let mut response = [0u8; 1];
-    stream.read_exact(&mut response)?;
-
-    if response[0] != 0x42 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "invalid handshake token (encrypted)",
-        ));
-    }
+/// SECURITY: The single-byte 0x42 check added no security value post-Noise
+/// handshake. It has been removed. The Noise Protocol handshake itself provides
+/// mutual authentication, forward secrecy, and integrity. Any additional
+/// validation should use Noise transport payloads (e.g., version messages).
+fn do_handshake_encrypted(_stream: &mut NoiseTransport) -> io::Result<()> {
+    // SECURITY FIX: Removed magic byte 0x42 exchange.
+    // The single-byte magic provided no security benefit after Noise handshake
+    // completion. Protocol-level validation is performed by the version
+    // handshake that follows immediately after.
     Ok(())
 }
 
@@ -473,7 +467,12 @@ async fn recv_envelope_async(
     if len > crate::protocol::MAX_MESSAGE_SIZE {
         return Err(P2pError::MessageTooLarge(len));
     }
-    let mut buf = vec![0u8; len];
+    // SECURITY FIX: Use try_reserve_exact instead of vec![0u8; len] to prevent
+    // network-controlled allocation from causing OOM before authentication.
+    let mut buf = Vec::new();
+    buf.try_reserve_exact(len)
+        .map_err(|_| P2pError::ConnectionError("alloc failed".into()))?;
+    buf.resize(len, 0);
     stream
         .read_exact(&mut buf)
         .await
@@ -674,7 +673,8 @@ pub struct Peer {
     /// Message count for rate limiting.
     pub message_count: u64,
     /// Last rate limit window reset.
-    pub rate_limit_window: SystemTime,
+    /// SECURITY: Uses Instant instead of SystemTime to avoid NTP clock-step resets.
+    pub rate_limit_window: std::time::Instant,
     /// Ban score for misbehavior (disconnect at 100).
     pub ban_score: u32,
     /// Network magic bytes.
@@ -708,7 +708,7 @@ impl Peer {
             start_height: None,
             last_seen: SystemTime::now(),
             message_count: 0,
-            rate_limit_window: SystemTime::now(),
+            rate_limit_window: std::time::Instant::now(),
             ban_score: 0,
             magic,
         }
@@ -746,7 +746,7 @@ impl Peer {
             start_height: Some(start_height),
             last_seen: SystemTime::now(),
             message_count: 0,
-            rate_limit_window: SystemTime::now(),
+            rate_limit_window: std::time::Instant::now(),
             ban_score: 0,
             magic,
         }
@@ -793,7 +793,7 @@ impl Peer {
             start_height: None,
             last_seen: SystemTime::now(),
             message_count: 0,
-            rate_limit_window: SystemTime::now(),
+            rate_limit_window: std::time::Instant::now(),
             ban_score: 0,
             magic,
         })
@@ -840,7 +840,7 @@ impl Peer {
             start_height: None,
             last_seen: SystemTime::now(),
             message_count: 0,
-            rate_limit_window: SystemTime::now(),
+            rate_limit_window: std::time::Instant::now(),
             ban_score: 0,
             magic,
         })
@@ -880,12 +880,11 @@ impl Peer {
         // Validate message for memory exhaustion attacks
         crate::protocol::validate_message(&envelope.message)?;
 
-        let now = SystemTime::now();
-        if now
-            .duration_since(self.rate_limit_window)
-            .unwrap_or_default()
-            >= Duration::from_secs(1)
-        {
+        // SECURITY FIX: Use Instant instead of SystemTime for rate limiting.
+        // SystemTime can jump backwards on NTP clock steps, causing
+        // duration_since to return Err → unwrap_or_default() → window resets.
+        let now = std::time::Instant::now();
+        if now.duration_since(self.rate_limit_window) >= Duration::from_secs(1) {
             self.message_count = 0;
             self.rate_limit_window = now;
         }
@@ -1238,8 +1237,13 @@ impl PeerManager {
         let (tokio_stream, transport, remote_public_key) =
             async_noise_handshake_responder(stream, &self.noise_config).await?;
 
-        // Check for duplicate peer by public key AFTER handshake
-        if self.has_peer_with_public_key(&remote_public_key).await {
+        // SECURITY FIX (TOCTOU): Check for duplicate peer within the SAME lock
+        // scope as the push. The old code called has_peer_with_public_key() which
+        // acquires its own lock, creating a window where another task could insert
+        // the same peer between the check and the push.
+        // Re-acquire the lock (it was dropped before the handshake await)
+        let mut peers = self.lock_peers().await;
+        if peers.iter().any(|p| p.remote_public_key == remote_public_key) {
             return Err(P2pError::ConnectionError(format!(
                 "duplicate peer connection: peer with key {} is already connected",
                 hex::encode(remote_public_key)
@@ -1262,7 +1266,7 @@ impl PeerManager {
             start_height: None,
             last_seen: SystemTime::now(),
             message_count: 0,
-            rate_limit_window: SystemTime::now(),
+            rate_limit_window: std::time::Instant::now(),
             ban_score: 0,
             magic: self.magic,
         };
@@ -1316,63 +1320,19 @@ impl PeerManager {
         );
 
         // ASYNC: Perform Noise handshake using tokio I/O
-        let (tokio_stream, transport, remote_public_key) =
+        let (mut tokio_stream, transport, remote_public_key) =
             async_noise_handshake_initiator(tokio_stream, &self.noise_config).await?;
-
-        // Check for duplicate peer by public key AFTER handshake
-        if self.has_peer_with_public_key(&remote_public_key).await {
-            return Err(P2pError::ConnectionError(format!(
-                "duplicate peer connection: peer with key {} is already connected",
-                hex::encode(remote_public_key)
-            )));
-        }
 
         // Get our current height for version message
         let our_height = *self.current_height.lock().await;
         let magic = self.magic;
 
-        // Convert TokioTcpStream to std TcpStream for NoiseTransport compatibility
-        // Set socket back to blocking mode for sync version handshake
-        let std_stream = {
-            #[allow(unused_mut)]
-            let mut stream = tokio_stream
-                .into_std()
-                .map_err(|e| P2pError::ConnectionError(format!("stream conversion failed: {e}")))?;
-            // CRITICAL: Tokio sets it non-blocking, but sync I/O requires blocking mode
-            stream.set_nonblocking(false).map_err(|e| {
-                P2pError::ConnectionError(format!("set_nonblocking(false) failed: {e}"))
-            })?;
-            stream
-        };
-
-        // Perform version handshake using sync I/O through NoiseTransport (encrypted)
-        // Run in spawn_blocking to avoid blocking async runtime
-        let (version, user_agent, start_height, final_transport) =
-            tokio::task::spawn_blocking(move || {
-                // Create NoiseTransport with encrypted channel
-                let noise_transport =
-                    NoiseTransport::from_parts(std_stream, transport, remote_public_key);
-
-                // Create a temporary Peer for version handshake
-                let mut peer =
-                    Peer::from_handshaked(addr, noise_transport, remote_public_key, magic);
-                peer.handshake_outbound(our_height)?;
-
-                let version = peer.version.unwrap_or(PROTOCOL_VERSION);
-                let user_agent = peer.user_agent.clone().unwrap_or_default();
-                let start_height = peer.start_height.unwrap_or(0);
-                let transport = peer.into_stream();
-
-                Ok::<(u32, String, u64, NoiseTransport), P2pError>((
-                    version,
-                    user_agent,
-                    start_height,
-                    transport,
-                ))
-            })
-            .await
-            .map_err(|e| P2pError::ConnectionError(format!("join error: {e}")))?
-            .map_err(|e| P2pError::ConnectionError(format!("version handshake failed: {e}")))?;
+        // SECURITY FIX: Use async version handshake instead of converting
+        // the tokio-managed socket to blocking mode with set_nonblocking(false).
+        // set_nonblocking(false) on a tokio-managed socket is dangerous and can
+        // cause hangs or undefined behavior.
+        let (version, user_agent, start_height) =
+            async_version_handshake_outbound(&mut tokio_stream, magic, our_height).await?;
 
         log::info!(
             "Async outbound peer connected: {} (key: {}, version: {}, height: {})",
@@ -1382,10 +1342,15 @@ impl PeerManager {
             start_height
         );
 
+        // Convert TokioTcpStream to std TcpStream for NoiseTransport
+        let std_stream = tokio_stream
+            .into_std()
+            .map_err(|e| P2pError::ConnectionError(format!("stream conversion failed: {e}")))?;
+
         // Create peer from the completed handshake with version info
         let peer = Peer::from_handshaked_with_version(
             addr,
-            final_transport,
+            NoiseTransport::from_parts(std_stream, transport, remote_public_key),
             remote_public_key,
             self.magic,
             version,
@@ -1393,8 +1358,17 @@ impl PeerManager {
             start_height,
         );
 
-        // Re-acquire lock to add peer to list
+        // SECURITY FIX (TOCTOU): Hold the lock across both duplicate check and push.
+        // The old code checked has_peer_with_public_key() then pushed under a
+        // separate lock acquisition, allowing a race where two connections for
+        // the same peer could both pass the check.
         let mut peers = self.lock_peers().await;
+        if peers.iter().any(|p| p.remote_public_key == remote_public_key) {
+            return Err(P2pError::ConnectionError(format!(
+                "duplicate peer connection: peer with key {} is already connected",
+                hex::encode(remote_public_key)
+            )));
+        }
         peers.push(peer);
         Ok(())
     }

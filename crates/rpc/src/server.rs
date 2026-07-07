@@ -1038,16 +1038,52 @@ async fn apply_auth_backoff(
     state.is_locked()
 }
 
-/// Apply rate limiting based on client IP and configuration
+/// Hard cap on rate-limiter entries to prevent memory exhaustion from IPv6
+/// address rotation (e.g. rotating through a /64 prefix).
+const RATE_LIMITER_MAX_ENTRIES: usize = 65_536;
+
+/// Normalises an IP address for rate-limiting purposes.
+///
+/// IPv4 addresses are returned as-is.  IPv6 addresses are bucketed to the
+/// /48 prefix so that a host rotating through a /64 still shares a single
+/// token bucket.
+fn normalise_ip_for_rate_limit(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V4(_) => ip,
+        IpAddr::V6(v6) => {
+            let octets = v6.octets();
+            // Keep the first 48 bits (6 bytes), zero the rest → /48 prefix
+            let mut masked = [0u8; 16];
+            masked[..6].copy_from_slice(&octets[..6]);
+            IpAddr::V6(std::net::Ipv6Addr::from(masked))
+        }
+    }
+}
+
+/// Apply rate limiting based on client IP and configuration.
+///
+/// IPv6 clients are bucketed by /48 prefix to defeat address-rotation attacks.
+/// The limiter HashMap is capped at [`RATE_LIMITER_MAX_ENTRIES`] entries; once
+/// the cap is hit new (unseen) IPs are rejected until existing entries expire.
 async fn check_rate_limit(
     ip: IpAddr,
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     config: &RpcConfig,
 ) -> bool {
+    let key = normalise_ip_for_rate_limit(ip);
     let mut limiter_map = limiter.lock().await;
 
+    // If the key is new and we are at the hard cap, reject immediately.
+    if !limiter_map.contains_key(&key) && limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
+        warn!(
+            "Rate-limiter map at capacity ({RATE_LIMITER_MAX_ENTRIES}); rejecting new IP {}",
+            ip
+        );
+        return false;
+    }
+
     let bucket = limiter_map
-        .entry(ip)
+        .entry(key)
         .or_insert_with(|| TokenBucket::new(config.rate_limit_requests, config.rate_limit_window));
 
     bucket.consume(1) // Each request consumes 1 token

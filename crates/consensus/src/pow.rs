@@ -243,7 +243,7 @@ impl PowEngine for RandomXEngine {
         }
         #[cfg(not(feature = "randomx"))]
         {
-            Ok(randomx_pow_hash(&bytes, &self._config.seed))
+            randomx_pow_hash(&bytes, &self._config.seed)
         }
     }
 }
@@ -285,37 +285,29 @@ pub fn randomx_pow_hash_cached(
     Ok(out)
 }
 
-/// Computes RandomX PoW hash (exposed for Stratum) - legacy function for compatibility.
+/// Computes RandomX PoW hash (exposed for Stratum).
+///
+/// SECURITY: Returns Result to propagate VM creation failures.
+/// Previously silently fell back to SHA-256 on failure, which would
+/// cause blocks to be accepted with wrong PoW algorithm.
 #[cfg(feature = "randomx")]
-pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
+pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> Result<[u8; 32]> {
     // Create temporary cache for legacy compatibility
     let vm_cache = Arc::new(Mutex::new(RandomXVMCache::new()));
-    randomx_pow_hash_cached(preimage, seed, &vm_cache).unwrap_or_else(|_e| {
-        // In legacy compatibility mode, we should never fail, but if we do,
-        // return a fallback hash to maintain API compatibility
-        let mut hasher = Sha256::new();
-        hasher.update(b"RandomX-fallback-");
-        hasher.update(seed);
-        hasher.update(preimage);
-        let result = hasher.finalize();
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&result);
-        out
-    })
+    randomx_pow_hash_cached(preimage, seed, &vm_cache)
 }
 
-/// Fallback RandomX implementation when feature is not enabled
+/// SECURITY: RandomX feature is REQUIRED for validating RandomX-algorithm blocks.
+/// Without this feature, blocks claiming to use RandomX will be rejected at runtime
+/// rather than silently falling back to SHA-256 (which would cause chain splits).
 #[cfg(not(feature = "randomx"))]
-pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
-    // Fallback to SHA-256 placeholder when RandomX is not compiled in
-    let mut hasher = Sha256::new();
-    hasher.update(b"RandomX-placeholder-");
-    hasher.update(seed);
-    hasher.update(preimage);
-    let result = hasher.finalize();
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&result);
-    out
+pub fn randomx_pow_hash(_preimage: &[u8], _seed: &[u8; 32]) -> Result<[u8; 32]> {
+    Err(bitquan_types::Error::Invalid(
+        "RandomX PoW is not available: compiled without 'randomx' feature. \
+         Blocks using PowAlgo::RandomX cannot be validated. \
+         Recompile with --features randomx to enable."
+            .to_string(),
+    ))
 }
 
 /// RandomX configuration.
@@ -412,23 +404,26 @@ impl PowEngine for EthashEngine {
 
     fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
         let bytes = header.to_bytes();
-        Ok(ethash_pow_hash(&bytes, &self._config.cache_size))
+        ethash_pow_hash(&bytes, &self._config.cache_size)
     }
 }
 
-/// Computes Ethash PoW hash using fallback Keccak-256 implementation.
-/// The actual ethash feature was removed due to dependency conflicts.
-pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
-    // Fallback to Keccak-256 placeholder when Ethash is not compiled in
-    use sha3::{Digest, Keccak256};
-    let mut hasher = Keccak256::new();
-    hasher.update(b"Ethash-placeholder-");
-    hasher.update(cache_size.to_le_bytes());
-    hasher.update(preimage);
-    let result = hasher.finalize();
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&result);
-    out
+/// Computes Ethash PoW hash.
+///
+/// SECURITY: The actual ethash implementation was removed due to dependency conflicts.
+/// This function returns an error instead of silently falling back to Keccak-256,
+/// which would cause chain splits between nodes expecting real Ethash and those
+/// using the fake fallback.
+///
+/// To re-enable Ethash: add the ethash dependency and implement proper DAG-based hashing.
+/// To remove Ethash: remove PowAlgo::Ethash from consensus rules.
+pub fn ethash_pow_hash(_preimage: &[u8], _cache_size: &u32) -> Result<[u8; 32]> {
+    Err(bitquan_types::Error::Invalid(
+        "Ethash PoW is not available: ethash dependency was removed. \
+         Blocks using PowAlgo::Ethash cannot be validated. \
+         Re-add ethash dependency or remove Ethash from allowed algorithms."
+            .to_string(),
+    ))
 }
 
 /// Ethash configuration.

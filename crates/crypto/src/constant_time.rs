@@ -66,8 +66,9 @@ pub fn constant_time_is_zero(value: u8) -> bool {
 ///
 /// Returns true if all bytes are zero, false otherwise.
 /// This function executes in constant time regardless of the input values.
+/// Uses fold to accumulate OR of all bytes — never short-circuits.
 pub fn constant_time_all_zero(bytes: &[u8]) -> bool {
-    bytes.iter().all(|&b| constant_time_is_zero(b))
+    bytes.iter().fold(0u8, |acc, &b| acc | b) == 0
 }
 
 /// Constant-time minimum of two values.
@@ -214,11 +215,23 @@ pub fn constant_time_hash_eq(hash1: &[u8], hash2: &[u8]) -> bool {
 
 /// Constant-time password verification.
 ///
+/// **DEPRECATED / INSECURE**: Uses a single SHA-256 round — no salt, no work
+/// factor. This MUST NOT be used in production authentication paths.
+/// Replace with Argon2id (via the `argon2` crate) before shipping.
+///
 /// Verifies a password against a hash in constant time.
 /// Returns true if the password matches, false otherwise.
+#[cfg_attr(
+    not(any(test, feature = "insecure-password-verify")),
+    deprecated(
+        note = "INSECURE: single SHA-256 round with no salt. Use Argon2id for production password verification."
+    )
+)]
+#[cfg(any(test, feature = "insecure-password-verify"))]
 pub fn constant_time_password_verify(password: &[u8], hash: &[u8]) -> bool {
-    // In a real implementation, this would use a proper password hashing function
-    // like Argon2, bcrypt, or scrypt. For demonstration, we'll use a simple hash.
+    // WARNING: This is intentionally gated behind `test` or the
+    // `insecure-password-verify` feature flag.
+    // Production code MUST use Argon2id (or bcrypt/scrypt) with per-user salts.
     use sha2::{Digest, Sha256};
 
     let computed_hash = Sha256::digest(password);

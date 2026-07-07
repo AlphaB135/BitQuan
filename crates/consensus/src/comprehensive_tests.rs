@@ -160,6 +160,8 @@ fn invalid_coinbase_rejection() {
         genesis::GENESIS_HASH_BYTES,
         Some(0),
         0,
+        0, // network_adjusted_time
+        None, // expected_bits
     );
     // Empty block doesn't have coinbase - fails validation
     assert!(result.is_err());
@@ -194,6 +196,8 @@ fn invalid_coinbase_rejection() {
         genesis::GENESIS_HASH_BYTES,
         Some(0),
         0,
+        0, // network_adjusted_time
+        None, // expected_bits
     );
     // Wrong prev_txid for coinbase - should fail
     assert!(result.is_err());
@@ -212,6 +216,8 @@ fn invalid_coinbase_rejection() {
         genesis::GENESIS_HASH_BYTES,
         Some(0),
         0,
+        0, // network_adjusted_time
+        None, // expected_bits
     );
     // Too short script_sig - should fail
     assert!(result.is_err());
@@ -255,6 +261,8 @@ fn test_fee_calculation_precision() {
         genesis::GENESIS_HASH_BYTES,
         Some(total_fees),
         0,
+        0, // network_adjusted_time
+        None, // expected_bits
     );
 }
 
@@ -295,6 +303,8 @@ fn test_fee_overflow_protection() {
         genesis::GENESIS_HASH_BYTES,
         Some(excessive_fees),
         0,
+        0, // network_adjusted_time
+        None, // expected_bits
     );
     // Should fail due to coinbase exceeding subsidy + fees or value validation
     assert!(result.is_err());
@@ -330,7 +340,7 @@ fn test_validate_block_with_fees() {
 
     // Call the function - it may fail but that's OK for this test
     // We're just testing that the function exists and has the correct signature
-    let _result = engine.validate_block_with_fees(&block, 0, 0, 0);
+    let _result = engine.validate_block_with_fees(&block, 0, 0, 0, 0);
 
     // The test passes as long as we can call the function without compilation errors
 }
@@ -369,7 +379,7 @@ fn test_validate_block_with_fees_invalid_fees() {
 
     // Should fail due to fee mismatch (but might fail for other reasons like signature or merkle)
     // The important thing is that the function can be called with fee validation
-    let _result = engine.validate_block_with_fees(&block, 0, total_fees, 0);
+    let _result = engine.validate_block_with_fees(&block, 0, total_fees, 0, 0);
     // We don't assert on the result since it could fail for multiple reasons
     // Test passes if the function call compiles
 }
@@ -431,6 +441,8 @@ fn dust_output_rejection() {
         genesis::GENESIS_HASH_BYTES,
         None,
         0,
+        0, // network_adjusted_time
+        None, // expected_bits
     );
 
     // Dust validation may or may not be implemented - just check it returns some result
@@ -491,6 +503,8 @@ fn op_return_dust_allowed() {
         genesis::GENESIS_HASH_BYTES,
         None,
         0,
+        0, // network_adjusted_time
+        None, // expected_bits
     );
 }
 

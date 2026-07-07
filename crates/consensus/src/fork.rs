@@ -11,6 +11,11 @@ use thiserror::Error;
 
 use primitive_types::U256;
 
+/// Maximum number of fork nodes to prevent OOM DoS from orphan chain flooding.
+/// SECURITY: Without this limit, an attacker can exhaust memory by advertising
+/// orphan chains with valid low-difficulty PoW (Eclipse + orphan-flood = OOM DoS).
+const MAX_FORK_NODES: usize = 10_000;
+
 /// Errors that can occur during fork choice and reorg.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum ForkError {
@@ -29,6 +34,10 @@ pub enum ForkError {
     /// Invalid chain work calculation.
     #[error("invalid chain work")]
     InvalidWork,
+
+    /// Too many fork nodes tracked (DoS protection).
+    #[error("too many fork nodes: {0} (max {MAX_FORK_NODES})")]
+    TooManyForkNodes(usize),
 }
 
 /// Result of finding fork point (disconnect blocks, connect blocks, fork point hash).
@@ -180,6 +189,11 @@ impl ForkChoice {
         header: BlockHeader,
     ) -> Result<(bool, Option<ReorgInfo>), ForkError> {
         let hash = header_hash(&header);
+
+        // SECURITY: Cap the number of tracked fork nodes to prevent OOM DoS.
+        if self.nodes.len() >= MAX_FORK_NODES {
+            return Err(ForkError::TooManyForkNodes(self.nodes.len()));
+        }
 
         // Check for duplicate
         if self.nodes.contains_key(&hash) {

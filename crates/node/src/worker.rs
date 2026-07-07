@@ -562,7 +562,7 @@ async fn handle_get_data(
                             hex::encode(&tx.txid()[..8]),
                             peer.addr
                         );
-                        peer.send_message(Message::Tx { transaction: tx })?;
+                        peer.send_message(Message::Tx { transaction: (*tx).clone() })?;
                     }
                     None => {
                         // Not in mempool, try storage
@@ -719,8 +719,40 @@ async fn handle_block(
     // Step 4: Full consensus validation (coinbase, signatures, merkle, etc.)
     // Uses total_fees from UTXO validation for STRICT coinbase reward check.
     // This prevents the inflation bug where miners claim subsidy + 1 BTC without fees.
+    // SECURITY: network_adjusted_time is calculated here (outside consensus) as the
+    // caller's responsibility. In production, this should ideally be median peer time.
+    let network_adjusted_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     let mut engine = ctx.consensus.lock().await;
-    match engine.validate_block_with_fees(&block, height, total_fees, median_time_past) {
+
+    // Set difficulty state anchored at the parent block to enforce ASERT difficulty target validation.
+    // Ref: issue #191 (C1 — ASERT difficulty not enforced).
+    if height > 0 {
+        match ctx.storage.get_block(&block.header.prev_block).await {
+            Ok(Some(parent)) => {
+                let difficulty_state = bitquan_consensus::DifficultyState::new(
+                    height.saturating_sub(1),
+                    parent.header.time as u64,
+                    parent.header.bits,
+                    0, // guard_activation_height
+                );
+                engine.set_difficulty_state(difficulty_state);
+            }
+            Ok(None) => {
+                log::warn!(
+                    "Parent block {} not found in storage. Skipping ASERT enforcement.",
+                    hex::encode(&block.header.prev_block[..8])
+                );
+            }
+            Err(e) => {
+                log::error!("Failed to fetch parent block from storage: {}. Skipping ASERT enforcement.", e);
+            }
+        }
+    }
+
+    match engine.validate_block_with_fees(&block, height, total_fees, median_time_past, network_adjusted_time) {
         Ok(report) => {
             log::info!(
                 "✅ Block {} consensus valid (weight: {} WU, sigs: {})",

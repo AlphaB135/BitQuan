@@ -760,6 +760,8 @@ fn test_validate_block_weight_overflow() {
         GENESIS_HASH_BYTES,
         None,
         0, // median_time_past
+        0, // network_adjusted_time
+        None, // expected_bits
     );
 
     // Should either detect overflow or weight exceeds limit
