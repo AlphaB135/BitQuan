@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! BIP39 mnemonic seed phrase support for wallet backup and recovery.
 //!
 //! Implements BIP39 standard for generating human-readable backup phrases
@@ -13,8 +14,6 @@
 //! - Validate and parse mnemonic phrases
 //!
 //! Therefore, dead_code warnings are allowed for this module.
-
-#![allow(dead_code)]
 
 use bip39::Mnemonic;
 use bitquan_types::error::{Error, Result};

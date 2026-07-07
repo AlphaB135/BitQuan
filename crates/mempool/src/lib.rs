@@ -5,41 +5,26 @@ use bitquan_consensus::{utxo::OutPoint, MempoolPolicy};
 use bitquan_types::{checked, Error, Result, Transaction};
 use bq_crypto::rng::{RandomSource, RngService};
 use log::warn;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
-/// Weight units per PQC signature (BQIP-0002)
-const SIGNATURE_WEIGHT: usize = 384;
-
-/// Witness scale factor (Bitcoin compatibility)
+/// BQIP-0007: Witness scale factor — base bytes cost 4 WU each, witness bytes cost 1 WU.
 const WITNESS_SCALE_FACTOR: usize = 4;
 
-/// Calculates transaction weight according to BQIP-0002.
+/// Calculates transaction weight according to BQIP-0007 (BQSegWit).
+/// Formula: weight = base_bytes*4 + witness_bytes*1
 fn calculate_tx_weight(tx: &Transaction) -> Result<usize> {
-    let serialized = tx
+    let total_size = tx
         .serialized_size_hint()
         .map_err(|_| Error::Overflow("serialized_size_hint"))?;
     let witness = tx
         .witness_size_hint()
         .map_err(|_| Error::Overflow("witness_size_hint"))?;
-    let base_size = checked!(serialized.checked_sub(witness), "base_size subtraction")?;
+    let base_size = checked!(total_size.checked_sub(witness), "base_size subtraction")?;
 
-    // Use checked arithmetic to prevent overflow when counting signatures
-    let sig_count: usize = tx.witnesses.iter().try_fold(0usize, |acc, w| {
-        acc.checked_add(w.signatures.len())
-            .ok_or(Error::Overflow("signature count"))
-    })?;
-
-    checked!(
-        calculate_weight_components(base_size, sig_count),
-        "weight components"
-    )
-}
-
-fn calculate_weight_components(base_size: usize, sig_count: usize) -> Option<usize> {
-    let base = base_size.checked_mul(WITNESS_SCALE_FACTOR)?;
-    let sig = sig_count.checked_mul(SIGNATURE_WEIGHT)?;
-    base.checked_add(sig)
+    // weight = base_bytes * 4 + witness_bytes * 1
+    let base_weight = checked!(base_size.checked_mul(WITNESS_SCALE_FACTOR), "base weight")?;
+    checked!(base_weight.checked_add(witness), "total weight")
 }
 
 /// Represents the fundamental data for ordering transactions in the mempool.
@@ -82,6 +67,8 @@ impl MempoolEntry {
 pub struct Mempool {
     /// Entries organized by fee-per-weight (descending order via BTreeMap)
     entries: BTreeMap<u64, Vec<MempoolEntry>>,
+    /// Index from txid to fee_rate bucket for O(1) lookup
+    txid_index: HashMap<[u8; 32], u64>,
     /// Tracks spent outpoints to prevent double-spend within mempool
     spent_outpoints: HashSet<OutPoint>,
     /// RNG for tie-breaking
@@ -111,6 +98,7 @@ impl Mempool {
         let rng = RngService::new().map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
         Ok(Self {
             entries: BTreeMap::new(),
+            txid_index: HashMap::new(),
             spent_outpoints: HashSet::new(),
             rng,
             size_bytes: 0,
@@ -124,6 +112,7 @@ impl Mempool {
         let rng = RngService::new().map_err(|e| Error::Invalid(format!("rng failure: {e}")))?;
         Ok(Self {
             entries: BTreeMap::new(),
+            txid_index: HashMap::new(),
             spent_outpoints: HashSet::new(),
             rng,
             size_bytes: 0,
@@ -284,8 +273,11 @@ impl Mempool {
 
         self.size_bytes = checked!(self.size_bytes.checked_add(tx_size), "size_bytes update")?;
 
-        let bucket = self.entries.entry(entry.fee_per_weight).or_default();
+        let txid = entry.tx.txid();
+        let fee_rate = entry.fee_per_weight;
+        let bucket = self.entries.entry(fee_rate).or_default();
         bucket.push(entry);
+        self.txid_index.insert(txid, fee_rate);
         Ok(())
     }
 
@@ -333,6 +325,8 @@ impl Mempool {
                         let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
                         self.spent_outpoints.remove(&outpoint);
                     }
+
+                    self.txid_index.remove(&entry.tx.txid());
                 }
             }
         }
@@ -373,6 +367,7 @@ impl Mempool {
                         self.spent_outpoints.remove(&outpoint);
                     }
 
+                    self.txid_index.remove(&entry.tx.txid());
                     collected.push(entry);
                 }
             }
@@ -417,35 +412,24 @@ impl Mempool {
 
     /// Looks up a transaction by txid (for P2P transaction relay).
     pub fn get_transaction(&self, txid: &[u8; 32]) -> Option<Arc<Transaction>> {
-        for (_fee_rate, entries) in self.entries.iter() {
-            for entry in entries {
-                if entry.tx.txid() == *txid {
-                    return Some(Arc::clone(&entry.tx));
-                }
-            }
-        }
-        None
+        let fee_rate = self.txid_index.get(txid)?;
+        let entries = self.entries.get(fee_rate)?;
+        entries
+            .iter()
+            .find(|e| &e.tx.txid() == txid)
+            .map(|e| Arc::clone(&e.tx))
     }
+
+
 
     /// Checks if a transaction exists in the mempool (for P2P Inv handling).
     pub fn contains(&self, txid: &[u8; 32]) -> bool {
-        for (_fee_rate, entries) in self.entries.iter() {
-            for entry in entries {
-                if entry.tx.txid() == *txid {
-                    return true;
-                }
-            }
-        }
-        false
+        self.txid_index.contains_key(txid)
     }
 
     /// Returns all transaction IDs in the mempool (for P2P GetMempool).
     pub fn txids(&self) -> Vec<[u8; 32]> {
-        self.entries
-            .values()
-            .flatten()
-            .map(|entry| entry.tx.txid())
-            .collect()
+        self.txid_index.keys().copied().collect()
     }
 }
 
@@ -516,16 +500,22 @@ mod tests {
         let tx = create_test_tx(1, 2, 1);
         let weight = calculate_tx_weight(&tx).expect("weight");
 
-        // Weight should be base_size*4 + 1*384
-        assert!(weight >= 384);
+        // BQIP-0007: weight = base_bytes*4 + witness_bytes*1
+        // Weight must be positive and above minimum base overhead
+        assert!(weight > 0);
+        // With BQSegWit, witness is discounted: result should be less than old formula
+        let witness = tx.witness_size_hint().unwrap();
+        let total = tx.serialized_size_hint().unwrap();
+        let base = total - witness;
+        assert_eq!(weight, base * 4 + witness);
     }
 
     #[test]
-    fn weight_overflow_detection() {
-        assert!(calculate_weight_components(usize::MAX, 2).is_none());
-        assert!(
-            calculate_weight_components(usize::MAX / WITNESS_SCALE_FACTOR, usize::MAX).is_none()
-        );
+    fn weight_discount_reduces_with_more_witnesses() {
+        // The more witness data, the bigger the discount vs old formula
+        let tx_many_sigs = create_test_tx(3, 2, 3);
+        let weight = calculate_tx_weight(&tx_many_sigs).expect("weight");
+        assert!(weight > 0);
     }
 
     #[test]

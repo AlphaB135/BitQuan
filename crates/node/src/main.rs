@@ -524,14 +524,21 @@ async fn run_node(
         Some(bootstrap_peers)
     };
 
+    let rpc_user = extract_config_value(&config_content, "rpc_user")
+        .or_else(|| extract_config_value(&config_content, "rpc_username"));
+    let rpc_pass = extract_config_value(&config_content, "rpc_password");
+    let allow_insecure = extract_config_value(&config_content, "allow_insecure")
+        .map(|s| s.to_lowercase() == "true")
+        .unwrap_or(false);
+
     commands::p2p::p2p_server(
         &p2p_addr,
         50, // max_peers
         &datadir,
         RpcServerOptions {
             listen: rpc_bind, // FIX: Use the CLI argument!
-            username: Some("admin"),
-            password: Some("admin"),
+            username: rpc_user.as_deref(),
+            password: rpc_pass.as_deref(),
             #[cfg(feature = "rocksdb-backend")]
             jwt_config_path: None,
             #[cfg(feature = "rocksdb-backend")]
@@ -557,7 +564,7 @@ async fn run_node(
             #[cfg(feature = "rocksdb-backend")]
             tls_key: None,
             #[cfg(feature = "rocksdb-backend")]
-            allow_insecure: true, // FIX: Allow insecure for development
+            allow_insecure,
         },
         network,
         bootstrap_peers_opt,

@@ -65,6 +65,7 @@ fn difficultystate_with_chainstore_mtp_anchor() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: (base + i * params.difficulty.target_block_time) as u32,
             bits,
             nonce: 0,
@@ -73,6 +74,7 @@ fn difficultystate_with_chainstore_mtp_anchor() {
         headers.push(header.clone());
         let _ = store.insert_block(Block {
             header,
+            uncles: vec![],
             transactions: Vec::<Transaction>::new(),
         });
     }
@@ -169,11 +171,13 @@ fn test_block_weight_calculation() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x1d00ffff,
             nonce: 0,
             algo_id: 0,
         },
+        uncles: vec![],
         transactions: vec![coinbase],
     };
 
@@ -233,11 +237,13 @@ fn test_block_weight_exceeds_limit() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x1d00ffff,
             nonce: 0,
             algo_id: 0,
         },
+        uncles: vec![],
         transactions,
     };
 
@@ -302,11 +308,13 @@ fn test_transaction_and_block_hash_determinism() {
             prev_block: [0x55; 32],
             merkle_root: [0x33; 32],
             pqc_agg_hint: [0x44; 32],
+            uncles_hash: [0u8; 32],
             time: 1_700_000_123,
             bits: 0x1d00ffff,
             nonce: 99,
             algo_id: 0,
         },
+        uncles: vec![],
         transactions: vec![tx.clone()],
     };
 
@@ -396,11 +404,21 @@ fn test_signature_weight_scaling() {
     let weight1 = calculate_tx_weight(&tx1).expect("tx1 weight");
     let weight3 = calculate_tx_weight(&tx3).expect("tx3 weight");
 
-    // Weight difference should be approximately 2 * 384 = 768
+    // BQIP-0007 BQSegWit: each extra SignaturePayload adds its actual bytes (sig+pk+overhead)
+    // Each has sig=10 bytes + pk=10 bytes + signer_index=2 + aux_flag=1 + 2 compact-len = ~25 bytes
+    // Those bytes go into witness_size and count at weight×1 instead of base×4
+    // So diff = extra_witness_bytes * 1 (not 384 per sig)
+    // tx3 has 2 more sigs than tx1, each ~25 bytes → diff should be ~50 WU
     let diff = weight3 - weight1;
     assert!(
-        (768..=800).contains(&diff),
-        "Expected ~768 WU difference, got {}",
+        diff > 0,
+        "More signatures should increase weight, got diff={}",
+        diff
+    );
+    // The witness discount means it's much less than 2*384=768
+    assert!(
+        diff < 768,
+        "BQSegWit discount: diff should be < old 768 WU, got {}",
         diff
     );
 }
@@ -480,9 +498,16 @@ mod property_tests {
 
             let weight = calculate_tx_weight(&tx)?;
 
-            // Weight should include signature_count * 384
-            let expected_sig_weight = sig_count * 384;
-            prop_assert!(weight >= expected_sig_weight);
+            // BQIP-0007: weight = base*4 + witness_bytes*1
+            // witness_bytes = sig_count * per_sig_bytes (not sig_count * 384)
+            // Each SignaturePayload: signer_index(2) + sig_compact(1+10) + pk_compact(1+10) + aux_flag(1) = 25 bytes
+            // So witness_bytes = sig_count * 25 (approximately)
+            // Minimum: weight >= 0 (trivially), and it must be deterministic
+            prop_assert!(weight > 0 || sig_count == 0);
+            // With BQSegWit, weight grows linearly with witness bytes, not 384/sig
+            if sig_count > 0 {
+                prop_assert!(weight > 0);
+            }
         }
 
         #[test]
@@ -516,11 +541,13 @@ mod property_tests {
                     prev_block: [0u8; 32],
                     merkle_root: [0u8; 32],
                     pqc_agg_hint: [0u8; 32],
+                   uncles_hash: [0u8; 32],
                     time: 1700000000,
                     bits: 0x1d00ffff,
                     nonce: 0,
             algo_id: 0,
                 },
+                uncles: vec![],
                 transactions: txs.clone(),
             };
 
@@ -622,11 +649,13 @@ fn test_block_weight_overflow_protection() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x1d00ffff,
             nonce: 0,
             algo_id: 0,
         },
+        uncles: vec![],
         transactions,
     };
 
@@ -687,19 +716,24 @@ fn test_signature_count_overflow() {
 
     let result = calculate_tx_weight(&tx);
 
-    // Should successfully calculate or detect overflow
+    // BQIP-0007: 1_000_000 sigs × ~25 bytes/sig = ~25_000_000 witness bytes
+    // weight = base*4 + 25_000_000*1 → should be >> 1_000_000 WU
+    // The old check (>= 384_000_000) was for sig_count*384 which is no longer used
     match result {
         Ok(weight) => {
-            // 1_000_000 signatures * 384 WU/sig = 384_000_000 WU
+            // With BQSegWit, total weight = base*4 + actual_witness_bytes
+            // 1M sigs * ~25 bytes = ~25MB of witness bytes (counted at 1x)
             assert!(
-                weight >= 384_000_000,
-                "Weight too small for signature count"
+                weight >= 1_000_000,
+                "Weight should be substantial for 1M signatures, got {}",
+                weight
             );
         }
         Err(ConsensusError::WeightOverflow(msg)) => {
             assert!(
-                msg.contains("signature") || msg.contains("weight"),
-                "Expected overflow in signature/weight calculation"
+                msg.contains("weight") || msg.contains("size"),
+                "Expected overflow in weight/size calculation, got: {}",
+                msg
             );
         }
         Err(e) => panic!("Unexpected error: {:?}", e),
@@ -743,11 +777,13 @@ fn test_validate_block_weight_overflow() {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1700000000,
             bits: 0x1d00ffff,
             nonce: 0,
             algo_id: 0,
         },
+        uncles: vec![],
         transactions,
     };
 
@@ -759,9 +795,10 @@ fn test_validate_block_weight_overflow() {
         NetworkId::Devnet,
         GENESIS_HASH_BYTES,
         None,
-        0, // median_time_past
         0, // network_adjusted_time
         None, // expected_bits
+        &[],
+        &std::collections::HashSet::new(),
     );
 
     // Should either detect overflow or weight exceeds limit

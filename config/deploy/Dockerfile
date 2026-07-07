@@ -1,7 +1,10 @@
-# Multi-stage build for BitQuan node
-FROM rust:1.75-slim as builder
+# syntax=docker/dockerfile:1
+# BitQuan node - multi-stage build with dependency caching
 
-# Install build dependencies
+# Stage 1: Build dependencies (cached layer)
+FROM rustlang/rust:nightly-slim AS builder
+WORKDIR /app
+
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
@@ -10,52 +13,39 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
-
-# Copy Cargo files
+# Create dummy main to cache dependencies
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs
 COPY Cargo.toml Cargo.lock ./
-COPY crates ./crates
+COPY crates crates/
+RUN cargo build --release && rm -rf src
 
-# Build the application
-RUN cargo build --release --all-features
+# Stage 2: Build application
+FROM builder AS build
+COPY . .
+RUN cargo build --release --bin bitquan-node \
+    && strip target/release/bitquan-node
 
-# Runtime stage
-FROM debian:bookworm-slim
+# Stage 3: Runtime
+FROM debian:bookworm-slim AS runtime
 
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    openssl \
     curl \
-    jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
 RUN useradd -m -u 1000 bitquan
 
-# Set working directory
 WORKDIR /app
-
-# Copy the binary from builder stage
-COPY --from=builder /app/target/release/bitquan-node /usr/local/bin/bitquan-node
-
-# Copy configuration files
+COPY --from=build /app/target/release/bitquan-node /usr/local/bin/bitquan-node
 COPY config ./config
 
-# Create data directory
 RUN mkdir -p /data/bitquan /data/logs && \
     chown -R bitquan:bitquan /data /app
 
-# Switch to non-root user
 USER bitquan
-
-# Expose ports
 EXPOSE 8080 8081 3333 8333
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Default command
 CMD ["bitquan-node", "--config", "/app/config/mainnet.toml"]

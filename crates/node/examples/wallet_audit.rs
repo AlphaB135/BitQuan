@@ -32,7 +32,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 2: Serialization with Encryption
     println!("Test 2: Serialization with Encryption");
     println!("───────────────────────────────────────────────────────────");
-    let password = "test_password_12345678";
+    // Read password from environment
+    let password_str = std::env::var("WALLET_PASSWORD")
+        .expect("WALLET_PASSWORD environment variable must be set");
+    let password = password_str.as_str();
     let serializable = keypair.to_serializable(password);
     println!("✓ Keypair serialized");
     println!("  Algorithm: {}", serializable.algorithm);

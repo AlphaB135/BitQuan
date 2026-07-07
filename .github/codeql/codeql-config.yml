@@ -1,0 +1,6 @@
+name: "BitQuan Security Configuration"
+
+paths-ignore:
+  - '**/tests/**'
+  - '**/benches/**'
+  - '**/examples/**'

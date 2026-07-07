@@ -15,6 +15,8 @@ pub struct BlockHeader {
     pub merkle_root: [u8; 32],
     /// Reserved commitment for aggregate PQ signatures or future extensions.
     pub pqc_agg_hint: [u8; 32],
+    /// Hash of the uncle/ommer block headers.
+    pub uncles_hash: [u8; 32],
     /// Unix timestamp when the block was produced.
     pub time: u32,
     /// Compact representation of the PoW difficulty target.
@@ -29,7 +31,7 @@ pub struct BlockHeader {
 impl BlockHeader {
     /// Returns the serialized size of the header (always fixed length).
     pub const fn serialized_size(&self) -> usize {
-        4 + 32 + 32 + 32 + 4 + 4 + 8 + 1 // version + prev + merkle + pqc + time + bits + nonce + algo_id
+        4 + 32 + 32 + 32 + 32 + 4 + 4 + 8 + 1 // version + prev + merkle + pqc + uncles + time + bits + nonce + algo_id
     }
 
     /// Serializes the header to bytes (little-endian fields per wire format).
@@ -40,6 +42,7 @@ impl BlockHeader {
                 prev_block: [0u8; 32],
                 merkle_root: [0u8; 32],
                 pqc_agg_hint: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: 0,
                 bits: 0,
                 nonce: 0,
@@ -51,6 +54,7 @@ impl BlockHeader {
         out.extend_from_slice(&self.prev_block);
         out.extend_from_slice(&self.merkle_root);
         out.extend_from_slice(&self.pqc_agg_hint);
+        out.extend_from_slice(&self.uncles_hash);
         out.extend_from_slice(&self.time.to_le_bytes());
         out.extend_from_slice(&self.bits.to_le_bytes());
         out.extend_from_slice(&self.nonce.to_le_bytes());
@@ -64,6 +68,8 @@ impl BlockHeader {
 pub struct Block {
     /// Block header.
     pub header: BlockHeader,
+    /// Uncle headers included in this block.
+    pub uncles: Vec<BlockHeader>,
     /// Transactions included in this block.
     pub transactions: Vec<Transaction>,
 }
@@ -92,7 +98,7 @@ impl Block {
         merkle_root_from_txids(&wtxids)
     }
 
-    /// Returns a best-effort serialized size hint including all transactions.
+    /// Returns a best-effort serialized size hint including all transactions and uncles.
     pub fn serialized_size_hint(&self) -> Result<usize, crate::ValidationError> {
         let tx_count = self.tx_count();
         let tx_count_len = CompactUint::from_usize(tx_count).encoded_length();
@@ -103,10 +109,15 @@ impl Block {
                 .ok_or(crate::ValidationError::SizeOverflow("block transactions"))
         })?;
 
+        let uncle_count_len = CompactUint::from_usize(self.uncles.len()).encoded_length();
+        let uncles_len = self.uncles.len() * self.header.serialized_size();
+
         self.header
             .serialized_size()
             .checked_add(tx_count_len)
             .and_then(|v| v.checked_add(txs_len))
+            .and_then(|v| v.checked_add(uncle_count_len))
+            .and_then(|v| v.checked_add(uncles_len))
             .ok_or(crate::ValidationError::SizeOverflow("block total size"))
     }
 }

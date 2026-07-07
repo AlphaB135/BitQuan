@@ -1,13 +1,17 @@
 //! Minimal length-prefixed wire I/O helpers for MessageEnvelope.
+//! BQIP-0006: zstd compression applied transparently on the wire.
 use std::io::{Read, Write};
 
+use crate::compression::{compress_block, decompress_block};
 use crate::protocol::{MessageEnvelope, P2pError, MAX_MESSAGE_SIZE};
 
 /// Send a serialized MessageEnvelope with a 4-byte little-endian length prefix.
+/// BQIP-0006: zstd-compresses the payload before sending.
 pub fn send_envelope<W: Write>(w: &mut W, env: &MessageEnvelope) -> Result<(), P2pError> {
     let bytes = env
         .serialize()
         .map_err(|e| P2pError::SerializationError(e.to_string()))?;
+    let bytes = compress_block(&bytes)?;
     let len = bytes.len() as u32;
     w.write_all(&len.to_le_bytes())
         .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
@@ -34,6 +38,8 @@ pub fn recv_envelope<R: Read>(
     let mut buf = vec![0u8; len];
     r.read_exact(&mut buf)
         .map_err(|e| P2pError::ConnectionError(e.to_string()))?;
+    // BQIP-0006: decompress if peer sent compressed payload
+    let buf = decompress_block(&buf)?;
     MessageEnvelope::deserialize(&buf, expected_magic)
 }
 

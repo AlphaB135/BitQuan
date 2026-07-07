@@ -1,0 +1,57 @@
+\contentsline {section}{\numberline {1}Introduction}{4}{section.1}%
+\contentsline {subsection}{\numberline {1.1}The Quantum Threat}{4}{subsection.1.1}%
+\contentsline {subsubsection}{\numberline {1.1.1}Shor's Algorithm and Blockchain Impact}{4}{subsubsection.1.1.1}%
+\contentsline {subsubsection}{\numberline {1.1.2}Quantum Computing Timeline}{4}{subsubsection.1.1.2}%
+\contentsline {subsection}{\numberline {1.2}BitQuan's Approach}{5}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Design Principles}{5}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Monetary Policy}{5}{subsection.1.4}%
+\contentsline {section}{\numberline {2}Background}{5}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Post-Quantum Cryptography}{5}{subsection.2.1}%
+\contentsline {subsubsection}{\numberline {2.1.1}Hardness Assumptions}{6}{subsubsection.2.1.1}%
+\contentsline {subsection}{\numberline {2.2}CRYSTALS-Dilithium}{6}{subsection.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.1}Dilithium Algorithm Overview}{6}{subsubsection.2.2.1}%
+\contentsline {subsection}{\numberline {2.3}Why Not Hybrid Mode?}{7}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}BLAKE3 Hash Function}{7}{subsection.2.4}%
+\contentsline {section}{\numberline {3}Protocol Design}{7}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Transaction Model}{7}{subsection.3.1}%
+\contentsline {subsubsection}{\numberline {3.1.1}Formal UTXO Model}{8}{subsubsection.3.1.1}%
+\contentsline {subsubsection}{\numberline {3.1.2}Transaction Walkthrough}{8}{subsubsection.3.1.2}%
+\contentsline {subsection}{\numberline {3.2}Transaction Lifecycle}{8}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Transaction Structure}{9}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Address Format}{9}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Block Structure}{9}{subsection.3.5}%
+\contentsline {section}{\numberline {4}Consensus Mechanism}{10}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Proof-of-Work}{10}{subsection.4.1}%
+\contentsline {subsubsection}{\numberline {4.1.1}Compact Difficulty Encoding}{10}{subsubsection.4.1.1}%
+\contentsline {subsubsection}{\numberline {4.1.2}Hybrid Mining (Testnet)}{10}{subsubsection.4.1.2}%
+\contentsline {subsection}{\numberline {4.2}ASERT Difficulty Adjustment}{10}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}BurstGuard}{11}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Chain Selection}{11}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Cryptographic Module}{11}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Cryptographic Stack}{11}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Wallet Security}{12}{subsection.5.2}%
+\contentsline {subsubsection}{\numberline {5.2.1}Argon2id KDF Parameters}{12}{subsubsection.5.2.1}%
+\contentsline {subsubsection}{\numberline {5.2.2}Brute-Force Lockout Schedule}{12}{subsubsection.5.2.2}%
+\contentsline {subsection}{\numberline {5.3}Signature Size Trade-off}{13}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Security Analysis}{13}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Post-Quantum Security}{13}{subsection.6.1}%
+\contentsline {subsubsection}{\numberline {6.1.1}Security Level Analysis}{13}{subsubsection.6.1.1}%
+\contentsline {subsubsection}{\numberline {6.1.2}``Harvest Now, Decrypt Later'' Resistance}{13}{subsubsection.6.1.2}%
+\contentsline {subsection}{\numberline {6.2}Attacker Success Probability}{13}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Classical Security Properties}{14}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Implementation Security}{14}{subsection.6.4}%
+\contentsline {subsubsection}{\numberline {6.4.1}STRIDE Threat Model Summary}{15}{subsubsection.6.4.1}%
+\contentsline {section}{\numberline {7}Network Architecture}{15}{section.7}%
+\contentsline {subsection}{\numberline {7.1}P2P Protocol}{15}{subsection.7.1}%
+\contentsline {subsubsection}{\numberline {7.1.1}Network Architecture Diagram}{15}{subsubsection.7.1.1}%
+\contentsline {subsubsection}{\numberline {7.1.2}P2P Message Types}{16}{subsubsection.7.1.2}%
+\contentsline {subsection}{\numberline {7.2}RPC Interface}{16}{subsection.7.2}%
+\contentsline {section}{\numberline {8}Performance}{16}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Effective TPS Analysis}{17}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Limitations and Trade-offs}{17}{subsection.8.2}%
+\contentsline {section}{\numberline {9}Comparison with Existing Solutions}{17}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Security Comparison}{18}{subsection.9.1}%
+\contentsline {section}{\numberline {10}Future Work}{18}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Development Roadmap}{18}{subsection.10.1}%
+\contentsline {section}{\numberline {11}Conclusion}{18}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Call to Action}{19}{subsection.11.1}%

@@ -1,6 +1,7 @@
 //! Core domain types for the BitQuan protocol.
 #![warn(missing_docs)]
 
+pub mod aggregation;
 mod block;
 mod compact_uint;
 pub mod context;

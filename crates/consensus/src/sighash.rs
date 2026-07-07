@@ -60,7 +60,7 @@ pub fn transaction_sighash(tx: &Transaction, ctx: &TxContext) -> Result<[u8; 32]
 }
 
 fn hash_txins(hasher: &mut Sha256, inputs: &[TxIn]) {
-    hash_len(hasher, inputs.len());
+    hash_len(hasher, inputs.len() as u64);
     for input in inputs {
         hasher.update(&input.prev_txid[..]);
         hasher.update(input.prev_vout.to_le_bytes());
@@ -70,7 +70,7 @@ fn hash_txins(hasher: &mut Sha256, inputs: &[TxIn]) {
 }
 
 fn hash_txouts(hasher: &mut Sha256, outputs: &[TxOut]) {
-    hash_len(hasher, outputs.len());
+    hash_len(hasher, outputs.len() as u64);
     for output in outputs {
         hasher.update(output.value.to_le_bytes());
         hash_bytes(hasher, &output.script_pubkey);
@@ -78,9 +78,9 @@ fn hash_txouts(hasher: &mut Sha256, outputs: &[TxOut]) {
 }
 
 fn hash_witnesses(hasher: &mut Sha256, witnesses: &[Witness]) {
-    hash_len(hasher, witnesses.len());
+    hash_len(hasher, witnesses.len() as u64);
     for witness in witnesses {
-        hash_len(hasher, witness.signatures.len());
+        hash_len(hasher, witness.signatures.len() as u64);
         for sig in &witness.signatures {
             hasher.update(sig.signer_index.to_le_bytes());
             hash_bytes(hasher, &sig.signature);
@@ -97,12 +97,12 @@ fn hash_witnesses(hasher: &mut Sha256, witnesses: &[Witness]) {
 }
 
 fn hash_bytes(hasher: &mut Sha256, data: &[u8]) {
-    hash_len(hasher, data.len());
+    hash_len(hasher, data.len() as u64);
     hasher.update(data);
 }
 
-fn hash_len(hasher: &mut Sha256, len: usize) {
-    hasher.update((len as u64).to_le_bytes());
+fn hash_len(hasher: &mut Sha256, len: u64) {
+    hasher.update(len.to_le_bytes());
 }
 
 /// Wrapper function for computing signature hash with transaction context.

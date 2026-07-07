@@ -1727,6 +1727,7 @@ mod tests {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1729900000,
             bits: 0x1d00ffff,
             nonce: 0,
@@ -1735,6 +1736,7 @@ mod tests {
 
         let block = Block {
             header: header.clone(),
+            uncles: vec![],
             transactions: vec![coinbase.clone()],
         };
 

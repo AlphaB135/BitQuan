@@ -275,15 +275,15 @@ jobs:
             for (const commit of commits.data) {
               const message = commit.commit.message;
               if (message.includes('feat:')) {
-                notes += `🚀 Feature: ${message}\n`;
+                notes += ` Feature: ${message}\n`;
               } else if (message.includes('fix:')) {
                 notes += `🐛 Fix: ${message}\n`;
               } else if (message.includes('perf:')) {
                 notes += `⚡ Performance: ${message}\n`;
               } else if (message.includes('security:')) {
-                notes += `🔒 Security: ${message}\n`;
+                notes += ` Security: ${message}\n`;
               } else {
-                notes += `📝 ${message}\n`;
+                notes += ` ${message}\n`;
               }
             }
 

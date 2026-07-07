@@ -335,6 +335,7 @@ impl CacheKey {
 struct CachedKey {
     key: SecretVec<u8>,
     created_at: SystemTime,
+    timeout: Duration,
 }
 
 impl std::fmt::Debug for CachedKey {
@@ -347,16 +348,17 @@ impl std::fmt::Debug for CachedKey {
 }
 
 impl CachedKey {
-    fn new(key: SecretVec<u8>) -> Self {
+    fn new(key: SecretVec<u8>, timeout: Duration) -> Self {
         Self {
             key,
             created_at: SystemTime::now(),
+            timeout,
         }
     }
 
     fn is_expired(&self) -> bool {
         match self.created_at.elapsed() {
-            Ok(elapsed) => elapsed > MAX_CACHE_AGE,
+            Ok(elapsed) => elapsed > self.timeout,
             Err(_) => true, // Clock went backwards - expire immediately
         }
     }
@@ -410,7 +412,7 @@ impl SecureKeyCache {
     }
 
     /// Store derived key in cache with timestamp
-    fn store(&self, cache_key: CacheKey, key: SecretVec<u8>) {
+    fn store(&self, cache_key: CacheKey, key: SecretVec<u8>, timeout: Duration) {
         if let Ok(mut entries) = self.entries.lock() {
             // Clean up expired entries first and track memory changes
             let mut memory_delta = 0isize;
@@ -429,7 +431,7 @@ impl SecureKeyCache {
             }
 
             // Store new entry and update counter
-            let new_cached = CachedKey::new(key);
+            let new_cached = CachedKey::new(key, timeout);
             memory_delta += Self::entry_memory_size(&new_cached) as isize;
             entries.insert(cache_key, new_cached);
 
@@ -571,6 +573,7 @@ fn derive_key_cached(
     mem_kib: u32,
     time_cost: u32,
     parallelism: u8,
+    timeout: Duration,
 ) -> Result<[u8; 32], String> {
     let cache_key = CacheKey::new(password, salt);
 
@@ -587,7 +590,7 @@ fn derive_key_cached(
     let key = derive_key(password, salt, mem_kib, time_cost, parallelism)?;
 
     // Store in cache for future use
-    KEY_CACHE.store(cache_key, SecretVec::new(key.to_vec()));
+    KEY_CACHE.store(cache_key, SecretVec::new(key.to_vec()), timeout);
 
     Ok(key)
 }
@@ -604,7 +607,7 @@ pub fn cleanup_expired_cache() {
 
 /// Decrypt keystore without caching (for security-sensitive operations)
 pub fn decrypt_keystore_no_cache(ks: &KeystoreFile, password: &str) -> Result<Vec<u8>, String> {
-    decrypt_keystore_cached(ks, password, false)
+    decrypt_keystore_cached(ks, password, false, MAX_CACHE_AGE)
 }
 
 /// Encrypt keystore with custom configuration
@@ -706,7 +709,7 @@ pub fn decrypt_keystore_with_config(
     password: &str,
     config: &WalletConfig,
 ) -> Result<Vec<u8>, String> {
-    decrypt_keystore_cached(ks, password, config.enable_caching)
+    decrypt_keystore_cached(ks, password, config.enable_caching, config.cache_timeout)
 }
 
 /// Get cache statistics for monitoring
@@ -887,18 +890,26 @@ pub fn encrypt_keystore(
     time_cost: u32,
     parallelism: u8,
 ) -> Result<KeystoreFile, String> {
+    if password.len() < 8 {
+        return Err("Password is too weak. Minimum length is 8 characters.".to_string());
+    }
+
     let pw = SecretVec::new(password.as_bytes().to_vec());
 
     let salt_vec = SALT_BUFFER.with(|buf| {
         let mut salt_buf = buf.borrow_mut();
         OsRng.fill_bytes(&mut salt_buf);
-        salt_buf.clone()
+        let cloned = salt_buf.clone();
+        salt_buf.zeroize();
+        cloned
     });
 
     let nonce_vec = NONCE_BUFFER.with(|buf| {
         let mut nonce_buf = buf.borrow_mut();
         OsRng.fill_bytes(&mut nonce_buf);
-        nonce_buf.clone()
+        let cloned = nonce_buf.clone();
+        nonce_buf.zeroize();
+        cloned
     });
 
     let mut key_bytes = derive_key(&pw, &salt_vec, mem_kib, time_cost, parallelism)?;
@@ -916,7 +927,7 @@ pub fn encrypt_keystore(
             nonce,
             Payload {
                 msg: plaintext,
-                aad: b"",
+                aad: &salt_vec,
             },
         )
         .map_err(|e| format!("AES encryption failed: {e}"))?;
@@ -993,14 +1004,14 @@ pub fn decrypt_keystore(ks: &KeystoreFile, password: &str) -> Result<Vec<u8>, St
     #[cfg(target_os = "windows")]
     warn_windows_acl_once();
 
-    decrypt_keystore_cached(ks, password, true)
+    decrypt_keystore_cached(ks, password, true, MAX_CACHE_AGE)
 }
 
-/// Decrypt keystore with optional caching control
-pub fn decrypt_keystore_cached(
+fn decrypt_keystore_cached(
     ks: &KeystoreFile,
     password: &str,
     use_cache: bool,
+    timeout: Duration,
 ) -> Result<Vec<u8>, String> {
     if ks.magic != MAGIC {
         return Err(format!(
@@ -1028,13 +1039,14 @@ pub fn decrypt_keystore_cached(
         .map_err(|e| format!("bad cipher b64: {}", e))?;
 
     // Use cached derivation if enabled
-    let key_bytes = if use_cache {
+    let mut key_bytes = if use_cache {
         derive_key_cached(
             &pw,
             &salt,
             ks.kdf.mem_kib,
             ks.kdf.time_cost,
             ks.kdf.parallelism,
+            timeout,
         )?
     } else {
         derive_key(
@@ -1057,17 +1069,13 @@ pub fn decrypt_keystore_cached(
             nonce,
             Payload {
                 msg: ciphertext.as_ref(),
-                aad: b"",
+                aad: &salt,
             },
         )
         .map_err(|e| format!("decrypt failed: {:?}", e));
 
-    // Note: key_bytes is not zeroized here when cached, as it's managed by the cache
-    if !use_cache {
-        // Only zeroize if not cached
-        let mut key_vec = key_bytes.to_vec();
-        key_vec.zeroize();
-    }
+    // Zeroize stack array
+    key_bytes.zeroize();
 
     res
 }

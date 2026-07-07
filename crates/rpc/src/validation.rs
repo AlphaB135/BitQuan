@@ -111,15 +111,14 @@ impl InputValidator {
             r"(?i)union\s+select",                    // SQL Union
             r"(?i)--|#",                              // SQL comments
             r"(?i)'\s*;\s*",                          // SQL command separator
-            r"(?i)<\?php",                            // PHP tags
-            r"(?i)<%\s*=.*?%>",                       // ASP tags
             r"(?i){{.*?}}",                           // Template injection
             r"(?i)\$\{.*?}",                          // Template injection
             r"(?i)cmd\s*\|",                          // Command injection
             r"(?i)&&\s*\|\|\|",                       // Command chaining
             r"(?i)[`'].*[`']",                        // Backtick/string execution
-            r"(?i)\\x[0-9a-f]{2}",                    // Hex encoding
-            r"(?i)\\u[0-9a-f]{4}",                    // Unicode encoding
+            // Removing hex and unicode encoding filters (M-6) as they block legitimate payload data
+            // r"(?i)\\x[0-9a-f]{2}",                    // Hex encoding
+            // r"(?i)\\u[0-9a-f]{4}",                    // Unicode encoding
             r"(?i)%[0-9a-f]{2}",                      // URL encoding
             r"(?i)path\s*\.\./",                      // Path traversal
             r"(?i)\.\./.*\.\./",                      // Deep path traversal

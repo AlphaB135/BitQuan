@@ -117,7 +117,11 @@ impl TransactionBuilder {
     }
 
     /// Builds and signs the transaction.
-    pub fn build_and_sign(self, sign_fn: impl Fn(&[u8]) -> Result<Vec<u8>>) -> Result<Transaction> {
+    /// The `sign_fn` should return `(Signature Bytes, Public Key Bytes)`.
+    pub fn build_and_sign(
+        self,
+        sign_fn: impl Fn(&[u8]) -> Result<(Vec<u8>, Vec<u8>)>,
+    ) -> Result<Transaction> {
         let ctx = self.ctx.clone();
         let mut tx = self.build_unsigned()?;
 
@@ -126,8 +130,8 @@ impl TransactionBuilder {
             // Compute sighash using transaction_sighash from consensus
             let sighash = compute_sighash_with_context(&tx, &ctx, i)?;
 
-            // Sign the sighash
-            let signature = sign_fn(&sighash)?;
+            // Sign the sighash and get the public key
+            let (signature, public_key) = sign_fn(&sighash)?;
 
             // Create witness
             use bitquan_types::SignaturePayload;
@@ -135,14 +139,17 @@ impl TransactionBuilder {
             let witness = Witness {
                 signatures: vec![SignaturePayload {
                     signer_index: i as u16,
-                    signature: signature.clone(),
-                    public_key: Vec::new(), // Filled by wallet
+                    signature,
+                    public_key,
                     aux: None,
                 }],
             };
 
             tx.witnesses.push(witness);
         }
+
+        // BQIP-0008: Auto-aggregate signatures if they share the same public key
+        bitquan_types::aggregation::aggregate_same_sender(&mut tx);
 
         Ok(tx)
     }

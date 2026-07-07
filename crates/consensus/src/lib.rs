@@ -26,7 +26,9 @@ mod tests;
 mod comprehensive_tests;
 
 pub use asert::{asert_next_target, BurstGuardState, GuardContext, FP_SCALE};
-pub use difficulty::{compact_to_target, target_to_compact_u64, DifficultyState};
+pub use difficulty::{
+    compact_to_target, target_to_compact, target_to_compact_u64, DifficultyState,
+};
 pub use economic::{
     EconomicConfig, EconomicError, EconomicManager, EconomicStats, RewardEvent, SlashEvent,
     SlashReason, StakeInfo,
@@ -84,8 +86,8 @@ impl DifficultyParams {
     /// Protects against rapid block bursts from hashrate spikes.
     pub fn mainnet() -> Self {
         Self {
-            target_block_time: 600,
-            difficulty_half_life: 172_800, // 2 days per BIP-0340
+            target_block_time: 120, // Reduced from 600s (10 min) to 120s (2 min) for Phase 4
+            difficulty_half_life: 14_400,
             burst_guard_window: 11,
             burst_guard_floor_ratio_fp: 1417339207, // 0.33 in 32.32 fixed-point
             burst_guard_release_ratio_fp: 1632087572, // 0.38 in 32.32 fixed-point
@@ -372,6 +374,25 @@ impl RewardSchedule {
             candidate
         }
     }
+
+    /// Calculates the uncle reward (for the miner of the uncle block).
+    pub fn uncle_reward(&self, block_height: u64, uncle_height: u64) -> u128 {
+        let base_subsidy = self.subsidy_at_height(block_height);
+        let depth = block_height.saturating_sub(uncle_height);
+        if depth == 0 || depth > 7 {
+            return 0; // Uncles must be strictly before and within 7 blocks
+        }
+        // (8 - depth) * Base Reward / 8
+        let multiplier = 8 - depth as u128;
+        (base_subsidy * multiplier) / 8
+    }
+
+    /// Calculates the nephew reward (bonus for the current miner per uncle included).
+    pub fn nephew_reward(&self, block_height: u64, uncles_count: usize) -> u128 {
+        let base_subsidy = self.subsidy_at_height(block_height);
+        let bonus_per_uncle = base_subsidy / 32;
+        bonus_per_uncle * (uncles_count as u128)
+    }
 }
 
 /// Resulting metrics from block validation.
@@ -383,6 +404,17 @@ pub struct BlockValidationReport {
     pub signature_count: u64,
     /// Subsidy scheduled for the validated block height.
     pub block_subsidy: u128,
+}
+
+/// Contextual information about an uncle block required for validation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UncleContext {
+    /// The uncle's block header
+    pub header: bitquan_types::BlockHeader,
+    /// The block height where the uncle was mined
+    pub height: u64,
+    /// The payout script (script_pubkey) for the uncle miner
+    pub payout_script: Vec<u8>,
 }
 
 /// Errors emitted when consensus validation fails.
@@ -445,51 +477,51 @@ pub enum ConsensusError {
     /// Invalid uncle block.
     #[error("invalid uncle: {0}")]
     InvalidUncle(String),
+    /// Coinbase validation failed.
+    #[error("invalid coinbase: {0}")]
+    InvalidCoinbase(String),
+    /// Fee validation failed.
+    #[error("fee validation: {0}")]
+    FeeValidation(String),
 }
 
-/// Calculates transaction weight according to BQIP-0002.
+/// Calculates transaction weight according to BQIP-0007 (BQSegWit).
 ///
-/// Formula: weight = (base_size * 4) + (signature_count * 384)
+/// Formula: `weight = (base_bytes × 4) + (witness_bytes × 1)`
+///
+/// This gives witness data (Dilithium5 signatures) a 4x discount compared to
+/// base transaction data, allowing ~4x more transactions per block.
+/// Equivalent to Bitcoin's SegWit weight formula.
 pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> Result<usize, ConsensusError> {
+    // Witness scale factor: base data costs 4 weight units per byte
     const WITNESS_SCALE_FACTOR: usize = 4;
-    const SIGNATURE_WEIGHT: usize = 384;
 
-    // Base size: transaction without witness data
-    let serialized_size = tx
+    // Total serialized size (base + witness)
+    let total_size = tx
         .serialized_size_hint()
         .map_err(|_| ConsensusError::WeightOverflow("transaction serialized size calculation"))?;
+
+    // Witness-only size (Dilithium5 signatures + pubkeys)
     let witness_size = tx
         .witness_size_hint()
         .map_err(|_| ConsensusError::WeightOverflow("transaction witness size calculation"))?;
-    let base_size =
-        serialized_size
-            .checked_sub(witness_size)
-            .ok_or(ConsensusError::WeightOverflow(
-                "transaction base size calculation",
-            ))?;
 
-    // Count signatures in witnesses using checked arithmetic
-    let sig_count: usize = tx.witnesses.iter().try_fold(0usize, |acc, w| {
-        acc.checked_add(w.signatures.len())
-            .ok_or(ConsensusError::WeightOverflow("signature count"))
-    })?;
+    // Base size = total minus witness
+    let base_size = total_size
+        .checked_sub(witness_size)
+        .ok_or(ConsensusError::WeightOverflow(
+            "transaction base size calculation",
+        ))?;
 
-    // Calculate base weight: base_size * 4
+    // BQIP-0007: weight = base_bytes*4 + witness_bytes*1
+    // Witness (signatures) get a 4x discount → 4x more txs fit per block
     let base_weight = base_size
         .checked_mul(WITNESS_SCALE_FACTOR)
         .ok_or(ConsensusError::WeightOverflow("base weight calculation"))?;
 
-    // Calculate signature weight: sig_count * 384
-    let sig_weight =
-        sig_count
-            .checked_mul(SIGNATURE_WEIGHT)
-            .ok_or(ConsensusError::WeightOverflow(
-                "signature weight calculation",
-            ))?;
-
-    // Add them together
+    // witness_bytes × 1 (discount factor)
     base_weight
-        .checked_add(sig_weight)
+        .checked_add(witness_size)
         .ok_or(ConsensusError::WeightOverflow("total transaction weight"))
 }
 
@@ -543,9 +575,10 @@ pub fn validate_block(
     network_id: bitquan_types::NetworkId,
     genesis_hash: [u8; 32],
     total_fees: Option<u128>,
-    median_time_past: u64,
     network_adjusted_time: u64,
     expected_bits: Option<u32>,
+    uncles_ctx: &[UncleContext],
+    past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
 ) -> Result<BlockValidationReport, ConsensusError> {
     // Bitcoin-style block header validation (includes ASERT difficulty enforcement)
     validate_block_header(block, height, params, median_time_past, network_adjusted_time, expected_bits)?;
@@ -561,6 +594,58 @@ pub fn validate_block(
 
     // Coinbase transaction validation
     validate_coinbase_transaction(block, height)?;
+
+    // Enforce Uncle limits natively for Uncle reward distribution
+    if block.uncles.len() > 2 {
+        return Err(ConsensusError::InvalidUncle(
+            "Block contains more than 2 uncles".to_string(),
+        ));
+    }
+
+    if block.uncles.len() != uncles_ctx.len() {
+        return Err(ConsensusError::InvalidUncle(
+            "Mismatched UncleContext length".to_string(),
+        ));
+    }
+
+    // Check for duplicate uncles within this block (Closes #132)
+    let mut current_uncle_hashes = std::collections::HashSet::new();
+    for uncle in &block.uncles {
+        let hash = crate::pow::header_hash(uncle);
+        if !current_uncle_hashes.insert(hash) {
+            return Err(ConsensusError::InvalidUncle(
+                "Duplicate uncle header within same block".to_string(),
+            ));
+        }
+    }
+
+    // GHOST Uncle Validation
+    for (uncle_header, uncle_ctx) in block.uncles.iter().zip(uncles_ctx.iter()) {
+        if uncle_header != &uncle_ctx.header {
+            return Err(ConsensusError::InvalidUncle(
+                "Uncle header mismatch with context".to_string(),
+            ));
+        }
+
+        let depth = height.saturating_sub(uncle_ctx.height);
+        if depth == 0 || depth > 7 {
+            return Err(ConsensusError::InvalidUncle(format!(
+                "Uncle depth {} invalid (must be 1-7)",
+                depth
+            )));
+        }
+
+        let uncle_hash = crate::pow::header_hash(&uncle_ctx.header);
+        if past_uncle_hashes.contains(&uncle_hash) {
+            return Err(ConsensusError::InvalidUncle(
+                "Uncle double inclusion detected".to_string(),
+            ));
+        }
+
+        // Validate Uncle PoW
+        crate::pow::check_header_pow(&uncle_ctx.header)
+            .map_err(|e| ConsensusError::InvalidUncle(format!("Uncle PoW invalid: {}", e)))?;
+    }
 
     // Calculate block weight using BQIP-0002 formula (with overflow protection)
     let block_weight = calculate_block_weight(block)?;
@@ -581,7 +666,7 @@ pub fn validate_block(
     }
 
     // Validate transaction fees and rewards
-    validate_transaction_fees(block, block_subsidy, total_fees)?;
+    validate_transaction_fees(block, height, params, total_fees, uncles_ctx)?;
 
     // Create transaction context for signature verification
     let ctx = bitquan_types::TxContext::new(network_id, genesis_hash);
@@ -711,7 +796,7 @@ fn validate_block_header(
 /// Validates coinbase transaction according to Bitcoin rules
 fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), ConsensusError> {
     if block.transactions.is_empty() {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidCoinbase(
             "Block must contain at least one transaction".to_string(),
         ));
     }
@@ -720,21 +805,21 @@ fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), Cons
 
     // Coinbase must have exactly one input with null prev_txid and prev_vout = MAX
     if coinbase.inputs.len() != 1 {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidCoinbase(
             "Coinbase must have exactly one input".to_string(),
         ));
     }
 
     let coinbase_input = &coinbase.inputs[0];
     if coinbase_input.prev_txid != [0u8; 32] || coinbase_input.prev_vout != u32::MAX {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidCoinbase(
             "Invalid coinbase input".to_string(),
         ));
     }
 
     // Coinbase scriptSig must be at least 2 bytes and at most 100 bytes
     if coinbase_input.script_sig.len() < 2 || coinbase_input.script_sig.len() > 100 {
-        return Err(ConsensusError::InvalidSignature(
+        return Err(ConsensusError::InvalidCoinbase(
             "Invalid coinbase script length".to_string(),
         ));
     }
@@ -743,7 +828,7 @@ fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), Cons
     for tx in block.transactions.iter().skip(1) {
         for input in &tx.inputs {
             if input.prev_txid == [0u8; 32] && input.prev_vout == u32::MAX {
-                return Err(ConsensusError::InvalidSignature(
+                return Err(ConsensusError::InvalidCoinbase(
                     "Non-coinbase transaction has coinbase input".to_string(),
                 ));
             }
@@ -756,9 +841,12 @@ fn validate_coinbase_transaction(block: &Block, _height: u64) -> Result<(), Cons
 /// Validates transaction fees and block reward
 fn validate_transaction_fees(
     block: &Block,
-    block_subsidy: u128,
+    height: u64,
+    params: &ConsensusParams,
     total_fees: Option<u128>,
+    uncles_ctx: &[UncleContext],
 ) -> Result<(), ConsensusError> {
+    let block_subsidy = params.reward_schedule.subsidy_at_height(height);
     // SECURITY: Use checked arithmetic to prevent integer overflow attacks.
     // An attacker could craft outputs that sum to > u64::MAX, causing wrap-around.
     let coinbase_output = block.transactions[0]
@@ -780,7 +868,7 @@ fn validate_transaction_fees(
     // Use validate_block_with_fees() or calculate fees externally.
     //
     let fees = total_fees.ok_or_else(|| {
-        ConsensusError::InvalidSignature(
+        ConsensusError::FeeValidation(
             "Total fees MUST be provided for coinbase validation. \
              Use validate_block_with_fees() or calculate from UTXO set. \
              Blocks with unknown fees CANNOT be accepted (inflation risk)."
@@ -788,15 +876,63 @@ fn validate_transaction_fees(
         )
     })?;
 
-    // Strict validation: Coinbase <= Subsidy + Fees (EXACT, no buffer)
-    let max_allowed = block_subsidy
+    // Calculate Nephew and Uncle rewards
+    let mut total_uncle_rewards = 0u128;
+    let mut expected_uncle_rewards: std::collections::HashMap<Vec<u8>, u128> =
+        std::collections::HashMap::new();
+
+    let nephew_reward = params
+        .reward_schedule
+        .nephew_reward(height, uncles_ctx.len());
+
+    for uncle_ctx in uncles_ctx {
+        let uncle_reward = params
+            .reward_schedule
+            .uncle_reward(height, uncle_ctx.height);
+        total_uncle_rewards = total_uncle_rewards
+            .checked_add(uncle_reward)
+            .ok_or(ConsensusError::WeightOverflow("uncle reward sum"))?;
+        *expected_uncle_rewards
+            .entry(uncle_ctx.payout_script.clone())
+            .or_insert(0u128) += uncle_reward;
+    }
+
+    // Strict validation: Coinbase <= Subsidy + Fees + NephewBonus
+    let max_miner_allowed = block_subsidy
         .checked_add(fees)
+        .and_then(|v| v.checked_add(nephew_reward))
         .ok_or(ConsensusError::WeightOverflow("block reward calculation"))?;
 
-    if coinbase_output > max_allowed {
+    let max_total_allowed = max_miner_allowed
+        .checked_add(total_uncle_rewards)
+        .ok_or(ConsensusError::WeightOverflow("total block reward limit"))?;
+
+    if coinbase_output > max_total_allowed {
         return Err(ConsensusError::CoinbaseExceedsSubsidy);
     }
 
+    // Verify each uncle received its exact reward
+    let mut actual_uncle_rewards: std::collections::HashMap<Vec<u8>, u128> =
+        std::collections::HashMap::new();
+    for output in &block.transactions[0].outputs {
+        if expected_uncle_rewards.contains_key(&output.script_pubkey) {
+            *actual_uncle_rewards
+                .entry(output.script_pubkey.clone())
+                .or_insert(0u128) += output.value;
+        }
+    }
+
+    for (script, expected_val) in expected_uncle_rewards {
+        let actual_val = actual_uncle_rewards.get(&script).copied().unwrap_or(0);
+        if actual_val < expected_val {
+            return Err(ConsensusError::FeeValidation(format!(
+                "Uncle miner reward missing or insufficient: expected {}, found {}",
+                expected_val, actual_val
+            )));
+        }
+    }
+
+    // Coinbase should be at least block subsidy (Prevent burning/mistakes)
     // Note: Miners may voluntarily claim less than full subsidy (e.g., fee donation).
     // This is allowed per Bitcoin convention. The critical check is the ceiling above.
     if coinbase_output < block_subsidy {
@@ -811,7 +947,12 @@ fn validate_transaction_fees(
     Ok(())
 }
 
-/// Calculates merkle root from transactions
+/// Calculates merkle root from transactions.
+///
+/// # Security
+/// Includes mitigation for CVE-2012-2459: rejects blocks where the last two
+/// transactions are identical, which would allow an attacker to mutate the
+/// transaction list while preserving the merkle root.
 pub fn calculate_merkle_root(
     transactions: &[bitquan_types::Transaction],
 ) -> Result<[u8; 32], ConsensusError> {
@@ -821,6 +962,15 @@ pub fn calculate_merkle_root(
 
     // Calculate transaction hashes
     let mut hashes: Vec<[u8; 32]> = transactions.iter().map(hash_transaction).collect();
+
+    // CVE-2012-2459: Reject blocks where the last two transactions are identical.
+    // When the tx count is odd, Bitcoin duplicates the last hash for pairing.
+    // An attacker can exploit this by submitting a block with the last tx
+    // actually duplicated, producing the same merkle root as the honest block
+    // but with a different (invalid) transaction set.
+    if hashes.len() >= 2 && hashes[hashes.len() - 1] == hashes[hashes.len() - 2] {
+        return Err(ConsensusError::MerkleRootMismatch);
+    }
 
     // Build merkle tree
     while hashes.len() > 1 {
@@ -863,6 +1013,15 @@ fn hash_transaction(tx: &bitquan_types::Transaction) -> [u8; 32] {
     for output in &tx.outputs {
         hasher.update(&output.value.to_le_bytes());
         hasher.update(&output.script_pubkey);
+    }
+
+    // SECURITY (M-13): Hash witnesses to prevent malleability
+    for witness in &tx.witnesses {
+        for sig in &witness.signatures {
+            hasher.update(&sig.signer_index.to_le_bytes());
+            hasher.update(&sig.signature);
+            hasher.update(&sig.public_key);
+        }
     }
 
     let result = hasher.finalize();
@@ -961,6 +1120,8 @@ impl ConsensusEngine {
         height: u64,
         median_time_past: u64,
         network_adjusted_time: u64,
+        uncles_ctx: &[UncleContext],
+        past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
     ) -> Result<BlockValidationReport, ConsensusError> {
         // Compute expected ASERT bits if difficulty anchor is available.
         // For genesis or contexts without an anchor, enforcement is skipped.
@@ -978,6 +1139,8 @@ impl ConsensusEngine {
             median_time_past,
             network_adjusted_time,
             expected_bits,
+            uncles_ctx,
+            past_uncle_hashes,
         )
     }
 
@@ -994,6 +1157,8 @@ impl ConsensusEngine {
         total_fees: u128,
         median_time_past: u64,
         network_adjusted_time: u64,
+        uncles_ctx: &[UncleContext],
+        past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
     ) -> Result<BlockValidationReport, ConsensusError> {
         // Compute expected ASERT bits if difficulty anchor is available.
         // For genesis or contexts without an anchor, enforcement is skipped.
@@ -1011,6 +1176,8 @@ impl ConsensusEngine {
             median_time_past,
             network_adjusted_time,
             expected_bits,
+            uncles_ctx,
+            past_uncle_hashes,
         )
     }
 }

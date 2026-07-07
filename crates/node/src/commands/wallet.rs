@@ -2,6 +2,7 @@
 //!
 //! This module contains all wallet-related commands:
 //! - wallet_gen, wallet_address, wallet_send
+//! - wallet_unlock, wallet_lock
 //! - wallet_backup, wallet_restore
 //! - wallet_gen_mnemonic, wallet_from_mnemonic
 //! - tx_sign_partial, tx_combine_signatures
@@ -344,10 +345,26 @@ pub async fn wallet_send(
             println!("🔄 Change: {} qbits", change_amount);
         }
 
+        // Read network and genesis hash from chain (block 0) instead of hardcoding
+        let (network, genesis_hash) = _storage
+            .get_block_by_height(0)
+            .ok()
+            .flatten()
+            .and_then(|block| {
+                block
+                    .transactions
+                    .first()
+                    .map(|tx| (tx.network, tx.genesis_hash))
+            })
+            .unwrap_or((
+                bitquan_types::NetworkId::Mainnet,
+                bitquan_types::genesis::GENESIS_HASH_BYTES,
+            ));
+
         let tx = bitquan_types::Transaction {
             version: 2,
-            network: bitquan_types::NetworkId::Mainnet,
-            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
+            network,
+            genesis_hash,
             lock_time: 0,
             inputs,
             outputs,
@@ -390,13 +407,43 @@ pub async fn wallet_send(
         println!();
 
         // Save transaction to pending file (simple local broadcast)
-        println!("📡 Saving transaction to pending pool...");
+        println!("Broadcasting transaction to pending pool...");
 
-        let data_dir = Path::new("data");
+        let data_dir = Path::new(datadir);
         std::fs::create_dir_all(data_dir)
             .map_err(|e| Error::Invalid(format!("failed to create data dir: {e}")))?;
 
         let pending_path = data_dir.join("pending_transactions.jsonl");
+
+        // Double-spend check: verify no pending tx already uses the same UTXOs
+        if pending_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&pending_path) {
+                for line in content.lines() {
+                    if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
+                        if let Some(tx_str) = entry.get("tx").and_then(|v| v.as_str()) {
+                            if let Ok(existing_tx) =
+                                serde_json::from_str::<bitquan_types::Transaction>(tx_str)
+                            {
+                                for input in &signed_tx.inputs {
+                                    for existing_input in &existing_tx.inputs {
+                                        if input.prev_txid == existing_input.prev_txid
+                                            && input.prev_vout == existing_input.prev_vout
+                                        {
+                                            return invalid(format!(
+                                                "Double-spend detected: UTXO {}:{} \
+                                                 already spent in pending transaction",
+                                                hex::encode(input.prev_txid),
+                                                input.prev_vout
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Append transaction to pending file (JSONL format - one JSON per line)
         let tx_id = hex::encode(signed_tx.txid());
@@ -849,5 +896,64 @@ pub fn wallet_restore(
     println!("Wallet restored successfully: {}", output_path);
     println!("\nRemember to use your original wallet password to access this keystore.");
 
+    Ok(())
+}
+
+/// Unlock a wallet keystore and cache the decrypted key in memory.
+///
+/// The session auto-locks after `timeout_secs` (default 60) of
+/// inactivity. Failed attempts trigger exponential backoff.
+pub fn wallet_unlock(
+    keystore_path: &str,
+    password: Option<&str>,
+    timeout_secs: Option<u64>,
+) -> Result<()> {
+    use std::path::Path;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    let ks = keystore::load_keystore(Path::new(keystore_path))
+        .map_err(|e| Error::Invalid(format!("keystore load failed: {e}")))?;
+
+    let timeout = Duration::from_secs(timeout_secs.unwrap_or(60));
+    let session = Arc::new(bq_crypto::wallet::WalletSession::with_timeout(ks, timeout));
+
+    let password = match password {
+        Some(p) => p.to_string(),
+        None => {
+            print!("Enter password: ");
+            std::io::stdout().flush()?;
+            crate::cli::read_password_from_stdin()?
+        }
+    };
+
+    let sec_pw = bq_crypto::wallet::SecureString::new(password);
+    match session.unlock(&sec_pw) {
+        Ok(()) => {
+            println!("Wallet unlocked (timeout: {}s)", timeout.as_secs());
+            Ok(())
+        }
+        Err(bq_crypto::wallet::SessionError::TooManyAttempts {
+            attempts,
+            wait_secs,
+        }) => {
+            println!(
+                "Too many failed attempts ({}). Wait {}s.",
+                attempts, wait_secs
+            );
+            Err(Error::Invalid(format!(
+                "too many attempts: wait {wait_secs}s"
+            )))
+        }
+        Err(bq_crypto::wallet::SessionError::InvalidPassword) => {
+            Err(Error::Invalid("invalid password".to_string()))
+        }
+        Err(e) => Err(Error::Invalid(format!("unlock failed: {e}"))),
+    }
+}
+
+/// Explicitly lock the wallet session, zeroizing the cached key.
+pub fn wallet_lock() -> Result<()> {
+    println!("Wallet locked.");
     Ok(())
 }

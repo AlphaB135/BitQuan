@@ -9,6 +9,16 @@ ignore = [
     # protobuf 2.28.0 vulnerability from prometheus 0.13.4
     # Will upgrade prometheus after stabilizing metrics
     "RUSTSEC-2024-0437",
+    # rsa crate timing side-channel (transitive via jsonwebtoken 10.x)
+    # Only used in local JWT signing, not exposed to network timing attacks
+    "RUSTSEC-2023-0071",
+    # time crate RFC 2822 parsing stack exhaustion (RUSTSEC-2026-0009)
+    # Transitive via rcgen. We don't parse user-provided RFC 2822 input.
+    # Cannot downgrade: rcgen 0.14 requires time ^0.3.35
+    "RUSTSEC-2026-0009",
+    # paste crate unmaintained (transitive via ratatui)
+    # No safe upgrade available. ratatui team will migrate in next major release.
+    "RUSTSEC-2024-0436",
 ]
 
 [licenses]
@@ -24,7 +34,6 @@ allow = [
     "Unicode-3.0",   # Unicode license (used by unicode-ident)
     "OpenSSL",       # Required by aws-lc-sys (rustls backend)
     "Zlib",          # OSI approved, FSF Free/Libre (used by foldhash)
-    # "CDLA-Permissive-2.0",  # Community Data License Agreement (not currently used)
 ]
 
 # แก้ไขปัญหา license ที่ยังคงอยู่
@@ -37,20 +46,6 @@ version = "0.1.5"
 allow = ["CDLA-Permissive-2.0"]
 name = "webpki-roots"
 version = "1.0.3"
-
-# หรือใช้วิธีนี้ถ้ายังไม่ได้ผล
-# allow = [
-#     "Apache-2.0",
-#     "MIT",
-#     "BSD-3-Clause",
-#     "ISC",
-#     "CC0-1.0",
-#     "Unicode-3.0",
-#     "OpenSSL",
-#     "Zlib",
-#     "CDLA-Permissive-2.0",
-#     "Zlib OR Apache-2.0 OR MIT",  # รูปแบบที่ foldhash อาจใช้
-# ]
 
 [bans]
 multiple-versions = "warn"

@@ -10,6 +10,7 @@ fn make_header(prev: [u8; 32], bits: u32, nonce: u64) -> BlockHeader {
         prev_block: prev,
         merkle_root: [0u8; 32],
         pqc_agg_hint: [0u8; 32],
+        uncles_hash: [0u8; 32],
         time: 0,
         bits,
         nonce,

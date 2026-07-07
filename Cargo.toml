@@ -14,7 +14,7 @@ members = [
     "crates/bq-sdk",
     "crates/faucet",
     "crates/tools/preflight",
-    "crates/tools/stress",
+    "crates/tools/stress", "crates/bitquan-cli",
 
 ]
 exclude = ["fuzz", "forks", "tools/bitquan-gui"]
@@ -42,7 +42,7 @@ pedantic = "warn"
 clap = { version = "4.5", features = ["derive"] }
 bytes = "1.11.1"  # RUSTSEC-2026-0007: warp 0.4.2 uses 1.11.0 (vulnerable)
 hex = "0.4"
-rocksdb = "0.23"
+rocksdb = "0.24"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 sha2 = "0.10"
@@ -60,3 +60,20 @@ async-trait = "0.1"
 lazy_static = "1.4"
 rayon = "1.10"
 log = "0.4"
+zstd = "0.13"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.bq-crypto]
+opt-level = 1
+[profile.dev.package.pqc-dilithium-seeded]
+opt-level = 1

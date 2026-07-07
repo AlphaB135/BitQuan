@@ -501,12 +501,9 @@ impl AsyncPeerManager {
         peers
             .iter()
             .filter(|p| p.state == PeerState::Ready && p.start_height.is_some())
-            .map(|p| {
-                (
-                    p.addr,
-                    p.start_height
-                        .expect("Peer should have start height if filter passes"),
-                )
+            .filter_map(|p| {
+                let height = p.start_height?;
+                Some((p.addr, height))
             })
             .collect()
     }

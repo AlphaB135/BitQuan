@@ -247,6 +247,7 @@ mod tests {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 1234567890,
             bits: 0x207fffff, // Very easy
             nonce: 0,
@@ -255,6 +256,7 @@ mod tests {
 
         Block {
             header,
+            uncles: vec![],
             transactions: vec![],
         }
     }

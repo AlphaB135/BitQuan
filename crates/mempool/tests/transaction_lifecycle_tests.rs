@@ -37,8 +37,9 @@ fn test_transaction_add_success() {
     let mut mempool = Mempool::new().expect("mempool creation");
     let tx = create_test_transaction(1);
 
-    // Add transaction
-    let result = mempool.insert(tx.clone(), 5000);
+    // BQIP-0007: weight ~= base*4 + witness_bytes. With Dilithium5 sig (4595+2592=7187 bytes),
+    // witness_size ~7287, so fee must be much larger to satisfy fee_per_weight >= 1.
+    let result = mempool.insert(tx.clone(), 100_000);
     assert!(result.is_ok(), "insert should succeed");
 
     // Verify mempool is not empty
@@ -52,7 +53,7 @@ fn test_mempool_size_tracking() {
     let initial_size = mempool.size_bytes();
 
     let tx = create_test_transaction(2);
-    mempool.insert(tx, 3000).expect("insert");
+    mempool.insert(tx, 100_000).expect("insert");
 
     let after_size = mempool.size_bytes();
     assert!(
@@ -70,9 +71,9 @@ fn test_multiple_transactions() {
     let tx2 = create_test_transaction(4);
     let tx3 = create_test_transaction(5);
 
-    mempool.insert(tx1, 5000).expect("insert tx1");
-    mempool.insert(tx2, 6000).expect("insert tx2");
-    mempool.insert(tx3, 4000).expect("insert tx3");
+    mempool.insert(tx1, 100_000).expect("insert tx1");
+    mempool.insert(tx2, 120_000).expect("insert tx2");
+    mempool.insert(tx3, 80_000).expect("insert tx3");
 
     assert_eq!(mempool.len(), 3, "should have 3 transactions");
 }
@@ -110,14 +111,14 @@ fn test_mempool_size_limit() {
 
     // First transaction should fit
     mempool
-        .insert(tx.clone(), 1000)
+        .insert(tx.clone(), 100_000)
         .expect("first insert should succeed");
 
     // Additional transactions may be rejected if size limit exceeded
     let mut inserted_count = 1;
     for i in 21..30 {
         let tx_i = create_test_transaction(i);
-        if mempool.insert(tx_i, 1000).is_ok() {
+        if mempool.insert(tx_i, 100_000).is_ok() {
             inserted_count += 1;
         }
     }

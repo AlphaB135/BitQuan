@@ -396,6 +396,11 @@ impl PQPSBT {
 
         // Read input count
         let (input_count, new_offset) = temp_psbt.read_compact_size(&data[offset..])?;
+        if input_count > 10_000 {
+            return Err(SDKError::PSBT(PSBTError::InvalidFormat(
+                "Too many inputs (max 10,000)".to_string(),
+            )));
+        }
         offset += new_offset;
 
         // Read inputs
@@ -420,6 +425,11 @@ impl PQPSBT {
 
         // Read output count
         let (output_count, new_offset) = temp_psbt.read_compact_size(&data[offset..])?;
+        if output_count > 10_000 {
+            return Err(SDKError::PSBT(PSBTError::InvalidFormat(
+                "Too many outputs (max 10,000)".to_string(),
+            )));
+        }
         offset += new_offset;
 
         // Read outputs

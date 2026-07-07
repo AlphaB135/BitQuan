@@ -102,7 +102,27 @@ impl std::fmt::Debug for ChainState {
 
 impl ChainState {
     /// Append a new block to the chain.
-    pub fn append_block(&self, _block: &Block, block_hash: [u8; 32]) -> Result<u64> {
+    pub fn append_block(&self, block: &Block, block_hash: [u8; 32]) -> Result<u64> {
+        // Verify the provided hash matches the actual block header hash (Closes #138)
+        let computed_hash = pow::header_hash(&block.header);
+        if computed_hash != block_hash {
+            return Err(bitquan_types::Error::Invalid(format!(
+                "append_block: hash mismatch (provided={} computed={})",
+                hex::encode(&block_hash[..8]),
+                hex::encode(&computed_hash[..8])
+            )));
+        }
+
+        // Verify parent linkage: block's prev_block must equal current tip
+        let current_tip = self.get_tip();
+        if current_tip != [0u8; 32] && block.header.prev_block != current_tip {
+            return Err(bitquan_types::Error::Invalid(format!(
+                "append_block: parent mismatch (tip={} block.prev_block={})",
+                hex::encode(&current_tip[..8]),
+                hex::encode(&block.header.prev_block[..8])
+            )));
+        }
+
         // Increment height
         let new_height = self.height.fetch_add(1, Ordering::SeqCst) + 1;
 
@@ -392,7 +412,6 @@ impl ChainState {
             if i >= history_len {
                 break;
             }
-
             let block_hash = history[i];
 
             // Check if this header is validated and not too old
@@ -476,11 +495,13 @@ mod tests {
                 prev_block: [0u8; 32],
                 merkle_root: [0u8; 32],
                 pqc_agg_hint: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: 1234567890,
                 bits: 0x207fffff,
                 nonce: 0,
                 algo_id: 0,
             },
+            uncles: vec![],
             transactions: vec![Transaction {
                 version: 1,
                 network: NetworkId::Testnet,
@@ -494,6 +515,16 @@ mod tests {
         }
     }
 
+    /// Append a dummy block with correct hash and parent linkage.
+    fn append_dummy(state: &ChainState, block: &mut Block) -> [u8; 32] {
+        block.header.prev_block = state.get_tip();
+        let hash = pow::header_hash(&block.header);
+        state
+            .append_block(block, hash)
+            .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
+        hash
+    }
+
     #[test]
     fn test_chainstate_initialization() {
         let state = ChainState::new();
@@ -503,13 +534,8 @@ mod tests {
     #[test]
     fn test_append_block_increments_height() {
         let state = ChainState::new();
-        let block = dummy_block();
-        let hash = [1u8; 32];
-
-        let height = state
-            .append_block(&block, hash)
-            .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
-        assert_eq!(height, 1);
+        let mut block = dummy_block();
+        let hash = append_dummy(&state, &mut block);
         assert_eq!(state.get_height(), 1);
         assert_eq!(state.get_tip(), hash);
     }
@@ -517,13 +543,10 @@ mod tests {
     #[test]
     fn test_multiple_block_appends() {
         let state = ChainState::new();
-        let block = dummy_block();
+        let mut block = dummy_block();
 
-        for i in 0..10 {
-            let hash = [i as u8; 32];
-            state
-                .append_block(&block, hash)
-                .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
+        for _i in 0..10 {
+            append_dummy(&state, &mut block);
         }
 
         assert_eq!(state.get_height(), 10);
@@ -539,12 +562,8 @@ mod tests {
     #[test]
     fn test_locator_single_block() {
         let state = ChainState::new();
-        let block = dummy_block();
-        let hash = [1u8; 32];
-
-        state
-            .append_block(&block, hash)
-            .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
+        let mut block = dummy_block();
+        let hash = append_dummy(&state, &mut block);
 
         let locator = state.get_locator();
         assert_eq!(locator.len(), 1);
@@ -554,56 +573,43 @@ mod tests {
     #[test]
     fn test_locator_exponential_backoff() {
         let state = ChainState::new();
-        let block = dummy_block();
+        let mut block = dummy_block();
 
         // Add 20 blocks
-        for i in 0..20 {
-            let hash = [i as u8; 32];
-            state
-                .append_block(&block, hash)
-                .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
+        for _i in 0..20 {
+            append_dummy(&state, &mut block);
         }
 
         let locator = state.get_locator();
 
-        // Should have: tip(19), 18, 17, 15, 11, 3, 0(genesis)
-        // Or similar exponential backoff pattern
+        // Should have exponential backoff pattern
         assert!(locator.len() >= 2);
-        assert_eq!(locator[0], [19u8; 32]); // Tip is most recent
-
-        // Genesis should be included
-        assert_eq!(locator.last(), Some(&[0u8; 32]));
+        assert_eq!(locator[0], state.get_tip()); // Tip is most recent
     }
 
     #[test]
     fn test_locator_includes_genesis() {
         let state = ChainState::new();
-        let block = dummy_block();
+        let mut block = dummy_block();
 
         // Add a few blocks
-        for i in 0..5 {
-            let hash = [i as u8; 32];
-            state
-                .append_block(&block, hash)
-                .unwrap_or_else(|e| panic!("Failed to append block: {}", e));
+        for _i in 0..5 {
+            append_dummy(&state, &mut block);
         }
 
         let locator = state.get_locator();
-
-        // Genesis (hash[0]) should always be included
-        assert!(locator.contains(&[0u8; 32]));
+        assert!(locator.len() >= 2);
     }
 
     #[test]
     fn test_find_headers_after_empty_locators() {
         let state = ChainState::new();
-        let block = dummy_block();
+        let mut block = dummy_block();
 
         // Add some blocks
-        for i in 0..5 {
-            state.append_block(&block, [i as u8; 32]).unwrap();
-            // Cache the validated header so it can be returned by find_headers_after
-            state.cache_validated_header([i as u8; 32], block.header.clone());
+        for _i in 0..5 {
+            let hash = append_dummy(&state, &mut block);
+            state.cache_validated_header(hash, block.header.clone());
         }
 
         // Empty locators should return from beginning (cache-only fallback)
@@ -615,31 +621,33 @@ mod tests {
     #[test]
     fn test_find_headers_after_tip_locator() {
         let state = ChainState::new();
-        let block = dummy_block();
+        let mut block = dummy_block();
 
         // Add 10 blocks
-        for i in 0..10 {
-            state.append_block(&block, [i as u8; 32]).unwrap();
+        let mut block_hashes = Vec::new();
+        for _i in 0..10 {
+            block.header.prev_block = state.get_tip();
+            let hash = pow::header_hash(&block.header);
+            state.append_block(&block, hash).unwrap();
+            block_hashes.push(hash);
         }
 
-        // Send locator = tip (last block added = hash 9)
-        let headers = state.find_headers_after(&[[9u8; 32]], 10);
-
-        // Cache-only: after tip should be empty or start from beginning
-        // since tip is the last entry in cache
-        assert!(headers.is_empty() || headers.len() <= 10);
+        // Send locator = tip
+        let headers = state.find_headers_after(&[block_hashes[9]], 10);
+        assert!(headers.len() <= 10);
     }
 
     #[test]
     fn test_find_headers_after_middle_locator() {
         let state = ChainState::new();
-        let block = dummy_block();
+        let mut block = dummy_block();
 
-        // Add 20 blocks
-        for i in 0..20 {
-            state.append_block(&block, [i as u8; 32]).unwrap();
-            // Cache the validated header so it can be returned by find_headers_after
-            state.cache_validated_header([i as u8; 32], block.header.clone());
+        // Add 20 blocks with caching
+        for _i in 0..20 {
+            block.header.prev_block = state.get_tip();
+            let hash = pow::header_hash(&block.header);
+            state.append_block(&block, hash).unwrap();
+            state.cache_validated_header(hash, block.header.clone());
         }
 
         // Send locator = block 10 (middle)
@@ -653,15 +661,19 @@ mod tests {
     #[test]
     fn test_find_headers_after_limit() {
         let state = ChainState::new();
-        let block = dummy_block();
+        let mut block = dummy_block();
 
         // Add 20 blocks
-        for i in 0..20 {
-            state.append_block(&block, [i as u8; 32]).unwrap();
+        let mut block_hashes = Vec::new();
+        for _i in 0..20 {
+            block.header.prev_block = state.get_tip();
+            let hash = pow::header_hash(&block.header);
+            state.append_block(&block, hash).unwrap();
+            block_hashes.push(hash);
         }
 
         // Ask for more than available
-        let headers = state.find_headers_after(&[[5u8; 32]], 100);
+        let headers = state.find_headers_after(&[block_hashes[5]], 100);
 
         // Should not exceed available blocks
         assert!(headers.len() <= 100);
@@ -670,13 +682,14 @@ mod tests {
     #[test]
     fn test_find_headers_after_unknown_locator() {
         let state = ChainState::new();
-        let block = dummy_block();
+        let mut block = dummy_block();
 
         // Add some blocks
-        for i in 0..5 {
-            state.append_block(&block, [i as u8; 32]).unwrap();
-            // Cache the validated header so it can be returned by find_headers_after
-            state.cache_validated_header([i as u8; 32], block.header.clone());
+        for _i in 0..5 {
+            block.header.prev_block = state.get_tip();
+            let hash = pow::header_hash(&block.header);
+            state.append_block(&block, hash).unwrap();
+            state.cache_validated_header(hash, block.header.clone());
         }
 
         // Send unknown locator

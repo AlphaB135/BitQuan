@@ -16,7 +16,7 @@
 
 use bitquan_consensus::{
     asert_next_target, check_header_pow, clamp_bits_within_bounds, compact_to_target, header_hash,
-    target_to_compact_u64, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
+    target_to_compact, ConsensusEngine, ConsensusParams, DifficultyState, DEVNET_MAX_BITS,
 };
 use bitquan_network::protocol::Message;
 use bitquan_storage::{ChainStore, InMemoryChainStore, RocksDBStore};
@@ -32,6 +32,7 @@ use bq_crypto::{
 use std::collections::VecDeque;
 use std::fs;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -95,11 +96,13 @@ pub fn load_block_placeholder() -> Result<Block> {
             prev_block: [0u8; 32],
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time: 0,
             bits: 0,
             nonce: 0,
             algo_id: 0,
         },
+        uncles: Vec::new(),
         transactions: Vec::new(),
     };
     Ok(block)
@@ -111,10 +114,13 @@ type PendingTransactionsResult = (Vec<Transaction>, Vec<[u8; 32]>, Box<dyn FnOnc
 /// Returns (valid_transactions, included_txids, cleanup_fn)
 /// - Validates Dilithium5 signatures before inclusion
 /// - Cleanup removes only successfully included transactions
-pub fn load_pending_transactions() -> PendingTransactionsResult {
+pub fn load_pending_transactions(
+    datadir: &Path,
+    chain_network: NetworkId,
+) -> PendingTransactionsResult {
     use std::io::BufRead;
 
-    let pending_path = PathBuf::from("data/pending_transactions.jsonl");
+    let pending_path = datadir.join("pending_transactions.jsonl");
     let mut valid_transactions = Vec::new();
     let mut valid_txids = Vec::new();
 
@@ -130,6 +136,18 @@ pub fn load_pending_transactions() -> PendingTransactionsResult {
                     if let Some(tx_str) = entry.get("tx").and_then(|v| v.as_str()) {
                         // Deserialize from JSON string (avoids u128 overflow when embedded)
                         if let Ok(tx) = serde_json::from_str::<Transaction>(tx_str) {
+                            // SECURITY: Reject transactions from wrong network
+                            if tx.network != chain_network {
+                                eprintln!(
+                                    "WARN: Skipping tx {} - network mismatch \
+                                     (tx={:?}, chain={:?})",
+                                    hex::encode(tx.txid()),
+                                    tx.network,
+                                    chain_network
+                                );
+                                continue;
+                            }
+
                             // SECURITY: Validate Dilithium5 signature before inclusion
                             let is_valid = validate_transaction_signature(&tx);
 
@@ -343,7 +361,7 @@ pub fn check_block(path: &str) -> Result<()> {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    match engine.validate_block(&block, 0, 0, network_adjusted_time) {
+    match engine.validate_block(&block, 0, 0, network_adjusted_time, &[], &std::collections::HashSet::new()) {
         Ok(report) => {
             println!("Block validation successful!");
             println!("  Weight: {} WU", report.block_weight);
@@ -459,7 +477,8 @@ pub fn mine_once(
     };
 
     // Load pending transactions from file (with signature validation)
-    let (pending_txs, _valid_txids, cleanup) = load_pending_transactions();
+    let (pending_txs, _valid_txids, cleanup) =
+        load_pending_transactions(Path::new("data/chainstate"), network);
     if !pending_txs.is_empty() {
         println!(
             "Found {} valid pending transaction(s) to include",
@@ -502,6 +521,7 @@ pub fn mine_once(
         prev_block: prev,
         merkle_root,
         pqc_agg_hint: witness_root,
+        uncles_hash: [0u8; 32],
         time,
         bits,
         nonce: 0,
@@ -529,6 +549,7 @@ pub fn mine_once(
             println!("FOUND nonce={n} hash={}", hex::encode(id));
             let block = Block {
                 header: header.clone(),
+                uncles: vec![],
                 transactions: all_txs,
             };
             let _ = store.insert_block(block);
@@ -893,7 +914,8 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         // Load pending transactions from file (with signature validation)
         println!("TRACE: About to load pending transactions...");
-        let (pending_txs, _valid_txids, cleanup) = load_pending_transactions();
+        let (pending_txs, _valid_txids, cleanup) =
+            load_pending_transactions(Path::new(&datadir), network);
         println!("TRACE: Loaded {} pending transactions", pending_txs.len());
         if !pending_txs.is_empty() {
             println!(
@@ -928,6 +950,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
             prev_block: prev,
             merkle_root,
             pqc_agg_hint: witness_root,
+            uncles_hash: [0u8; 32],
             time,
             bits,
             nonce: 0,
@@ -1097,6 +1120,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
 
         let block = Block {
             header: header.clone(),
+            uncles: vec![],
             transactions: all_txs,
         };
 
@@ -1208,7 +1232,7 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
             let anchor_target = compact_to_target(anchor.bits);
             let next_target =
                 asert_next_target(anchor_target, height_delta, time_delta, &params, None);
-            let mut next_bits = target_to_compact_u64(next_target);
+            let mut next_bits = target_to_compact(&next_target);
             if next_bits == 0 {
                 next_bits = block_bits;
             }
@@ -1288,6 +1312,12 @@ pub fn run_stratum_server(
         enable_vardiff: true,
         vardiff_target_time: 15.0,
         vardiff_adjust_rate: 0.05,
+        require_auth: false,
+        max_connections_per_ip: 10,
+        max_share_rate: 10.0,
+        connection_timeout: 300,
+        max_connections: 1000,
+        enable_rate_limiting: true,
     };
 
     println!("Starting BitQuan Stratum Mining Server");

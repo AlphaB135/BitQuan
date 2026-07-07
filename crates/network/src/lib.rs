@@ -12,6 +12,7 @@ pub mod security_config;
 pub mod security_manager;
 
 pub mod async_sync;
+pub mod compression; // BQIP-0006: zstd block compression
 pub mod discovery;
 pub mod dns_bootstrap;
 pub mod io;

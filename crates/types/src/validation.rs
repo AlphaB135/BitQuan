@@ -5,10 +5,10 @@ use std::collections::HashSet;
 use thiserror::Error;
 
 /// Maximum transaction size in bytes (1 MB)
-const MAX_TX_SIZE: usize = 1_000_000;
+const MAX_TX_SIZE: usize = 4_000_000; // BQIP-0005
 
 /// Maximum block size in bytes (4 MB)
-const MAX_BLOCK_SIZE: usize = 4_000_000;
+const MAX_BLOCK_SIZE: usize = 32_000_000; // BQIP-0005
 
 /// Maximum script size in bytes
 const MAX_SCRIPT_SIZE: usize = 10_000;

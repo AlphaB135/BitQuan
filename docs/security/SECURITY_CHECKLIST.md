@@ -74,3 +74,26 @@
 - [x] Key rotation and management
 - [x] Multi-signature support
 - [x] Hardware security module integration
+
+## Third-Party Audit Readiness
+
+### Pre-Audit Deliverables
+- [x] Audit package document (`docs/security/AUDIT_PACKAGE.md`)
+- [x] Software Bill of Materials (`docs/security/DEPENDENCY_SBOM.md`)
+- [x] One-command audit script (`scripts/audit-ci.sh`)
+- [x] Threat surface documented with priorities
+- [x] Known vulnerability exceptions documented and justified
+- [x] Security contact and disclosure process defined
+
+### During Audit
+- [ ] Provide access to private channels if needed
+- [ ] Respond to clarification requests within 48 hours
+- [ ] Fix critical findings within 7 days
+- [ ] Fix high findings within 14 days
+- [ ] Fix medium findings within 30 days
+
+### Post-Audit
+- [ ] Publish audit report (redacted if needed)
+- [ ] Update SECURITY_CHECKLIST.md with findings
+- [ ] Create remediation issues for all findings
+- [ ] Update `docs/security/audit-reports/` with third-party report

@@ -80,6 +80,7 @@ pub fn create_genesis_block() -> Block {
         prev_block: [0u8; 32], // No previous block
         merkle_root,
         pqc_agg_hint: witness_root,
+        uncles_hash: [0u8; 32],
         time: GENESIS_TIME,
         bits: GENESIS_BITS,
         nonce: GENESIS_NONCE,
@@ -88,6 +89,7 @@ pub fn create_genesis_block() -> Block {
 
     Block {
         header,
+        uncles: vec![],
         transactions: vec![coinbase_tx],
     }
 }

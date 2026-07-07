@@ -129,13 +129,9 @@ pub fn read_frame<R: Read>(reader: &mut R) -> TypesResult<Vec<u8>> {
     buf.try_reserve_exact(len)
         .map_err(|_| Error::Invalid("allocation failed - out of memory".to_string()))?;
 
-    // SAFETY: set_len is safe here because:
-    // 1. We allocated capacity for exactly `len` elements
-    // 2. We are about to fill all bytes with read_exact()
-    // 3. The type is u8 which has no initialization requirements
-    unsafe {
-        buf.set_len(len);
-    }
+    // Fix: Instead of unsafe set_len which risks reading uninitialized memory
+    // if read_exact fails, we use resize to zero-initialize.
+    buf.resize(len, 0);
 
     reader.read_exact(&mut buf).ctx("read frame")?;
     Ok(buf)
@@ -195,86 +191,63 @@ pub async fn async_noise_handshake_initiator(
     mut stream: TokioTcpStream,
     config: &NoiseConfig,
 ) -> Result<(TokioTcpStream, TransportState, [u8; 32]), P2pError> {
-    println!("🔧 [HANDSHAKE] async_noise_handshake_initiator: Starting");
 
     // Build handshake state using NoiseConfig's public method
     let mut handshake = config
         .build_initiator()
         .map_err(|e| P2pError::ConnectionError(format!("failed to build initiator: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Initiator handshake state built, sending Message 1...");
 
-    let mut buf = [0u8; HANDSHAKE_BUF_SIZE];
+    let mut buf = vec![0u8; HANDSHAKE_BUF_SIZE];
 
     // Message 1: -> e (send ephemeral public key)
     let len = handshake
         .write_message(&[], &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake write failed: {e}")))?;
-
-    println!(
-        "🔧 [HANDSHAKE] Message 1 created ({} bytes), sending...",
-        len
-    );
     send_handshake_msg_async(&mut stream, &buf[..len])
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg1 failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Message 1 sent, waiting for Message 2...");
 
     // Message 2: <- e, ee, s, es (receive responder's keys)
-    println!("🔧 [HANDSHAKE] Calling recv_handshake_msg_async for Message 2...");
     let msg = recv_handshake_msg_async(&mut stream)
         .await
         .map_err(|e| P2pError::ConnectionError(format!("recv msg2 failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Received Message 2 ({} bytes)", msg.len());
     handshake
         .read_message(&msg, &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake read msg2 failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Message 2 processed, creating Message 3...");
 
     // Message 3: -> s, se (send our static public key)
     let len = handshake
         .write_message(&[], &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake write msg3 failed: {e}")))?;
-
-    println!(
-        "🔧 [HANDSHAKE] Message 3 created ({} bytes), sending...",
-        len
-    );
     send_handshake_msg_async(&mut stream, &buf[..len])
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg3 failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Message 3 sent! Handshake complete!");
 
     // Extract remote public key and convert to transport mode
-    println!("🔧 [HANDSHAKE] Extracting remote public key...");
     let remote_public_key = extract_remote_key(&handshake)?;
 
-    println!("🔧 [HANDSHAKE] Converting to transport mode...");
     let transport = handshake
         .into_transport_mode()
         .map_err(|e| P2pError::ConnectionError(format!("into transport failed: {e}")))?;
 
     // Flush tokio stream before returning
-    println!("🔧 [HANDSHAKE] Flushing tokio stream...");
     stream
         .flush()
         .await
         .map_err(|e| P2pError::ConnectionError(format!("flush failed: {e}")))?;
-    println!("🔧 [HANDSHAKE] Tokio stream flushed");
 
     // NOTE: Keep TokioTcpStream for async version handshake
     // Conversion to std stream happens AFTER version handshake completes
 
-    println!("🔧 [HANDSHAKE] About to log completion...");
     log::info!(
         "Async Noise handshake complete (initiator) - remote key: {}",
         hex::encode(remote_public_key)
     );
-    println!("🔧 [HANDSHAKE] Returning from handshake...");
 
     Ok((stream, transport, remote_public_key))
 }
@@ -297,43 +270,32 @@ pub async fn async_noise_handshake_responder(
     mut stream: TokioTcpStream,
     config: &NoiseConfig,
 ) -> Result<(TokioTcpStream, TransportState, [u8; 32]), P2pError> {
-    println!("🔧 [HANDSHAKE] async_noise_handshake_responder: Starting");
 
     // Build handshake state using NoiseConfig's public method
     let mut handshake = config
         .build_responder()
         .map_err(|e| P2pError::ConnectionError(format!("failed to build responder: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Handshake state built, waiting for Message 1...");
 
-    let mut buf = [0u8; HANDSHAKE_BUF_SIZE];
+    let mut buf = vec![0u8; HANDSHAKE_BUF_SIZE];
 
     // Message 1: <- e (receive initiator's ephemeral public key)
-    println!("🔧 [HANDSHAKE] Calling recv_handshake_msg_async for Message 1...");
     let msg = recv_handshake_msg_async(&mut stream)
         .await
         .map_err(|e| P2pError::ConnectionError(format!("recv msg1 failed: {e}")))?;
-    println!("🔧 [HANDSHAKE] Received Message 1 ({} bytes)", msg.len());
     handshake
         .read_message(&msg, &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake read msg1 failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Message 1 processed, creating Message 2...");
 
     // Message 2: -> e, ee, s, es (send our keys)
     let len = handshake
         .write_message(&[], &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake write msg2 failed: {e}")))?;
-
-    println!(
-        "🔧 [HANDSHAKE] Message 2 created ({} bytes), sending...",
-        len
-    );
     send_handshake_msg_async(&mut stream, &buf[..len])
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg2 failed: {e}")))?;
 
-    println!("🔧 [HANDSHAKE] Message 2 sent, waiting for Message 3...");
 
     // Message 3: <- s, se (receive initiator's static public key)
     let msg = recv_handshake_msg_async(&mut stream)
@@ -344,31 +306,25 @@ pub async fn async_noise_handshake_responder(
         .map_err(|e| P2pError::ConnectionError(format!("handshake read msg3 failed: {e}")))?;
 
     // Extract remote public key and convert to transport mode
-    println!("🔧 [HANDSHAKE] Message 3 processed, extracting remote public key...");
     let remote_public_key = extract_remote_key(&handshake)?;
 
-    println!("🔧 [HANDSHAKE] Converting to transport mode...");
     let transport = handshake
         .into_transport_mode()
         .map_err(|e| P2pError::ConnectionError(format!("into transport failed: {e}")))?;
 
     // Flush tokio stream before returning
-    println!("🔧 [HANDSHAKE] Flushing tokio stream...");
     stream
         .flush()
         .await
         .map_err(|e| P2pError::ConnectionError(format!("flush failed: {e}")))?;
-    println!("🔧 [HANDSHAKE] Tokio stream flushed");
 
     // NOTE: Keep TokioTcpStream for async version handshake
     // Conversion to std stream happens AFTER version handshake completes
 
-    println!("🔧 [HANDSHAKE] About to log completion...");
     log::info!(
         "Async Noise handshake complete (responder) - remote key: {}",
         hex::encode(remote_public_key)
     );
-    println!("🔧 [HANDSHAKE] Returning from handshake...");
 
     Ok((stream, transport, remote_public_key))
 }
@@ -495,7 +451,6 @@ pub async fn async_version_handshake_outbound(
     magic: [u8; 4],
     our_height: u64,
 ) -> Result<(u32, String, u64), P2pError> {
-    println!("🔧 [VERSION] Starting async outbound version handshake...");
 
     // Send our version
     let version_msg = Message::Version {
@@ -510,7 +465,6 @@ pub async fn async_version_handshake_outbound(
     send_envelope_async(stream, &envelope)
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send version failed: {e}")))?;
-    println!("🔧 [VERSION] Sent our version");
 
     // Wait for their version
     let their_env = recv_envelope_async(stream, magic)
@@ -527,10 +481,9 @@ pub async fn async_version_handshake_outbound(
             if version != PROTOCOL_VERSION {
                 return Err(P2pError::VersionMismatch(version, PROTOCOL_VERSION));
             }
-            println!(
-                "🔧 [VERSION] Received their version: {} ({})",
-                version, user_agent
-            );
+            if user_agent.len() > 256 {
+                return Err(P2pError::InvalidMessage);
+            }
             (version, user_agent, start_height)
         }
         _ => {
@@ -543,7 +496,6 @@ pub async fn async_version_handshake_outbound(
     send_envelope_async(stream, &verack_env)
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send verack failed: {e}")))?;
-    println!("🔧 [VERSION] Sent verack");
 
     // Wait for their verack
     let verack_env = recv_envelope_async(stream, magic)
@@ -552,7 +504,6 @@ pub async fn async_version_handshake_outbound(
 
     match verack_env.message {
         Message::VerAck => {
-            println!("🔧 [VERSION] Received verack - handshake complete!");
         }
         _ => {
             return Err(P2pError::InvalidMessage);
@@ -577,7 +528,6 @@ pub async fn async_version_handshake_inbound(
     magic: [u8; 4],
     our_height: u64,
 ) -> Result<(u32, String, u64), P2pError> {
-    println!("🔧 [VERSION] Starting async inbound version handshake...");
 
     // Wait for their version
     let their_env = recv_envelope_async(stream, magic)
@@ -594,10 +544,9 @@ pub async fn async_version_handshake_inbound(
             if version != PROTOCOL_VERSION {
                 return Err(P2pError::VersionMismatch(version, PROTOCOL_VERSION));
             }
-            println!(
-                "🔧 [VERSION] Received their version: {} ({})",
-                version, user_agent
-            );
+            if user_agent.len() > 256 {
+                return Err(P2pError::InvalidMessage);
+            }
             (version, user_agent, start_height)
         }
         _ => {
@@ -618,14 +567,12 @@ pub async fn async_version_handshake_inbound(
     send_envelope_async(stream, &envelope)
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send version failed: {e}")))?;
-    println!("🔧 [VERSION] Sent our version");
 
     // Send verack
     let verack_env = MessageEnvelope::new(magic, Message::VerAck);
     send_envelope_async(stream, &verack_env)
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send verack failed: {e}")))?;
-    println!("🔧 [VERSION] Sent verack");
 
     // Wait for their verack
     let verack_env = recv_envelope_async(stream, magic)
@@ -634,7 +581,6 @@ pub async fn async_version_handshake_inbound(
 
     match verack_env.message {
         Message::VerAck => {
-            println!("🔧 [VERSION] Received verack - handshake complete!");
         }
         _ => {
             return Err(P2pError::InvalidMessage);
@@ -947,7 +893,6 @@ impl Peer {
 
     /// Handles incoming version handshake (inbound connection).
     pub fn handshake_inbound(&mut self, our_height: u64) -> Result<(), P2pError> {
-        println!("🔧 [VERSION] Starting inbound version handshake...");
         // Wait for their version
         let msg = self.recv_message()?;
         match msg {

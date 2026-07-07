@@ -118,10 +118,12 @@ impl BlockNode {
     }
 }
 
-/// Fork choice manager implementing longest chain rule.
+/// Fork choice manager implementing longest chain rule (upgraded to GHOST).
 pub struct ForkChoice {
     /// All known block nodes indexed by hash.
     nodes: HashMap<[u8; 32], BlockNode>,
+    /// Maps parent block hash to its children.
+    children: HashMap<[u8; 32], Vec<[u8; 32]>>,
     /// Current best chain tip.
     best_tip: Option<[u8; 32]>,
     /// Maximum reorg depth allowed (safety limit).
@@ -130,6 +132,8 @@ pub struct ForkChoice {
     pub last_reorg_depth: usize,
     /// Invalid blocks (for peer banning).
     invalid_blocks: HashMap<[u8; 32], String>,
+    /// The genesis block hash (root of the tree).
+    genesis_hash: Option<[u8; 32]>,
 }
 
 impl ForkChoice {
@@ -140,10 +144,12 @@ impl ForkChoice {
     pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
+            children: HashMap::new(),
             best_tip: None,
             max_reorg_depth: Self::DEFAULT_MAX_REORG,
             last_reorg_depth: 0,
             invalid_blocks: HashMap::new(),
+            genesis_hash: None,
         }
     }
 
@@ -151,10 +157,12 @@ impl ForkChoice {
     pub fn with_max_reorg(max_reorg_depth: usize) -> Self {
         Self {
             nodes: HashMap::new(),
+            children: HashMap::new(),
             best_tip: None,
             max_reorg_depth,
             last_reorg_depth: 0,
             invalid_blocks: HashMap::new(),
+            genesis_hash: None,
         }
     }
 
@@ -175,14 +183,72 @@ impl ForkChoice {
 
         self.nodes.insert(hash, node);
         self.best_tip = Some(hash);
+        self.genesis_hash = Some(hash);
 
         Ok(())
+    }
+
+    /// Computes the weight of a subtree rooted at the given block hash.
+    fn subtree_weight(&self, hash: &[u8; 32]) -> U256 {
+        let mut weight = self
+            .nodes
+            .get(hash)
+            .map(|n| n.block_work())
+            .unwrap_or_else(U256::zero);
+        if let Some(children) = self.children.get(hash) {
+            for child in children {
+                weight = weight.saturating_add(self.subtree_weight(child));
+            }
+        }
+        weight
+    }
+
+    /// Finds the tip using the GHOST protocol strategy.
+    fn compute_ghost_tip(&self) -> Option<[u8; 32]> {
+        let mut current = self.genesis_hash?;
+
+        loop {
+            let children = match self.children.get(&current) {
+                Some(c) if !c.is_empty() => c,
+                _ => break,
+            };
+
+            let mut best_child = current;
+            let mut max_weight = U256::zero();
+
+            for child in children {
+                let weight = self.subtree_weight(child);
+                if weight > max_weight {
+                    max_weight = weight;
+                    best_child = *child;
+                } else if weight == max_weight {
+                    // Tie-breaking: prefer earlier timestamp, then lower hash
+                    if let (Some(best_node), Some(child_node)) =
+                        (self.nodes.get(&best_child), self.nodes.get(child))
+                    {
+                        if child_node.header.time < best_node.header.time
+                            || (child_node.header.time == best_node.header.time
+                                && child < &best_child)
+                        {
+                            best_child = *child;
+                        }
+                    }
+                }
+            }
+
+            if best_child == current {
+                break; // Should not happen since children is non-empty
+            }
+            current = best_child;
+        }
+
+        Some(current)
     }
 
     /// Adds a new block and determines if reorganization is needed.
     ///
     /// Returns: (is_new_tip, reorg_info)
-    /// - is_new_tip: true if this block becomes the new tip
+    /// - is_new_tip: true if this block causes a new tip (which could be this block or another block due to GHOST)
     /// - reorg_info: Some((old_tip, new_tip, depth)) if reorg occurred
     pub fn add_block(
         &mut self,
@@ -221,60 +287,37 @@ impl ForkChoice {
         let height = parent.height + 1;
         let parent_work = parent.chain_work;
 
-        // -- Linus: Use associated function to calculate work without cloning header
         let block_work = BlockNode::calculate_work_for_bits(header.bits);
 
-        // Create final node with proper chain_work
+        // Create final node with proper chain_work (still tracked for non-GHOST fast-paths if needed)
         let chain_work = parent_work.saturating_add(block_work);
         let node = BlockNode::new(header, height, chain_work);
 
-        // -- Linus: Check if better tip BEFORE inserting to avoid clone.
-        // We already have node by value, just check then insert.
-        let is_new_tip = self.is_better_tip(&node)?;
-
-        // Insert node (move, not clone)
+        // Insert node
         self.nodes.insert(hash, node);
 
-        let reorg_info = if is_new_tip {
-            let old_tip = self.best_tip;
-            let reorg = self.compute_reorg(old_tip, Some(hash))?;
-            self.best_tip = Some(hash);
+        // Add to children map
+        self.children.entry(parent_hash).or_default().push(hash);
+
+        // Compute new tip using GHOST
+        let new_tip = self.compute_ghost_tip();
+        let old_tip = self.best_tip;
+
+        let is_new_tip_hash = new_tip != old_tip;
+
+        let reorg_info = if is_new_tip_hash {
+            let reorg = self.compute_reorg(old_tip, new_tip)?;
+            self.best_tip = new_tip;
             reorg
         } else {
             None
         };
 
-        Ok((is_new_tip, reorg_info))
-    }
+        // For backward compatibility with the tests, we return whether *this* block became the tip,
+        // OR if the tip changed. The previous logic returned `is_new_tip` as true if we extended the tip.
+        let this_is_tip = new_tip == Some(hash);
 
-    /// Checks if a node is better than current tip (more work).
-    ///
-    /// Tie-breaking rules when work is equal:
-    /// 1. Prefer block with earlier timestamp
-    /// 2. If timestamps equal, prefer block with lower hash (lexicographically)
-    fn is_better_tip(&self, node: &BlockNode) -> Result<bool, ForkError> {
-        match self.best_tip {
-            None => Ok(true), // First block after genesis
-            Some(tip_hash) => {
-                let tip = self.nodes.get(&tip_hash).ok_or(ForkError::InvalidWork)?;
-
-                // Compare chain work (more work = better) - NO EPSILON with U256!
-                if node.chain_work > tip.chain_work {
-                    Ok(true)
-                } else if node.chain_work == tip.chain_work {
-                    // Equal work: tie-breaking rules
-                    if node.header.time != tip.header.time {
-                        // Rule 1: prefer earlier timestamp
-                        Ok(node.header.time < tip.header.time)
-                    } else {
-                        // Rule 2: prefer lower hash (deterministic)
-                        Ok(node.hash < tip.hash)
-                    }
-                } else {
-                    Ok(false)
-                }
-            }
-        }
+        Ok((this_is_tip || is_new_tip_hash, reorg_info))
     }
 
     /// Computes reorganization info when switching tips.
@@ -475,6 +518,7 @@ mod tests {
             prev_block: prev,
             merkle_root: [0u8; 32],
             pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
             time,
             bits,
             nonce,

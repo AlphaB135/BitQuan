@@ -27,7 +27,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["loggin
 rcgen = "0.14"
 
 # JWT Authentication
-jsonwebtoken = "9.2"
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 chrono = { version = "0.4", features = ["serde"] }
 hmac = "0.12"
 sha2 = "0.10"
@@ -35,7 +35,7 @@ rand = "0.8"
 argon2 = "0.5"
 toml = "0.9"
 subtle = "2"
-regex = "1.10"
+regex = "1.12"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 

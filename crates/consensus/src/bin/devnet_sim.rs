@@ -13,6 +13,12 @@ fn invalid<T>(msg: impl Into<String>) -> Result<T> {
     Err(Error::Invalid(msg.into()))
 }
 
+/// Convert [u8; 32] target to f64 for simulation display (extracts lower 64 bits).
+fn target_to_f64(target: &[u8; 32]) -> f64 {
+    let lower = u64::from_be_bytes(target[24..32].try_into().unwrap_or([0u8; 8]));
+    lower as f64
+}
+
 /// Command-line arguments for the simulation runner.
 #[derive(Parser, Debug)]
 #[command(
@@ -100,7 +106,7 @@ fn main() -> Result<()> {
 
     let params = ConsensusParams::phase3_defaults();
     let baseline_bits = 0x1d00ffff;
-    let baseline_target = compact_to_target(baseline_bits) as f64;
+    let baseline_target = target_to_f64(&compact_to_target(baseline_bits));
     let mut current_target = baseline_target;
 
     let mut blocks =
@@ -171,13 +177,18 @@ fn main() -> Result<()> {
 
             let height_delta = height as i64 - anchor.height as i64;
             let time_delta = timestamp - anchor.timestamp;
-            let next_target = asert_next_target(
-                anchor.target as u64,
+            let anchor_bytes = {
+                let mut b = [0u8; 32];
+                b[24..32].copy_from_slice(&(anchor.target as u64).to_be_bytes());
+                b
+            };
+            let next_target = target_to_f64(&asert_next_target(
+                anchor_bytes,
                 height_delta,
                 time_delta,
                 &params,
                 None,
-            ) as f64;
+            ));
 
             let expected_time = params.difficulty.target_block_time as f64 * height_delta as f64;
             let guard_triggered = height_delta as u64 >= params.difficulty.burst_guard_window

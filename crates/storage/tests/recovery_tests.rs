@@ -13,11 +13,13 @@ mod rocksdb_recovery_tests {
                 prev_block: [0u8; 32],
                 merkle_root: [0u8; 32],
                 pqc_agg_hint: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: 1234567890 + height as u32,
                 bits: 0x1d00ffff,
                 nonce: height,
                 algo_id: 0,
             },
+            uncles: vec![],
             transactions: vec![],
         }
     }

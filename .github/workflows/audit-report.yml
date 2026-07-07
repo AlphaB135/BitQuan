@@ -139,7 +139,7 @@ jobs:
 
       - name: Upload audit artifacts
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: audit-report-${{ github.event.inputs.tag }}
           path: |

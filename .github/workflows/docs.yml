@@ -3,18 +3,8 @@ name: Documentation
 on:
   push:
     branches: [ main, develop ]
-    paths:
-      - 'docs/**'
-      - 'README.md'
-      - 'CONTRIBUTING.md'
-      - 'CHANGELOG.md'
   pull_request:
     branches: [ main, develop ]
-    paths:
-      - 'docs/**'
-      - 'README.md'
-      - 'CONTRIBUTING.md'
-      - 'CHANGELOG.md'
   release:
     types: [published]
   workflow_dispatch:
@@ -25,10 +15,32 @@ permissions:
   id-token: write
 
 jobs:
+  # Detect docs-related changes to skip expensive builds
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - 'docs/**'
+              - 'README.md'
+              - 'CONTRIBUTING.md'
+              - 'CHANGELOG.md'
+              - 'src/**'
+              - 'crates/**'
+
   # Build documentation
   build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.docs == 'true' || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
@@ -98,7 +110,7 @@ jobs:
               <a href="book/index.html">📖 User Guide</a>
               <a href="api/index.html">🔌 API Reference</a>
               <a href="CONTRIBUTING.md">🤝 Contributing</a>
-              <a href="CHANGELOG.md">📝 Changelog</a>
+              <a href="CHANGELOG.md"> Changelog</a>
             </div>
 
             <div class="section">

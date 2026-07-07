@@ -35,13 +35,13 @@ pub enum P2pError {
 pub const PROTOCOL_VERSION: u32 = 1;
 
 /// Maximum message size (2 MB) - EMERGENCY PATCH for DoS protection.
-pub const MAX_MESSAGE_SIZE: usize = 2 * 1024 * 1024; // 2MB hard limit
+pub const MAX_MESSAGE_SIZE: usize = 34 * 1024 * 1024; // BQIP-0005: 32MB block + 2MB header overhead
 
 /// Maximum inv/getdata items per message.
 pub const MAX_INV_ITEMS: usize = 50_000;
 
 /// Maximum transactions per block message
-pub const MAX_BLOCK_TXS: usize = 10_000;
+pub const MAX_BLOCK_TXS: usize = 80_000; // BQIP-0005: scaled up with 32MB block size
 
 /// Maximum headers in getheaders response
 pub const MAX_HEADERS: usize = 2_000;

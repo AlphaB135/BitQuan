@@ -20,6 +20,7 @@ log = "0.4"
 toml = "0.9"
 hex = "0.4"
 libc = "0.2"
+zstd = { workspace = true }
 
 # P2P Encryption: Noise Protocol Framework
 snow = "0.9"

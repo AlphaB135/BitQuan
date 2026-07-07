@@ -46,13 +46,35 @@ impl Deref for SecureString {
 }
 
 /// Wrapper for private key material that zeroizes when dropped and locks memory on Unix.
-#[derive(Clone, Debug)]
+/// Wrapper for private key material that zeroizes when dropped and locks memory on Unix.
+#[derive(Debug)]
 pub struct SecurePrivateKey {
     key_bytes: Secret<SecretKeyBytes>,
     #[cfg(all(unix, feature = "memory-locking"))]
     is_locked: bool,
     #[cfg(all(unix, feature = "memory-locking"))]
     memory_size: usize,
+    #[cfg(all(unix, feature = "memory-locking"))]
+    locked_ptr: usize,
+}
+
+impl Clone for SecurePrivateKey {
+    fn clone(&self) -> Self {
+        let mut new_key = Self {
+            key_bytes: self.key_bytes.clone(),
+            #[cfg(all(unix, feature = "memory-locking"))]
+            is_locked: false,
+            #[cfg(all(unix, feature = "memory-locking"))]
+            memory_size: 0,
+            #[cfg(all(unix, feature = "memory-locking"))]
+            locked_ptr: 0,
+        };
+        #[cfg(all(unix, feature = "memory-locking"))]
+        if self.is_locked {
+            let _ = new_key.lock_memory();
+        }
+        new_key
+    }
 }
 
 impl Serialize for SecurePrivateKey {
@@ -108,6 +130,8 @@ impl SecurePrivateKey {
             is_locked: false,
             #[cfg(all(unix, feature = "memory-locking"))]
             memory_size: 0,
+            #[cfg(all(unix, feature = "memory-locking"))]
+            locked_ptr: 0,
         };
 
         #[cfg(all(unix, feature = "memory-locking"))]
@@ -139,6 +163,7 @@ impl SecurePrivateKey {
         if result == 0 {
             self.is_locked = true;
             self.memory_size = len;
+            self.locked_ptr = ptr as usize;
             Ok(())
         } else {
             Err(std::io::Error::last_os_error())
@@ -152,12 +177,13 @@ impl SecurePrivateKey {
             return Ok(());
         }
 
-        let bytes = &self.key_bytes.expose_secret().0;
-        let ptr = bytes.as_ptr() as *mut libc::c_void;
+        // Use the exact pointer and size that was locked to prevent issues if Vec was reallocated (M-15)
+        let ptr = self.locked_ptr as *mut libc::c_void;
 
         // SAFETY: munlock is used to release memory previously locked with mlock.
-        // The pointer is valid and within the bounds of the Vec<u8> which is kept alive by `self`.
         let result = unsafe { munlock(ptr, self.memory_size) };
+        self.is_locked = false;
+        self.locked_ptr = 0;
 
         if result == 0 {
             self.is_locked = false;

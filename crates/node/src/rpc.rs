@@ -517,6 +517,12 @@ impl RpcMethods for NodeRpcHandler {
         n_blocks: u64,
         _address: Option<String>,
     ) -> Result<Vec<String>, RpcError> {
+        if self.chain_name == "mainnet" {
+            return Err(RpcError::MethodNotFound(
+                "generate is not available on mainnet".to_string(),
+            ));
+        }
+        
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
         use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
 
@@ -549,6 +555,7 @@ impl RpcMethods for NodeRpcHandler {
                     prev_block: [0u8; 32],
                     merkle_root: bitquan_types::GENESIS_HASH_BYTES,
                     pqc_agg_hint: [0u8; 32],
+                    uncles_hash: [0u8; 32],
                     time: bitquan_types::GENESIS_TIME,
                     bits: bitquan_types::GENESIS_BITS,
                     nonce: bitquan_types::GENESIS_NONCE,
@@ -587,6 +594,7 @@ impl RpcMethods for NodeRpcHandler {
                 prev_block: prev_hash,
                 merkle_root,
                 pqc_agg_hint: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
@@ -626,6 +634,7 @@ impl RpcMethods for NodeRpcHandler {
             // Create full block
             let block = Block {
                 header: header.clone(),
+                uncles: vec![],
                 transactions: vec![coinbase_tx],
             };
 
@@ -650,6 +659,12 @@ impl RpcMethods for NodeRpcHandler {
         n_blocks: u64,
         address: String,
     ) -> Result<Vec<String>, RpcError> {
+        if self.chain_name == "mainnet" {
+            return Err(RpcError::MethodNotFound(
+                "generatetoaddress is not available on mainnet".to_string(),
+            ));
+        }
+
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
         use bitquan_types::{Block, BlockHeader, SigAlgorithm, TxOut};
 
@@ -689,6 +704,7 @@ impl RpcMethods for NodeRpcHandler {
                     prev_block: [0u8; 32],
                     merkle_root: bitquan_types::GENESIS_HASH_BYTES,
                     pqc_agg_hint: [0u8; 32],
+                    uncles_hash: [0u8; 32],
                     time: bitquan_types::GENESIS_TIME,
                     bits: bitquan_types::GENESIS_BITS,
                     nonce: bitquan_types::GENESIS_NONCE,
@@ -727,6 +743,7 @@ impl RpcMethods for NodeRpcHandler {
                 prev_block: prev_hash,
                 merkle_root,
                 pqc_agg_hint: [0u8; 32],
+                uncles_hash: [0u8; 32],
                 time: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
@@ -788,6 +805,7 @@ impl RpcMethods for NodeRpcHandler {
             // Create full block
             let block = Block {
                 header: header.clone(),
+                uncles: vec![],
                 transactions,
             };
 
@@ -935,12 +953,12 @@ impl RpcMethods for NodeRpcHandler {
             .add_output(recipient_script, output_value)
             .add_output(change_script, change_value);
 
-        // Sign transaction with wallet
         let tx = tx
             .build_and_sign(|msg| {
-                wallet.sign(msg).map_err(|e| {
+                let sig = wallet.sign(msg).map_err(|e| {
                     bitquan_types::error::Error::Invalid(format!("Signing failed: {}", e))
-                })
+                })?;
+                Ok((sig, wallet.public_key.clone()))
             })
             .map_err(|e| RpcError::InternalError(format!("Failed to build transaction: {}", e)))?;
 
@@ -964,12 +982,14 @@ fn storage_to_rpc(err: StorageError) -> RpcError {
 }
 
 fn difficulty_from_bits(bits: u32) -> f64 {
-    let max_target = bitquan_consensus::compact_to_target(GENESIS_BITS);
-    let target = bitquan_consensus::compact_to_target(bits);
-    if target == 0 {
+    let max_bytes = bitquan_consensus::compact_to_target(GENESIS_BITS);
+    let target_bytes = bitquan_consensus::compact_to_target(bits);
+    let max_val = u128::from_be_bytes(max_bytes[16..32].try_into().unwrap_or([0u8; 16]));
+    let target_val = u128::from_be_bytes(target_bytes[16..32].try_into().unwrap_or([0u8; 16]));
+    if target_val == 0 {
         return 0.0;
     }
-    (max_target / target) as f64
+    (max_val / target_val) as f64
 }
 
 struct TransactionSummary {
