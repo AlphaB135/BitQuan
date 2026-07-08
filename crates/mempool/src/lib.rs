@@ -6,6 +6,7 @@ use bitquan_types::{checked, Error, Result, Transaction};
 use bq_crypto::rng::{RandomSource, RngService};
 use log::warn;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 
 /// BQIP-0007: Witness scale factor — base bytes cost 4 WU each, witness bytes cost 1 WU.
 const WITNESS_SCALE_FACTOR: usize = 4;
@@ -29,8 +30,8 @@ fn calculate_tx_weight(tx: &Transaction) -> Result<usize> {
 /// Represents the fundamental data for ordering transactions in the mempool.
 #[derive(Clone, Debug)]
 pub struct MempoolEntry {
-    /// Transaction object retained in-memory.
-    pub tx: Transaction,
+    /// Transaction object retained in-memory (Arc-wrapped to avoid full clones).
+    pub tx: Arc<Transaction>,
     /// Calculated weight used for fee prioritisation (BQIP-0002).
     pub weight: usize,
     /// Fee per weight unit (qbits/WU).
@@ -54,7 +55,7 @@ impl MempoolEntry {
             checked!(fee.checked_div(weight as u64), "fee_per_weight calculation")?;
 
         Ok(Self {
-            tx,
+            tx: Arc::new(tx),
             weight,
             fee_per_weight,
             tie_breaker,
@@ -351,12 +352,12 @@ impl Mempool {
 
             if let Some(mut group) = self.entries.remove(&next_key) {
                 group.sort_by(|a, b| a.tie_breaker.cmp(&b.tie_breaker));
-                while !group.is_empty() {
+                loop {
+                    let Some(entry) = group.pop() else { break };
                     if collected.len() == limit {
                         self.entries.insert(next_key, group);
                         return collected;
                     }
-                    let entry = group.pop().unwrap();
                     let entry_size = entry.tx.serialized_size_hint().unwrap_or(0);
                     self.size_bytes = self.size_bytes.saturating_sub(entry_size);
 
@@ -376,7 +377,10 @@ impl Mempool {
     }
 
     /// Selects transactions for block template (up to max_weight).
-    pub fn select_for_block(&mut self, max_weight: usize) -> Vec<Transaction> {
+    ///
+    /// Returns `Arc<Transaction>` references — cloning the Arc is O(1) vs
+    /// cloning the full `Transaction` which can be very large with PQC sigs.
+    pub fn select_for_block(&mut self, max_weight: usize) -> Vec<Arc<Transaction>> {
         let mut selected = Vec::new();
         let mut total_weight: usize = 0;
 
@@ -386,7 +390,7 @@ impl Mempool {
                 // Use checked_add to prevent overflow and detect issues early
                 match total_weight.checked_add(entry.weight) {
                     Some(new_weight) if new_weight <= max_weight => {
-                        selected.push(entry.tx.clone());
+                        selected.push(Arc::clone(&entry.tx));
                         total_weight = new_weight;
                     }
                     _ => {
@@ -407,13 +411,13 @@ impl Mempool {
     }
 
     /// Looks up a transaction by txid (for P2P transaction relay).
-    pub fn get_transaction(&self, txid: &[u8; 32]) -> Option<Transaction> {
+    pub fn get_transaction(&self, txid: &[u8; 32]) -> Option<Arc<Transaction>> {
         let fee_rate = self.txid_index.get(txid)?;
         let entries = self.entries.get(fee_rate)?;
         entries
             .iter()
             .find(|e| &e.tx.txid() == txid)
-            .map(|e| e.tx.clone())
+            .map(|e| Arc::clone(&e.tx))
     }
 
     /// Checks if a transaction exists in the mempool (for P2P Inv handling).
@@ -429,60 +433,10 @@ impl Mempool {
 
 impl Default for Mempool {
     fn default() -> Self {
-        // NOTE: Default trait cannot propagate errors. In production, use Mempool::new()
-        // which returns Result<Self>. This implementation is primarily for testing.
-        Self::new().unwrap_or_else(|e| {
-            // FATAL: RNG failure at this point indicates system-level issues
-            // In production, this should never happen, but we provide a fallback
-            warn!("RNG initialization failed during Mempool::default(): {}", e);
-            // Create a minimal mempool without RNG for graceful degradation
-            // Use deterministic seed for fallback to avoid panic
-            let rng = RngService::new().unwrap_or_else(|e| {
-                // SECURITY (M-5): Never use all-zero seed — it makes RNG fully
-                // predictable and allows attackers to manipulate mempool ordering.
-                // Use timestamp-based seed as absolute minimum fallback.
-                // This is still weak (timestamps are guessable) but prevents the
-                // trivial all-zero prediction attack.
-                use rand::SeedableRng;
-                use std::time::{SystemTime, UNIX_EPOCH};
-
-                warn!(
-                    "CRITICAL SECURITY WARNING: OS RNG failed ({}), using timestamp-based \
-                     fallback seed. Mempool ordering entropy is degraded. \
-                     Investigate and fix OS RNG immediately!",
-                    e
-                );
-
-                let timestamp = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0);
-                let pid = std::process::id() as u128;
-                let entropy = timestamp ^ (pid << 64);
-
-                let mut seed = [0u8; 32];
-                seed[..16].copy_from_slice(&entropy.to_le_bytes());
-                seed[16..].copy_from_slice(&(!entropy).to_le_bytes());
-
-                let drbg = rand_chacha::ChaCha20Rng::from_seed(seed);
-                let temp_service = RngService {
-                    drbg,
-                    master_seed: seed,
-                };
-                // Derive a stream for mempool use
-                temp_service.derive_stream("mempool_fallback")
-            });
-
-            Self {
-                entries: BTreeMap::new(),
-                txid_index: HashMap::new(),
-                spent_outpoints: HashSet::new(),
-                rng,
-                size_bytes: 0,
-                max_size_bytes: Self::DEFAULT_MAX_SIZE,
-                policy: MempoolPolicy::standard(),
-            }
-        })
+        // SECURITY: OS RNG is mandatory — a predictable fallback seed would
+        // allow an attacker to predict tie-breaker values and manipulate
+        // transaction ordering.  Panic immediately on failure.
+        Self::new().expect("FATAL: OS RNG unavailable — cannot initialise Mempool safely")
     }
 }
 

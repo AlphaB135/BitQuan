@@ -224,7 +224,7 @@ fn timestamp_validation_edge_cases() {
     };
 
     // Should fail timestamp validation
-    let result = validate_block_header(&Block { header, transactions: vec![] }, 1, &params, 0);
+    let result = validate_block_header(&Block { header, transactions: vec![] }, 1, &params, 0, 0);
     assert!(matches!(result, Err(ConsensusError::TimestampTooFarInFuture(_, _))));
 }
 
@@ -260,14 +260,14 @@ fn merkle_root_validation() {
         };
 
         // Should validate successfully
-        let result = validate_block_header(&block, 0, &ConsensusParams::phase3_defaults(), 0);
+        let result = validate_block_header(&block, 0, &ConsensusParams::phase3_defaults(), 0, 0);
         assert!(result.is_ok(), "Merkle root validation should pass with correct root");
 
         // Test with incorrect merkle root
         let mut bad_block = block.clone();
         bad_block.header.merkle_root = [0xFF; 32];
 
-        let result = validate_block_header(&bad_block, 0, &ConsensusParams::phase3_defaults(), 0);
+        let result = validate_block_header(&bad_block, 0, &ConsensusParams::phase3_defaults(), 0, 0);
         assert!(matches!(result, Err(ConsensusError::MerkleRootMismatch)));
     }
 }
@@ -513,6 +513,11 @@ fn parallel_verification_safety() {
                 genesis::GENESIS_HASH_BYTES,
                 Some(1000), // Some fees
                 0, // median_time_past
+                0, // network_adjusted_time
+                None, // expected_bits
+                None, // expected_uncles_bits
+                &[], // uncles_ctx
+                &std::collections::HashSet::new(), // past_uncle_hashes
             )
         })
         .collect();

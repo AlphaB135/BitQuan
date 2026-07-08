@@ -160,6 +160,7 @@ pub struct RpcServer<T> {
     auth: Option<AuthMethod>,
     config: RpcConfig,
     limiter: Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    method_limiter: Arc<Mutex<HashMap<(IpAddr, String), TokenBucket>>>,
     auth_backoff: Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
     tls: Option<Arc<TlsConfig>>,
     force_tls: bool,
@@ -183,6 +184,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             auth: Some(Arc::new(jwt_auth)),
             config,
             limiter: Arc::new(Mutex::new(HashMap::new())),
+            method_limiter: Arc::new(Mutex::new(HashMap::new())),
             auth_backoff: Arc::new(Mutex::new(HashMap::new())),
             tls: None,
             force_tls: require_tls,
@@ -279,6 +281,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
         let auth = self.auth.clone();
         let config = self.config.clone();
         let limiter = Arc::clone(&self.limiter);
+        let method_limiter = Arc::clone(&self.method_limiter);
         let auth_backoff = Arc::clone(&self.auth_backoff);
         let tls = self.tls.clone();
         let force_tls = self.force_tls;
@@ -292,6 +295,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
             let options = ConnectionOptions {
                 config: &config,
                 limiter: &limiter,
+                method_limiter: &method_limiter,
                 auth_backoff: &auth_backoff,
                 tls: tls.as_ref(),
                 force_tls,
@@ -313,6 +317,7 @@ impl<T: methods::RpcMethods + Send + Sync + 'static> RpcServer<T> {
 struct ConnectionOptions<'a> {
     config: &'a RpcConfig,
     limiter: &'a Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    method_limiter: &'a Arc<Mutex<HashMap<(IpAddr, String), TokenBucket>>>,
     auth_backoff: &'a Arc<Mutex<HashMap<IpAddr, BackoffState>>>,
     tls: Option<&'a Arc<TlsConfig>>,
     force_tls: bool,
@@ -766,6 +771,33 @@ async fn handle_connection<T: methods::RpcMethods>(
         }
     };
 
+    // SECURITY: Enforce per-method rate limiting (expensive vs cheap methods)
+    // Ref: issue #86 / M4 (RPC rate limiting has no per-method limit)
+    let method_allowed =
+        check_method_rate_limit(peer_ip, &json_request.method, options.method_limiter).await;
+
+    if !method_allowed {
+        // Log method rate limit exceeded
+        let method_rate_event = SecurityEvent::new(
+            peer_ip.to_string(),
+            SecurityEventType::RateLimitExceeded,
+            SecuritySeverity::Medium,
+            json!({
+                "action": "method_rate_limit_exceeded",
+                "method": json_request.method,
+                "ip": peer_ip.to_string()
+            }),
+        );
+        method_rate_event.log();
+
+        let err_resp = JsonRpcResponse::error(
+            json_request.id,
+            -32603,
+            format!("Rate limit exceeded for method '{}'", json_request.method),
+        );
+        return respond_json(stream, &err_resp, config).await;
+    }
+
     let json_response = if json_request.jsonrpc != "2.0" {
         // Log invalid JSON-RPC version
         let version_event = SecurityEvent::new(
@@ -911,7 +943,6 @@ fn build_security_headers(config: &RpcConfig) -> String {
         // Security headers
         "X-Content-Type-Options: nosniff".to_string(),
         "X-Frame-Options: DENY".to_string(),
-
         "Referrer-Policy: strict-origin-when-cross-origin".to_string(),
         "Content-Security-Policy: default-src 'none'; script-src 'none'; object-src 'none';"
             .to_string(),
@@ -1074,24 +1105,115 @@ async fn apply_auth_backoff(
     state.is_locked()
 }
 
-/// Apply rate limiting based on client IP and configuration
+/// Hard cap on rate-limiter entries to prevent memory exhaustion from IPv6
+/// address rotation (e.g. rotating through a /64 prefix).
+const RATE_LIMITER_MAX_ENTRIES: usize = 65_536;
+
+/// Normalises an IP address for rate-limiting purposes.
+///
+/// IPv4 addresses are returned as-is.  IPv6 addresses are bucketed to the
+/// /48 prefix so that a host rotating through a /64 still shares a single
+/// token bucket.
+fn normalise_ip_for_rate_limit(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V4(_) => ip,
+        IpAddr::V6(v6) => {
+            let octets = v6.octets();
+            // Keep the first 48 bits (6 bytes), zero the rest → /48 prefix
+            let mut masked = [0u8; 16];
+            masked[..6].copy_from_slice(&octets[..6]);
+            IpAddr::V6(std::net::Ipv6Addr::from(masked))
+        }
+    }
+}
+
+/// Apply rate limiting based on client IP and configuration.
+///
+/// IPv6 clients are bucketed by /48 prefix to defeat address-rotation attacks.
+/// The limiter HashMap is capped at [`RATE_LIMITER_MAX_ENTRIES`] entries; once
+/// the cap is hit new (unseen) IPs are rejected until existing entries expire.
 async fn check_rate_limit(
     ip: IpAddr,
     limiter: &Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     config: &RpcConfig,
 ) -> bool {
+    let key = normalise_ip_for_rate_limit(ip);
     let mut limiter_map = limiter.lock().await;
 
-    if limiter_map.len() > 10000 {
+    // If the key is new and we are at the hard cap, try to prune old entries.
+    if !limiter_map.contains_key(&key) && limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
         let now = Instant::now();
-        limiter_map.retain(|_, bucket| now.duration_since(bucket.last_refill) < Duration::from_secs(3600));
+        limiter_map
+            .retain(|_, bucket| now.duration_since(bucket.last_refill) < Duration::from_secs(3600));
+
+        // If still at capacity after pruning, reject immediately.
+        if limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
+            warn!(
+                "Rate-limiter map at capacity ({RATE_LIMITER_MAX_ENTRIES}); rejecting new IP {}",
+                ip
+            );
+            return false;
+        }
     }
 
     let bucket = limiter_map
-        .entry(ip)
+        .entry(key)
         .or_insert_with(|| TokenBucket::new(config.rate_limit_requests, config.rate_limit_window));
 
     bucket.consume(1) // Each request consumes 1 token
+}
+
+/// Apply per-method rate limiting based on client IP and the requested method.
+///
+/// Limits:
+/// - Expensive methods (e.g. getblock, getrawtransaction, submitblock): 10 requests per minute
+/// - Cheap methods (others): 100 requests per minute
+async fn check_method_rate_limit(
+    ip: IpAddr,
+    method: &str,
+    limiter: &Arc<Mutex<HashMap<(IpAddr, String), TokenBucket>>>,
+) -> bool {
+    let key = (normalise_ip_for_rate_limit(ip), method.to_string());
+    let mut limiter_map = limiter.lock().await;
+
+    // Prune if map is getting too large to prevent OOM
+    if !limiter_map.contains_key(&key) && limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
+        let now = Instant::now();
+        limiter_map
+            .retain(|_, bucket| now.duration_since(bucket.last_refill) < Duration::from_secs(3600));
+
+        if limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
+            warn!(
+                "Method rate-limiter map at capacity ({RATE_LIMITER_MAX_ENTRIES}); rejecting new method call '{}' from IP {}",
+                method, ip
+            );
+            return false;
+        }
+    }
+
+    let is_expensive = matches!(
+        method,
+        "getblock"
+            | "getrawtransaction"
+            | "submitblock"
+            | "generatetoaddress"
+            | "generate"
+            | "submitwork"
+            | "getwork"
+            | "sendtoaddress"
+    );
+
+    let (max_tokens, window_minutes) = if is_expensive {
+        (10, 1) // 10 requests per minute
+    } else {
+        (100, 1) // 100 requests per minute
+    };
+
+    let bucket = limiter_map
+        .entry(key)
+        .or_insert_with(|| TokenBucket::new(max_tokens, window_minutes));
+
+    bucket.consume(1)
 }
 
 /// Verify JWT Bearer token from Authorization header.

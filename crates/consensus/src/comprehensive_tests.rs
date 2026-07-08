@@ -168,6 +168,9 @@ fn invalid_coinbase_rejection() {
         genesis::GENESIS_HASH_BYTES,
         Some(0),
         0,
+        0,    // network_adjusted_time
+        None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -204,6 +207,9 @@ fn invalid_coinbase_rejection() {
         genesis::GENESIS_HASH_BYTES,
         Some(0),
         0,
+        0,    // network_adjusted_time
+        None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -224,6 +230,9 @@ fn invalid_coinbase_rejection() {
         genesis::GENESIS_HASH_BYTES,
         Some(0),
         0,
+        0,    // network_adjusted_time
+        None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -271,6 +280,9 @@ fn test_fee_calculation_precision() {
         genesis::GENESIS_HASH_BYTES,
         Some(total_fees),
         0,
+        0,    // network_adjusted_time
+        None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -315,6 +327,9 @@ fn test_fee_overflow_protection() {
         genesis::GENESIS_HASH_BYTES,
         Some(excessive_fees),
         0,
+        0,    // network_adjusted_time
+        None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -355,7 +370,7 @@ fn test_validate_block_with_fees() {
     // Call the function - it may fail but that's OK for this test
     // We're just testing that the function exists and has the correct signature
     let _result =
-        engine.validate_block_with_fees(&block, 0, 0, 0, &[], &std::collections::HashSet::new());
+        engine.validate_block_with_fees(&block, 0, 0, 0, 0, &[], &std::collections::HashSet::new());
 
     // The test passes as long as we can call the function without compilation errors
 }
@@ -400,6 +415,7 @@ fn test_validate_block_with_fees_invalid_fees() {
         &block,
         0,
         total_fees,
+        0,
         0,
         &[],
         &std::collections::HashSet::new(),
@@ -467,6 +483,9 @@ fn dust_output_rejection() {
         genesis::GENESIS_HASH_BYTES,
         None,
         0,
+        0,    // network_adjusted_time
+        None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -531,6 +550,9 @@ fn op_return_dust_allowed() {
         genesis::GENESIS_HASH_BYTES,
         None,
         0,
+        0,    // network_adjusted_time
+        None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );

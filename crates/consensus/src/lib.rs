@@ -68,9 +68,9 @@ pub struct DifficultyParams {
 
 impl DifficultyParams {
     /// Returns the default Phase 3 difficulty configuration.
-    /// Alias for testnet() for backward compatibility.
+    /// Uses mainnet parameters for production safety.
     pub fn phase3_defaults() -> Self {
-        Self::testnet()
+        Self::mainnet()
     }
 
     /// Mainnet difficulty configuration per BIP-0340.
@@ -210,8 +210,6 @@ pub struct ConsensusParams {
     pub block_weight_cap: u64,
     /// Weight multiplier applied per PQ signature.
     pub signature_weight_alpha: u32,
-    /// Witness byte discount coefficient (0.0..=1.0).
-    pub witness_weight_beta: f32,
     /// Difficulty retarget parameters.
     pub difficulty: DifficultyParams,
     /// Block reward schedule parameters.
@@ -226,7 +224,6 @@ impl ConsensusParams {
         Self {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
-            witness_weight_beta: 0.5,
             difficulty: DifficultyParams::phase3_defaults(),
             reward_schedule: RewardSchedule::phase3_defaults(),
             pow_set: PowSetParams::mainnet(),
@@ -238,7 +235,6 @@ impl ConsensusParams {
         Self {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
-            witness_weight_beta: 0.5,
             difficulty: DifficultyParams::phase3_defaults(),
             reward_schedule: RewardSchedule::phase3_defaults(),
             pow_set: PowSetParams::testnet_hybrid(),
@@ -250,7 +246,6 @@ impl ConsensusParams {
         Self {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
-            witness_weight_beta: 0.5,
             difficulty: DifficultyParams::phase3_defaults(),
             reward_schedule: RewardSchedule::phase3_defaults(),
             pow_set: PowSetParams::devnet_hybrid(),
@@ -476,7 +471,10 @@ pub enum ConsensusError {
     /// Invalid difficulty target value.
     #[error("invalid difficulty target: {0:#x}")]
     InvalidDifficultyTarget(u32),
-    /// Uncle validation failed.
+    /// Proof-of-Work hash does not meet target.
+    #[error("invalid proof of work: {0}")]
+    InvalidPoW(String),
+    /// Invalid uncle block.
     #[error("invalid uncle: {0}")]
     InvalidUncle(String),
     /// Coinbase validation failed.
@@ -485,9 +483,6 @@ pub enum ConsensusError {
     /// Fee validation failed.
     #[error("fee validation: {0}")]
     FeeValidation(String),
-    /// Proof-of-Work verification failed.
-    #[error("PoW verification failed: {0}")]
-    InvalidPoW(String),
 }
 
 /// Calculates transaction weight according to BQIP-0007 (BQSegWit).
@@ -581,11 +576,30 @@ pub fn validate_block(
     genesis_hash: [u8; 32],
     total_fees: Option<u128>,
     median_time_past: u64,
+    network_adjusted_time: u64,
+    expected_bits: Option<u32>,
+    expected_uncles_bits: Option<&[u32]>,
     uncles_ctx: &[UncleContext],
     past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
 ) -> Result<BlockValidationReport, ConsensusError> {
-    // Bitcoin-style block header validation
-    validate_block_header(block, height, params, median_time_past)?;
+    // Bitcoin-style block header validation (includes ASERT difficulty enforcement)
+    validate_block_header(
+        block,
+        height,
+        params,
+        median_time_past,
+        network_adjusted_time,
+        expected_bits,
+    )?;
+
+    // CRITICAL: Validate witness root against actual transaction witness data
+    // Without this, an attacker can submit forged PQC signatures that pass header validation.
+    let computed_witness_root = block
+        .compute_witness_root()
+        .map_err(|_| ConsensusError::WitnessRootMismatch)?;
+    if computed_witness_root != block.header.pqc_agg_hint {
+        return Err(ConsensusError::WitnessRootMismatch);
+    }
 
     // Coinbase transaction validation
     validate_coinbase_transaction(block, height)?;
@@ -615,7 +629,7 @@ pub fn validate_block(
     }
 
     // GHOST Uncle Validation
-    for (uncle_header, uncle_ctx) in block.uncles.iter().zip(uncles_ctx.iter()) {
+    for (i, (uncle_header, uncle_ctx)) in block.uncles.iter().zip(uncles_ctx.iter()).enumerate() {
         if uncle_header != &uncle_ctx.header {
             return Err(ConsensusError::InvalidUncle(
                 "Uncle header mismatch with context".to_string(),
@@ -635,6 +649,19 @@ pub fn validate_block(
             return Err(ConsensusError::InvalidUncle(
                 "Uncle double inclusion detected".to_string(),
             ));
+        }
+
+        // SECURITY: Verify Uncle bits match expected ASERT target at uncle height
+        // Ref: issue #189 / H1 (Uncle bits not verified)
+        if let Some(expected_list) = expected_uncles_bits {
+            if let Some(&exp_bits) = expected_list.get(i) {
+                if uncle_header.bits != exp_bits {
+                    return Err(ConsensusError::InvalidUncle(format!(
+                        "Uncle difficulty target mismatch: expected {:#x}, got {:#x}",
+                        exp_bits, uncle_header.bits
+                    )));
+                }
+            }
         }
 
         // Validate Uncle PoW
@@ -705,24 +732,31 @@ pub fn validate_transaction_signatures(
     Ok(())
 }
 
-/// Validates block header according to Bitcoin-style rules
+/// Validates block header according to Bitcoin-style rules.
+///
+/// # Arguments
+/// * `expected_bits` - ASERT-computed compact target for this height. The caller
+///   must compute this via [`DifficultyState::peek_next_bits`] and pass it here.
+///   SECURITY: Passing `None` disables difficulty enforcement; only safe for
+///   genesis (height 0) or contexts with no difficulty anchor.
+/// * `network_adjusted_time` - Caller provides NTP-synced median peer time.
+///   SECURITY: Never call SystemTime::now() inside consensus — non-deterministic
+///   across replays and exploitable via NTP poisoning.
 fn validate_block_header(
     block: &Block,
     height: u64,
     _params: &ConsensusParams,
     median_time_past: u64,
+    network_adjusted_time: u64,
+    expected_bits: Option<u32>,
 ) -> Result<(), ConsensusError> {
     let header = &block.header;
 
     // Genesis block has no parent
     if height > 0 {
-        // Validate timestamp is not too far in the future (2 hours tolerance)
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let max_future_time = current_time + 7200;
+        // SECURITY: Use network-adjusted time instead of SystemTime::now()
+        // to prevent timejacking attacks and ensure deterministic replay.
+        let max_future_time = network_adjusted_time + 7200;
         let block_time = u64::from(header.time);
         if block_time > max_future_time {
             return Err(ConsensusError::TimestampTooFarInFuture(
@@ -740,17 +774,40 @@ fn validate_block_header(
         }
     }
 
-    // Validate proof of work target
+    // Validate proof of work target — range check first.
     let target = header.bits;
     if target == 0 || target > 0x2100ffff {
         return Err(ConsensusError::InvalidDifficultyTarget(target));
     }
 
-    // Verify block hash meets the PoW target (Closes #131)
-    crate::pow::check_header_pow(header).map_err(|e| ConsensusError::InvalidPoW(format!("{e}")))?;
+    // SECURITY: Enforce ASERT-computed target. Without this check a miner can
+    // submit blocks with bits = 0x207fffff (easiest difficulty, ~1 hash) and
+    // the node would accept them — allowing chain takeover in seconds.
+    // Ref: issue #187
+    if let Some(exp_bits) = expected_bits {
+        if target != exp_bits {
+            return Err(ConsensusError::InvalidDifficultyTarget(target));
+        }
+    }
 
-    // Validate merkle root matches transactions
-    let calculated_merkle = calculate_merkle_root(&block.transactions)?;
+    // CRITICAL: Validate proof-of-work hash meets target.
+    // Previously check_header_pow returned Result<bool> and the bool was discarded,
+    // allowing blocks with invalid PoW to pass validation.
+    let pow_valid = crate::pow::check_header_pow(header)
+        .map_err(|e| ConsensusError::InvalidPoW(format!("{e}")))?;
+    if !pow_valid {
+        return Err(ConsensusError::InvalidPoW(
+            "hash does not meet target".into(),
+        ));
+    }
+
+    // CRITICAL: Validate merkle root using Block::compute_merkle_root() which uses
+    // BLAKE3 over base-only txids. Previously used calculate_merkle_root() which
+    // used BLAKE3 over witness-including hashes — causing consensus split between
+    // block builder and validator.
+    let calculated_merkle = block
+        .compute_merkle_root()
+        .map_err(|_| ConsensusError::MerkleRootMismatch)?;
     if calculated_merkle != header.merkle_root {
         return Err(ConsensusError::MerkleRootMismatch);
     }
@@ -889,9 +946,9 @@ fn validate_transaction_fees(
 
     for (script, expected_val) in expected_uncle_rewards {
         let actual_val = actual_uncle_rewards.get(&script).copied().unwrap_or(0);
-        if actual_val < expected_val {
+        if actual_val != expected_val {
             return Err(ConsensusError::FeeValidation(format!(
-                "Uncle miner reward missing or insufficient: expected {}, found {}",
+                "Uncle miner reward mismatch: expected {}, found {}",
                 expected_val, actual_val
             )));
         }
@@ -1079,18 +1136,72 @@ impl ConsensusEngine {
     }
 
     /// Validates a block using the stored registry and RNG state.
-    ///
+    pub fn validate_block(
+        &mut self,
+        block: &Block,
+        height: u64,
+        median_time_past: u64,
+        network_adjusted_time: u64,
+        uncles_ctx: &[UncleContext],
+        past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
+    ) -> Result<BlockValidationReport, ConsensusError> {
+        // Compute expected ASERT bits if difficulty anchor is available.
+        // For genesis or contexts without an anchor, enforcement is skipped.
+        let expected_bits = self
+            .difficulty
+            .as_ref()
+            .map(|d| d.peek_next_bits(height, block.header.time as u64, &self.params));
+        let expected_uncles_bits = self.difficulty.as_ref().map(|d| {
+            uncles_ctx
+                .iter()
+                .map(|u| d.peek_next_bits(u.height, u.header.time as u64, &self.params))
+                .collect::<Vec<u32>>()
+        });
+        validate_block(
+            block,
+            height,
+            &self.params,
+            &self.registry,
+            self.network_id,
+            self.genesis_hash,
+            None, // Total fees unknown in this context
+            median_time_past,
+            network_adjusted_time,
+            expected_bits,
+            expected_uncles_bits.as_deref(),
+            uncles_ctx,
+            past_uncle_hashes,
+        )
+    }
 
     /// Validates a block with known total fees (for strict coinbase validation).
+    ///
+    /// SECURITY: This method also enforces the ASERT-computed difficulty target.
+    /// If a `DifficultyState` anchor has been set via `set_difficulty_state()`,
+    /// the block's `header.bits` must exactly match `peek_next_bits()` for this height.
+    /// Ref: issue #187 (C1 — ASERT difficulty not enforced).
     pub fn validate_block_with_fees(
         &mut self,
         block: &Block,
         height: u64,
         total_fees: u128,
         median_time_past: u64,
+        network_adjusted_time: u64,
         uncles_ctx: &[UncleContext],
         past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
     ) -> Result<BlockValidationReport, ConsensusError> {
+        // Compute expected ASERT bits if difficulty anchor is available.
+        // For genesis or contexts without an anchor, enforcement is skipped.
+        let expected_bits = self
+            .difficulty
+            .as_ref()
+            .map(|d| d.peek_next_bits(height, block.header.time as u64, &self.params));
+        let expected_uncles_bits = self.difficulty.as_ref().map(|d| {
+            uncles_ctx
+                .iter()
+                .map(|u| d.peek_next_bits(u.height, u.header.time as u64, &self.params))
+                .collect::<Vec<u32>>()
+        });
         validate_block(
             block,
             height,
@@ -1100,6 +1211,9 @@ impl ConsensusEngine {
             self.genesis_hash,
             Some(total_fees),
             median_time_past,
+            network_adjusted_time,
+            expected_bits,
+            expected_uncles_bits.as_deref(),
             uncles_ctx,
             past_uncle_hashes,
         )

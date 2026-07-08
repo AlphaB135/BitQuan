@@ -522,7 +522,7 @@ impl RpcMethods for NodeRpcHandler {
                 "generate is not available on mainnet".to_string(),
             ));
         }
-        
+
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
         use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
 
@@ -789,7 +789,9 @@ impl RpcMethods for NodeRpcHandler {
                 let selected = mp.select_for_block(4_000_000);
                 if !selected.is_empty() {
                     log::info!("Mining block with {} mempool transactions", selected.len());
-                    transactions.extend(selected);
+                    transactions.extend(selected.into_iter().map(|arc_tx| {
+                        std::sync::Arc::try_unwrap(arc_tx).unwrap_or_else(|arc| (*arc).clone())
+                    }));
                 }
             } else {
                 log::info!("Warning: No mempool available for mining");

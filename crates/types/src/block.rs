@@ -2,6 +2,7 @@
 
 use crate::{compact_uint::CompactUint, transaction::Transaction, ValidationError};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 /// Block header committed to by miners or validators.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -124,18 +125,20 @@ impl Block {
 /// Computes merkle root using BLAKE3 from a slice of txids.
 ///
 /// Security: Prevents CVE-2012-2459 style duplicate attacks by rejecting
-/// duplicate internal nodes and odd-length layers without duplication.
+/// duplicate txids via HashSet-based detection.
+///
+/// Odd-length layers are handled by duplicating the last hash (standard
+/// Bitcoin merkle tree behavior).
 ///
 /// # Security Features
 ///
-/// 1. **Duplicate Detection**: Returns error if any duplicate txids are found
-/// 2. **Odd Layer Protection**: Returns error for odd-length internal layers
+/// 1. **Full Duplicate Detection**: Returns error if any duplicate txids are found (HashSet-based)
+/// 2. **Odd Layer Handling**: Duplicates last hash for odd layers (Bitcoin standard)
 /// 3. **BLAKE3**: Uses quantum-resistant BLAKE3 instead of SHA-256d
 ///
 /// # Errors
 ///
 /// Returns `ValidationError::DuplicateTransactionId` if duplicates are detected.
-/// Returns `ValidationError::OddMerkleTreeLayer` if odd-length internal layer is found.
 pub fn merkle_root_from_txids(txids: &[[u8; 32]]) -> Result<[u8; 32], ValidationError> {
     if txids.is_empty() {
         return Ok([0u8; 32]);
@@ -143,41 +146,35 @@ pub fn merkle_root_from_txids(txids: &[[u8; 32]]) -> Result<[u8; 32], Validation
 
     let mut layer: Vec<[u8; 32]> = txids.to_vec();
 
-    // SECURITY: Detect duplicates in the input layer (CVE-2012-2459 protection)
-    for i in 0..layer.len() {
-        for j in (i + 1)..layer.len() {
-            if layer[i] == layer[j] {
-                // Duplicate transaction IDs are not allowed
-                return Err(ValidationError::DuplicateTransactionId);
-            }
+    // SECURITY: Detect ALL duplicates in the input layer (CVE-2012-2459 full protection)
+    // Previously only checked last two hashes — identical transactions at positions 0&1
+    // or 2&3 were not caught.
+    let mut seen = HashSet::with_capacity(layer.len());
+    for txid in &layer {
+        if !seen.insert(*txid) {
+            return Err(ValidationError::DuplicateTransactionId);
         }
     }
 
     while layer.len() > 1 {
-        let mut next = Vec::with_capacity(layer.len().div_ceil(2));
-        let mut i = 0;
+        // SECURITY: Handle odd-length layers by duplicating last hash.
+        // This is standard Bitcoin merkle tree behavior.
+        // Previously returned OddMerkleTreeLayer error, which rejected all
+        // blocks with 3, 5, 7... transactions — practically crippling.
+        if layer.len() % 2 == 1 {
+            let last = *layer.last().expect("layer is non-empty");
+            layer.push(last);
+        }
 
-        while i < layer.len() {
-            let a = layer[i];
-            let b = if i + 1 < layer.len() {
-                layer[i + 1]
-            } else {
-                // SECURITY: Odd length internal layers are a security risk
-                // Only allow odd length at the final layer (when layer.len() == 1 after this iteration)
-                // This prevents merkle tree manipulation attacks
-                if layer.len() > 1 {
-                    return Err(ValidationError::OddMerkleTreeLayer);
-                }
-                a
-            };
+        let mut next = Vec::with_capacity(layer.len() / 2);
 
+        for chunk in layer.chunks_exact(2) {
             // Use BLAKE3 for merkle node hashing (quantum-resistant, faster than SHA-256d)
             let mut data = [0u8; 64];
-            data[..32].copy_from_slice(&a);
-            data[32..].copy_from_slice(&b);
+            data[..32].copy_from_slice(&chunk[0]);
+            data[32..].copy_from_slice(&chunk[1]);
             let hash = blake3::hash(&data);
             next.push(*hash.as_bytes());
-            i += 2;
         }
         layer = next;
     }
@@ -232,20 +229,16 @@ mod tests {
     }
 
     #[test]
-    fn test_merkle_reject_odd_layer() {
-        // Three txids will create an odd layer in the tree
+    fn test_merkle_odd_layer_duplicates_last() {
+        // Three txids should now work by duplicating the last hash
         let txid1 = [1u8; 32];
         let txid2 = [2u8; 32];
         let txid3 = [3u8; 32];
 
         let result = merkle_root_from_txids(&[txid1, txid2, txid3]);
 
-        // Should reject odd-length internal layers
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ValidationError::OddMerkleTreeLayer
-        ));
+        // Should succeed with odd number of txids (standard Bitcoin behavior)
+        assert!(result.is_ok());
     }
 
     #[test]

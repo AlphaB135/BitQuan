@@ -243,7 +243,7 @@ impl PowEngine for RandomXEngine {
         }
         #[cfg(not(feature = "randomx"))]
         {
-            Ok(randomx_pow_hash(&bytes, &self._config.seed))
+            randomx_pow_hash(&bytes, &self._config.seed)
         }
     }
 }
@@ -285,37 +285,29 @@ pub fn randomx_pow_hash_cached(
     Ok(out)
 }
 
-/// Computes RandomX PoW hash (exposed for Stratum) - legacy function for compatibility.
+/// Computes RandomX PoW hash (exposed for Stratum).
+///
+/// SECURITY: Returns Result to propagate VM creation failures.
+/// Previously silently fell back to SHA-256 on failure, which would
+/// cause blocks to be accepted with wrong PoW algorithm.
 #[cfg(feature = "randomx")]
-pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
+pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> Result<[u8; 32]> {
     // Create temporary cache for legacy compatibility
     let vm_cache = Arc::new(Mutex::new(RandomXVMCache::new()));
-    randomx_pow_hash_cached(preimage, seed, &vm_cache).unwrap_or_else(|_e| {
-        // In legacy compatibility mode, we should never fail, but if we do,
-        // return a fallback hash to maintain API compatibility
-        let mut hasher = Sha256::new();
-        hasher.update(b"RandomX-fallback-");
-        hasher.update(seed);
-        hasher.update(preimage);
-        let result = hasher.finalize();
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&result);
-        out
-    })
+    randomx_pow_hash_cached(preimage, seed, &vm_cache)
 }
 
-/// Fallback RandomX implementation when feature is not enabled
+/// SECURITY: RandomX feature is REQUIRED for validating RandomX-algorithm blocks.
+/// Without this feature, blocks claiming to use RandomX will be rejected at runtime
+/// rather than silently falling back to SHA-256 (which would cause chain splits).
 #[cfg(not(feature = "randomx"))]
-pub fn randomx_pow_hash(preimage: &[u8], seed: &[u8; 32]) -> [u8; 32] {
-    // Fallback to SHA-256 placeholder when RandomX is not compiled in
-    let mut hasher = Sha256::new();
-    hasher.update(b"RandomX-placeholder-");
-    hasher.update(seed);
-    hasher.update(preimage);
-    let result = hasher.finalize();
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&result);
-    out
+pub fn randomx_pow_hash(_preimage: &[u8], _seed: &[u8; 32]) -> Result<[u8; 32]> {
+    Err(bitquan_types::Error::Invalid(
+        "RandomX PoW is not available: compiled without 'randomx' feature. \
+         Blocks using PowAlgo::RandomX cannot be validated. \
+         Recompile with --features randomx to enable."
+            .to_string(),
+    ))
 }
 
 /// RandomX configuration.

@@ -18,7 +18,13 @@
 // security and verifiability over Rust idiomatic patterns.
 
 #![allow(clippy::style, clippy::complexity, clippy::perf, clippy::pedantic)]
-#![allow(clippy::needless_range_loop, clippy::many_single_char_names, clippy::too_many_arguments, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![allow(
+  clippy::needless_range_loop,
+  clippy::many_single_char_names,
+  clippy::too_many_arguments,
+  clippy::cast_possible_truncation,
+  clippy::cast_sign_loss
+)]
 
 #[cfg(feature = "aes")]
 mod aes256ctr;

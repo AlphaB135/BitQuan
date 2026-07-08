@@ -33,7 +33,6 @@ fuzz_target!(|data: &[u8]| {
     let params = ConsensusParams {
         block_weight_cap: 4_000_000,
         signature_weight_alpha: 384,
-        witness_weight_beta: 0.5,
         reward_schedule: RewardSchedule::phase3_defaults(),
         difficulty: DifficultyParams::phase3_defaults(),
         pow_set: PowSetParams::mainnet(),

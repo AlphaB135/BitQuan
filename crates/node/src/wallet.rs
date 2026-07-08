@@ -549,18 +549,16 @@ mod tests {
         let pubkey_hash = [0xAB; 32];
         let address = address::encode(&pubkey_hash);
 
-        // Corrupt the address (flip a character)
-        let mut corrupted = address.clone();
-        // SAFETY: This is test code that intentionally modifies String bytes to create
-        // a character change. We only change ASCII characters (a/b), so UTF-8 validity
-        // is preserved. The corrupted address is used only to verify checksum validation
-        // fails correctly - it's never used as a valid String in production logic.
-        let bytes = unsafe { corrupted.as_bytes_mut() };
+        // Corrupt the address (flip a character) using safe Vec<u8> manipulation.
+        // Never use String::as_bytes_mut — it bypasses UTF-8 invariants.
+        let mut bytes = address.clone().into_bytes();
         if bytes[10] == b'a' {
             bytes[10] = b'b';
         } else {
             bytes[10] = b'a';
         }
+        // The swap is always within ASCII, so from_utf8 is infallible here.
+        let corrupted = String::from_utf8(bytes).expect("ASCII-only mutation");
 
         // Should fail checksum
         assert!(address::decode(&corrupted).is_err());

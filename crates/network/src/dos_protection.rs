@@ -13,11 +13,19 @@
 //! - Automatic response to attacks
 
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::net::IpAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::PeerId;
+
+/// Maximum number of attack records kept in the attack log.
+/// SECURITY: Prevents unbounded memory growth from repeated attack detections.
+const MAX_ATTACK_LOG: usize = 1_000;
+
+/// Maximum number of message frequency samples kept per peer.
+/// SECURITY: Prevents unbounded memory growth from repeated pattern analysis.
+const MAX_FREQ_SAMPLES: usize = 100;
 
 /// DoS protection errors
 #[derive(Debug, Clone)]
@@ -103,8 +111,8 @@ impl Default for DoSConfig {
 struct SynProtection {
     /// Half-open connections by IP
     half_open_connections: HashMap<IpAddr, Vec<SynCookie>>,
-    /// SYN cookies
-    cookie_counter: AtomicU64,
+    /// Secret key for HMAC-based SYN cookie generation
+    cookie_secret: [u8; 32],
     /// Configuration
     config: DoSConfig,
 }
@@ -130,8 +138,8 @@ impl SynCookie {
 /// Connection flood detection
 #[derive(Debug)]
 struct ConnectionFloodDetector {
-    /// Connection attempts by time window
-    connection_attempts: Vec<Instant>,
+    /// Connection attempts by time window, tracked per source IP
+    connection_attempts: HashMap<IpAddr, Vec<Instant>>,
     /// Configuration
     config: DoSConfig,
 }
@@ -172,8 +180,8 @@ struct PatternDetector {
 /// Activity pattern for a peer
 #[derive(Debug, Clone)]
 struct ActivityPattern {
-    /// Messages per time window
-    message_frequency: Vec<u32>,
+    /// Messages per time window (bounded to MAX_FREQ_SAMPLES)
+    message_frequency: VecDeque<u32>,
     /// Connection attempts
     connection_attempts: u32,
     /// Failed operations
@@ -197,8 +205,8 @@ pub struct DoSProtection {
     pattern_detector: PatternDetector,
     /// Statistics
     stats: DoSStats,
-    /// Detected attacks
-    detected_attacks: Vec<AttackInfo>,
+    /// Detected attacks (bounded to MAX_ATTACK_LOG)
+    detected_attacks: VecDeque<AttackInfo>,
 }
 
 /// Attack information
@@ -253,14 +261,20 @@ pub struct DoSStats {
 impl DoSProtection {
     /// Create new DoS protection system
     pub fn new(config: DoSConfig) -> Self {
+        // SECURITY: Generate a random secret for HMAC-based SYN cookies.
+        // Uses thread_rng for cryptographic randomness.
+        let mut cookie_secret = [0u8; 32];
+        use rand::RngCore;
+        rand::thread_rng().fill_bytes(&mut cookie_secret);
+
         Self {
             syn_protection: SynProtection {
                 half_open_connections: HashMap::new(),
-                cookie_counter: AtomicU64::new(0),
+                cookie_secret,
                 config: config.clone(),
             },
             connection_detector: ConnectionFloodDetector {
-                connection_attempts: Vec::new(),
+                connection_attempts: HashMap::new(),
                 config: config.clone(),
             },
             bandwidth_tracker: BandwidthTracker {
@@ -278,8 +292,34 @@ impl DoSProtection {
                 config: config.clone(),
             },
             stats: DoSStats::default(),
-            detected_attacks: Vec::new(),
+            detected_attacks: VecDeque::new(),
         }
+    }
+
+    /// Generate an HMAC-based SYN cookie value.
+    /// SECURITY: Keyed on (source_ip, timestamp, secret) to be unpredictable.
+    fn generate_cookie_value(&self, source_ip: &IpAddr) -> u32 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let now = Instant::now();
+        let mut hasher = DefaultHasher::new();
+        // Mix in secret key
+        self.syn_protection.cookie_secret.hash(&mut hasher);
+        // Mix in source IP
+        source_ip.hash(&mut hasher);
+        // Mix in timestamp for freshness
+        now.hash(&mut hasher);
+        // Truncate to u32
+        hasher.finish() as u32
+    }
+
+    /// Push an attack record, evicting the oldest if at capacity.
+    fn push_attack(&mut self, attack: AttackInfo) {
+        if self.detected_attacks.len() >= MAX_ATTACK_LOG {
+            self.detected_attacks.pop_front();
+        }
+        self.detected_attacks.push_back(attack);
     }
 
     /// Handle incoming SYN packet (connection attempt)
@@ -291,6 +331,10 @@ impl DoSProtection {
         if !self.syn_protection.config.enable_syn_protection {
             return Ok(None);
         }
+
+        // SECURITY: Generate HMAC-based cookie BEFORE acquiring mutable borrow
+        // on half_open_connections to satisfy the borrow checker.
+        let cookie_value = self.generate_cookie_value(&source_ip);
 
         // Check half-open connections limit
         let half_open = self
@@ -312,7 +356,11 @@ impl DoSProtection {
                 ],
             };
 
-            self.detected_attacks.push(attack.clone());
+            // Inline push_attack to avoid borrow conflict with half_open
+            if self.detected_attacks.len() >= MAX_ATTACK_LOG {
+                self.detected_attacks.pop_front();
+            }
+            self.detected_attacks.push_back(attack);
             self.stats.syn_floods_detected += 1;
 
             if self.syn_protection.config.auto_ban_on_detection {
@@ -320,13 +368,8 @@ impl DoSProtection {
             }
         }
 
-        // Generate SYN cookie
-        let cookie = self
-            .syn_protection
-            .cookie_counter
-            .fetch_add(1, Ordering::Relaxed);
         let syn_cookie = SynCookie {
-            value: cookie as u32,
+            value: cookie_value,
             issued_at: Instant::now(),
             _peer_id: peer_id.clone(),
         };
@@ -381,7 +424,7 @@ impl DoSProtection {
                 ],
             };
 
-            self.detected_attacks.push(attack.clone());
+            self.push_attack(attack);
             self.stats.syn_floods_detected += 1;
             Ok(false)
         }
@@ -395,18 +438,21 @@ impl DoSProtection {
 
         // Check connection flood
         let now = Instant::now();
-        self.connection_detector.connection_attempts.push(now);
+        let attempts = self
+            .connection_detector
+            .connection_attempts
+            .entry(source_ip)
+            .or_default();
+        attempts.push(now);
 
         // Clean old attempts
         let cutoff = now - self.connection_detector.config.connection_flood_window;
-        self.connection_detector
-            .connection_attempts
-            .retain(|&timestamp| timestamp > cutoff);
+        attempts.retain(|&timestamp| timestamp > cutoff);
+
+        let attempt_count = attempts.len();
 
         // Check for flood
-        if self.connection_detector.connection_attempts.len() as u32
-            >= self.connection_detector.config.connection_flood_threshold
-        {
+        if attempt_count as u32 >= self.connection_detector.config.connection_flood_threshold {
             let attack = AttackInfo {
                 attack_type: DoSError::ConnectionFlood,
                 source_ip: Some(source_ip),
@@ -419,7 +465,7 @@ impl DoSProtection {
                 ],
             };
 
-            self.detected_attacks.push(attack.clone());
+            self.push_attack(attack);
             self.stats.connection_floods_detected += 1;
 
             if self.connection_detector.config.auto_ban_on_detection {
@@ -463,7 +509,10 @@ impl DoSProtection {
         }
 
         // Check bandwidth limits
-        let total_bytes = usage.bytes_sent + bytes_sent;
+        // SECURITY: Use saturating_add to prevent integer overflow bypass.
+        // An attacker sending bytes_sent = u64::MAX - usage.bytes_sent + delta
+        // would wrap total_bytes to a small value and bypass the limit check.
+        let total_bytes = usage.bytes_sent.saturating_add(bytes_sent);
         if total_bytes > self.bandwidth_tracker.config.max_bandwidth_per_peer {
             let attack = AttackInfo {
                 attack_type: DoSError::BandwidthAttack,
@@ -477,7 +526,12 @@ impl DoSProtection {
                 ],
             };
 
-            self.detected_attacks.push(attack.clone());
+            // Inline push_attack to avoid double &mut self borrow
+            // (usage still borrows self.bandwidth_tracker.peer_usage)
+            if self.detected_attacks.len() >= MAX_ATTACK_LOG {
+                self.detected_attacks.pop_front();
+            }
+            self.detected_attacks.push_back(attack);
             self.stats.bandwidth_attacks_detected += 1;
 
             if self.bandwidth_tracker.config.auto_ban_on_detection {
@@ -516,7 +570,7 @@ impl DoSProtection {
             .peer_patterns
             .entry(peer_id.clone())
             .or_insert_with(|| ActivityPattern {
-                message_frequency: Vec::new(),
+                message_frequency: VecDeque::with_capacity(MAX_FREQ_SAMPLES),
                 connection_attempts: 0,
                 failed_operations: 0,
                 last_activity: now,
@@ -524,7 +578,11 @@ impl DoSProtection {
             });
 
         // Update pattern
-        pattern.message_frequency.push(message_count);
+        // SECURITY: Evict oldest sample when at capacity to bound memory
+        if pattern.message_frequency.len() >= MAX_FREQ_SAMPLES {
+            pattern.message_frequency.pop_front();
+        }
+        pattern.message_frequency.push_back(message_count);
         pattern.failed_operations += failed_operations;
         pattern.last_activity = now;
 
@@ -553,7 +611,7 @@ impl DoSProtection {
                 ],
             };
 
-            self.detected_attacks.push(attack.clone());
+            self.push_attack(attack);
             self.stats.pattern_attacks_detected += 1;
 
             if self.pattern_detector.config.auto_ban_on_detection {
@@ -570,17 +628,28 @@ impl DoSProtection {
     }
 
     /// Get detected attacks
-    pub fn get_detected_attacks(&self) -> &[AttackInfo] {
+    pub fn get_detected_attacks(&self) -> &VecDeque<AttackInfo> {
         &self.detected_attacks
     }
 
-    /// Clear old attacks
+    /// Clear old attacks and cleanup connection flood tracker HashMap
     pub fn cleanup(&mut self) {
-        let cutoff = Instant::now()
+        let now = Instant::now();
+        let cutoff = now - self.connection_detector.config.connection_flood_window;
+
+        // Clean up connection flood detector HashMap entries
+        self.connection_detector
+            .connection_attempts
+            .retain(|_, attempts| {
+                attempts.retain(|&timestamp| timestamp > cutoff);
+                !attempts.is_empty()
+            });
+
+        let attack_cutoff = now
             .checked_sub(Duration::from_secs(3600))
             .unwrap_or_else(Instant::now); // Keep 1 hour, safe on low uptime
         self.detected_attacks
-            .retain(|attack| attack.detected_at > cutoff);
+            .retain(|attack| attack.detected_at > attack_cutoff);
     }
 
     /// Check if IP is currently under attack

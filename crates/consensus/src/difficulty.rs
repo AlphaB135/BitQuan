@@ -120,6 +120,27 @@ impl DifficultyState {
         target_to_compact(&self.anchor_target)
     }
 
+    /// Computes the expected compact target for `next_height`/`next_timestamp` **without**
+    /// modifying the anchor state.
+    ///
+    /// Use this for validation — callers that need to verify an incoming block's `bits`
+    /// against the ASERT-computed target should call this instead of `update()`, which
+    /// would corrupt the difficulty state by advancing the anchor prematurely.
+    pub fn peek_next_bits(
+        &self,
+        next_height: u64,
+        next_timestamp: u64,
+        params: &ConsensusParams,
+    ) -> u32 {
+        let height_delta = next_height as i64 - self.anchor_height as i64;
+        let time_delta = next_timestamp as i64 - self.anchor_time as i64;
+        // Pass `None` for the burst guard so we do not mutate guard state.
+        // The guard is for mining-path retargets; validation uses the raw ASERT output.
+        let next_target =
+            asert_next_target(self.anchor_target, height_delta, time_delta, params, None);
+        target_to_compact(&next_target)
+    }
+
     /// Computes the next target for the specified block height/timestamp and updates the anchor.
     pub fn update(
         &mut self,
@@ -163,7 +184,6 @@ mod tests {
         ConsensusParams {
             block_weight_cap: 4_000_000,
             signature_weight_alpha: 384,
-            witness_weight_beta: 0.5,
             difficulty: DifficultyParams {
                 target_block_time: 120, // Updated for Phase 4
                 difficulty_half_life: 14_400,

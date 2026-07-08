@@ -681,6 +681,7 @@ dependencies = [
  "argon2",
  "bech32",
  "bincode",
+ "bip39",
  "bitquan-types",
  "bq-crypto",
  "byteorder",
@@ -690,6 +691,7 @@ dependencies = [
  "hidapi",
  "hmac",
  "libc",
+ "pbkdf2",
  "pqc-dilithium-seeded",
  "proptest",
  "rand 0.8.5",
@@ -2865,6 +2867,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "pbkdf2"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
+dependencies = [
+ "digest 0.10.7",
+ "hmac",
+]
+
+[[package]]
 name = "pem"
 version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3032,6 +3044,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "sha3 0.10.8",
+ "subtle",
  "wasm-bindgen",
  "zeroize",
 ]
@@ -4700,6 +4713,7 @@ dependencies = [
  "bq-crypto",
  "criterion",
  "hex",
+ "hmac",
  "lazy_static",
  "log",
  "pqc-dilithium-seeded",

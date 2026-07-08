@@ -1653,12 +1653,12 @@ fn verify_share_pow_sync(
             // Use cryptographically secure seed derived from genesis hash
             let mut seed = [0u8; 32];
             seed.copy_from_slice(&tpl.header.prev_block); // Use previous block hash as seed
-            randomx_pow_hash(&preimage, &seed)
+            randomx_pow_hash(&preimage, &seed)?
         }
         PowAlgo::Ethash => {
             use bitquan_consensus::pow::{ethash_pow_hash, EthashConfig};
             let config = EthashConfig::default();
-            ethash_pow_hash(&preimage, &config.cache_size)
+            ethash_pow_hash(&preimage, &config.cache_size)?
         }
     };
 

@@ -119,14 +119,14 @@ impl InputValidator {
             // Removing hex and unicode encoding filters (M-6) as they block legitimate payload data
             // r"(?i)\\x[0-9a-f]{2}",                    // Hex encoding
             // r"(?i)\\u[0-9a-f]{4}",                    // Unicode encoding
-            r"(?i)%[0-9a-f]{2}",                      // URL encoding
-            r"(?i)path\s*\.\./",                      // Path traversal
-            r"(?i)\.\./.*\.\./",                      // Deep path traversal
-            r"(?i)[/\\]etc[/\\]",                     // System file access
-            r"(?i)[/\\]bin[/\\]",                     // Binary access
-            r"(?i)[/\\]usr[/\\]",                     // System directory
-            r"(?i)[/\\]var[/\\]",                     // Var directory
-            r"(?i)[/\\]tmp[/\\]",                     // Temp directory
+            r"(?i)%[0-9a-f]{2}",  // URL encoding
+            r"(?i)path\s*\.\./",  // Path traversal
+            r"(?i)\.\./.*\.\./",  // Deep path traversal
+            r"(?i)[/\\]etc[/\\]", // System file access
+            r"(?i)[/\\]bin[/\\]", // Binary access
+            r"(?i)[/\\]usr[/\\]", // System directory
+            r"(?i)[/\\]var[/\\]", // Var directory
+            r"(?i)[/\\]tmp[/\\]", // Temp directory
         ];
 
         for pattern in patterns {

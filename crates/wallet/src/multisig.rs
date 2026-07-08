@@ -253,15 +253,13 @@ impl MultisigWallet {
         // SECURITY FIX (C-3): Cryptographically verify the signature before accepting it.
         // This prevents collection of invalid/forged signatures that would only be caught
         // at finalization time, reducing the attack window.
-        let tx_data =
-            hex::decode(&pending.tx_data).map_err(|_| MultisigError::InvalidSignature)?;
+        let tx_data = hex::decode(&pending.tx_data).map_err(|_| MultisigError::InvalidSignature)?;
         let tx_hash = {
             let mut hasher = Sha256::new();
             hasher.update(&tx_data);
             hasher.finalize()
         };
-        let pubkey_bytes =
-            hex::decode(public_key).map_err(|_| MultisigError::InvalidSignature)?;
+        let pubkey_bytes = hex::decode(public_key).map_err(|_| MultisigError::InvalidSignature)?;
         if !self.verify_pqc_signature(signature, &pubkey_bytes, &tx_hash)? {
             return Err(MultisigError::InvalidSignature);
         }

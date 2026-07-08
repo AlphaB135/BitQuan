@@ -795,7 +795,10 @@ fn test_validate_block_weight_overflow() {
         NetworkId::Devnet,
         GENESIS_HASH_BYTES,
         None,
-        0, // median_time_past
+        0,    // median_time_past
+        0,    // network_adjusted_time
+        None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
