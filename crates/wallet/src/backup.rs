@@ -298,7 +298,8 @@ fn compute_hmac(key: &[u8], salt: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Vec
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
-    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC can take key of any size");
+    let mut mac =
+        <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC can take key of any size");
     mac.update(salt);
     mac.update(nonce);
     mac.update(ciphertext);

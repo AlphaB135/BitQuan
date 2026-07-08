@@ -230,7 +230,11 @@ impl Mnemonic {
         let bip39_mnemonic = Bip39Mnemonic::from_entropy(&entropy)
             .map_err(|_| WalletError::KeyGenerationFailed("Invalid entropy".to_string()))?;
 
-        let words: Vec<String> = bip39_mnemonic.to_string().split_whitespace().map(|w| w.to_string()).collect();
+        let words: Vec<String> = bip39_mnemonic
+            .to_string()
+            .split_whitespace()
+            .map(|w| w.to_string())
+            .collect();
 
         Ok(Self {
             words,
@@ -248,7 +252,11 @@ impl Mnemonic {
         let bip39_mnemonic = Bip39Mnemonic::parse_in_normalized(Language::English, mnemonic)
             .map_err(|_| WalletError::InvalidMnemonic("Invalid BIP-39 mnemonic".to_string()))?;
 
-        let words: Vec<String> = bip39_mnemonic.to_string().split_whitespace().map(|w| w.to_string()).collect();
+        let words: Vec<String> = bip39_mnemonic
+            .to_string()
+            .split_whitespace()
+            .map(|w| w.to_string())
+            .collect();
 
         let entropy_bits = bip39_mnemonic.to_entropy().len() * 8;
 
