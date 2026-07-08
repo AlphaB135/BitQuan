@@ -515,6 +515,9 @@ fn parallel_verification_safety() {
                 0, // median_time_past
                 0, // network_adjusted_time
                 None, // expected_bits
+                None, // expected_uncles_bits
+                &[], // uncles_ctx
+                &std::collections::HashSet::new(), // past_uncle_hashes
             )
         })
         .collect();

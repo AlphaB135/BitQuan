@@ -170,6 +170,7 @@ fn invalid_coinbase_rejection() {
         0,
         0, // network_adjusted_time
         None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -208,6 +209,7 @@ fn invalid_coinbase_rejection() {
         0,
         0, // network_adjusted_time
         None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -230,6 +232,7 @@ fn invalid_coinbase_rejection() {
         0,
         0, // network_adjusted_time
         None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -279,6 +282,7 @@ fn test_fee_calculation_precision() {
         0,
         0, // network_adjusted_time
         None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -325,6 +329,7 @@ fn test_fee_overflow_protection() {
         0,
         0, // network_adjusted_time
         None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -487,6 +492,7 @@ fn dust_output_rejection() {
         0,
         0, // network_adjusted_time
         None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );
@@ -553,6 +559,7 @@ fn op_return_dust_allowed() {
         0,
         0, // network_adjusted_time
         None, // expected_bits
+        None, // expected_uncles_bits
         &[],
         &std::collections::HashSet::new(),
     );

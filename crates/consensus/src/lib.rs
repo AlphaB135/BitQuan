@@ -578,6 +578,7 @@ pub fn validate_block(
     median_time_past: u64,
     network_adjusted_time: u64,
     expected_bits: Option<u32>,
+    expected_uncles_bits: Option<&[u32]>,
     uncles_ctx: &[UncleContext],
     past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
 ) -> Result<BlockValidationReport, ConsensusError> {
@@ -621,7 +622,7 @@ pub fn validate_block(
     }
 
     // GHOST Uncle Validation
-    for (uncle_header, uncle_ctx) in block.uncles.iter().zip(uncles_ctx.iter()) {
+    for (i, (uncle_header, uncle_ctx)) in block.uncles.iter().zip(uncles_ctx.iter()).enumerate() {
         if uncle_header != &uncle_ctx.header {
             return Err(ConsensusError::InvalidUncle(
                 "Uncle header mismatch with context".to_string(),
@@ -641,6 +642,19 @@ pub fn validate_block(
             return Err(ConsensusError::InvalidUncle(
                 "Uncle double inclusion detected".to_string(),
             ));
+        }
+
+        // SECURITY: Verify Uncle bits match expected ASERT target at uncle height
+        // Ref: issue #189 / H1 (Uncle bits not verified)
+        if let Some(expected_list) = expected_uncles_bits {
+            if let Some(&exp_bits) = expected_list.get(i) {
+                if uncle_header.bits != exp_bits {
+                    return Err(ConsensusError::InvalidUncle(format!(
+                        "Uncle difficulty target mismatch: expected {:#x}, got {:#x}",
+                        exp_bits, uncle_header.bits
+                    )));
+                }
+            }
         }
 
         // Validate Uncle PoW
@@ -1129,6 +1143,12 @@ impl ConsensusEngine {
         let expected_bits = self.difficulty.as_ref().map(|d| {
             d.peek_next_bits(height, block.header.time as u64, &self.params)
         });
+        let expected_uncles_bits = self.difficulty.as_ref().map(|d| {
+            uncles_ctx
+                .iter()
+                .map(|u| d.peek_next_bits(u.height, u.header.time as u64, &self.params))
+                .collect::<Vec<u32>>()
+        });
         validate_block(
             block,
             height,
@@ -1140,6 +1160,7 @@ impl ConsensusEngine {
             median_time_past,
             network_adjusted_time,
             expected_bits,
+            expected_uncles_bits.as_deref(),
             uncles_ctx,
             past_uncle_hashes,
         )
@@ -1166,6 +1187,12 @@ impl ConsensusEngine {
         let expected_bits = self.difficulty.as_ref().map(|d| {
             d.peek_next_bits(height, block.header.time as u64, &self.params)
         });
+        let expected_uncles_bits = self.difficulty.as_ref().map(|d| {
+            uncles_ctx
+                .iter()
+                .map(|u| d.peek_next_bits(u.height, u.header.time as u64, &self.params))
+                .collect::<Vec<u32>>()
+        });
         validate_block(
             block,
             height,
@@ -1177,6 +1204,7 @@ impl ConsensusEngine {
             median_time_past,
             network_adjusted_time,
             expected_bits,
+            expected_uncles_bits.as_deref(),
             uncles_ctx,
             past_uncle_hashes,
         )
