@@ -939,9 +939,9 @@ fn validate_transaction_fees(
 
     for (script, expected_val) in expected_uncle_rewards {
         let actual_val = actual_uncle_rewards.get(&script).copied().unwrap_or(0);
-        if actual_val < expected_val {
+        if actual_val != expected_val {
             return Err(ConsensusError::FeeValidation(format!(
-                "Uncle miner reward missing or insufficient: expected {}, found {}",
+                "Uncle miner reward mismatch: expected {}, found {}",
                 expected_val, actual_val
             )));
         }
