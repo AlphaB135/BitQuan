@@ -1658,7 +1658,7 @@ fn verify_share_pow_sync(
         PowAlgo::Ethash => {
             use bitquan_consensus::pow::{ethash_pow_hash, EthashConfig};
             let config = EthashConfig::default();
-            ethash_pow_hash(&preimage, &config.cache_size)?
+            ethash_pow_hash(&preimage, &config.cache_size)
         }
     };
 

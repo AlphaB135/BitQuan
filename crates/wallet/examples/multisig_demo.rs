@@ -84,7 +84,7 @@ fn main() {
     println!("   ✓ Transaction finalized!");
     println!("   Final signature count: {}", finalized.signatures.len());
     #[allow(clippy::expect_used)]
-    finalized.verify().expect("Verification failed");
+    finalized.verify_structure().expect("Verification failed");
     println!("   ✓ Verification passed");
     println!();
 

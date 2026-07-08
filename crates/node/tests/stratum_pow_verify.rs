@@ -240,7 +240,7 @@ async fn test_share_valid_randomx_meets_target() {
         let mut test_header = header.clone();
         test_header.nonce = nonce;
         let preimage = test_header.to_bytes();
-        let hash = randomx_pow_hash(&preimage, &seed);
+        let hash = randomx_pow_hash(&preimage, &seed).unwrap();
 
         if meets_target(&hash, &target) {
             println!(
