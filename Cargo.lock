@@ -144,9 +144,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.102"
+version = "1.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "argon2"
@@ -419,7 +419,7 @@ dependencies = [
  "bitquan-types",
  "bq-crypto",
  "log",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rand_chacha 0.3.1",
  "thiserror 2.0.17",
 ]
@@ -438,7 +438,7 @@ dependencies = [
  "hex",
  "libc",
  "log",
- "rand 0.8.5",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "snow",
@@ -482,7 +482,7 @@ dependencies = [
  "openssl-sys",
  "pqc-dilithium-seeded",
  "prometheus",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rand_chacha 0.3.1",
  "reqwest",
  "rpassword",
@@ -517,7 +517,7 @@ dependencies = [
  "ipnetwork 0.20.0",
  "jsonwebtoken",
  "once_cell",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rcgen",
  "regex",
  "reqwest",
@@ -560,7 +560,7 @@ dependencies = [
  "getrandom 0.3.4",
  "hex",
  "http 0.2.12",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rand_core 0.9.3",
  "serde",
  "serde_json",
@@ -627,7 +627,7 @@ dependencies = [
  "log",
  "pqc-dilithium-seeded",
  "proptest",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "secrecy",
@@ -672,7 +672,7 @@ dependencies = [
  "pbkdf2",
  "pqc-dilithium-seeded",
  "proptest",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rand_core 0.6.4",
  "ripemd",
  "serde",
@@ -693,7 +693,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "rand 0.8.5",
+ "rand 0.8.6",
  "reqwest",
  "serde",
  "serde_json",
@@ -1065,9 +1065,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-epoch"
-version = "0.9.18"
+version = "0.9.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+checksum = "2d6914041f254d6e9176c01941b21115dcfb7089e55135a35411081bd106ef3f"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -2331,7 +2331,7 @@ dependencies = [
  "js-sys",
  "p256",
  "p384",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rsa",
  "serde",
  "serde_json",
@@ -2635,7 +2635,7 @@ dependencies = [
  "num-integer",
  "num-iter",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.6",
  "smallvec",
  "zeroize",
 ]
@@ -3027,7 +3027,7 @@ version = "0.2.1"
 dependencies = [
  "getrandom 0.2.16",
  "pqc_core",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rand_core 0.6.4",
  "sha3 0.10.8",
  "subtle",
@@ -3240,9 +3240,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -3684,9 +3684,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.10"
+version = "0.103.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df33b2b81ac578cabaf06b89b0631153a3f416b0a886e8a7a1707fb51abbd1ef"
+checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -4701,7 +4701,7 @@ dependencies = [
  "lazy_static",
  "log",
  "pqc-dilithium-seeded",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rpassword",
  "secrecy",
  "serde",
