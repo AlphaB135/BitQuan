@@ -188,24 +188,58 @@ impl ForkChoice {
         Ok(())
     }
 
-    /// Computes the weight of a subtree rooted at the given block hash.
-    fn subtree_weight(&self, hash: &[u8; 32]) -> U256 {
-        let mut weight = self
-            .nodes
-            .get(hash)
-            .map(|n| n.block_work())
-            .unwrap_or_else(U256::zero);
-        if let Some(children) = self.children.get(hash) {
-            for child in children {
-                weight = weight.saturating_add(self.subtree_weight(child));
+    /// Computes the subtree weights for all nodes under the given root hash iteratively.
+    /// This is stack-safe (no recursion) and runs in O(N) time.
+    fn subtree_weights_iterative(&self, root: &[u8; 32]) -> HashMap<[u8; 32], U256> {
+        let mut visited = std::collections::HashSet::new();
+        let mut post_order = Vec::new();
+        let mut stack = vec![(*root, false)];
+
+        while let Some((curr_hash, children_pushed)) = stack.pop() {
+            if children_pushed {
+                post_order.push(curr_hash);
+            } else {
+                if visited.insert(curr_hash) {
+                    stack.push((curr_hash, true));
+                    if let Some(children) = self.children.get(&curr_hash) {
+                        for child in children {
+                            if !visited.contains(child) {
+                                stack.push((*child, false));
+                            }
+                        }
+                    }
+                }
             }
         }
-        weight
+
+        let mut weights = HashMap::new();
+        for node_hash in post_order {
+            let node_work = self
+                .nodes
+                .get(&node_hash)
+                .map(|n| n.block_work())
+                .unwrap_or_else(U256::zero);
+
+            let mut total_weight = node_work;
+            if let Some(children) = self.children.get(&node_hash) {
+                for child in children {
+                    if let Some(&child_weight) = weights.get(child) {
+                        total_weight = total_weight.saturating_add(child_weight);
+                    }
+                }
+            }
+            weights.insert(node_hash, total_weight);
+        }
+
+        weights
     }
 
     /// Finds the tip using the GHOST protocol strategy.
     fn compute_ghost_tip(&self) -> Option<[u8; 32]> {
-        let mut current = self.genesis_hash?;
+        let genesis = self.genesis_hash?;
+        let weights = self.subtree_weights_iterative(&genesis);
+
+        let mut current = genesis;
 
         loop {
             let children = match self.children.get(&current) {
@@ -217,7 +251,7 @@ impl ForkChoice {
             let mut max_weight = U256::zero();
 
             for child in children {
-                let weight = self.subtree_weight(child);
+                let weight = weights.get(child).copied().unwrap_or_else(U256::zero);
                 if weight > max_weight {
                     max_weight = weight;
                     best_child = *child;
