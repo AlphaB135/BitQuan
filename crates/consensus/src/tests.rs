@@ -779,7 +779,7 @@ fn test_validate_block_weight_overflow() {
             pqc_agg_hint: [0u8; 32],
             uncles_hash: [0u8; 32],
             time: 1700000000,
-            bits: 0x1d00ffff,
+            bits: 0x2100ffff,
             nonce: 0,
             algo_id: 0,
         },
