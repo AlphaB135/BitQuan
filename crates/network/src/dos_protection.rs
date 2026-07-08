@@ -138,8 +138,8 @@ impl SynCookie {
 /// Connection flood detection
 #[derive(Debug)]
 struct ConnectionFloodDetector {
-    /// Connection attempts by time window
-    connection_attempts: Vec<Instant>,
+    /// Connection attempts by time window, tracked per source IP
+    connection_attempts: HashMap<IpAddr, Vec<Instant>>,
     /// Configuration
     config: DoSConfig,
 }
@@ -274,7 +274,7 @@ impl DoSProtection {
                 config: config.clone(),
             },
             connection_detector: ConnectionFloodDetector {
-                connection_attempts: Vec::new(),
+                connection_attempts: HashMap::new(),
                 config: config.clone(),
             },
             bandwidth_tracker: BandwidthTracker {
@@ -438,16 +438,17 @@ impl DoSProtection {
 
         // Check connection flood
         let now = Instant::now();
-        self.connection_detector.connection_attempts.push(now);
+        let attempts = self.connection_detector.connection_attempts.entry(source_ip).or_default();
+        attempts.push(now);
 
         // Clean old attempts
         let cutoff = now - self.connection_detector.config.connection_flood_window;
-        self.connection_detector
-            .connection_attempts
-            .retain(|&timestamp| timestamp > cutoff);
+        attempts.retain(|&timestamp| timestamp > cutoff);
+
+        let attempt_count = attempts.len();
 
         // Check for flood
-        if self.connection_detector.connection_attempts.len() as u32
+        if attempt_count as u32
             >= self.connection_detector.config.connection_flood_threshold
         {
             let attack = AttackInfo {
@@ -629,13 +630,22 @@ impl DoSProtection {
         &self.detected_attacks
     }
 
-    /// Clear old attacks
+    /// Clear old attacks and cleanup connection flood tracker HashMap
     pub fn cleanup(&mut self) {
-        let cutoff = Instant::now()
+        let now = Instant::now();
+        let cutoff = now - self.connection_detector.config.connection_flood_window;
+        
+        // Clean up connection flood detector HashMap entries
+        self.connection_detector.connection_attempts.retain(|_, attempts| {
+            attempts.retain(|&timestamp| timestamp > cutoff);
+            !attempts.is_empty()
+        });
+
+        let attack_cutoff = now
             .checked_sub(Duration::from_secs(3600))
             .unwrap_or_else(Instant::now); // Keep 1 hour, safe on low uptime
         self.detected_attacks
-            .retain(|attack| attack.detected_at > cutoff);
+            .retain(|attack| attack.detected_at > attack_cutoff);
     }
 
     /// Check if IP is currently under attack
