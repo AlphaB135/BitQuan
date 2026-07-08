@@ -138,7 +138,7 @@ impl DifficultyState {
         // The guard is for mining-path retargets; validation uses the raw ASERT output.
         let next_target =
             asert_next_target(self.anchor_target, height_delta, time_delta, params, None);
-        target_to_compact_u64(next_target)
+        target_to_compact(&next_target)
     }
 
     /// Computes the next target for the specified block height/timestamp and updates the anchor.

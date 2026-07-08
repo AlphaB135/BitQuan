@@ -404,7 +404,7 @@ impl PowEngine for EthashEngine {
 
     fn pow_hash(&self, header: &BlockHeader) -> Result<[u8; 32]> {
         let bytes = header.to_bytes();
-        ethash_pow_hash(&bytes, &self._config.cache_size)
+        Ok(ethash_pow_hash(&bytes, &self._config.cache_size))
     }
 }
 
