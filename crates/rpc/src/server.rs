@@ -773,11 +773,8 @@ async fn handle_connection<T: methods::RpcMethods>(
 
     // SECURITY: Enforce per-method rate limiting (expensive vs cheap methods)
     // Ref: issue #86 / M4 (RPC rate limiting has no per-method limit)
-    let method_allowed = check_method_rate_limit(
-        peer_ip,
-        &json_request.method,
-        options.method_limiter,
-    ).await;
+    let method_allowed =
+        check_method_rate_limit(peer_ip, &json_request.method, options.method_limiter).await;
 
     if !method_allowed {
         // Log method rate limit exceeded
@@ -946,7 +943,6 @@ fn build_security_headers(config: &RpcConfig) -> String {
         // Security headers
         "X-Content-Type-Options: nosniff".to_string(),
         "X-Frame-Options: DENY".to_string(),
-
         "Referrer-Policy: strict-origin-when-cross-origin".to_string(),
         "Content-Security-Policy: default-src 'none'; script-src 'none'; object-src 'none';"
             .to_string(),
@@ -1147,7 +1143,8 @@ async fn check_rate_limit(
     // If the key is new and we are at the hard cap, try to prune old entries.
     if !limiter_map.contains_key(&key) && limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
         let now = Instant::now();
-        limiter_map.retain(|_, bucket| now.duration_since(bucket.last_refill) < Duration::from_secs(3600));
+        limiter_map
+            .retain(|_, bucket| now.duration_since(bucket.last_refill) < Duration::from_secs(3600));
 
         // If still at capacity after pruning, reject immediately.
         if limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
@@ -1182,7 +1179,8 @@ async fn check_method_rate_limit(
     // Prune if map is getting too large to prevent OOM
     if !limiter_map.contains_key(&key) && limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
         let now = Instant::now();
-        limiter_map.retain(|_, bucket| now.duration_since(bucket.last_refill) < Duration::from_secs(3600));
+        limiter_map
+            .retain(|_, bucket| now.duration_since(bucket.last_refill) < Duration::from_secs(3600));
 
         if limiter_map.len() >= RATE_LIMITER_MAX_ENTRIES {
             warn!(

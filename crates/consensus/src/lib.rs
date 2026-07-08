@@ -583,7 +583,14 @@ pub fn validate_block(
     past_uncle_hashes: &std::collections::HashSet<[u8; 32]>,
 ) -> Result<BlockValidationReport, ConsensusError> {
     // Bitcoin-style block header validation (includes ASERT difficulty enforcement)
-    validate_block_header(block, height, params, median_time_past, network_adjusted_time, expected_bits)?;
+    validate_block_header(
+        block,
+        height,
+        params,
+        median_time_past,
+        network_adjusted_time,
+        expected_bits,
+    )?;
 
     // CRITICAL: Validate witness root against actual transaction witness data
     // Without this, an attacker can submit forged PQC signatures that pass header validation.
@@ -1140,9 +1147,10 @@ impl ConsensusEngine {
     ) -> Result<BlockValidationReport, ConsensusError> {
         // Compute expected ASERT bits if difficulty anchor is available.
         // For genesis or contexts without an anchor, enforcement is skipped.
-        let expected_bits = self.difficulty.as_ref().map(|d| {
-            d.peek_next_bits(height, block.header.time as u64, &self.params)
-        });
+        let expected_bits = self
+            .difficulty
+            .as_ref()
+            .map(|d| d.peek_next_bits(height, block.header.time as u64, &self.params));
         let expected_uncles_bits = self.difficulty.as_ref().map(|d| {
             uncles_ctx
                 .iter()
@@ -1184,9 +1192,10 @@ impl ConsensusEngine {
     ) -> Result<BlockValidationReport, ConsensusError> {
         // Compute expected ASERT bits if difficulty anchor is available.
         // For genesis or contexts without an anchor, enforcement is skipped.
-        let expected_bits = self.difficulty.as_ref().map(|d| {
-            d.peek_next_bits(height, block.header.time as u64, &self.params)
-        });
+        let expected_bits = self
+            .difficulty
+            .as_ref()
+            .map(|d| d.peek_next_bits(height, block.header.time as u64, &self.params));
         let expected_uncles_bits = self.difficulty.as_ref().map(|d| {
             uncles_ctx
                 .iter()

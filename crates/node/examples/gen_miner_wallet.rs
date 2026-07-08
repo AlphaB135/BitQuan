@@ -8,8 +8,8 @@ use std::path::Path;
 fn main() {
     let wallet = WalletKeypair::generate_dilithium5().expect("Failed to generate wallet");
 
-    let password = std::env::var("MINER_PASSWORD")
-        .expect("MINER_PASSWORD environment variable must be set");
+    let password =
+        std::env::var("MINER_PASSWORD").expect("MINER_PASSWORD environment variable must be set");
 
     wallet
         .save_to_file(Path::new("miner_wallet.json"), &password)

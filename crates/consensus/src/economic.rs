@@ -98,7 +98,13 @@ impl GeographicRegion {
 
         match ip {
             IpAddr::V4(ipv4) => {
-                if ipv4.is_private() || ipv4.is_loopback() || ipv4.is_link_local() || ipv4.is_broadcast() || ipv4.is_documentation() || ipv4.is_unspecified() {
+                if ipv4.is_private()
+                    || ipv4.is_loopback()
+                    || ipv4.is_link_local()
+                    || ipv4.is_broadcast()
+                    || ipv4.is_documentation()
+                    || ipv4.is_unspecified()
+                {
                     return Ok("XX".to_string());
                 }
                 // Simplified IP range mapping for major regions
@@ -910,12 +916,14 @@ impl EconomicManager {
         }
 
         // Security: Check for u64 overflow before adding stake (H-8)
-        let new_total = stake_info.staked_amount.checked_add(amount).ok_or(
-            EconomicError::StakeOverflow {
-                current: stake_info.staked_amount,
-                additional: amount,
-            },
-        )?;
+        let new_total =
+            stake_info
+                .staked_amount
+                .checked_add(amount)
+                .ok_or(EconomicError::StakeOverflow {
+                    current: stake_info.staked_amount,
+                    additional: amount,
+                })?;
         if new_total > self.config.max_stake_amount {
             return Err(EconomicError::ExcessiveStake {
                 maximum: self.config.max_stake_amount,
@@ -930,12 +938,13 @@ impl EconomicManager {
         stake_info.is_bonded = true;
 
         // Security: Check for u64 overflow on total_staked (H-8)
-        self.total_staked = self.total_staked.checked_add(amount).ok_or(
-            EconomicError::StakeOverflow {
-                current: self.total_staked,
-                additional: amount,
-            },
-        )?;
+        self.total_staked =
+            self.total_staked
+                .checked_add(amount)
+                .ok_or(EconomicError::StakeOverflow {
+                    current: self.total_staked,
+                    additional: amount,
+                })?;
         self.update_time_locked_stakes();
         self.update_stats();
 

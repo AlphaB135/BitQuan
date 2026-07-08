@@ -562,7 +562,9 @@ async fn handle_get_data(
                             hex::encode(&tx.txid()[..8]),
                             peer.addr
                         );
-                        peer.send_message(Message::Tx { transaction: (*tx).clone() })?;
+                        peer.send_message(Message::Tx {
+                            transaction: (*tx).clone(),
+                        })?;
                     }
                     None => {
                         // Not in mempool, try storage
@@ -826,9 +828,13 @@ async fn handle_block(
                 )));
             }
             Err(e) => {
-                log::error!("❌ Failed to fetch parent block from storage: {}. Rejecting block.", e);
+                log::error!(
+                    "❌ Failed to fetch parent block from storage: {}. Rejecting block.",
+                    e
+                );
                 return Err(WorkerError::Storage(format!(
-                    "failed to fetch parent block: {}", e
+                    "failed to fetch parent block: {}",
+                    e
                 )));
             }
         }

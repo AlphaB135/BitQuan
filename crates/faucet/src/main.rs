@@ -232,10 +232,12 @@ async fn main() -> Result<()> {
 
     let rpc_url =
         env::var("BITQUAN_RPC_URL").unwrap_or_else(|_| "http://127.0.0.1:8332".to_string());
-    let rpc_user = env::var("BITQUAN_RPC_USER")
-        .expect("BITQUAN_RPC_USER env var must be set — refusing to start with default credentials");
-    let rpc_pass = env::var("BITQUAN_RPC_PASS")
-        .expect("BITQUAN_RPC_PASS env var must be set — refusing to start with default credentials");
+    let rpc_user = env::var("BITQUAN_RPC_USER").expect(
+        "BITQUAN_RPC_USER env var must be set — refusing to start with default credentials",
+    );
+    let rpc_pass = env::var("BITQUAN_RPC_PASS").expect(
+        "BITQUAN_RPC_PASS env var must be set — refusing to start with default credentials",
+    );
     let drip_amount = env::var("FAUCET_DRIP_AMOUNT")
         .ok()
         .and_then(|s| s.parse().ok())

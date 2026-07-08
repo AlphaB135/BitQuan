@@ -522,7 +522,7 @@ impl RpcMethods for NodeRpcHandler {
                 "generate is not available on mainnet".to_string(),
             ));
         }
-        
+
         use bitquan_consensus::pow::{PowEngine, Sha256dEngine};
         use bitquan_types::{Block, BlockHeader, SigAlgorithm, Transaction, TxOut};
 

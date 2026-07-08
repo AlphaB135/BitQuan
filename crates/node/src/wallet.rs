@@ -564,7 +564,6 @@ mod tests {
         assert!(address::decode(&corrupted).is_err());
     }
 
-
     #[test]
     fn test_public_key_hash() {
         let keypair =

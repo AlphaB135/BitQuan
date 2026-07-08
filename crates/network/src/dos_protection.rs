@@ -299,8 +299,8 @@ impl DoSProtection {
     /// Generate an HMAC-based SYN cookie value.
     /// SECURITY: Keyed on (source_ip, timestamp, secret) to be unpredictable.
     fn generate_cookie_value(&self, source_ip: &IpAddr) -> u32 {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
 
         let now = Instant::now();
         let mut hasher = DefaultHasher::new();
@@ -438,7 +438,11 @@ impl DoSProtection {
 
         // Check connection flood
         let now = Instant::now();
-        let attempts = self.connection_detector.connection_attempts.entry(source_ip).or_default();
+        let attempts = self
+            .connection_detector
+            .connection_attempts
+            .entry(source_ip)
+            .or_default();
         attempts.push(now);
 
         // Clean old attempts
@@ -448,9 +452,7 @@ impl DoSProtection {
         let attempt_count = attempts.len();
 
         // Check for flood
-        if attempt_count as u32
-            >= self.connection_detector.config.connection_flood_threshold
-        {
+        if attempt_count as u32 >= self.connection_detector.config.connection_flood_threshold {
             let attack = AttackInfo {
                 attack_type: DoSError::ConnectionFlood,
                 source_ip: Some(source_ip),
@@ -634,12 +636,14 @@ impl DoSProtection {
     pub fn cleanup(&mut self) {
         let now = Instant::now();
         let cutoff = now - self.connection_detector.config.connection_flood_window;
-        
+
         // Clean up connection flood detector HashMap entries
-        self.connection_detector.connection_attempts.retain(|_, attempts| {
-            attempts.retain(|&timestamp| timestamp > cutoff);
-            !attempts.is_empty()
-        });
+        self.connection_detector
+            .connection_attempts
+            .retain(|_, attempts| {
+                attempts.retain(|&timestamp| timestamp > cutoff);
+                !attempts.is_empty()
+            });
 
         let attack_cutoff = now
             .checked_sub(Duration::from_secs(3600))

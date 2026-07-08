@@ -361,7 +361,14 @@ pub fn check_block(path: &str) -> Result<()> {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    match engine.validate_block(&block, 0, 0, network_adjusted_time, &[], &std::collections::HashSet::new()) {
+    match engine.validate_block(
+        &block,
+        0,
+        0,
+        network_adjusted_time,
+        &[],
+        &std::collections::HashSet::new(),
+    ) {
         Ok(report) => {
             println!("Block validation successful!");
             println!("  Weight: {} WU", report.block_weight);

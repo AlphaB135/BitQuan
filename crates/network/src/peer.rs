@@ -191,12 +191,10 @@ pub async fn async_noise_handshake_initiator(
     mut stream: TokioTcpStream,
     config: &NoiseConfig,
 ) -> Result<(TokioTcpStream, TransportState, [u8; 32]), P2pError> {
-
     // Build handshake state using NoiseConfig's public method
     let mut handshake = config
         .build_initiator()
         .map_err(|e| P2pError::ConnectionError(format!("failed to build initiator: {e}")))?;
-
 
     let mut buf = vec![0u8; HANDSHAKE_BUF_SIZE];
 
@@ -208,7 +206,6 @@ pub async fn async_noise_handshake_initiator(
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg1 failed: {e}")))?;
 
-
     // Message 2: <- e, ee, s, es (receive responder's keys)
     let msg = recv_handshake_msg_async(&mut stream)
         .await
@@ -218,7 +215,6 @@ pub async fn async_noise_handshake_initiator(
         .read_message(&msg, &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake read msg2 failed: {e}")))?;
 
-
     // Message 3: -> s, se (send our static public key)
     let len = handshake
         .write_message(&[], &mut buf)
@@ -226,7 +222,6 @@ pub async fn async_noise_handshake_initiator(
     send_handshake_msg_async(&mut stream, &buf[..len])
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg3 failed: {e}")))?;
-
 
     // Extract remote public key and convert to transport mode
     let remote_public_key = extract_remote_key(&handshake)?;
@@ -270,12 +265,10 @@ pub async fn async_noise_handshake_responder(
     mut stream: TokioTcpStream,
     config: &NoiseConfig,
 ) -> Result<(TokioTcpStream, TransportState, [u8; 32]), P2pError> {
-
     // Build handshake state using NoiseConfig's public method
     let mut handshake = config
         .build_responder()
         .map_err(|e| P2pError::ConnectionError(format!("failed to build responder: {e}")))?;
-
 
     let mut buf = vec![0u8; HANDSHAKE_BUF_SIZE];
 
@@ -287,7 +280,6 @@ pub async fn async_noise_handshake_responder(
         .read_message(&msg, &mut buf)
         .map_err(|e| P2pError::ConnectionError(format!("handshake read msg1 failed: {e}")))?;
 
-
     // Message 2: -> e, ee, s, es (send our keys)
     let len = handshake
         .write_message(&[], &mut buf)
@@ -295,7 +287,6 @@ pub async fn async_noise_handshake_responder(
     send_handshake_msg_async(&mut stream, &buf[..len])
         .await
         .map_err(|e| P2pError::ConnectionError(format!("send msg2 failed: {e}")))?;
-
 
     // Message 3: <- s, se (receive initiator's static public key)
     let msg = recv_handshake_msg_async(&mut stream)
@@ -451,7 +442,6 @@ pub async fn async_version_handshake_outbound(
     magic: [u8; 4],
     our_height: u64,
 ) -> Result<(u32, String, u64), P2pError> {
-
     // Send our version
     let version_msg = Message::Version {
         version: PROTOCOL_VERSION,
@@ -503,8 +493,7 @@ pub async fn async_version_handshake_outbound(
         .map_err(|e| P2pError::ConnectionError(format!("recv verack failed: {e}")))?;
 
     match verack_env.message {
-        Message::VerAck => {
-        }
+        Message::VerAck => {}
         _ => {
             return Err(P2pError::InvalidMessage);
         }
@@ -528,7 +517,6 @@ pub async fn async_version_handshake_inbound(
     magic: [u8; 4],
     our_height: u64,
 ) -> Result<(u32, String, u64), P2pError> {
-
     // Wait for their version
     let their_env = recv_envelope_async(stream, magic)
         .await
@@ -580,8 +568,7 @@ pub async fn async_version_handshake_inbound(
         .map_err(|e| P2pError::ConnectionError(format!("recv verack failed: {e}")))?;
 
     match verack_env.message {
-        Message::VerAck => {
-        }
+        Message::VerAck => {}
         _ => {
             return Err(P2pError::InvalidMessage);
         }
@@ -1188,7 +1175,10 @@ impl PeerManager {
         // the same peer between the check and the push.
         // Re-acquire the lock (it was dropped before the handshake await)
         let mut peers = self.lock_peers().await;
-        if peers.iter().any(|p| p.remote_public_key == remote_public_key) {
+        if peers
+            .iter()
+            .any(|p| p.remote_public_key == remote_public_key)
+        {
             return Err(P2pError::ConnectionError(format!(
                 "duplicate peer connection: peer with key {} is already connected",
                 hex::encode(remote_public_key)
@@ -1308,7 +1298,10 @@ impl PeerManager {
         // separate lock acquisition, allowing a race where two connections for
         // the same peer could both pass the check.
         let mut peers = self.lock_peers().await;
-        if peers.iter().any(|p| p.remote_public_key == remote_public_key) {
+        if peers
+            .iter()
+            .any(|p| p.remote_public_key == remote_public_key)
+        {
             return Err(P2pError::ConnectionError(format!(
                 "duplicate peer connection: peer with key {} is already connected",
                 hex::encode(remote_public_key)

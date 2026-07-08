@@ -206,8 +206,8 @@ impl Mnemonic {
             )));
         }
 
-        use bip39::{Mnemonic as Bip39Mnemonic, Language};
-        
+        use bip39::{Language, Mnemonic as Bip39Mnemonic};
+
         let entropy_bytes = entropy_bits / 8;
         let mut entropy = vec![0u8; entropy_bytes];
 
@@ -230,10 +230,7 @@ impl Mnemonic {
         let bip39_mnemonic = Bip39Mnemonic::from_entropy(&entropy, Language::English)
             .map_err(|_| WalletError::KeyGenerationFailed("Invalid entropy".to_string()))?;
 
-        let words: Vec<String> = bip39_mnemonic
-            .word_iter()
-            .map(|w| w.to_string())
-            .collect();
+        let words: Vec<String> = bip39_mnemonic.word_iter().map(|w| w.to_string()).collect();
 
         Ok(Self {
             words,
@@ -245,17 +242,14 @@ impl Mnemonic {
 
     /// Parse mnemonic from string
     pub fn from_str(mnemonic: &str, quantum_enhanced: bool) -> Result<Self> {
-        use bip39::{Mnemonic as Bip39Mnemonic, Language};
-        
+        use bip39::{Language, Mnemonic as Bip39Mnemonic};
+
         // Validate with bip39
         let bip39_mnemonic = Bip39Mnemonic::from_phrase(mnemonic, Language::English)
             .map_err(|_| WalletError::InvalidMnemonic("Invalid BIP-39 mnemonic".to_string()))?;
 
-        let words: Vec<String> = bip39_mnemonic
-            .word_iter()
-            .map(|w| w.to_string())
-            .collect();
-            
+        let words: Vec<String> = bip39_mnemonic.word_iter().map(|w| w.to_string()).collect();
+
         let entropy_bits = bip39_mnemonic.entropy().len() * 8;
 
         Ok(Self {
@@ -273,20 +267,15 @@ impl Mnemonic {
 
     /// Generate seed from mnemonic
     pub fn to_seed(&self, passphrase: &str) -> Result<[u8; 64]> {
-        use pbkdf2::pbkdf2;
         use hmac::Hmac;
+        use pbkdf2::pbkdf2;
         use sha2::Sha512;
 
         let mnemonic_str = self.as_string();
         let salt = format!("mnemonic{}", passphrase);
 
         let mut seed = [0u8; 64];
-        pbkdf2::<Hmac<Sha512>>(
-            mnemonic_str.as_bytes(),
-            salt.as_bytes(),
-            2048,
-            &mut seed,
-        );
+        pbkdf2::<Hmac<Sha512>>(mnemonic_str.as_bytes(), salt.as_bytes(), 2048, &mut seed);
 
         Ok(seed)
     }
@@ -591,14 +580,14 @@ impl Wallet for SimpleWallet {
 
             // Commit to all inputs
             for inp in psbt.inputs.iter() {
-                if let Some(txid_bytes) = inp.get_field(
-                    &crate::psbt::InputKey::PreviousTxid([0u8; 32]),
-                ) {
+                if let Some(txid_bytes) =
+                    inp.get_field(&crate::psbt::InputKey::PreviousTxid([0u8; 32]))
+                {
                     hasher.update(txid_bytes);
                 }
-                if let Some(vout_bytes) = inp.get_field(
-                    &crate::psbt::InputKey::PreviousOutputIndex(0),
-                ) {
+                if let Some(vout_bytes) =
+                    inp.get_field(&crate::psbt::InputKey::PreviousOutputIndex(0))
+                {
                     hasher.update(vout_bytes);
                 }
             }

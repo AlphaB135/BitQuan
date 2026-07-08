@@ -420,8 +420,6 @@ impl Mempool {
             .map(|e| Arc::clone(&e.tx))
     }
 
-
-
     /// Checks if a transaction exists in the mempool (for P2P Inv handling).
     pub fn contains(&self, txid: &[u8; 32]) -> bool {
         self.txid_index.contains_key(txid)

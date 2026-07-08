@@ -54,14 +54,12 @@ async fn rpc_post(
         .build()
         .map_err(|e| format!("Failed to build client: {e}"))?;
 
-    let mut req = client
-        .post(RPC_URL)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-            "id": 1
-        }));
+    let mut req = client.post(RPC_URL).json(&serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": 1
+    }));
 
     if let Ok(token) = std::env::var("BITQUAN_RPC_TOKEN") {
         req = req.bearer_auth(token);
