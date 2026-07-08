@@ -771,7 +771,7 @@ fn test_validate_block_weight_overflow() {
         });
     }
 
-    let block = Block {
+    let mut block = Block {
         header: BlockHeader {
             version: 1,
             prev_block: [0u8; 32],
@@ -779,13 +779,18 @@ fn test_validate_block_weight_overflow() {
             pqc_agg_hint: [0u8; 32],
             uncles_hash: [0u8; 32],
             time: 1700000000,
-            bits: 0x2100ffff,
+            bits: 0x207fffff,
             nonce: 0,
             algo_id: 0,
         },
         uncles: vec![],
         transactions,
     };
+
+    // Find a nonce that meets the target PoW
+    while !crate::pow::check_header_pow(&block.header).unwrap() {
+        block.header.nonce += 1;
+    }
 
     let result = validate_block(
         &block,
