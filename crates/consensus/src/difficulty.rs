@@ -282,6 +282,9 @@ mod tests {
              — divergence causes chain halt when burst guard fires"
         );
     }
+
+    #[test]
+    fn guard_inactive_before_activation_height() {
         let mut params = params();
         params.difficulty.burst_guard_activation_height = 200;
         let anchor_height = 150u64;

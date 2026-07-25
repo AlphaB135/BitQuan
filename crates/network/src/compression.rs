@@ -145,6 +145,9 @@ mod tests {
         let decompressed = decompress_block(&compressed).expect("within limit must succeed");
         assert_eq!(decompressed, large_block);
     }
+
+    #[test]
+    fn uncompressed_passthrough_works() {
         let raw = b"raw block data without magic prefix";
         let decompressed = decompress_block(raw).expect("passthrough should work");
         assert_eq!(decompressed, raw);

@@ -518,6 +518,9 @@ mod tests {
         interp.execute_continue(&empty, &[]).unwrap();
         assert_eq!(interp.stack.len(), 1, "execute_continue() must NOT clear the stack");
     }
+
+    #[test]
+    fn stack_overflow_protection() {
         let registry = CryptoRegistry::default();
         let mut interp = ScriptInterpreter::new(registry);
 

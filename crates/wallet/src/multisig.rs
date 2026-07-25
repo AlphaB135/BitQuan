@@ -163,6 +163,7 @@ impl MultisigConfig {
             public_keys,
             label,
             created_at,
+            network_id: 0,
         })
     }
 
