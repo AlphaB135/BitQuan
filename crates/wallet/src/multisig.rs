@@ -24,6 +24,13 @@ pub struct MultisigConfig {
     pub label: Option<String>,
     /// Creation timestamp (Unix timestamp).
     pub created_at: u64,
+    /// Network this wallet belongs to (domain separator for sighash).
+    ///
+    /// Prevents cross-network replay: a signature for a mainnet transaction
+    /// must not be valid on testnet or devnet (issue #207).
+    /// Defaults to Mainnet when absent for backward compatibility.
+    #[serde(default)]
+    pub network_id: u8,
 }
 
 /// Represents a partial signature from one signer.
@@ -160,12 +167,30 @@ impl MultisigConfig {
     }
 
     /// Returns the multisig address (hash of the configuration).
+    ///
+    /// ## Security fixes
+    ///
+    /// **#208 — key length prefix**: keys are now prefixed with their 4-byte
+    /// little-endian length before hashing. Without this, `["ab","cdef"]` and
+    /// `["abcd","ef"]` produced identical byte streams → identical addresses,
+    /// allowing an attacker to craft a collision key in a legitimate M-of-N wallet.
+    ///
+    /// **#207 — network domain separator**: `network_id` is mixed into the hash
+    /// so a mainnet address can never collide with a testnet/devnet address.
     pub fn address(&self) -> String {
         let mut hasher = Sha256::new();
+
+        // Domain separator — prevents cross-network address collision (#207)
+        hasher.update(b"BitQuan-multisig-addr-v1");
+        hasher.update([self.network_id]);
+
         hasher.update([self.required_sigs]);
         hasher.update([self.total_signers]);
 
         for pk in &self.public_keys {
+            // Length-prefix each key so ["ab","cdef"] ≠ ["abcd","ef"] (#208)
+            let len = pk.len() as u32;
+            hasher.update(len.to_le_bytes());
             hasher.update(pk.as_bytes());
         }
 
@@ -256,6 +281,9 @@ impl MultisigWallet {
         let tx_data = hex::decode(&pending.tx_data).map_err(|_| MultisigError::InvalidSignature)?;
         let tx_hash = {
             let mut hasher = Sha256::new();
+            // Domain separator — prevents cross-network replay (#207)
+            hasher.update(b"BitQuan-multisig-sighash-v1");
+            hasher.update([self.config.network_id]);
             hasher.update(&tx_data);
             hasher.finalize()
         };
@@ -310,6 +338,9 @@ impl MultisigWallet {
         // Dilithium5 should sign a digest, not raw data (for security and performance)
         let tx_hash = {
             let mut hasher = Sha256::new();
+            // Domain separator — prevents cross-network replay (#207)
+            hasher.update(b"BitQuan-multisig-sighash-v1");
+            hasher.update([self.config.network_id]);
             hasher.update(&tx_data);
             hasher.finalize()
         };
@@ -379,7 +410,14 @@ impl MultisigWallet {
     }
 
     fn compute_tx_id(&self, tx_data: &[u8]) -> [u8; 32] {
+        // Include a network domain separator so tx IDs (and therefore signatures)
+        // are network-specific. Without this, a signature for a mainnet transaction
+        // is byte-for-byte valid on testnet/devnet — a cross-network replay attack
+        // (issue #207). The domain tag, network_id, and protocol version are mixed
+        // in before the transaction data.
         let mut hasher = Sha256::new();
+        hasher.update(b"BitQuan-multisig-sighash-v1");
+        hasher.update([self.config.network_id]);
         hasher.update(tx_data);
         let result = hasher.finalize();
         let mut id = [0u8; 32];

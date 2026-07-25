@@ -548,6 +548,61 @@ async fn handle_connection<T: methods::RpcMethods>(
         .and_then(|h| std::str::from_utf8(h.value).ok()?.parse::<usize>().ok())
         .unwrap_or(0);
 
+    // --- HTTP Method Enforcement (fix #206) ---
+    // Only POST is valid for JSON-RPC. GET requests bypass CORS preflight checks,
+    // enabling CSRF attacks from any website. 405 + Allow header per RFC 7231.
+    if req.method != Some("POST") {
+        let method = req.method.unwrap_or("UNKNOWN");
+        warn!("Rejected non-POST request: method={} peer={}", method, peer_ip);
+        let response = "HTTP/1.1 405 Method Not Allowed\r\n\
+                        Allow: POST\r\n\
+                        Content-Length: 0\r\n\
+                        Connection: close\r\n\r\n";
+        let stream_inner = buf_reader.into_inner();
+        stream_inner.write_all(response.as_bytes()).await?;
+        stream_inner.flush().await?;
+        stream_inner.shutdown().await?;
+        return Ok(());
+    }
+
+    // --- Host Header Validation (DNS rebinding protection, fix #205) ---
+    // Validates the Host header against config.allowed_hosts when
+    // config.enforce_host_validation is true. Without this check, a malicious
+    // webpage can rebind its DNS to 127.0.0.1 and call any RPC method the
+    // victim's credential permits (identical to Bitcoin Core CVE-2018-20586).
+    if config.enforce_host_validation {
+        let host_value = req
+            .headers
+            .iter()
+            .find(|h| h.name.eq_ignore_ascii_case("host"))
+            .and_then(|h| std::str::from_utf8(h.value).ok())
+            // Strip port if present so "127.0.0.1:8332" matches "127.0.0.1"
+            .map(|h| h.split(':').next().unwrap_or(h));
+
+        let allowed = host_value.map_or(false, |host| {
+            config
+                .allowed_hosts
+                .iter()
+                .any(|allowed| allowed.eq_ignore_ascii_case(host))
+        });
+
+        if !allowed {
+            let host_str = host_value.unwrap_or("<missing>");
+            warn!(
+                "Host header validation failed: host={:?} allowed={:?} peer={}",
+                host_str, config.allowed_hosts, peer_ip
+            );
+            let response = "HTTP/1.1 421 Misdirected Request\r\n\
+                            Content-Length: 0\r\n\
+                            Connection: close\r\n\r\n";
+            let stream_inner = buf_reader.into_inner();
+            stream_inner.write_all(response.as_bytes()).await?;
+            stream_inner.flush().await?;
+            stream_inner.shutdown().await?;
+            return Ok(());
+        }
+    }
+
     // --- Basic Authentication Check ---
     let mut current_role = None;
     if let Some((username, password)) = &options.basic_auth {
