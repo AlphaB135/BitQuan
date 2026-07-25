@@ -206,6 +206,8 @@ pub struct InMemoryChainStore {
     tip: Option<BlockHeader>,
     times: Vec<u32>,
     height: u64,
+    tx_index: HashMap<[u8; 32], Transaction>,
+    utxos: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 impl InMemoryChainStore {
@@ -217,6 +219,8 @@ impl InMemoryChainStore {
             tip: None,
             times: Vec::new(),
             height: 0,
+            tx_index: HashMap::new(),
+            utxos: HashMap::new(),
         }
     }
 }
@@ -237,6 +241,11 @@ impl ChainStore for InMemoryChainStore {
         self.height = self.height.saturating_add(1);
         self.tip = Some(block.header.clone());
 
+        // Index transactions
+        for tx in &block.transactions {
+            self.tx_index.insert(tx.txid(), tx.clone());
+        }
+
         // Store by hash and by height
         self.blocks.insert(id, block.clone());
         self.by_height.push(block);
@@ -244,11 +253,40 @@ impl ChainStore for InMemoryChainStore {
         Ok(())
     }
 
-    fn disconnect_block(&mut self, _block: &Block) -> Result<(), StorageError> {
-        // Not implemented for in-memory store, but required for trait
-        Err(StorageError::DatabaseError(
-            "disconnect_block is not supported in InMemoryChainStore".into(),
-        ))
+    fn disconnect_block(&mut self, block: &Block) -> Result<(), StorageError> {
+        let id = header_id(&block.header);
+        if let Some(last_block) = self.by_height.last() {
+            if header_id(&last_block.header) != id {
+                return Err(StorageError::DatabaseError(
+                    "Cannot disconnect block: not the tip of the chain".into(),
+                ));
+            }
+        } else {
+            return Err(StorageError::BlockNotFound);
+        }
+
+        // Remove block and transactions
+        self.blocks.remove(&id);
+        if let Some(popped) = self.by_height.pop() {
+            for tx in &popped.transactions {
+                self.tx_index.remove(&tx.txid());
+            }
+        }
+
+        self.height = self.height.saturating_sub(1);
+        self.tip = self.by_height.last().map(|b| b.header.clone());
+
+        // Rebuild times window (last 11 blocks)
+        self.times = self
+            .by_height
+            .iter()
+            .rev()
+            .take(11)
+            .map(|b| b.header.time)
+            .collect();
+        self.times.reverse();
+
+        Ok(())
     }
 
     fn get_block(&self, id: &[u8; 32]) -> Result<Option<Block>, StorageError> {
@@ -268,20 +306,21 @@ impl ChainStore for InMemoryChainStore {
         }
     }
 
-    fn get_transaction(&self, _txid: &[u8; 32]) -> Result<Option<Transaction>, StorageError> {
-        // Not implemented for in-memory store
-        Ok(None)
+    fn get_transaction(&self, txid: &[u8; 32]) -> Result<Option<Transaction>, StorageError> {
+        Ok(self.tx_index.get(txid).cloned())
     }
 
-    fn put_utxo(&mut self, _outpoint: &[u8], _data: &[u8]) -> Result<(), StorageError> {
+    fn put_utxo(&mut self, outpoint: &[u8], data: &[u8]) -> Result<(), StorageError> {
+        self.utxos.insert(outpoint.to_vec(), data.to_vec());
         Ok(())
     }
 
-    fn get_utxo(&self, _outpoint: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        Ok(None)
+    fn get_utxo(&self, outpoint: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        Ok(self.utxos.get(outpoint).cloned())
     }
 
-    fn delete_utxo(&mut self, _outpoint: &[u8]) -> Result<(), StorageError> {
+    fn delete_utxo(&mut self, outpoint: &[u8]) -> Result<(), StorageError> {
+        self.utxos.remove(outpoint);
         Ok(())
     }
 }
@@ -311,3 +350,59 @@ fn header_id(h: &bitquan_types::BlockHeader) -> [u8; 32] {
     out.copy_from_slice(&second);
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_inmemory_chainstore_utxo_ops() {
+        let mut store = InMemoryChainStore::new();
+        let outpoint = b"test_outpoint_1";
+        let data = b"utxo_data_payload";
+
+        assert_eq!(store.get_utxo(outpoint).unwrap(), None);
+
+        store.put_utxo(outpoint, data).unwrap();
+        assert_eq!(store.get_utxo(outpoint).unwrap(), Some(data.to_vec()));
+
+        store.delete_utxo(outpoint).unwrap();
+        assert_eq!(store.get_utxo(outpoint).unwrap(), None);
+    }
+
+    #[test]
+    fn test_inmemory_chainstore_block_and_tx_indexing_disconnect() {
+        let mut store = InMemoryChainStore::new();
+
+        let header = BlockHeader {
+            version: 1,
+            prev_block: [0u8; 32],
+            merkle_root: [0u8; 32],
+            pqc_agg_hint: [0u8; 32],
+            uncles_hash: [0u8; 32],
+            time: 1000,
+            bits: 0x1d00ffff,
+            nonce: 42,
+            algo_id: 0,
+        };
+
+        let block = Block {
+            header,
+            uncles: vec![],
+            transactions: vec![],
+        };
+
+        let block_hash = header_id(&block.header);
+
+        store.insert_block(block.clone()).unwrap();
+        assert_eq!(store.height(), 1);
+        assert_eq!(store.get_block(&block_hash).unwrap().is_some(), true);
+
+        // Disconnect tip block
+        store.disconnect_block(&block).unwrap();
+        assert_eq!(store.height(), 0);
+        assert_eq!(store.get_block(&block_hash).unwrap(), None);
+        assert_eq!(store.tip().unwrap(), None);
+    }
+}
+
