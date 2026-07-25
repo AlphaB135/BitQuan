@@ -126,6 +126,18 @@ impl DifficultyState {
     /// Use this for validation — callers that need to verify an incoming block's `bits`
     /// against the ASERT-computed target should call this instead of `update()`, which
     /// would corrupt the difficulty state by advancing the anchor prematurely.
+    ///
+    /// ## Burst Guard
+    ///
+    /// This method now simulates the burst guard using a **cloned snapshot** of the guard
+    /// state. The snapshot is discarded after the call — `self` is never mutated.
+    ///
+    /// Previously this method passed `None` for the guard, causing a divergence between
+    /// the mining path (`update()`, which applies the guard) and the validation path
+    /// (`peek_next_bits()`, which did not). When the guard fired during mining, the miner
+    /// produced a block with `bits = DEVNET_MAX_BITS`, but validators computed a harder
+    /// ASERT target and rejected every such block — halting the chain. An attacker could
+    /// trigger this deliberately by submitting fast blocks. (Issue #203)
     pub fn peek_next_bits(
         &self,
         next_height: u64,
@@ -134,10 +146,21 @@ impl DifficultyState {
     ) -> u32 {
         let height_delta = next_height as i64 - self.anchor_height as i64;
         let time_delta = next_timestamp as i64 - self.anchor_time as i64;
-        // Pass `None` for the burst guard so we do not mutate guard state.
-        // The guard is for mining-path retargets; validation uses the raw ASERT output.
-        let next_target =
-            asert_next_target(self.anchor_target, height_delta, time_delta, params, None);
+
+        // Clone the guard state so we can simulate the guard outcome without
+        // mutating self. The snapshot is discarded after this call.
+        let mut guard_snapshot = self.guard_state.clone();
+        let next_target = asert_next_target(
+            self.anchor_target,
+            height_delta,
+            time_delta,
+            params,
+            Some(GuardContext {
+                state: &mut guard_snapshot,
+                current_height: next_height,
+                activation_height: self.guard_activation_height,
+            }),
+        );
         target_to_compact(&next_target)
     }
 
@@ -217,7 +240,48 @@ mod tests {
     }
 
     #[test]
-    fn guard_inactive_before_activation_height() {
+    fn peek_next_bits_matches_update_when_guard_fires() {
+        // Regression test for issue #203.
+        // peek_next_bits() previously passed None for the burst guard, while
+        // update() applied the guard. When the guard fired, the miner produced
+        // bits=DEVNET_MAX_BITS but validators computed a harder target and
+        // rejected the block — halting the chain.
+        //
+        // After the fix, both paths use the same guard logic (clone for peek,
+        // mutate for update) and must agree on the bits value.
+        let mut params = params();
+        params.difficulty.burst_guard_activation_height = 0;
+        let anchor_height = 100u64;
+        let anchor_time = 2_000_000u64;
+        let anchor_bits = 0x1d00ffff;
+        let mut state = DifficultyState::new(
+            anchor_height,
+            anchor_time,
+            anchor_bits,
+            params.difficulty.burst_guard_activation_height,
+        );
+
+        // Construct a fast-block scenario that triggers the burst guard
+        let window = params.difficulty.burst_guard_window;
+        let expected_time = params.difficulty.target_block_time * window;
+        let floor_ratio =
+            params.difficulty.burst_guard_floor_ratio_fp as f64 / crate::asert::FP_SCALE as f64;
+        // Use a time well below the floor to guarantee the guard fires
+        let fast_time = (expected_time as f64 * floor_ratio * 0.3).max(1.0) as u64;
+
+        let next_height = anchor_height + window;
+        let next_time = anchor_time + fast_time;
+
+        // peek_next_bits must predict the same value that update() will produce
+        let peek_bits = state.peek_next_bits(next_height, next_time, &params);
+        let update_bits = state.update(next_height, next_time, &params);
+
+        assert_eq!(
+            peek_bits, update_bits,
+            "peek_next_bits ({peek_bits:#x}) and update ({update_bits:#x}) must agree \
+             — divergence causes chain halt when burst guard fires"
+        );
+    }
         let mut params = params();
         params.difficulty.burst_guard_activation_height = 200;
         let anchor_height = 150u64;

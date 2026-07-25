@@ -4,6 +4,8 @@
 //! that compress well (~25-30% size reduction with zstd level 3).
 //! This layer wraps the raw wire bytes without touching the crypto.
 
+use std::io::Read as _;
+
 use crate::protocol::P2pError;
 
 /// zstd compression level: 3 = fast encode, good ratio (optimal for real-time P2P).
@@ -12,6 +14,17 @@ const ZSTD_LEVEL: i32 = 3;
 /// Magic prefix to identify zstd-compressed messages on the wire.
 /// Avoids double-compression attempt if peer sends uncompressed data.
 const COMPRESSED_MAGIC: &[u8; 4] = b"BQZS";
+
+/// Maximum number of bytes accepted after decompression.
+///
+/// Prevents decompression-bomb DoS: a malicious peer could send a ~1 MB
+/// zstd payload that expands to gigabytes, OOM-killing the node before any
+/// authentication or rate limiting runs. 32 MB matches Bitcoin Core's
+/// MAX_PROTOCOL_MESSAGE_LENGTH and is well above any legitimate block size
+/// at current Dilithium5 signature sizes (~4.6 KB × max transactions).
+///
+/// Fixes issue #201.
+const MAX_DECOMPRESSED_SIZE: usize = 32 * 1024 * 1024; // 32 MB
 
 /// Compresses raw block bytes using zstd.
 ///
@@ -34,11 +47,29 @@ pub fn compress_block(raw: &[u8]) -> Result<Vec<u8>, P2pError> {
 }
 
 /// Decompresses block bytes. Detects magic prefix; passthrough if uncompressed.
+///
+/// Enforces [`MAX_DECOMPRESSED_SIZE`] to prevent decompression-bomb DoS attacks
+/// where a small compressed payload expands to a gigabyte allocation.
 pub fn decompress_block(data: &[u8]) -> Result<Vec<u8>, P2pError> {
     if data.starts_with(COMPRESSED_MAGIC) {
         let payload = &data[COMPRESSED_MAGIC.len()..];
-        zstd::decode_all(payload)
-            .map_err(|e| P2pError::SerializationError(format!("zstd decompress: {e}")))
+        let decoder = zstd::Decoder::new(payload)
+            .map_err(|e| P2pError::SerializationError(format!("zstd init: {e}")))?;
+        let mut output = Vec::with_capacity(payload.len().min(MAX_DECOMPRESSED_SIZE));
+        // Read at most MAX_DECOMPRESSED_SIZE + 1 bytes.
+        // If we get more than the limit, the payload is a decompression bomb.
+        decoder
+            .take((MAX_DECOMPRESSED_SIZE + 1) as u64)
+            .read_to_end(&mut output)
+            .map_err(|e| P2pError::SerializationError(format!("zstd decompress: {e}")))?;
+        if output.len() > MAX_DECOMPRESSED_SIZE {
+            return Err(P2pError::SerializationError(format!(
+                "decompressed size exceeds limit ({} bytes > {} bytes max)",
+                output.len(),
+                MAX_DECOMPRESSED_SIZE,
+            )));
+        }
+        Ok(output)
     } else {
         // Legacy / uncompressed peer — passthrough
         Ok(data.to_vec())
@@ -84,7 +115,36 @@ mod tests {
     }
 
     #[test]
-    fn legacy_uncompressed_passthrough() {
+    fn decompression_bomb_is_rejected() {
+        // Regression test for issue #201.
+        // Build a highly compressible payload > MAX_DECOMPRESSED_SIZE and verify
+        // that decompress_block() rejects it before allocating unbounded memory.
+        //
+        // We create a payload that would decompress to MAX + 1 bytes.
+        // Because we use .take(MAX + 1), the actual allocation stays bounded.
+        let bomb_raw = vec![0xABu8; MAX_DECOMPRESSED_SIZE + 1];
+        let mut compressed = Vec::new();
+        compressed.extend_from_slice(COMPRESSED_MAGIC);
+        let zstd_bytes = zstd::encode_all(bomb_raw.as_slice(), ZSTD_LEVEL)
+            .expect("test compression should succeed");
+        compressed.extend_from_slice(&zstd_bytes);
+
+        let result = decompress_block(&compressed);
+        assert!(
+            result.is_err(),
+            "decompression bomb must be rejected, got {} bytes",
+            result.unwrap().len()
+        );
+    }
+
+    #[test]
+    fn legitimate_large_block_within_limit_is_accepted() {
+        // A block at exactly MAX_DECOMPRESSED_SIZE bytes must pass.
+        let large_block = vec![0xCDu8; MAX_DECOMPRESSED_SIZE];
+        let compressed = compress_block(&large_block).expect("compress should succeed");
+        let decompressed = decompress_block(&compressed).expect("within limit must succeed");
+        assert_eq!(decompressed, large_block);
+    }
         let raw = b"raw block data without magic prefix";
         let decompressed = decompress_block(raw).expect("passthrough should work");
         assert_eq!(decompressed, raw);

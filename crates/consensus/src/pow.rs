@@ -482,19 +482,26 @@ pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
     })
 }
 
-/// Fallback Ethash implementation when feature is not enabled
+/// Ethash PoW hash — returns an error when the `ethash` feature is not compiled in.
+///
+/// The previous implementation returned a plain Keccak256 hash as a fallback,
+/// which is trivially mineable (no DAG, no cache, ~microseconds per hash) and
+/// causes a permanent chain split: nodes with `--features ethash` and without it
+/// compute different hashes for the same block header.
+///
+/// Fix (issue #202): fail hard instead of silently computing the wrong value.
+/// Any node that cannot verify Ethash blocks must refuse to validate them rather
+/// than accept them at zero cost.
 #[cfg(not(feature = "ethash"))]
-pub fn ethash_pow_hash(preimage: &[u8], cache_size: &u32) -> [u8; 32] {
-    // Fallback to Keccak-256 placeholder when Ethash is not compiled in
-    use sha3::{Digest, Keccak256};
-    let mut hasher = Keccak256::new();
-    hasher.update(b"Ethash-placeholder-");
-    hasher.update(cache_size.to_le_bytes());
-    hasher.update(preimage);
-    let result = hasher.finalize();
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&result);
-    out
+pub fn ethash_pow_hash(_preimage: &[u8], _cache_size: &u32) -> [u8; 32] {
+    // Return the maximum possible hash value (all 0xFF bytes).
+    // This can never satisfy any valid difficulty target (target < max_hash),
+    // so PoW validation will always reject Ethash blocks on nodes built without
+    // the ethash feature — a safe, explicit failure rather than a trivial bypass.
+    //
+    // Callers that need to know the feature is absent should check
+    // `PowAlgo::is_algo_allowed()` before calling this function.
+    [0xFF; 32]
 }
 
 /// Ethash configuration.
