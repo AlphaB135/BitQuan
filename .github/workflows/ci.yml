@@ -22,14 +22,14 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUSTFLAGS: -D warnings
-  BITQUAN_SKIP_PQC_TESTS: "1"
+  BITQUAN_SKIP_PQC_TESTS: "0"
 
 jobs:
   fmt:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -39,7 +39,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -56,7 +56,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install system deps (Linux)
         if: runner.os == 'Linux'
@@ -71,7 +71,7 @@ jobs:
     name: Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
@@ -79,13 +79,13 @@ jobs:
       - name: Install llvm-cov
         run: cargo install cargo-llvm-cov --locked
       - name: Generate coverage
-        run: cargo llvm-cov --workspace --fail-under-lines 50
+        run: cargo llvm-cov --workspace --fail-under-lines 65
 
   deny:
     name: Cargo Deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
@@ -94,7 +94,7 @@ jobs:
     name: Fuzz (build only)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install nightly (for fuzz)
         run: rustup toolchain install nightly --component llvm-tools-preview
@@ -114,7 +114,7 @@ jobs:
     name: Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config

@@ -79,6 +79,7 @@ fn sha256d_header_validation() {
 }
 
 #[test]
+#[cfg(feature = "randomx")]
 fn randomx_header_validation() {
     let config = RandomXConfig::default();
     let engine = RandomXEngine::new(config);

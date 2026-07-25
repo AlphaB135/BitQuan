@@ -900,7 +900,7 @@ pub fn encrypt_keystore(
         let mut salt_buf = buf.borrow_mut();
         OsRng.fill_bytes(&mut salt_buf);
         let cloned = salt_buf.clone();
-        salt_buf.zeroize();
+        salt_buf.as_mut_slice().zeroize();
         cloned
     });
 
@@ -908,7 +908,7 @@ pub fn encrypt_keystore(
         let mut nonce_buf = buf.borrow_mut();
         OsRng.fill_bytes(&mut nonce_buf);
         let cloned = nonce_buf.clone();
-        nonce_buf.zeroize();
+        nonce_buf.as_mut_slice().zeroize();
         cloned
     });
 
@@ -1184,14 +1184,14 @@ mod tests {
         let secret = b"abcdef012345";
         let ks = encrypt_keystore(
             secret,
-            "pw1",
+            "password123",
             None,
             DEFAULT_MEM_KIB,
             DEFAULT_TIME_COST,
             DEFAULT_PARALLELISM,
         )
         .unwrap();
-        let res = decrypt_keystore(&ks, "pw2");
+        let res = decrypt_keystore(&ks, "password456");
         assert!(res.is_err());
     }
 
@@ -1200,7 +1200,7 @@ mod tests {
         let secret = b"file-secret";
         let ks = encrypt_keystore(
             secret,
-            "pw",
+            "password123",
             None,
             DEFAULT_MEM_KIB,
             DEFAULT_TIME_COST,
@@ -1211,37 +1211,37 @@ mod tests {
         let p = dir.path().join("keystore.json");
         write_keystore_file(&p, &ks).expect("write");
         let ks2 = read_keystore_file(&p).expect("read");
-        let pt = decrypt_keystore(&ks2, "pw").expect("decrypt");
+        let pt = decrypt_keystore(&ks2, "password123").expect("decrypt");
         assert_eq!(pt, secret);
     }
 
     #[test]
     fn tamper_cipher_rejected() {
         let secret = b"abc";
-        let ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1).unwrap();
+        let ks = encrypt_keystore(secret, "password123", None, 8 * 1024, 1, 1).unwrap();
         let mut ks_bad = ks.clone();
         let mut c = general_purpose::STANDARD
             .decode(&ks_bad.ciphertext_b64)
             .expect("Failed to decode ciphertext");
         c[0] ^= 0xFF;
         ks_bad.ciphertext_b64 = general_purpose::STANDARD.encode(&c);
-        assert!(decrypt_keystore(&ks_bad, "pw").is_err());
+        assert!(decrypt_keystore(&ks_bad, "password123").is_err());
     }
 
     #[test]
     fn invalid_magic_rejected() {
         let secret = b"test";
-        let mut ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1).unwrap();
+        let mut ks = encrypt_keystore(secret, "password123", None, 8 * 1024, 1, 1).unwrap();
         ks.magic = "FAKE".to_string();
-        assert!(decrypt_keystore(&ks, "pw").is_err());
+        assert!(decrypt_keystore(&ks, "password123").is_err());
     }
 
     #[test]
     fn future_version_rejected() {
         let secret = b"test";
-        let mut ks = encrypt_keystore(secret, "pw", None, 8 * 1024, 1, 1).unwrap();
+        let mut ks = encrypt_keystore(secret, "password123", None, 8 * 1024, 1, 1).unwrap();
         ks.version = 99;
-        let result = decrypt_keystore(&ks, "pw");
+        let result = decrypt_keystore(&ks, "password123");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("unsupported version"));
     }
@@ -1249,8 +1249,8 @@ mod tests {
     #[test]
     fn large_secret_roundtrip() {
         let secret = vec![0x42u8; 32 * 1024];
-        let ks = encrypt_keystore(&secret, "longpw", None, 8 * 1024, 1, 1).unwrap();
-        let pt = decrypt_keystore(&ks, "longpw").expect("decrypt");
+        let ks = encrypt_keystore(&secret, "password123", None, 8 * 1024, 1, 1).unwrap();
+        let pt = decrypt_keystore(&ks, "password123").expect("decrypt");
         assert_eq!(pt, secret);
     }
 
@@ -1503,12 +1503,12 @@ mod tests {
     #[test]
     fn rotate_password() {
         let secret = b"my-key";
-        let ks = encrypt_keystore(secret, "old-pw", None, 8 * 1024, 1, 1).unwrap();
-        let rotated = rotate_keystore(&ks, "old-pw", "new-pw", 8 * 1024, 1, 1).expect("rotate");
+        let ks = encrypt_keystore(secret, "old-password", None, 8 * 1024, 1, 1).unwrap();
+        let rotated = rotate_keystore(&ks, "old-password", "new-password", 8 * 1024, 1, 1).expect("rotate");
 
-        assert!(decrypt_keystore(&rotated, "old-pw").is_err());
+        assert!(decrypt_keystore(&rotated, "old-password").is_err());
 
-        let pt = decrypt_keystore(&rotated, "new-pw").expect("decrypt with new pw");
+        let pt = decrypt_keystore(&rotated, "new-password").expect("decrypt with new pw");
         assert_eq!(pt, secret);
     }
 }
@@ -1524,7 +1524,7 @@ fn corrupted_file_handling() {
     assert!(read_keystore_file(&path).is_err());
 
     // Truncated valid keystore
-    let ks = encrypt_keystore(b"test", "pw", None, 8 * 1024, 1, 1).unwrap();
+    let ks = encrypt_keystore(b"test", "password123", None, 8 * 1024, 1, 1).unwrap();
     let json = ks.to_json().expect("Failed to serialize keystore");
     std::fs::write(&path, &json[..json.len() / 2]).expect("Failed to write truncated keystore");
     assert!(read_keystore_file(&path).is_err());
@@ -1536,22 +1536,22 @@ fn corrupted_file_handling() {
 
 #[test]
 fn decrypt_corrupted_fields() {
-    let ks = encrypt_keystore(b"test", "pw", None, 8 * 1024, 1, 1).unwrap();
+    let ks = encrypt_keystore(b"test", "password123", None, 8 * 1024, 1, 1).unwrap();
 
     // Corrupt salt
     let mut bad = ks.clone();
     bad.kdf.salt_b64 = "invalid!!!base64".to_string();
-    assert!(decrypt_keystore(&bad, "pw").is_err());
+    assert!(decrypt_keystore(&bad, "password123").is_err());
 
     // Corrupt nonce
     let mut bad = ks.clone();
     bad.nonce_b64 = "bad".to_string();
-    assert!(decrypt_keystore(&bad, "pw").is_err());
+    assert!(decrypt_keystore(&bad, "password123").is_err());
 
     // Corrupt ciphertext
     let mut bad = ks.clone();
     bad.ciphertext_b64 = "xyz".to_string();
-    assert!(decrypt_keystore(&bad, "pw").is_err());
+    assert!(decrypt_keystore(&bad, "password123").is_err());
 }
 
 /// Wallet configuration for performance and security tuning

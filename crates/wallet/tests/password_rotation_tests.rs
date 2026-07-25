@@ -103,7 +103,7 @@ fn test_password_rotation_wrong_old_password() {
 #[test]
 fn test_multiple_password_rotations() {
     let data = b"multi-rotation test";
-    let passwords = ["pass1", "pass2", "pass3", "pass4"];
+    let passwords = ["password1", "password2", "password3", "password4"];
 
     let mut keystore = encrypt_keystore(data, passwords[0], None, 8192, 1, 1);
 

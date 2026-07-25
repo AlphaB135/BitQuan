@@ -17,7 +17,7 @@ jobs:
     name: Miri (UB detection)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: miri
@@ -30,7 +30,7 @@ jobs:
           cargo +nightly miri test -p bitquan-types --lib
           cargo +nightly miri test -p bq-crypto --lib
           cargo +nightly miri test -p bitquan-consensus --lib
-        continue-on-error: true
+        continue-on-error: false
 
   fuzz:
     name: Fuzz (${{ matrix.target }})
@@ -47,7 +47,7 @@ jobs:
           - fuzz_crypto
           - fuzz_wire
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
@@ -79,7 +79,7 @@ jobs:
     name: Coverage (full report)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config

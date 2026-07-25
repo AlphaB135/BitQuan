@@ -27,7 +27,7 @@ fn test_devnet_config_allows_self_signed() {
 #[test]
 fn test_default_config() {
     let config = RpcConfig::default();
-    assert!(!config.require_tls, "Default doesn't require TLS");
-    assert!(config.allow_self_signed, "Default allows self-signed");
+    assert!(config.require_tls, "Default requires TLS");
+    assert!(!config.allow_self_signed, "Default disallows self-signed");
     assert!(config.enable_hsts, "Default enables HSTS");
 }

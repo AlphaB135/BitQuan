@@ -18,7 +18,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
-  BITQUAN_SKIP_PQC_TESTS: "1"
+  BITQUAN_SKIP_PQC_TESTS: "0"
 
 jobs:
   fast:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -55,4 +55,4 @@ jobs:
         run: cargo nextest run --workspace
 
       - name: Coverage threshold
-        run: cargo llvm-cov nextest --workspace --fail-under-lines 60 --no-report
+        run: cargo llvm-cov nextest --workspace --fail-under-lines 65 --no-report

@@ -63,12 +63,12 @@ fn test_mnemonic_generation() {
 
 #[test]
 fn test_mnemonic_parsing() {
-    let words = vec!["word1", "word2", "word3"];
-    let mnemonic_str = words.join(" ");
-    let mnemonic = Mnemonic::from_str(&mnemonic_str, false).unwrap();
+    let original = Mnemonic::generate(128, false).unwrap();
+    let mnemonic_str = original.as_string();
+    let parsed = Mnemonic::from_str(&mnemonic_str, false).unwrap();
 
-    assert_eq!(mnemonic.words, words);
-    assert!(!mnemonic.quantum_enhanced);
+    assert_eq!(parsed.words, original.words);
+    assert!(!parsed.quantum_enhanced);
 }
 
 #[test]

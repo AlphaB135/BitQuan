@@ -104,7 +104,7 @@ pub fn seed_to_keypair_with_index(
     use sha2::Sha512;
 
     // Create HMAC-SHA512 with seed as key
-    let mut mac = Hmac::<Sha512>::new_from_slice(seed)
+    let mut mac = <Hmac<Sha512> as Mac>::new_from_slice(seed)
         .map_err(|e| Error::Invalid(format!("HMAC initialization failed: {e}")))?;
 
     // Add index to derive different keys

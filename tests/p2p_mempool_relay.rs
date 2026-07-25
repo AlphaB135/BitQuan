@@ -265,7 +265,7 @@ async fn test_mempool_transaction_relay() {
     // Bob adds to mempool (lines 580-603)
     let is_new = {
         let mut mempool = bob_ctx.mempool.lock().await;
-        match mempool.insert(received_tx.clone(), estimated_fee) {
+        match mempool.insert((*received_tx).clone(), estimated_fee) {
             Ok(()) => {
                 println!("✅ Bob added tx to mempool");
                 true
