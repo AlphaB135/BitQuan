@@ -206,7 +206,7 @@ impl Mnemonic {
             )));
         }
 
-        use bip39::{Language, Mnemonic as Bip39Mnemonic};
+        use bip39::Mnemonic as Bip39Mnemonic;
 
         let entropy_bytes = entropy_bits / 8;
         let mut entropy = vec![0u8; entropy_bytes];
@@ -283,7 +283,8 @@ impl Mnemonic {
         let salt = format!("mnemonic{}", passphrase);
 
         let mut seed = [0u8; 64];
-        pbkdf2::<Hmac<Sha512>>(mnemonic_str.as_bytes(), salt.as_bytes(), 2048, &mut seed);
+        pbkdf2::<Hmac<Sha512>>(mnemonic_str.as_bytes(), salt.as_bytes(), 2048, &mut seed)
+            .expect("pbkdf2 calculation should succeed");
 
         Ok(seed)
     }
@@ -603,7 +604,7 @@ impl Wallet for SimpleWallet {
             // Commit to all outputs
             for out in psbt.outputs.iter() {
                 if let Some(amount) = out.get_amount() {
-                    hasher.update(&amount.to_le_bytes());
+                    hasher.update(amount.to_le_bytes());
                 }
                 if let Some(script) = out.get_script_pubkey() {
                     hasher.update(&script);

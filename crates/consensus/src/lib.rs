@@ -1180,6 +1180,7 @@ impl ConsensusEngine {
     /// If a `DifficultyState` anchor has been set via `set_difficulty_state()`,
     /// the block's `header.bits` must exactly match `peek_next_bits()` for this height.
     /// Ref: issue #187 (C1 — ASERT difficulty not enforced).
+    #[allow(clippy::too_many_arguments)]
     pub fn validate_block_with_fees(
         &mut self,
         block: &Block,

@@ -396,7 +396,7 @@ mod tests {
 
         store.insert_block(block.clone()).unwrap();
         assert_eq!(store.height(), 1);
-        assert_eq!(store.get_block(&block_hash).unwrap().is_some(), true);
+        assert!(store.get_block(&block_hash).unwrap().is_some());
 
         // Disconnect tip block
         store.disconnect_block(&block).unwrap();
@@ -405,4 +405,3 @@ mod tests {
         assert_eq!(store.tip().unwrap(), None);
     }
 }
-

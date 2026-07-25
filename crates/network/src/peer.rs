@@ -9,7 +9,7 @@ use crate::protocol::{Message, MessageEnvelope, P2pError, PROTOCOL_VERSION};
 use bitquan_types::error::{Error, Result as TypesResult};
 use bitquan_types::ext::ResultExt;
 use snow::{HandshakeState, TransportState};
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -1140,7 +1140,7 @@ impl PeerManager {
         stream: TokioTcpStream,
         addr: SocketAddr,
     ) -> Result<(), P2pError> {
-        let mut peers = self.lock_peers().await;
+        let peers = self.lock_peers().await;
 
         if peers.len() >= self.max_peers {
             return Err(P2pError::ConnectionError("max peers reached".into()));

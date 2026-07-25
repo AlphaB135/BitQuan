@@ -99,10 +99,8 @@ pub fn validate_message(msg: &Message) -> Result<(), P2pError> {
                 return Err(P2pError::MessageTooLarge(locator_hashes.len()));
             }
         }
-        Message::Block { block } => {
-            if block.transactions.len() > MAX_BLOCK_TXS {
-                return Err(P2pError::MessageTooLarge(block.transactions.len()));
-            }
+        Message::Block { block } if block.transactions.len() > MAX_BLOCK_TXS => {
+            return Err(P2pError::MessageTooLarge(block.transactions.len()));
         }
         _ => {}
     }

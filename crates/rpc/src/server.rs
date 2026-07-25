@@ -553,7 +553,10 @@ async fn handle_connection<T: methods::RpcMethods>(
     // enabling CSRF attacks from any website. 405 + Allow header per RFC 7231.
     if req.method != Some("POST") {
         let method = req.method.unwrap_or("UNKNOWN");
-        warn!("Rejected non-POST request: method={} peer={}", method, peer_ip);
+        warn!(
+            "Rejected non-POST request: method={} peer={}",
+            method, peer_ip
+        );
         let response = "HTTP/1.1 405 Method Not Allowed\r\n\
                         Allow: POST\r\n\
                         Content-Length: 0\r\n\
@@ -579,7 +582,7 @@ async fn handle_connection<T: methods::RpcMethods>(
             // Strip port if present so "127.0.0.1:8332" matches "127.0.0.1"
             .map(|h| h.split(':').next().unwrap_or(h));
 
-        let allowed = host_value.map_or(false, |host| {
+        let allowed = host_value.is_some_and(|host| {
             config
                 .allowed_hosts
                 .iter()
@@ -816,7 +819,7 @@ async fn handle_connection<T: methods::RpcMethods>(
 
     let json_request: JsonRpcRequest = match serde_json::from_value(request_value) {
         Ok(req) => req,
-        Err(e) => {
+        Err(_e) => {
             let err_resp = JsonRpcResponse::error(
                 serde_json::Value::Null,
                 error_codes::PARSE_ERROR,
@@ -884,16 +887,17 @@ async fn handle_connection<T: methods::RpcMethods>(
         // was previously accessible to any authenticated client via the catch-all).
         let allowed = match json_request.method.as_str() {
             // Admin-only: financial operations and block generation
-            "generate" | "generatetoaddress" | "submitblock"
-            | "sendtoaddress" | "createpayout" => is_admin,
+            "generate" | "generatetoaddress" | "submitblock" | "sendtoaddress" | "createpayout" => {
+                is_admin
+            }
 
             // Miner-level: mining work and pool stats for own miner
             "getwork" | "submitwork" | "getblocktemplate" | "getminerstats" => is_miner,
 
             // Read-only: public chain and network information
-            "getblockcount" | "getblockchaininfo" | "getmininginfo"
-            | "gettransaction" | "submittransaction" | "getbestblockhash"
-            | "getblockhash" | "getpoolstats" | "getnetworkstatus" | "sync" => is_readonly,
+            "getblockcount" | "getblockchaininfo" | "getmininginfo" | "gettransaction"
+            | "submittransaction" | "getbestblockhash" | "getblockhash" | "getpoolstats"
+            | "getnetworkstatus" | "sync" => is_readonly,
 
             // Unknown method — deny. Do not expose undocumented endpoints.
             _ => false,

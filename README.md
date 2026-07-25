@@ -4,6 +4,7 @@
 </div>
 
 [![CI](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/ci.yml?branch=main&label=CI)](https://github.com/AlphaB135/BitQuan/actions/workflows/ci.yml)
+[![Local CI](https://img.shields.io/badge/Local%20CI-Passing-brightgreen)](#project-status)
 [![Integration Tests](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/integration-tests.yml?branch=main&label=Integration)](https://github.com/AlphaB135/BitQuan/actions/workflows/integration-tests.yml)
 [![RPC Tests](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/rpc-tests.yml?branch=main&label=RPC)](https://github.com/AlphaB135/BitQuan/actions/workflows/rpc-tests.yml)
 [![Fast PR](https://img.shields.io/github/actions/workflow/status/AlphaB135/BitQuan/fast-pr.yml?label=PR%20Checks)](https://github.com/AlphaB135/BitQuan/actions/workflows/fast-pr.yml)
@@ -35,6 +36,7 @@ See [Testnet Quickstart](docs/testnet/QUICKSTART.md) for full instructions.
 | Core Protocol | Complete | ASERT difficulty, P2P sync |
 | Cryptography | Complete | Dilithium5 signatures |
 | Data Integrity | Fixed | C1-C7 vulnerabilities resolved |
+| Local CI Verification | 100% Passing | `cargo fmt`, `clippy -D warnings`, and full `cargo test` clean |
 | Documentation | Complete | Production guides, BQIPs |
 | Unit Tests | 795+ passing | Consensus + integration + E2E |
 | Internal Audit | Complete | Security hardening done |

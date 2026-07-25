@@ -584,7 +584,7 @@ impl GeographicRegion {
                     return Ok("XX".to_string());
                 }
                 // Very simplified IPv6 mapping
-                let segments = ipv6.segments();
+                let _segments = ipv6.segments();
                 Ok("XX".to_string())
             }
         }

@@ -351,9 +351,8 @@ impl Mempool {
             };
 
             if let Some(mut group) = self.entries.remove(&next_key) {
-                group.sort_by(|a, b| a.tie_breaker.cmp(&b.tie_breaker));
-                loop {
-                    let Some(entry) = group.pop() else { break };
+                group.sort_by_key(|a| a.tie_breaker);
+                while let Some(entry) = group.pop() {
                     if collected.len() == limit {
                         self.entries.insert(next_key, group);
                         return collected;

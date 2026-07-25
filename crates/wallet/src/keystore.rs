@@ -1504,7 +1504,8 @@ mod tests {
     fn rotate_password() {
         let secret = b"my-key";
         let ks = encrypt_keystore(secret, "old-password", None, 8 * 1024, 1, 1).unwrap();
-        let rotated = rotate_keystore(&ks, "old-password", "new-password", 8 * 1024, 1, 1).expect("rotate");
+        let rotated =
+            rotate_keystore(&ks, "old-password", "new-password", 8 * 1024, 1, 1).expect("rotate");
 
         assert!(decrypt_keystore(&rotated, "old-password").is_err());
 

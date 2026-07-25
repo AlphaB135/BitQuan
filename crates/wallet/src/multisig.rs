@@ -752,8 +752,7 @@ mod tests {
     #[test]
     fn test_unknown_signer_rejected() {
         let (hex_keys, _keypairs) = setup_keys();
-        let config =
-            MultisigConfig::new(2, hex_keys, None).expect("Failed to create config");
+        let config = MultisigConfig::new(2, hex_keys, None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let mut pending = wallet.create_pending_tx(b"tx data");
@@ -836,8 +835,7 @@ mod tests {
     fn test_manager_pending_txs() {
         let mut manager = MultisigWalletManager::new();
         let (hex_keys, _keypairs) = setup_keys();
-        let config =
-            MultisigConfig::new(2, hex_keys, None).expect("Failed to create config");
+        let config = MultisigConfig::new(2, hex_keys, None).expect("Failed to create config");
         let wallet = MultisigWallet::new(config);
 
         let pending = wallet.create_pending_tx(b"tx data");

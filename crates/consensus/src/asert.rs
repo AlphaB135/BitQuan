@@ -636,7 +636,7 @@ mod tests {
         let slow_int = asert_next_target(
             compact_to_target(anchor_bits),
             window as i64,
-            slow_delta as i64,
+            slow_delta,
             &params,
             None,
         );

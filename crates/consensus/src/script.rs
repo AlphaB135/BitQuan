@@ -516,7 +516,11 @@ mod tests {
 
         // execute_continue() preserves the stack
         interp.execute_continue(&empty, &[]).unwrap();
-        assert_eq!(interp.stack.len(), 1, "execute_continue() must NOT clear the stack");
+        assert_eq!(
+            interp.stack.len(),
+            1,
+            "execute_continue() must NOT clear the stack"
+        );
     }
 
     #[test]

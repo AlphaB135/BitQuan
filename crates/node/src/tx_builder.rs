@@ -297,10 +297,10 @@ pub fn select_coins(
             // Already in order (assumed)
         }
         CoinSelection::LargestFirst => {
-            available.sort_by(|a, b| b.value.cmp(&a.value));
+            available.sort_by_key(|b| std::cmp::Reverse(b.value));
         }
         CoinSelection::SmallestSufficient => {
-            available.sort_by(|a, b| a.value.cmp(&b.value));
+            available.sort_by_key(|a| a.value);
         }
     }
 
