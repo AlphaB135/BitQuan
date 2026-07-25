@@ -7,6 +7,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - ".github/workflows/fast-pr.yml"
+  workflow_dispatch:
 
 concurrency:
   group: fast-pr-${{ github.ref }}
@@ -19,6 +20,8 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   BITQUAN_SKIP_PQC_TESTS: "0"
+  CC: clang
+  CXX: clang++
 
 jobs:
   fast:
@@ -49,7 +52,9 @@ jobs:
           command: check
 
       - name: Install nextest + llvm-cov
-        run: cargo install cargo-nextest cargo-llvm-cov --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
 
       - name: Test
         run: cargo nextest run --workspace

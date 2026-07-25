@@ -10,6 +10,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - ".github/workflows/ci.yml"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -23,6 +24,8 @@ env:
   CARGO_INCREMENTAL: 0
   RUSTFLAGS: -D warnings
   BITQUAN_SKIP_PQC_TESTS: "0"
+  CC: clang
+  CXX: clang++
 
 jobs:
   fmt:
@@ -77,7 +80,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
       - uses: Swatinem/rust-cache@v2
       - name: Install llvm-cov
-        run: cargo install cargo-llvm-cov --locked
+        uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate coverage
         run: cargo llvm-cov --workspace --fail-under-lines 65
 
