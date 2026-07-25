@@ -822,12 +822,26 @@ async fn handle_connection<T: methods::RpcMethods>(
         let role = current_role.as_deref().unwrap_or("client");
         let is_admin = role == "admin" || role == "node";
         let is_miner = role == "miner" || is_admin;
-        let is_readonly = role == "readonly" || is_miner || role == "client";
+        let is_readonly = role == "readonly" || role == "client" || is_miner;
 
+        // SECURITY: deny-by-default — every method must be explicitly listed.
+        // Catch-all is false, not is_readonly. Fixes issue #200 (createpayout
+        // was previously accessible to any authenticated client via the catch-all).
         let allowed = match json_request.method.as_str() {
-            "generate" | "generatetoaddress" | "submitblock" | "sendtoaddress" => is_admin,
-            "getwork" | "submitwork" => is_miner,
-            _ => is_readonly,
+            // Admin-only: financial operations and block generation
+            "generate" | "generatetoaddress" | "submitblock"
+            | "sendtoaddress" | "createpayout" => is_admin,
+
+            // Miner-level: mining work and pool stats for own miner
+            "getwork" | "submitwork" | "getblocktemplate" | "getminerstats" => is_miner,
+
+            // Read-only: public chain and network information
+            "getblockcount" | "getblockchaininfo" | "getmininginfo"
+            | "gettransaction" | "submittransaction" | "getbestblockhash"
+            | "getblockhash" | "getpoolstats" | "getnetworkstatus" | "sync" => is_readonly,
+
+            // Unknown method — deny. Do not expose undocumented endpoints.
+            _ => false,
         };
 
         if !allowed {
