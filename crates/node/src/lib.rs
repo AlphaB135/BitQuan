@@ -94,7 +94,12 @@ pub async fn run_node(
 
     // 6. Subsystems wired
     log::info!("Node subsystems wired. Entering main loop.");
-    let _ = (consensus, mempool);
+    // NOTE: consensus and mempool are created but not yet wired to the P2P
+    // message handler. SyncTask integration is tracked in issue #143.
+    // For now, the node connects to peers and maintains the heartbeat.
+    // Block processing will be added in the next iteration.
+    let _consensus = consensus;
+    let _mempool = mempool;
 
     // 7. Main loop — heartbeat and peer maintenance
     loop {
