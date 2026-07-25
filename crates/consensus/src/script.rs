@@ -121,16 +121,33 @@ impl ScriptInterpreter {
         }
     }
 
-    /// Executes a script and returns success/failure.
+    /// Executes a script, clearing the stack and op counter first.
+    ///
+    /// Use this for the first script in a pair (scriptSig).
+    /// For the second script (scriptPubKey), use [`execute_continue`] so that
+    /// values pushed by scriptSig remain on the stack.
     pub fn execute(&mut self, script: &[u8], message: &[u8]) -> Result<bool, ScriptError> {
+        self.stack.clear();
+        self.op_count = 0;
+        self.execute_inner(script, message)
+    }
+
+    /// Continues execution without clearing the stack.
+    ///
+    /// Use this for scriptPubKey after calling [`execute`] for scriptSig.
+    /// Preserves the stack state left by the previous script.
+    pub fn execute_continue(&mut self, script: &[u8], message: &[u8]) -> Result<bool, ScriptError> {
+        // Do NOT clear the stack — scriptSig values must be visible to scriptPubKey
+        self.op_count = 0;
+        self.execute_inner(script, message)
+    }
+
+    /// Core execution loop shared by [`execute`] and [`execute_continue`].
+    fn execute_inner(&mut self, script: &[u8], message: &[u8]) -> Result<bool, ScriptError> {
         // Check script size
         if script.len() > MAX_SCRIPT_SIZE {
             return Err(ScriptError::ScriptTooLarge(script.len()));
         }
-
-        // Reset state
-        self.stack.clear();
-        self.op_count = 0;
 
         // Parse and execute
         let mut pc = 0; // Program counter
@@ -316,6 +333,14 @@ fn sha256d(data: &[u8]) -> [u8; 32] {
 }
 
 /// Verifies a transaction's script signature.
+///
+/// Executes `script_sig` first (pushing witness data onto the stack), then
+/// continues with `script_pubkey` **without clearing the stack** so that
+/// `CheckSigPQC` and `Dup`/hash/equality checks can inspect the pushed values.
+///
+/// Previously both scripts were run via `execute()`, which calls
+/// `stack.clear()` at the start — meaning scriptSig's pushes were silently
+/// discarded before scriptPubKey ran. This is the fix for issue #199.
 pub fn verify_script(
     script_sig: &[u8],
     script_pubkey: &[u8],
@@ -324,11 +349,12 @@ pub fn verify_script(
 ) -> Result<bool, ScriptError> {
     let mut interpreter = ScriptInterpreter::new(registry);
 
-    // Execute scriptSig first
+    // Execute scriptSig: pushes signature and public key onto the stack.
     interpreter.execute(script_sig, message)?;
 
-    // Then execute scriptPubKey
-    interpreter.execute(script_pubkey, message)
+    // Execute scriptPubKey: must see the values left by scriptSig.
+    // Use execute_continue() — does NOT clear the stack.
+    interpreter.execute_continue(script_pubkey, message)
 }
 
 #[cfg(test)]
@@ -447,7 +473,51 @@ mod tests {
     }
 
     #[test]
-    fn stack_overflow() {
+    fn verify_script_preserves_stack_between_sig_and_pubkey() {
+        // Regression test for issue #199:
+        // verify_script() previously called execute() for both scripts, which
+        // clears the stack before scriptPubKey — silently discarding all values
+        // pushed by scriptSig. This test confirms the fix: scriptSig pushes
+        // OP_TRUE and scriptPubKey sees it.
+        let registry = CryptoRegistry::default();
+
+        // scriptSig: push OP_TRUE (simulates a witness push)
+        let script_sig = vec![OpCode::True as u8];
+        // scriptPubKey: expects OP_TRUE on the stack — returns it unchanged
+        // (a real P2PK would do CheckSigPQC here; we test stack continuity)
+        let script_pubkey = vec![]; // empty: just check the stack is non-empty & true
+
+        let result = verify_script(&script_sig, &script_pubkey, &[], registry);
+        // Before the fix this returned Ok(false) because the stack was cleared.
+        assert!(
+            result.unwrap(),
+            "scriptSig push must be visible to scriptPubKey"
+        );
+    }
+
+    #[test]
+    fn execute_clears_stack_execute_continue_does_not() {
+        let registry = CryptoRegistry::default();
+        let mut interp = ScriptInterpreter::new(registry);
+
+        // Push something via execute()
+        let push_true = vec![OpCode::True as u8];
+        interp.execute(&push_true, &[]).unwrap();
+        assert_eq!(interp.stack.len(), 1);
+
+        // execute() on a second script clears the stack
+        let empty: Vec<u8> = vec![];
+        interp.execute(&empty, &[]).unwrap();
+        assert_eq!(interp.stack.len(), 0, "execute() must clear the stack");
+
+        // Push something again
+        interp.execute(&push_true, &[]).unwrap();
+        assert_eq!(interp.stack.len(), 1);
+
+        // execute_continue() preserves the stack
+        interp.execute_continue(&empty, &[]).unwrap();
+        assert_eq!(interp.stack.len(), 1, "execute_continue() must NOT clear the stack");
+    }
         let registry = CryptoRegistry::default();
         let mut interp = ScriptInterpreter::new(registry);
 
