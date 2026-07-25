@@ -1,2 +1,29 @@
-# Default owners for the repository
-* @alphab
+# CODEOWNERS — BitQuan
+# Changes to these paths require approval from listed owners before merge.
+# Configure branch protection to require CODEOWNERS review.
+
+# Default owner for all files
+* @AlphaB135
+
+# Cryptography — any change requires maintainer review
+crates/bq-crypto/                   @AlphaB135
+crates/pqc-dilithium-seeded/        @AlphaB135
+
+# Consensus rules — breaking change = chain split
+crates/consensus/                   @AlphaB135
+
+# Wallet key management
+crates/wallet/src/keystore.rs       @AlphaB135
+crates/wallet/src/multisig.rs       @AlphaB135
+crates/wallet/src/backup.rs         @AlphaB135
+
+# RPC + authentication
+crates/rpc/                         @AlphaB135
+
+# CI/CD — workflow changes require explicit review
+.github/workflows/                  @AlphaB135
+.github/CODEOWNERS                  @AlphaB135
+
+# Dependency management
+Cargo.toml                          @AlphaB135
+deny.toml                           @AlphaB135
