@@ -485,16 +485,21 @@ pub enum ConsensusError {
     FeeValidation(String),
 }
 
-/// Calculates transaction weight according to BQIP-0007 (BQSegWit).
+/// Calculates transaction weight according to BQIP-0002.
 ///
-/// Formula: `weight = (base_bytes × 4) + (witness_bytes × 1)`
+/// Formula: `weight = base_bytes + (sig_count × alpha) + (witness_bytes × beta)`
 ///
-/// This gives witness data (Dilithium5 signatures) a 4x discount compared to
-/// base transaction data, allowing ~4x more transactions per block.
-/// Equivalent to Bitcoin's SegWit weight formula.
+/// Parameters:
+/// - `alpha = 384`: fixed cost per signature (algorithm-agnostic)
+/// - `beta = 0.5`: 50% discount on witness data (Dilithium5 signatures)
+///
+/// This gives PQC signatures a 50% size discount plus a fixed per-sig cost,
+/// allowing ~2x more transactions per block compared to BQIP-0007 which
+/// was optimized for ECDSA-size signatures.
 pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> Result<usize, ConsensusError> {
-    // Witness scale factor: base data costs 4 weight units per byte
-    const WITNESS_SCALE_FACTOR: usize = 4;
+    // BQIP-0002 parameters
+    const ALPHA: usize = 384; // Fixed cost per signature (algorithm-agnostic)
+    const BETA: f32 = 0.5; // Witness byte discount factor
 
     // Total serialized size (base + witness)
     let total_size = tx
@@ -513,15 +518,23 @@ pub fn calculate_tx_weight(tx: &bitquan_types::Transaction) -> Result<usize, Con
             "transaction base size calculation",
         ))?;
 
-    // BQIP-0007: weight = base_bytes*4 + witness_bytes*1
-    // Witness (signatures) get a 4x discount → 4x more txs fit per block
-    let base_weight = base_size
-        .checked_mul(WITNESS_SCALE_FACTOR)
-        .ok_or(ConsensusError::WeightOverflow("base weight calculation"))?;
+    // Signature weight: fixed cost per signature regardless of algorithm
+    let sig_count = tx
+        .signature_count()
+        .map_err(|_| ConsensusError::WeightOverflow("transaction signature count"))?;
+    let sig_weight = sig_count
+        .checked_mul(ALPHA)
+        .ok_or(ConsensusError::WeightOverflow(
+            "signature weight calculation",
+        ))?;
 
-    // witness_bytes × 1 (discount factor)
-    base_weight
-        .checked_add(witness_size)
+    // Witness weight: 50% discount on witness bytes
+    let witness_weight = (BETA * witness_size as f32).round() as usize;
+
+    // BQIP-0002: weight = base_bytes + sig_count*alpha + witness_bytes*beta
+    base_size
+        .checked_add(sig_weight)
+        .and_then(|v| v.checked_add(witness_weight))
         .ok_or(ConsensusError::WeightOverflow("total transaction weight"))
 }
 
@@ -536,33 +549,14 @@ pub fn calculate_block_weight(block: &Block) -> Result<usize, ConsensusError> {
     })
 }
 
-/// Legacy function - calculates the block weight given an `alpha` multiplier.
+/// Legacy function - removed in favor of calculate_block_weight() using BQIP-0002 formula.
 ///
-/// Deprecated: Use calculate_block_weight() instead for BQIP-0002 compliance.
-///
-/// **Note:** This function is internal-only for testing weight formulas.
-/// External callers should use `calculate_block_weight()` with production parameters.
+/// The BQIP-0002 formula (base + sig_count*alpha + witness*beta) is now the primary
+/// weight calculation, making this beta-parameterized function redundant.
 #[deprecated(note = "Use calculate_block_weight() for BQIP-0002 compliance")]
-#[allow(dead_code)] // Deprecated API - kept for potential external references
-pub(crate) fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: f32) -> u64 {
-    use bitquan_types::CompactUint;
-    // Total bytes (base + witness) - return 0 on error (deprecated anyway)
-    let total = block.serialized_size_hint().unwrap_or(0) as u64;
-    // Approximate witness bytes from tx structure (count prefix + witnesses)
-    let mut witness_bytes: u64 = 0;
-    for tx in &block.transactions {
-        witness_bytes += CompactUint::from_usize(tx.witnesses.len()).encoded_length() as u64;
-        witness_bytes += tx
-            .witnesses
-            .iter()
-            .filter_map(|w| w.serialized_size_hint().ok())
-            .map(|size| size as u64)
-            .sum::<u64>();
-    }
-    let base_bytes = total.saturating_sub(witness_bytes);
-    let signature_weight = count_signatures(block) * alpha as u64;
-    let witness_weight = (beta * witness_bytes as f32).round() as u64;
-    base_bytes + signature_weight + witness_weight
+#[allow(dead_code)]
+pub(crate) fn calculate_block_weight_with_beta(block: &Block, _alpha: u32, _beta: f32) -> u64 {
+    calculate_block_weight(block).unwrap_or(0) as u64
 }
 
 /// Validates a block against the supplied consensus parameters (BQIP-0002).

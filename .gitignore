@@ -12,6 +12,21 @@ crates/pqc-dilithium-seeded/Cargo.toml.orig
 
 # Root junk
 *.rs
+
+# LaTeX build artifacts
+whitepaper/*.aux
+whitepaper/*.log
+whitepaper/*.out
+whitepaper/*.toc
+whitepaper/*.lof
+whitepaper/*.lot
+whitepaper/*.bbl
+whitepaper/*.blg
+whitepaper/*.synctex.gz
+whitepaper/*.fls
+whitepaper/*.fdb_latexmk
+whitepaper/_minted-*
+whitepaper/__pycache__/
 !crates/*/src/**/*.rs
 !crates/*/tests/**/*.rs
 html.html

@@ -404,21 +404,20 @@ fn test_signature_weight_scaling() {
     let weight1 = calculate_tx_weight(&tx1).expect("tx1 weight");
     let weight3 = calculate_tx_weight(&tx3).expect("tx3 weight");
 
-    // BQIP-0007 BQSegWit: each extra SignaturePayload adds its actual bytes (sig+pk+overhead)
-    // Each has sig=10 bytes + pk=10 bytes + signer_index=2 + aux_flag=1 + 2 compact-len = ~25 bytes
-    // Those bytes go into witness_size and count at weight×1 instead of base×4
-    // So diff = extra_witness_bytes * 1 (not 384 per sig)
-    // tx3 has 2 more sigs than tx1, each ~25 bytes → diff should be ~50 WU
+    // BQIP-0002: each extra signature adds fixed ALPHA=384 plus discounted witness bytes
+    // tx3 has 2 more sigs than tx1:
+    //   sig_weight: 2 * 384 = 768
+    //   witness_weight: 0.5 * ~50 extra bytes = ~25
+    //   total diff: ~793 WU
     let diff = weight3 - weight1;
     assert!(
         diff > 0,
         "More signatures should increase weight, got diff={}",
         diff
     );
-    // The witness discount means it's much less than 2*384=768
     assert!(
-        diff < 768,
-        "BQSegWit discount: diff should be < old 768 WU, got {}",
+        diff < 900,
+        "BQIP-0002: diff should be near 2*384 + witness_discount, got {}",
         diff
     );
 }

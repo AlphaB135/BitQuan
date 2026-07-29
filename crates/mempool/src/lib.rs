@@ -8,11 +8,12 @@ use log::warn;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
-/// BQIP-0007: Witness scale factor — base bytes cost 4 WU each, witness bytes cost 1 WU.
-const WITNESS_SCALE_FACTOR: usize = 4;
+/// BQIP-0002 weight parameters.
+const SIG_WEIGHT_ALPHA: usize = 384; // Fixed cost per signature (algorithm-agnostic)
+const WITNESS_WEIGHT_BETA: f32 = 0.5; // 50% discount on witness bytes
 
-/// Calculates transaction weight according to BQIP-0007 (BQSegWit).
-/// Formula: weight = base_bytes*4 + witness_bytes*1
+/// Calculates transaction weight according to BQIP-0002.
+/// Formula: weight = base_bytes + sig_count*alpha + witness_bytes*beta
 fn calculate_tx_weight(tx: &Transaction) -> Result<usize> {
     let total_size = tx
         .serialized_size_hint()
@@ -22,9 +23,18 @@ fn calculate_tx_weight(tx: &Transaction) -> Result<usize> {
         .map_err(|_| Error::Overflow("witness_size_hint"))?;
     let base_size = checked!(total_size.checked_sub(witness), "base_size subtraction")?;
 
-    // weight = base_bytes * 4 + witness_bytes * 1
-    let base_weight = checked!(base_size.checked_mul(WITNESS_SCALE_FACTOR), "base weight")?;
-    checked!(base_weight.checked_add(witness), "total weight")
+    let sig_count = tx
+        .signature_count()
+        .map_err(|_| Error::Overflow("signature_count"))?;
+    let sig_weight = checked!(sig_count.checked_mul(SIG_WEIGHT_ALPHA), "sig weight")?;
+    let witness_weight = (WITNESS_WEIGHT_BETA * witness as f32).round() as usize;
+
+    checked!(
+        base_size
+            .checked_add(sig_weight)
+            .and_then(|v| v.checked_add(witness_weight)),
+        "total weight"
+    )
 }
 
 /// Represents the fundamental data for ordering transactions in the mempool.
@@ -497,14 +507,13 @@ mod tests {
         let tx = create_test_tx(1, 2, 1);
         let weight = calculate_tx_weight(&tx).expect("weight");
 
-        // BQIP-0007: weight = base_bytes*4 + witness_bytes*1
-        // Weight must be positive and above minimum base overhead
+        // BQIP-0002: weight = base_bytes + sig_count*384 + witness_bytes*0.5
         assert!(weight > 0);
-        // With BQSegWit, witness is discounted: result should be less than old formula
         let witness = tx.witness_size_hint().unwrap();
         let total = tx.serialized_size_hint().unwrap();
         let base = total - witness;
-        assert_eq!(weight, base * 4 + witness);
+        let expected = base + 384 + (0.5 * witness as f32).round() as usize;
+        assert_eq!(weight, expected);
     }
 
     #[test]
