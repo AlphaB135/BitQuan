@@ -104,7 +104,7 @@ impl DifficultyParams {
     ///
     /// # ASERT Parameters (accelerated for testing)
     /// - `difficulty_half_life`: 14,400s (4 hours) - faster response to hashrate changes
-    /// - `target_block_time`: 600s (10 minutes)
+    /// - `target_block_time`: 120s (2 minutes)
     ///
     /// # Use Cases
     /// - Test networks with variable hashrate
@@ -112,7 +112,7 @@ impl DifficultyParams {
     /// - Regtest mode
     pub fn testnet() -> Self {
         Self {
-            target_block_time: 600,
+            target_block_time: 120,
             difficulty_half_life: 14_400, // 4 hours for faster testnet adjustment
             burst_guard_window: 11,
             burst_guard_floor_ratio_fp: 1417339207, // 0.33 in 32.32 fixed-point
@@ -130,8 +130,8 @@ impl DifficultyParams {
     /// to adjust naturally.
     pub fn regtest() -> Self {
         Self {
-            target_block_time: 600,
-            difficulty_half_life: 600, // 10 minutes for instant adjustment
+            target_block_time: 120,
+            difficulty_half_life: 120, // 2 minutes for instant adjustment
             burst_guard_window: 0,     // Disable burst guard for regtest
             burst_guard_floor_ratio_fp: 0,
             burst_guard_release_ratio_fp: 0,
@@ -305,7 +305,7 @@ impl NetworkParams {
     pub fn devnet() -> Self {
         Self {
             network_id: NetworkId::Devnet,
-            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_DEVNET_BYTES,
             consensus: ConsensusParams::phase3_defaults(),
             mempool: MempoolPolicy::standard(),
         }
@@ -315,7 +315,7 @@ impl NetworkParams {
     pub fn testnet() -> Self {
         Self {
             network_id: NetworkId::Testnet,
-            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_TESTNET_BYTES,
             consensus: ConsensusParams::phase3_defaults(),
             mempool: MempoolPolicy::standard(),
         }
