@@ -414,11 +414,7 @@ async fn main() -> Result<()> {
                     &listen,
                     max_peers,
                     &datadir,
-                    RpcServerOptions {
-                        listen: None,
-                        username: None,
-                        password: None,
-                    },
+                    RpcServerOptions::default(),
                     network_id,
                     Some(connect), // bootstrap_peers: connect to specified peers
                 )
@@ -500,7 +496,10 @@ async fn run_node(
         .map(|s| s.to_string())
         .unwrap_or_else(|| format!("0.0.0.0:{}", config_p2p_port));
 
-    let _rpc_addr = rpc_bind.unwrap_or("0.0.0.0:18332"); // Currently unused
+    // Extract rpc_bind from config file as fallback if not provided via CLI
+    let rpc_addr = rpc_bind
+        .map(|s| s.to_string())
+        .or_else(|| extract_config_value(&config_content, "rpc_bind"));
 
     log::info!(
     "Starting BitQuan node with configuration: {config_path}\nP2P listening on {p2p_addr}\nData directory: {datadir}"
@@ -536,7 +535,7 @@ async fn run_node(
         50, // max_peers
         &datadir,
         RpcServerOptions {
-            listen: rpc_bind, // FIX: Use the CLI argument!
+            listen: rpc_addr.as_deref(),
             username: rpc_user.as_deref(),
             password: rpc_pass.as_deref(),
             #[cfg(feature = "rocksdb-backend")]
