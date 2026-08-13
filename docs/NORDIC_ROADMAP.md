@@ -172,14 +172,20 @@ pub struct VoteTally {
 ### Funding Schedule
 
 | Era | Blocks | Block Reward | Treasury % | Treasury/Block |
-|---|---|---|---|---|
+|---|---|---|---|
 | 1 | 1–210,000 | 50 BQ | 10% | 5.00 BQ |
 | 2 | 210,001–420,000 | 25 BQ | 10% | 2.50 BQ |
 | 3 | 420,001–630,000 | 12.5 BQ | 12% | 1.50 BQ |
 | 4 | 630,001–840,000 | 6.25 BQ | 16% | 1.00 BQ |
-| Tail | 840,001+ | 0.5 BQ | 40% | 0.20 BQ |
+| Tail | 840,001+ | 0.5 BQ | 20% | 0.10 BQ |
 
-Annual inflow at steady-state tail emission: ~52,560 BQ/year.
+> **BQIP-0004 Patch:** Tail emission treasury rate reduced from 40% → 20%.
+> Rationale: 40% extraction during tail emission was economically punishing for miners
+> who already rely primarily on transaction fees during this era. A 20% rate maintains
+> sustainable protocol funding while preserving miner profitability and network hashrate.
+> Miners receive 0.40 BQ/block (vs 0.30 BQ at 40%), reducing incentive to abandon the network.
+
+Annual inflow at steady-state tail emission: ~26,280 BQ/year (0.10 BQ/block × 6 blocks/hr × 8,760 hr/yr).
 
 ### Allocation Categories
 
@@ -197,7 +203,13 @@ Annual inflow at steady-state tail emission: ~52,560 BQ/year.
 |---|---|---|
 | 1 | ≤ 500 BQ | Committee approval only |
 | 2 | 500–10,000 BQ | Standard governance vote + 5-of-9 multisig |
-| 3 | > 10,000 BQ | 21-day vote + 60% supermajority + full 9-of-9 multisig |
+| 3 | > 10,000 BQ | 21-day vote + 60% supermajority + **7-of-9 multisig** |
+
+> **BQIP-0004 Patch:** Tier 3 multisig threshold reduced from 9-of-9 → 7-of-9.
+> Rationale: A full 9-of-9 requirement creates an operational single-point-of-failure;
+> loss or incapacitation of any single keyholder permanently blocks large disbursements.
+> A 7-of-9 threshold maintains strong security (requires 7 independent approvals) while
+> tolerating up to 2 lost/compromised keys without deadlocking the treasury.
 
 All treasury flows are on-chain and linkable to proposal IDs. Annual independent audits are funded from the Security allocation.
 

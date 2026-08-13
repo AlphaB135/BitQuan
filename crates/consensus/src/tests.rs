@@ -157,10 +157,16 @@ fn test_block_weight_calculation() {
             script_sig: vec![0x01, 0x00],
             sequence: 0xffffffff,
         }],
-        outputs: vec![TxOut {
-            value: params.reward_schedule.subsidy_at_height(0),
-            script_pubkey: vec![0x76, 0xa9],
-        }],
+        outputs: vec![
+            TxOut {
+                value: params.reward_schedule.subsidy_at_height(0) - (params.reward_schedule.subsidy_at_height(0) / 10),
+                script_pubkey: vec![0x76, 0xa9],
+            },
+            TxOut {
+                value: params.reward_schedule.subsidy_at_height(0) / 10,
+                script_pubkey: bitquan_types::genesis::TREASURY_PAYOUT_SCRIPT_BYTES.to_vec(),
+            }
+        ],
         sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
