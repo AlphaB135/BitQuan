@@ -597,8 +597,45 @@ pub fn hash_meets_target(hash: &[u8; 32], target: &[u8; 32]) -> bool {
 }
 
 /// Checks Proof-of-Work for the header using its `bits`.
-pub fn check_header_pow(header: &BlockHeader) -> std::result::Result<bool, PowError> {
-    let hash = header_hash(header);
+pub fn check_header_pow(
+    header: &BlockHeader,
+    height: u64,
+    pow_params: &crate::PowSetParams,
+    #[allow(unused_variables)] genesis_hash: &[u8; 32],
+) -> std::result::Result<bool, PowError> {
+    let algo = PowAlgo::from_u8(header.algo_id)
+        .ok_or(PowError::InvalidAlgoId(header.algo_id))?;
+
+    if !pow_params.is_algo_allowed(algo, height) {
+        return Err(PowError::AlgoNotAllowed { algo });
+    }
+
+    let bytes = header.to_bytes();
+    let hash = match algo {
+        PowAlgo::Sha256d => sha256d_pow_hash(&bytes),
+        PowAlgo::RandomX => {
+            #[cfg(feature = "randomx")]
+            {
+                randomx_pow_hash(&bytes, genesis_hash)
+                    .map_err(|_| PowError::HashDoesNotMeetTarget)?
+            }
+            #[cfg(not(feature = "randomx"))]
+            {
+                return Err(PowError::AlgoNotAllowed { algo });
+            }
+        },
+        PowAlgo::Ethash => {
+            #[cfg(feature = "ethash")]
+            {
+                ethash_pow_hash(&bytes, &1024)
+            }
+            #[cfg(not(feature = "ethash"))]
+            {
+                ethash_pow_hash(&bytes, &1024)
+            }
+        }
+    };
+
     let target = compact_to_target_bytes(header.bits)?;
     Ok(hash_meets_target(&hash, &target))
 }

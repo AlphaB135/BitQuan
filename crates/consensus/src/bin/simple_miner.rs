@@ -61,8 +61,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let start = Instant::now();
         let mut hashes = 0u64;
 
+        let genesis_hash = [0u8; 32];
+        let pow_params = bitquan_consensus::PowSetParams::mainnet();
         loop {
-            if check_header_pow(&header)? {
+            if check_header_pow(&header, 0, &pow_params, &genesis_hash)? {
                 let elapsed = start.elapsed();
                 let hashrate = hashes as f64 / elapsed.as_secs_f64();
 

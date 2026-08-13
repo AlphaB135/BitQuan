@@ -10,7 +10,7 @@ scrape_configs:
   # BitQuan node metrics
   - job_name: 'bitquan-node'
     static_configs:
-      - targets: ['localhost:8080']
+      - targets: ['host.docker.internal:19443']
     metrics_path: '/metrics'
     scrape_interval: 15s
     scrape_timeout: 10s
@@ -18,7 +18,7 @@ scrape_configs:
   # BitQuan mining pool metrics
   - job_name: 'bitquan-pool'
     static_configs:
-      - targets: ['localhost:8081']
+      - targets: ['host.docker.internal:8081']
     metrics_path: '/metrics'
     scrape_interval: 15s
     scrape_timeout: 10s
@@ -26,7 +26,7 @@ scrape_configs:
   # BitQuan stratum server metrics
   - job_name: 'bitquan-stratum'
     static_configs:
-      - targets: ['localhost:8082']
+      - targets: ['host.docker.internal:8082']
     metrics_path: '/metrics'
     scrape_interval: 15s
     scrape_timeout: 10s
@@ -41,4 +41,4 @@ alerting:
   alertmanagers:
     - static_configs:
         - targets:
-          # - alertmanager:9093
+          - alertmanager:9093

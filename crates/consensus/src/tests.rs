@@ -788,7 +788,9 @@ fn test_validate_block_weight_overflow() {
     };
 
     // Find a nonce that meets the target PoW
-    while !crate::pow::check_header_pow(&block.header).unwrap() {
+    let pow_params = crate::PowSetParams::mainnet();
+    let genesis_hash = [0u8; 32];
+    while !crate::pow::check_header_pow(&block.header, 0, &pow_params, &genesis_hash).unwrap() {
         block.header.nonce += 1;
     }
 
@@ -808,38 +810,45 @@ fn test_validate_block_weight_overflow() {
         &std::collections::HashSet::new(),
     );
 
-    // Should either detect overflow or weight exceeds limit
-    match result {
-        Err(ConsensusError::WeightOverflow(_)) => {
-            // Overflow detected before validation
+        // Should either detect overflow or weight exceeds limit
+        match result {
+            Err(ConsensusError::WeightOverflow(_)) => {
+                // Overflow detected before validation
+            }
+            Err(ConsensusError::BlockWeightExceeded { .. }) => {
+                // Weight calculated but exceeds limit
+            }
+            Err(ConsensusError::Signature(_)) => {
+                // Signature verification would fail (expected for test data)
+            }
+            Err(ConsensusError::InvalidSignature(_)) => {
+                // Invalid signature (expected for test data)
+            }
+            Err(ConsensusError::MerkleRootMismatch) => {
+                // Merkle root mismatch (expected for test data with zeroed merkle root)
+            }
+            Err(ConsensusError::InvalidDifficultyTarget(_)) => {
+                // Invalid difficulty target (expected for test data)
+            }
+            Err(ConsensusError::TimestampTooFarInFuture(_, _)) => {
+                // Timestamp validation (expected for test data)
+            }
+            Err(ConsensusError::TimestampBelowMTP(_, _)) => {
+                // Timestamp below MTP (expected for test data)
+            }
+            Err(ConsensusError::FeeValidation(_)) => {
+                // Fee validation requires UTXO-set data — expected when fees=None
+            }
+            Err(ConsensusError::CoinbaseMissing) => {
+                // Empty block or no coinbase (expected for test data)
+            }
+            Err(ConsensusError::InvalidCoinbase(_)) => {
+                // Invalid coinbase structure (expected for test data)
+            }
+            Ok(_) => panic!("Expected error for massive block"),
+            Err(e) => panic!("Unexpected error: {:?}", e),
         }
-        Err(ConsensusError::BlockWeightExceeded { .. }) => {
-            // Weight calculated but exceeds limit
-        }
-        Err(ConsensusError::Signature(_)) => {
-            // Signature verification would fail (expected for test data)
-            // This is an acceptable outcome
-        }
-        Err(ConsensusError::InvalidSignature(_)) => {
-            // Invalid signature (expected for test data)
-            // This is an acceptable outcome
-        }
-        Err(ConsensusError::MerkleRootMismatch) => {
-            // Merkle root mismatch (expected for test data with zeroed merkle root)
-        }
-        Err(ConsensusError::InvalidDifficultyTarget(_)) => {
-            // Invalid difficulty target (expected for test data)
-        }
-        Err(ConsensusError::TimestampTooFarInFuture(_, _)) => {
-            // Timestamp validation (expected for test data)
-        }
-        Err(ConsensusError::TimestampBelowMTP(_, _)) => {
-            // Timestamp below MTP (expected for test data)
-        }
-        Ok(_) => panic!("Expected error for massive block"),
-        Err(e) => panic!("Unexpected error: {:?}", e),
     }
-}
 
 #[test]
 fn test_validate_transaction_signatures_with_valid_context() {

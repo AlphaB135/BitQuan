@@ -290,7 +290,12 @@ impl ForkChoice {
     ) -> Result<(bool, Option<ReorgInfo>), ForkError> {
         let hash = header_hash(&header);
 
-        // SECURITY: Cap the number of tracked fork nodes to prevent OOM DoS.
+        // SECURITY: Prune old blocks to prevent OOM DoS, rather than erroring out
+        if self.nodes.len() >= MAX_FORK_NODES {
+            self.prune();
+        }
+
+        // Double check after prune
         if self.nodes.len() >= MAX_FORK_NODES {
             return Err(ForkError::TooManyForkNodes(self.nodes.len()));
         }
@@ -502,6 +507,45 @@ impl ForkChoice {
 
         chain.reverse();
         chain
+    }
+
+    /// Prunes old blocks that are outside the max reorganization depth.
+    pub fn prune(&mut self) {
+        if let Some(tip) = self.best_tip {
+            let mut curr = tip;
+            let mut depth = 0;
+            
+            // Go back max_reorg_depth blocks from the tip to find the new root
+            while let Some(node) = self.nodes.get(&curr) {
+                if depth >= self.max_reorg_depth || node.height == 0 {
+                    break;
+                }
+                curr = node.parent;
+                depth += 1;
+            }
+            
+            // curr is now the new root. Find all its descendants.
+            let mut valid_nodes = std::collections::HashSet::new();
+            let mut stack = vec![curr];
+            
+            while let Some(node_hash) = stack.pop() {
+                valid_nodes.insert(node_hash);
+                if let Some(children) = self.children.get(&node_hash) {
+                    for child in children {
+                        if !valid_nodes.contains(child) {
+                            stack.push(*child);
+                        }
+                    }
+                }
+            }
+            
+            // Remove nodes not in valid_nodes
+            self.nodes.retain(|hash, _| valid_nodes.contains(hash));
+            self.children.retain(|hash, _| valid_nodes.contains(hash));
+            self.invalid_blocks.retain(|hash, _| valid_nodes.contains(hash));
+            
+            self.genesis_hash = Some(curr);
+        }
     }
 }
 

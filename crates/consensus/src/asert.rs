@@ -218,27 +218,19 @@ pub fn asert_next_target(
     params: &ConsensusParams,
     guard: Option<GuardContext<'_>>,
 ) -> [u8; 32] {
-    let max_target = compact_to_target(DEVNET_MAX_BITS);
+    use primitive_types::U256;
 
-    // Convert [u8; 32] big-endian to u128.
-    // For compact targets with exponent >= 29, the value exceeds u128 range.
-    // In that case we clamp to u128::MAX for calculation purposes.
-    let anchor_u128 = if anchor_target[0..16] == [0u8; 16] {
-        u128::from_be_bytes(anchor_target[16..32].try_into().unwrap_or([0u8; 16]))
-    } else {
-        u128::MAX
-    };
-    let max_u128 = if max_target[0..16] == [0u8; 16] {
-        u128::from_be_bytes(max_target[16..32].try_into().unwrap_or([0u8; 16]))
-    } else {
-        u128::MAX
-    };
+    let max_target_bytes = compact_to_target(DEVNET_MAX_BITS);
+    let max_u256 = U256::from_big_endian(&max_target_bytes);
+    let anchor_u256 = U256::from_big_endian(&anchor_target);
 
-    // Clamp anchor to valid range
-    let anchor_clamped = if anchor_u128 == 0 {
-        1u128 // MIN_TARGET
+    // Clamp anchor to valid range (1 .. max_target)
+    let anchor_clamped = if anchor_u256.is_zero() {
+        U256::one()
+    } else if anchor_u256 > max_u256 {
+        max_u256
     } else {
-        anchor_u128.min(max_u128)
+        anchor_u256
     };
 
     // Calculate expected time for given height delta
@@ -251,47 +243,56 @@ pub fn asert_next_target(
         params.difficulty.difficulty_half_life,
     );
 
-    // Convert anchor to fixed-point (64.64 format for u128)
-    let anchor_fp = anchor_clamped << 64;
+    let fp_scale_u256 = U256::from(FP_SCALE);
 
     // Calculate next target: anchor * 2^exponent
-    let next_target_u128 = if exponent_fp >= 0 {
+    let next_target_u256 = if exponent_fp >= 0 {
         let exp_fp = fp_pow2(exponent_fp as u64);
-        // anchor_fp >> 64 recovers anchor_clamped, multiply by exp_fp (in fixed-point)
-        // Result: (anchor_clamped * exp_fp) / FP_SCALE
-        let numerator = (anchor_fp >> 64) * (exp_fp as u128);
-        numerator / (FP_SCALE as u128)
+        let exp_fp_u256 = U256::from(exp_fp);
+
+        let (high, low) = (anchor_clamped / fp_scale_u256, anchor_clamped % fp_scale_u256);
+        let (res1, overflow1) = high.overflowing_mul(exp_fp_u256);
+        let res2 = (low * exp_fp_u256) / fp_scale_u256;
+        let (next_target, overflow2) = res1.overflowing_add(res2);
+
+        if overflow1 || overflow2 {
+            U256::MAX
+        } else {
+            next_target
+        }
     } else {
         let exp_fp = fp_pow2((-exponent_fp) as u64);
-        let anchor_val = anchor_fp >> 64;
         if exp_fp == 0 {
-            anchor_val
+            anchor_clamped
         } else {
-            (anchor_val * (FP_SCALE as u128)) / (exp_fp as u128)
+            let exp_fp_u256 = U256::from(exp_fp);
+            let (high, low) = (anchor_clamped / exp_fp_u256, anchor_clamped % exp_fp_u256);
+            let res1 = high * fp_scale_u256;
+            let res2 = (low * fp_scale_u256) / exp_fp_u256;
+            res1 + res2
         }
     };
 
     // Clamp to valid range
-    let result = next_target_u128.min(max_u128);
-    let result = result.max(1u128); // MIN_TARGET
+    let result = if next_target_u256 > max_u256 {
+        max_u256
+    } else if next_target_u256.is_zero() {
+        U256::one()
+    } else {
+        next_target_u256
+    };
 
     // Apply burst guard if provided
     if let Some(guard_ctx) = guard {
         apply_burst_guard_256(result, height_delta, time_delta, params, guard_ctx)
     } else {
         let mut out = [0u8; 32];
-        out[16..32].copy_from_slice(&result.to_be_bytes());
+        result.to_big_endian(&mut out);
         out
     }
 }
 
-/// Convert u128 to [u8; 32] big-endian (placing value in lower 16 bytes).
-#[inline]
-fn u128_to_bytes(val: u128) -> [u8; 32] {
-    let mut out = [0u8; 32];
-    out[16..32].copy_from_slice(&val.to_be_bytes());
-    out
-}
+
 
 /// Convert u64 to [u8; 32] big-endian (placing value in lower 16 bytes).
 /// Uses the same [16..32] offset as u128_to_bytes for consistency.
@@ -310,7 +311,7 @@ fn u64_to_target(val: u64) -> [u8; 32] {
 
 /// Apply burst guard using 256-bit targets.
 fn apply_burst_guard_256(
-    next_target: u128,
+    next_target: primitive_types::U256,
     height_delta: i64,
     time_delta: i64,
     params: &ConsensusParams,
@@ -323,9 +324,11 @@ fn apply_burst_guard_256(
         && height_delta >= window
         && time_delta > 0;
 
+    let mut out = [0u8; 32];
     if !guard_active {
         guard_ctx.state.update(guard_ctx.current_height, params);
-        return u128_to_bytes(next_target);
+        next_target.to_big_endian(&mut out);
+        return out;
     }
 
     let expected_time_fp =
@@ -342,7 +345,8 @@ fn apply_burst_guard_256(
         compact_to_target(DEVNET_MAX_BITS)
     } else {
         guard_ctx.state.update(guard_ctx.current_height, params);
-        u128_to_bytes(next_target)
+        next_target.to_big_endian(&mut out);
+        out
     }
 }
 

@@ -4,7 +4,7 @@
 //! Canonical transaction digest construction for PQC signature verification.
 
 use bitquan_types::error::{Error, Result};
-use bitquan_types::{Transaction, TxContext, TxIn, TxOut, Witness};
+use bitquan_types::{Transaction, TxContext, TxIn, TxOut};
 use sha2::{Digest, Sha256};
 
 /// Domain separator for BitQuan transaction signatures (version 1).
@@ -51,7 +51,6 @@ pub fn transaction_sighash(tx: &Transaction, ctx: &TxContext) -> Result<[u8; 32]
     hash_txins(&mut hasher, &tx.inputs);
     hash_txouts(&mut hasher, &tx.outputs);
     hasher.update([tx.sig_algo.code()]);
-    hash_witnesses(&mut hasher, &tx.witnesses);
 
     let digest = hasher.finalize();
     let mut result = [0u8; 32];
@@ -77,24 +76,7 @@ fn hash_txouts(hasher: &mut Sha256, outputs: &[TxOut]) {
     }
 }
 
-fn hash_witnesses(hasher: &mut Sha256, witnesses: &[Witness]) {
-    hash_len(hasher, witnesses.len() as u64);
-    for witness in witnesses {
-        hash_len(hasher, witness.signatures.len() as u64);
-        for sig in &witness.signatures {
-            hasher.update(sig.signer_index.to_le_bytes());
-            hash_bytes(hasher, &sig.signature);
-            hash_bytes(hasher, &sig.public_key);
-            match &sig.aux {
-                Some(aux) => {
-                    hasher.update([1u8]);
-                    hash_bytes(hasher, &aux.payload);
-                }
-                None => hasher.update([0u8]),
-            }
-        }
-    }
-}
+
 
 fn hash_bytes(hasher: &mut Sha256, data: &[u8]) {
     hash_len(hasher, data.len() as u64);

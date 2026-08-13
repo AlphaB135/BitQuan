@@ -33,8 +33,9 @@ receivers:
   - name: 'critical-alerts'
     email_configs:
       - to: 'admin@bitquan.network'
-        subject: '[CRITICAL] BitQuan Alert: {{ .GroupLabels.alertname }}'
-        body: |
+        headers:
+          Subject: '[CRITICAL] BitQuan Alert: {{ .GroupLabels.alertname }}'
+        html: |
           {{ range .Alerts }}
           Alert: {{ .Annotations.summary }}
           Description: {{ .Annotations.description }}
@@ -47,8 +48,9 @@ receivers:
   - name: 'warning-alerts'
     email_configs:
       - to: 'ops@bitquan.network'
-        subject: '[WARNING] BitQuan Alert: {{ .GroupLabels.alertname }}'
-        body: |
+        headers:
+          Subject: '[WARNING] BitQuan Alert: {{ .GroupLabels.alertname }}'
+        html: |
           {{ range .Alerts }}
           Alert: {{ .Annotations.summary }}
           Description: {{ .Annotations.description }}

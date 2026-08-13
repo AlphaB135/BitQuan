@@ -214,10 +214,14 @@ impl UtxoSet {
 
         // Collect and validate inputs
         let mut inputs_value = 0u128;
-        let mut spent_outpoints = Vec::new();
+        let mut spent_outpoints = std::collections::HashSet::new();
 
         for input in &tx.inputs {
             let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
+
+            if !spent_outpoints.insert(outpoint) {
+                return Err(UtxoError::DoubleSpend(input.prev_txid, input.prev_vout));
+            }
 
             // Check if UTXO exists
             let utxo = self
@@ -232,8 +236,6 @@ impl UtxoSet {
             inputs_value = inputs_value
                 .checked_add(utxo.output.value)
                 .ok_or(UtxoError::Overflow)?;
-
-            spent_outpoints.push(outpoint);
         }
 
         // Calculate outputs value
@@ -314,12 +316,17 @@ impl UtxoSet {
 
         // Regular transaction validation
         let mut inputs_value = 0u128;
+        let mut spent_outpoints = std::collections::HashSet::new();
 
         for input in &tx.inputs {
             let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
 
             if outpoint.is_coinbase() {
                 return Err(UtxoError::InvalidCoinbase);
+            }
+
+            if !spent_outpoints.insert(outpoint) {
+                return Err(UtxoError::DoubleSpend(input.prev_txid, input.prev_vout));
             }
 
             let utxo = self

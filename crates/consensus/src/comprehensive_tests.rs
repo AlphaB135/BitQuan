@@ -625,7 +625,9 @@ fn proof_of_work_boundary_values() {
     };
     // With random header data, even MAX_BITS might not validate
     // Just verify the function can be called and returns a result
-    let max_result = check_header_pow(&header);
+    let pow_params = crate::PowSetParams::mainnet();
+    let genesis_hash = [0u8; 32];
+    let max_result = check_header_pow(&header, 0, &pow_params, &genesis_hash);
     let _ = max_result; // Result may be false due to random header
 
     // Test minimum bits with reasonable search limit
@@ -634,7 +636,7 @@ fn proof_of_work_boundary_values() {
     let mut found = false;
     for nonce in 0..10_000 {
         header.nonce = nonce;
-        if check_header_pow(&header).unwrap_or(false) {
+        if check_header_pow(&header, 0, &pow_params, &genesis_hash).unwrap_or(false) {
             found = true;
             break;
         }

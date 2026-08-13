@@ -1641,6 +1641,26 @@ pub(crate) async fn validate_block_utxos(
                         hex::encode(&tx.txid()[..8])
                     ))
                 })?;
+
+            // === SCRIPT AUTHORIZATION CHECK ===
+            let tx_ctx = bitquan_types::TxContext::new(ctx.network_id, ctx.genesis_hash);
+            let digest = bitquan_consensus::transaction_sighash(tx, &tx_ctx)
+                .map_err(|e| WorkerError::InvalidData(format!("Sighash error: {}", e)))?;
+            let registry = bq_crypto::CryptoRegistry::with_default_providers();
+            let script_valid = bitquan_consensus::script::verify_script(
+                &input.script_sig,
+                &utxo_entry.output.script_pubkey,
+                &digest,
+                registry,
+            ).map_err(|e| WorkerError::InvalidData(format!("Script error: {:?}", e)))?;
+            
+            if !script_valid {
+                return Err(WorkerError::InvalidData(format!(
+                    "Script verification failed for txid={} input={}",
+                    hex::encode(tx.txid()),
+                    hex::encode(input.prev_txid)
+                )));
+            }
         }
 
         // 2. Validate Outputs
