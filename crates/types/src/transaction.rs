@@ -55,10 +55,6 @@ pub struct AuxiliarySignatureData {
 pub enum SigAlgorithm {
     /// CRYSTALS-Dilithium level 5.
     Dilithium5,
-    /// Falcon-512 lattice signature scheme.
-    Falcon512,
-    /// SPHINCS+ stateless hash-based signature.
-    SphincsPlus,
     /// Reserved/unknown code for forward compatibility.
     Reserved(u8),
 }
@@ -68,8 +64,6 @@ impl SigAlgorithm {
     pub const fn code(self) -> u8 {
         match self {
             SigAlgorithm::Dilithium5 => 0x01,
-            SigAlgorithm::Falcon512 => 0x02,
-            SigAlgorithm::SphincsPlus => 0x03,
             SigAlgorithm::Reserved(value) => value,
         }
     }
@@ -78,8 +72,6 @@ impl SigAlgorithm {
     pub const fn from_code(code: u8) -> Self {
         match code {
             0x01 => SigAlgorithm::Dilithium5,
-            0x02 => SigAlgorithm::Falcon512,
-            0x03 => SigAlgorithm::SphincsPlus,
             other => SigAlgorithm::Reserved(other),
         }
     }
@@ -108,14 +100,16 @@ impl<'de> Deserialize<'de> for SigAlgorithm {
         let value = u8::deserialize(deserializer)?;
         let algo = SigAlgorithm::from_code(value);
 
-        if let SigAlgorithm::Reserved(0x00) = algo {
-            return Err(D::Error::invalid_value(
+        // CRITICAL: Reject any unsupported or reserved algorithms during deserialization
+        // to prevent DoS attacks where attackers send large payloads (e.g. 41KB SPHINCS+)
+        // that allocate memory but fail later in CryptoRegistry.
+        match algo {
+            SigAlgorithm::Dilithium5 => Ok(algo),
+            SigAlgorithm::Reserved(_) => Err(D::Error::invalid_value(
                 Unexpected::Unsigned(value as u64),
-                &"non-zero reserved signature algorithm code",
-            ));
+                &"supported signature algorithm code (e.g. 0x01 for Dilithium5)",
+            )),
         }
-
-        Ok(algo)
     }
 }
 
