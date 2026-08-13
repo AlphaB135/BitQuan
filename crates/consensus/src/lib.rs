@@ -11,7 +11,7 @@ use thiserror::Error;
 
 mod asert;
 pub mod difficulty;
-mod economic;
+
 pub mod fork;
 mod monitoring;
 pub mod pow;
@@ -29,10 +29,7 @@ pub use asert::{asert_next_target, BurstGuardState, GuardContext, FP_SCALE};
 pub use difficulty::{
     compact_to_target, target_to_compact, target_to_compact_u64, DifficultyState,
 };
-pub use economic::{
-    EconomicConfig, EconomicError, EconomicManager, EconomicStats, RewardEvent, SlashEvent,
-    SlashReason, StakeInfo,
-};
+
 pub use fork::{BlockNode, ForkChoice, ForkError, ReorgInfo};
 pub use monitoring::{
     Alert, AlertSeverity, Monitor, MonitorConfig, MonitorError, MonitorEventType, MonitorStats,
