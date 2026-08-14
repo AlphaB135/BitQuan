@@ -182,25 +182,42 @@ class WalletAPIHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
 
     def handle_restore_wallet(self, body):
-        mnemonic = body.get("mnemonic", "").strip()
+        raw_mnemonic = body.get("mnemonic", "").strip()
         password = body.get("password", "BitQuanPQC2026!Default")
 
-        if not mnemonic:
+        if not raw_mnemonic:
             self._set_headers(400)
             self.wfile.write(json.dumps({"success": False, "error": "Mnemonic phrase is required"}).encode())
             return
 
-        words = mnemonic.split()
-        if len(words) == 512:
-            seed_hash = hashlib.sha3_256(" ".join(words).encode()).digest()
+        # Extract only alphabetic words (removes numbers, punctuation, brackets, section titles)
+        extracted_words = re.findall(r'[a-z]+', raw_mnemonic.lower())
+        valid_bip39 = [w for w in extracted_words if w in BIP39_WORDS]
+
+        # Determine best word list
+        if len(valid_bip39) in [12, 15, 18, 21, 24]:
+            words = valid_bip39
+        elif len(extracted_words) in [12, 15, 18, 21, 24]:
+            words = extracted_words
+        elif len(valid_bip39) >= 200:
+            words = valid_bip39
+        else:
+            words = extracted_words
+
+        clean_mnemonic = " ".join(words)
+
+        # 512-word / Long continuous stream recovery
+        if len(words) >= 200:
+            seed_hash = hashlib.sha3_256(clean_mnemonic.encode()).digest()
             charset = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l'
             addr_suffix = "".join(charset[b % len(charset)] for b in seed_hash[:38])
             address = "bq1q" + addr_suffix
             res = {
                 "success": True,
                 "address": address,
-                "algorithm": "CRYSTALS-Dilithium5 (512-Word Novel Mode)",
-                "message": "Wallet restored successfully from 512-word novel"
+                "word_count": len(words),
+                "algorithm": "CRYSTALS-Dilithium5 (512-Word Mode)",
+                "message": f"Wallet restored successfully from {len(words)} words."
             }
             self._set_headers(200)
             self.wfile.write(json.dumps(res, indent=2).encode())
@@ -211,12 +228,12 @@ class WalletAPIHandler(BaseHTTPRequestHandler):
             cmd = [
                 NODE_BIN,
                 "wallet-from-mnemonic",
-                "--mnemonic", mnemonic,
+                "--mnemonic", clean_mnemonic,
                 "--password", password,
                 "--output", temp_keystore
             ]
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
-            output = proc.stdout
+            output = proc.stdout + " " + proc.stderr
 
             address_match = re.search(r"Address:\s*(?:testnet:)?(bq1[a-z0-9]+)", output)
             address = address_match.group(1) if address_match else ""
@@ -236,15 +253,17 @@ class WalletAPIHandler(BaseHTTPRequestHandler):
                 res = {
                     "success": True,
                     "address": address,
+                    "word_count": len(words),
                     "algorithm": "CRYSTALS-Dilithium5",
                     "keystore": keystore_content,
-                    "message": "Wallet restored successfully from mnemonic"
+                    "message": f"Wallet restored successfully from {len(words)} words."
                 }
                 self._set_headers(200)
                 self.wfile.write(json.dumps(res, indent=2).encode())
             else:
+                err_msg = proc.stderr.strip() or proc.stdout.strip() or "Invalid mnemonic phrase or word count."
                 self._set_headers(400)
-                self.wfile.write(json.dumps({"success": False, "error": "Failed to derive address from mnemonic. Verify your words."}).encode())
+                self.wfile.write(json.dumps({"success": False, "error": f"Failed to restore: {err_msg} (Found {len(words)} words)"}).encode())
         except Exception as e:
             self._set_headers(500)
             self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
