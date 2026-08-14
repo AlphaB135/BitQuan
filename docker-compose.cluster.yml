@@ -41,18 +41,23 @@ services:
     environment:
       - RUST_LOG=info
       - BITQUAN_WALLET_PASSWORD=testnet_seed_password_2026
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
     networks:
       bitquan-mesh:
         ipv4_address: 172.28.0.2
 
   # ==========================================
-  # Node 2: Miner Node (Connects to Seed)
+  # Node 2: Validator / RPC Node (Non-Mining)
   # ==========================================
-  node-miner-1:
+  node-relay-1:
     build:
       context: .
       dockerfile: config/deploy/Dockerfile
-    container_name: bq-node-miner-1
+    container_name: bq-node-relay-1
     restart: unless-stopped
     depends_on:
       - node-seed
@@ -63,8 +68,6 @@ services:
       --rpc-bind 0.0.0.0:19445
       --p2p-bind 0.0.0.0:19446
       --peer 172.28.0.2:19444
-      --mine
-      --threads 2
     ports:
       - "19445:19445"  # RPC
       - "19446:19446"  # P2P
@@ -73,13 +76,18 @@ services:
       - ./config/testnet.toml:/app/config/testnet.toml:ro
     environment:
       - RUST_LOG=info
-      - BITQUAN_WALLET_PASSWORD=testnet_miner_password_2026
+      - BITQUAN_WALLET_PASSWORD=testnet_relay1_password_2026
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
     networks:
       bitquan-mesh:
         ipv4_address: 172.28.0.3
 
   # ==========================================
-  # Node 3: Relay Node (Connects to Seed & Miner)
+  # Node 3: Relay Node (Connects to Seed & Relay 1)
   # ==========================================
   node-relay-2:
     build:
@@ -89,7 +97,7 @@ services:
     restart: unless-stopped
     depends_on:
       - node-seed
-      - node-miner-1
+      - node-relay-1
     command: >
       bitquan-node run
       --config /app/config/testnet.toml
@@ -107,6 +115,11 @@ services:
     environment:
       - RUST_LOG=info
       - BITQUAN_WALLET_PASSWORD=testnet_relay_password_2026
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
     networks:
       bitquan-mesh:
         ipv4_address: 172.28.0.4
