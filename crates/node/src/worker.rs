@@ -1805,11 +1805,7 @@ mod tests {
             let utxo_entry = StoredUtxoEntry {
                 output: TxOut {
                     value: 1_000_000_000_000_000_000, // 1 BQ (18 decimals)
-                    script_pubkey: vec![
-                        0x76, 0xa9, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88,
-                        0xac,
-                    ], // P2PKH
+                    script_pubkey: vec![0x51],         // OP_TRUE (anyone-can-spend for test)
                 },
                 height: 100,        // Already mature
                 is_coinbase: false, // Not a coinbase UTXO
@@ -1944,7 +1940,7 @@ mod tests {
         let tx_a = Transaction {
             version: 1,
             network: bitquan_types::NetworkId::Devnet,
-            genesis_hash: [0u8; 32],
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
             inputs: vec![TxIn {
                 prev_txid,
                 prev_vout,
@@ -1953,7 +1949,7 @@ mod tests {
             }],
             outputs: vec![TxOut {
                 value: 50_000_000, // 0.5 BQ
-                script_pubkey: vec![],
+                script_pubkey: vec![0x51],
             }],
             lock_time: 0,
             sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
@@ -1963,7 +1959,7 @@ mod tests {
         let tx_b = Transaction {
             version: 1,
             network: bitquan_types::NetworkId::Devnet,
-            genesis_hash: [0u8; 32],
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
             inputs: vec![TxIn {
                 prev_txid, // SAME prev_txid!
                 prev_vout, // SAME prev_vout!
@@ -1972,7 +1968,7 @@ mod tests {
             }],
             outputs: vec![TxOut {
                 value: 50_000_000, // 0.5 BQ
-                script_pubkey: vec![],
+                script_pubkey: vec![0x51],
             }],
             lock_time: 0,
             sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
@@ -1983,7 +1979,7 @@ mod tests {
         let coinbase = Transaction {
             version: 1,
             network: bitquan_types::NetworkId::Devnet,
-            genesis_hash: [0u8; 32],
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
             inputs: vec![TxIn {
                 prev_txid: [0u8; 32], // Null hash for coinbase
                 prev_vout: 0xffffffff,
@@ -1992,7 +1988,7 @@ mod tests {
             }],
             outputs: vec![TxOut {
                 value: 1_000_000_000_000_000_000, // 1 BQ block reward (18 decimals)
-                script_pubkey: vec![],
+                script_pubkey: vec![0x51],
             }],
             lock_time: 0,
             sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
@@ -2062,15 +2058,15 @@ mod tests {
                 bitquan_network::ban_manager::BanConfig::default(),
             ))),
             network_id: bitquan_types::NetworkId::Devnet,
-            genesis_hash: [0u8; 32],
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
             pending_block_requests: Arc::new(TokioMutex::new(std::collections::HashSet::new())),
         };
 
-        // Create transaction with u64::MAX value (overflow attack)
+        // Create transaction with u128::MAX value (overflow attack)
         let tx_overflow = Transaction {
             version: 1,
             network: bitquan_types::NetworkId::Devnet,
-            genesis_hash: [0u8; 32],
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
             inputs: vec![TxIn {
                 prev_txid: [1u8; 32],
                 prev_vout: 0,
@@ -2079,7 +2075,7 @@ mod tests {
             }],
             outputs: vec![TxOut {
                 value: u128::MAX, // ATTEMPT OVERFLOW
-                script_pubkey: vec![],
+                script_pubkey: vec![0x51],
             }],
             lock_time: 0,
             sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
@@ -2089,7 +2085,7 @@ mod tests {
         let coinbase = Transaction {
             version: 1,
             network: bitquan_types::NetworkId::Devnet,
-            genesis_hash: [0u8; 32],
+            genesis_hash: bitquan_types::genesis::GENESIS_HASH_BYTES,
             inputs: vec![TxIn {
                 prev_txid: [0u8; 32],
                 prev_vout: 0xffffffff,
@@ -2098,7 +2094,7 @@ mod tests {
             }],
             outputs: vec![TxOut {
                 value: 1_000_000_000_000_000_000, // 1 BQ (18 decimals)
-                script_pubkey: vec![],
+                script_pubkey: vec![0x51],
             }],
             lock_time: 0,
             sig_algo: bitquan_types::SigAlgorithm::Dilithium5,
