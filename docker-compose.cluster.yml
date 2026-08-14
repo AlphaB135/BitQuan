@@ -1,0 +1,136 @@
+version: "3.8"
+
+# BitQuan 3-Node Testnet Simulation Mesh + Faucet
+# Usage: docker compose -f docker-compose.cluster.yml up -d
+# Monitor logs: docker compose -f docker-compose.cluster.yml logs -f
+
+networks:
+  bitquan-mesh:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  seed-data:
+  miner1-data:
+  relay2-data:
+
+services:
+  # ==========================================
+  # Node 1: Genesis Seed / Bootstrap Node
+  # ==========================================
+  node-seed:
+    build:
+      context: .
+      dockerfile: config/deploy/Dockerfile
+    container_name: bq-node-seed
+    restart: unless-stopped
+    command: >
+      bitquan-node run
+      --config /app/config/testnet.toml
+      --datadir /data/bitquan
+      --rpc-bind 0.0.0.0:19443
+      --p2p-bind 0.0.0.0:19444
+    ports:
+      - "19443:19443"  # RPC
+      - "19444:19444"  # P2P
+    volumes:
+      - seed-data:/data/bitquan
+      - ./config/testnet.toml:/app/config/testnet.toml:ro
+    environment:
+      - RUST_LOG=info
+      - BITQUAN_WALLET_PASSWORD=testnet_seed_password_2026
+    networks:
+      bitquan-mesh:
+        ipv4_address: 172.28.0.2
+
+  # ==========================================
+  # Node 2: Miner Node (Connects to Seed)
+  # ==========================================
+  node-miner-1:
+    build:
+      context: .
+      dockerfile: config/deploy/Dockerfile
+    container_name: bq-node-miner-1
+    restart: unless-stopped
+    depends_on:
+      - node-seed
+    command: >
+      bitquan-node run
+      --config /app/config/testnet.toml
+      --datadir /data/bitquan
+      --rpc-bind 0.0.0.0:19445
+      --p2p-bind 0.0.0.0:19446
+      --peer 172.28.0.2:19444
+      --mine
+      --threads 2
+    ports:
+      - "19445:19445"  # RPC
+      - "19446:19446"  # P2P
+    volumes:
+      - miner1-data:/data/bitquan
+      - ./config/testnet.toml:/app/config/testnet.toml:ro
+    environment:
+      - RUST_LOG=info
+      - BITQUAN_WALLET_PASSWORD=testnet_miner_password_2026
+    networks:
+      bitquan-mesh:
+        ipv4_address: 172.28.0.3
+
+  # ==========================================
+  # Node 3: Relay Node (Connects to Seed & Miner)
+  # ==========================================
+  node-relay-2:
+    build:
+      context: .
+      dockerfile: config/deploy/Dockerfile
+    container_name: bq-node-relay-2
+    restart: unless-stopped
+    depends_on:
+      - node-seed
+      - node-miner-1
+    command: >
+      bitquan-node run
+      --config /app/config/testnet.toml
+      --datadir /data/bitquan
+      --rpc-bind 0.0.0.0:19447
+      --p2p-bind 0.0.0.0:19448
+      --peer 172.28.0.2:19444
+      --peer 172.28.0.3:19446
+    ports:
+      - "19447:19447"  # RPC
+      - "19448:19448"  # P2P
+    volumes:
+      - relay2-data:/data/bitquan
+      - ./config/testnet.toml:/app/config/testnet.toml:ro
+    environment:
+      - RUST_LOG=info
+      - BITQUAN_WALLET_PASSWORD=testnet_relay_password_2026
+    networks:
+      bitquan-mesh:
+        ipv4_address: 172.28.0.4
+
+  # ==========================================
+  # Testnet Faucet Service (Web UI on Port 5000)
+  # ==========================================
+  faucet:
+    build:
+      context: .
+      dockerfile: crates/faucet/Dockerfile
+    container_name: bq-faucet
+    restart: unless-stopped
+    depends_on:
+      - node-seed
+    ports:
+      - "5000:5000"
+    environment:
+      - BITQUAN_RPC_URL=http://172.28.0.2:19443
+      - BITQUAN_RPC_USER=bitquan
+      - BITQUAN_RPC_PASS=testnet_rpc_password_2026
+      - FAUCET_PORT=5000
+      - FAUCET_DRIP_AMOUNT=10.0
+      - RUST_LOG=info
+    networks:
+      bitquan-mesh:
+        ipv4_address: 172.28.0.5
