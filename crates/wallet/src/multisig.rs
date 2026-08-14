@@ -695,11 +695,11 @@ mod tests {
     }
 
     fn sign_tx_data(kp: &pqc_dilithium_seeded::Keypair, tx_data: &[u8]) -> Vec<u8> {
-        let tx_hash = {
-            let mut hasher = Sha256::new();
-            hasher.update(tx_data);
-            hasher.finalize()
-        };
+        let mut hasher = Sha256::new();
+        hasher.update(b"BitQuan-multisig-sighash-v1");
+        hasher.update([0x00]); // Default network_id is 0
+        hasher.update(tx_data);
+        let tx_hash = hasher.finalize();
         kp.sign(&tx_hash).to_vec()
     }
 
