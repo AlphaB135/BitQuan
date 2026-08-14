@@ -139,13 +139,14 @@ async fn send_to_address(config: &FaucetConfig, address: &str) -> Result<String>
         .build()
         .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {}", e))?;
 
+    let qbits_amount = (config.drip_amount * 1_000_000_000_000_000_000.0) as u128;
     let rpc_req = RpcRequest {
         jsonrpc: "2.0".to_string(),
         id: "faucet".to_string(),
         method: "sendtoaddress".to_string(),
         params: vec![
             serde_json::json!(address),
-            serde_json::json!(config.drip_amount),
+            serde_json::json!(qbits_amount.to_string()),
             serde_json::json!("Faucet drip"),
         ],
     };
