@@ -175,6 +175,9 @@ impl BanManager {
 
         self.banned_peers.insert(peer_id, ban_info.clone());
         self.ban_history.push(ban_info.clone());
+        if self.ban_history.len() > 10_000 {
+            self.ban_history.drain(0..1000); // Efficiently cap history size
+        }
 
         self.update_stats(&reason, expires_at.is_none());
         Ok(())
@@ -194,6 +197,11 @@ impl BanManager {
             return Err(BanError::AlreadyBanned);
         }
 
+        // Check active ban limit to prevent IP spoofing OOM
+        if self.banned_ips.len() >= self.config.max_active_bans {
+            return Err(BanError::InvalidDuration);
+        }
+
         let expires_at = duration.map(|d| Instant::now() + d);
         let ban_info = BanInfo {
             reason: reason.clone(),
@@ -205,6 +213,9 @@ impl BanManager {
 
         self.banned_ips.insert(ip, ban_info.clone());
         self.ban_history.push(ban_info.clone());
+        if self.ban_history.len() > 10_000 {
+            self.ban_history.drain(0..1000); // Efficiently cap history size
+        }
 
         self.update_stats(&reason, expires_at.is_none());
         Ok(())
@@ -558,5 +569,36 @@ mod tests {
         assert_eq!(stats.active_bans, 2);
         assert_eq!(stats.temporary_bans, 1);
         assert_eq!(stats.permanent_bans, 1);
+    }
+
+    #[test]
+    fn test_ban_history_memory_leak_simulation() {
+        // This test simulates the "Sandbox" attack requested to prove the OOM bug
+        // without attacking a real network.
+        let config = BanConfig::default();
+        let mut manager = BanManager::new(config);
+        
+        let initial_history_len = manager.get_ban_history().len();
+        assert_eq!(initial_history_len, 0);
+
+        // Simulate an attacker spoofing 100,000 unique IP addresses to get them banned
+        for i in 0..100_000 {
+            let fake_ip: IpAddr = std::net::Ipv4Addr::new(
+                (i >> 24) as u8, 
+                (i >> 16) as u8, 
+                (i >> 8) as u8, 
+                i as u8
+            ).into();
+
+            // The system bans the IP (e.g. for connection flood)
+            let _ = manager.ban_ip(fake_ip, BanReason::AttackBehavior, None, None, None);
+        }
+
+        // Prove the memory leak is FIXED:
+        // 1. `banned_ips` should be capped at `max_active_bans` (default: 10000)
+        assert!(manager.banned_ips.len() <= 10_000);
+        
+        // 2. `ban_history` should be capped at 10_000 (our drain threshold)
+        assert!(manager.get_ban_history().len() <= 10_000);
     }
 }

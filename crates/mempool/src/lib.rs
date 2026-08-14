@@ -162,6 +162,10 @@ impl Mempool {
             .map_err(|e| Error::Invalid(format!("transaction rejected: {e}")))?;
 
         // Enforce policy limits
+        if self.len() >= 5000 {
+            return Err(Error::Invalid("mempool transaction limit (5000) reached".to_string()));
+        }
+
         let max_script = self.policy.max_scriptsize as usize;
         if tx.inputs.len() > self.policy.max_inputs_per_tx as usize {
             return Err(Error::Invalid(format!(
@@ -252,15 +256,21 @@ impl Mempool {
 
         // Check for double-spend within mempool (AFTER fee check passes)
         // We use the entry's tx reference since ownership was transferred
+        let mut new_outpoints = Vec::new();
         for input in &entry.tx.inputs {
             let outpoint = OutPoint::new(input.prev_txid, input.prev_vout);
-            if !self.spent_outpoints.insert(outpoint) {
+            if self.spent_outpoints.contains(&outpoint) || new_outpoints.contains(&outpoint) {
                 return Err(Error::Invalid(format!(
                     "Double spend detected: input prev_txid={} prev_vout={} already spent in mempool",
                     input.prev_vout,
                     "..." // txid is 32 bytes, abbreviated for readability
                 )));
             }
+            new_outpoints.push(outpoint);
+        }
+
+        for outpoint in new_outpoints {
+            self.spent_outpoints.insert(outpoint);
         }
 
         // Check if adding this transaction would exceed size limit (with overflow protection)

@@ -62,26 +62,8 @@ impl NodeRpcHandler {
     }
 
     /// Helper to convert storage errors to RPC errors safely
-    fn storage_error_to_rpc(e: bitquan_storage::async_store::AsyncStoreError) -> RpcError {
-        match e {
-            bitquan_storage::async_store::AsyncStoreError::Storage(se) => {
-                RpcError::InternalError(format!("storage error: {}", se))
-            }
-            bitquan_storage::async_store::AsyncStoreError::TaskSpawn(te) => {
-                RpcError::InternalError(format!("task spawn error: {}", te))
-            }
-            bitquan_storage::async_store::AsyncStoreError::Poisoned(s) => {
-                RpcError::InternalError(format!("mutex poisoned during {}", s))
-            }
-            bitquan_storage::async_store::AsyncStoreError::Cancelled => {
-                RpcError::InternalError("operation cancelled".to_string())
-            }
-            bitquan_storage::async_store::AsyncStoreError::NoValidHeaders => {
-                RpcError::InternalError(
-                    "no valid headers found - peer chain incompatible".to_string(),
-                )
-            }
-        }
+    fn storage_error_to_rpc(_e: bitquan_storage::async_store::AsyncStoreError) -> RpcError {
+        RpcError::InternalError("Internal storage error".to_string())
     }
 
     /// Convert compact bits to 32-byte target
@@ -517,6 +499,7 @@ impl RpcMethods for NodeRpcHandler {
         n_blocks: u64,
         _address: Option<String>,
     ) -> Result<Vec<String>, RpcError> {
+        let n_blocks = n_blocks.min(100);
         if self.chain_name == "mainnet" {
             return Err(RpcError::MethodNotFound(
                 "generate is not available on mainnet".to_string(),
@@ -659,6 +642,7 @@ impl RpcMethods for NodeRpcHandler {
         n_blocks: u64,
         address: String,
     ) -> Result<Vec<String>, RpcError> {
+        let n_blocks = n_blocks.min(100);
         if self.chain_name == "mainnet" {
             return Err(RpcError::MethodNotFound(
                 "generatetoaddress is not available on mainnet".to_string(),
@@ -840,9 +824,7 @@ impl RpcMethods for NodeRpcHandler {
         let wallet_path = Path::new("miner_wallet.json");
         let wallet_password = env::var("BITQUAN_WALLET_PASSWORD").map_err(|_| {
             RpcError::InternalError(
-                "BITQUAN_WALLET_PASSWORD environment variable not set. \
-                 Set with: export BITQUAN_WALLET_PASSWORD=\"your-password\""
-                    .to_string(),
+                "Wallet configuration error: wallet locked or unavailable".to_string(),
             )
         })?;
 

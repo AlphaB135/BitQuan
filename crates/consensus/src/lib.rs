@@ -381,14 +381,14 @@ impl RewardSchedule {
         }
         // (8 - depth) * Base Reward / 8
         let multiplier = 8 - depth as u128;
-        (base_subsidy * multiplier) / 8
+        (base_subsidy.checked_mul(multiplier).unwrap_or(0)) / 8
     }
 
     /// Calculates the nephew reward (bonus for the current miner per uncle included).
     pub fn nephew_reward(&self, block_height: u64, uncles_count: usize) -> u128 {
         let base_subsidy = self.subsidy_at_height(block_height);
         let bonus_per_uncle = base_subsidy / 32;
-        bonus_per_uncle * (uncles_count as u128)
+        bonus_per_uncle.checked_mul(uncles_count as u128).unwrap_or(0)
     }
 }
 
@@ -557,9 +557,9 @@ pub(crate) fn calculate_block_weight_with_beta(block: &Block, alpha: u32, beta: 
             .sum::<u64>();
     }
     let base_bytes = total.saturating_sub(witness_bytes);
-    let signature_weight = count_signatures(block) * alpha as u64;
+    let signature_weight = (count_signatures(block)).saturating_mul(alpha as u64);
     let witness_weight = (beta * witness_bytes as f32).round() as u64;
-    base_bytes + signature_weight + witness_weight
+    base_bytes.saturating_add(signature_weight).saturating_add(witness_weight)
 }
 
 /// Validates a block against the supplied consensus parameters (BQIP-0002).
@@ -698,7 +698,7 @@ fn validate_block_header(
     if height > 0 {
         // SECURITY: Use network-adjusted time instead of SystemTime::now()
         // to prevent timejacking attacks and ensure deterministic replay.
-        let max_future_time = network_adjusted_time + 7200;
+        let max_future_time = network_adjusted_time.saturating_add(7200);
         let block_time = u64::from(header.time);
         if block_time > max_future_time {
             return Err(ConsensusError::TimestampTooFarInFuture(
@@ -844,7 +844,7 @@ fn validate_transaction_fees(
 
     // Treasury System: 10% of the block subsidy goes to the on-chain treasury
     let treasury_reward = block_subsidy / 10;
-    let miner_subsidy = block_subsidy - treasury_reward;
+    let miner_subsidy = block_subsidy.checked_sub(treasury_reward).unwrap_or(0);
 
     // Strict validation: Coinbase <= MinerSubsidy + Fees + TreasuryReward
     let max_miner_allowed = miner_subsidy
@@ -884,7 +884,7 @@ fn validate_transaction_fees(
             "⚠ Coinbase output {} is below block subsidy {} (miner forfeited {})",
             coinbase_output,
             block_subsidy,
-            block_subsidy - coinbase_output
+            block_subsidy.saturating_sub(coinbase_output)
         );
     }
 

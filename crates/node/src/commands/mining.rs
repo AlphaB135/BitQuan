@@ -281,7 +281,7 @@ pub fn mine_genesis(max_tries: u64, output: &str) -> Result<()> {
     for nonce in 0..max_tries {
         genesis.header.nonce = nonce;
 
-        if let Ok(true) = check_header_pow(&genesis.header) {
+        if let Ok(true) = check_header_pow(&genesis.header, 0, &ConsensusParams::phase3_defaults().pow_set, &GENESIS_HASH_BYTES) {
             let hash = header_hash(&genesis.header);
             let elapsed = start_time.elapsed();
             let hashrate = (nonce as f64) / elapsed.as_secs_f64();
@@ -363,8 +363,9 @@ pub fn check_block(path: &str) -> Result<()> {
         .as_secs();
     match engine.validate_block(
         &block,
-        0,
-        0,
+        0,  // height
+        0,  // total_fees
+        0,  // median_time_past
         network_adjusted_time,
         &[],
         &std::collections::HashSet::new(),
@@ -467,18 +468,29 @@ pub fn mine_once(
         script_sig,
     };
     let subsidy = bitquan_consensus::ConsensusParams::phase3_defaults()
-        .reward_schedule
-        .subsidy_at_height(store.height());
+        .reward_schedule.subsidy_at_height(store.height() + 1);
+    let treasury_reward = subsidy / 10;
+    let miner_reward = subsidy - treasury_reward;
+    
+    let mut coinbase_outputs = vec![TxOut {
+        value: miner_reward,
+        script_pubkey: payout_script,
+    }];
+    
+    if treasury_reward > 0 {
+        coinbase_outputs.push(TxOut {
+            value: treasury_reward,
+            script_pubkey: bitquan_types::genesis::TREASURY_PAYOUT_SCRIPT_BYTES.to_vec(),
+        });
+    }
+
     let coinbase = Transaction {
         version: 2,
         network,
         genesis_hash: GENESIS_HASH_BYTES,
         lock_time: 0,
         inputs: vec![coinbase_in],
-        outputs: vec![TxOut {
-            value: subsidy,
-            script_pubkey: payout_script,
-        }],
+        outputs: coinbase_outputs,
         sig_algo: SigAlgorithm::Dilithium5,
         witnesses: vec![],
     };
@@ -547,7 +559,13 @@ pub fn mine_once(
         let pow_valid = if allow_mock {
             header.nonce == 0 || header.bits >= DEVNET_MAX_BITS
         } else {
-            check_header_pow(&header)
+            check_header_pow(
+                    &header,
+                    store.height(),
+                    &ConsensusParams::phase3_defaults().pow_set,
+                    &GENESIS_HASH_BYTES,
+                )
+                .map(|_| true)
                 .map_err(|e| Error::Invalid(format!("pow verification failed: {e}")))?
         };
 
@@ -905,16 +923,28 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
         };
 
         let subsidy = params.reward_schedule.subsidy_at_height(height);
+        let treasury_reward = subsidy / 10;
+        let miner_reward = subsidy - treasury_reward;
+        
+        let mut coinbase_outputs = vec![TxOut {
+            value: miner_reward,
+            script_pubkey: payout_script.clone(),
+        }];
+        
+        if treasury_reward > 0 {
+            coinbase_outputs.push(TxOut {
+                value: treasury_reward,
+                script_pubkey: bitquan_types::genesis::TREASURY_PAYOUT_SCRIPT_BYTES.to_vec(),
+            });
+        }
+
         let coinbase = Transaction {
             version: 2,
             network,
             genesis_hash: GENESIS_HASH_BYTES,
             lock_time: 0,
             inputs: vec![coinbase_in],
-            outputs: vec![TxOut {
-                value: subsidy,
-                script_pubkey: payout_script.clone(),
-            }],
+            outputs: coinbase_outputs,
             witnesses: vec![],
             sig_algo: SigAlgorithm::Dilithium5,
         };
@@ -1021,8 +1051,14 @@ pub fn mine_continuous(options: MiningOptions) -> Result<()> {
                     // Only allow mock if bits are very easy (for testing only)
                     header.bits >= DEVNET_MAX_BITS
                 } else {
-                    check_header_pow(&header)
-                        .map_err(|e| Error::Invalid(format!("pow verification failed: {e}")))?
+                    check_header_pow(
+                        &header,
+                        height,
+                        &params.pow_set,
+                        &GENESIS_HASH_BYTES,
+                    )
+                    .map(|_| true)
+                    .map_err(|e| Error::Invalid(format!("pow verification failed: {e}")))?
                 };
 
                 // Update progress display every 100ms

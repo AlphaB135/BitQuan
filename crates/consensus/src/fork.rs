@@ -323,7 +323,7 @@ impl ForkChoice {
             .ok_or(ForkError::OrphanBlock(parent_hash))?;
 
         // Calculate height and work
-        let height = parent.height + 1;
+        let height = parent.height.saturating_add(1);
         let parent_work = parent.chain_work;
 
         let block_work = BlockNode::calculate_work_for_bits(header.bits);

@@ -58,7 +58,7 @@ impl BurstGuardState {
         }
         if let Some(last) = self.last_trigger_height {
             let cooldown = params.difficulty.burst_guard_cooldown_blocks;
-            if height > last + cooldown {
+            if height > last.saturating_add(cooldown) {
                 self.reset();
             }
         }
@@ -934,18 +934,18 @@ mod tests {
     fn test_half_life_regtest_instant() {
         let regtest = DifficultyParams::regtest();
         assert_eq!(
-            regtest.difficulty_half_life, 600,
-            "Regtest half_life should be 600s (10 minutes) for instant adjustment"
+            regtest.difficulty_half_life, 120,
+            "Regtest half_life should be 120s (2 minutes) for instant adjustment"
         );
     }
 
     #[test]
-    fn test_phase3_defaults_uses_testnet() {
+    fn test_phase3_defaults_uses_mainnet() {
         let defaults = DifficultyParams::phase3_defaults();
-        let testnet = DifficultyParams::testnet();
+        let mainnet = DifficultyParams::mainnet();
         assert_eq!(
-            defaults.difficulty_half_life, testnet.difficulty_half_life,
-            "phase3_defaults should use testnet half_life for backward compatibility"
+            defaults.difficulty_half_life, mainnet.difficulty_half_life,
+            "phase3_defaults should use mainnet half_life for production"
         );
     }
 }

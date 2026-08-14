@@ -883,6 +883,10 @@ impl HeadersFirstSync {
 
     /// Store downloaded block for later connection.
     pub fn store_downloaded_block(&mut self, height: u64, block: bitquan_types::Block) {
+        if self.downloaded_blocks.len() >= 50 {
+            log::warn!("Sync backpressure: max downloaded blocks reached (50), dropping block at height {}", height);
+            return;
+        }
         self.downloaded_blocks.insert(height, block);
     }
 

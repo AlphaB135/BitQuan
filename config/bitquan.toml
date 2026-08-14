@@ -1,61 +1,7 @@
-# BitQuan Default Configuration
-# Network: testnet (default)
-
-[network]
-id = "testnet"
-genesis_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+id = "regtest"
+db_path = "./data/regtest"
 p2p_port = 18444
-rpc_port = 18332
-
-bootstrap_nodes = [
-    "seed1.bitquan.network:18444",
-    "seed2.bitquan.network:18444",
-    "149.56.132.54:18444"
-]
-
-difficulty_bits = "0x1d00ffff"
-block_interval_seconds = 600
-
-[consensus]
-asert_half_life = 172800
-burst_guard_enabled = true
-burst_guard_threshold = 1.5
-max_block_weight = 4000000
-hybrid_pow_activation_height = 10000
-allowed_algos = ["sha256d", "randomx", "ethash"]
-
-[mempool]
-max_size_bytes = 314572800
-min_relay_fee_per_wu = 1
-max_tx_size = 100000
-
-[rpc]
-bind = "0.0.0.0:18332"
-auth_enabled = false
-
-[mining]
-coinbase_maturity = 100
-initial_block_reward = 5000000000
-halving_interval = 210000
-
-[wallet]
-keystore_kdf_mem_kib = 65536
-keystore_kdf_time_cost = 3
-keystore_kdf_parallelism = 2
-
-[logging]
-level = "info"
-log_file = "data/testnet/node.log"
-max_log_size_mb = 100
-max_log_files = 10
-
-[storage]
-db_path = "data/testnet/chainstate"
-cache_size_mb = 512
-
-[network.limits]
-max_inbound_peers = 125
-max_outbound_peers = 8
-max_message_size = 33554432
-max_upload_bytes_per_sec = 2097152
-max_download_bytes_per_sec = 10485760
+rpc_bind = "127.0.0.1:18332"
+rpc_username = "admin"
+rpc_password = "password123"
+allow_insecure = true

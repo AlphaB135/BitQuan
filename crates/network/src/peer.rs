@@ -1175,6 +1175,12 @@ impl PeerManager {
         // the same peer between the check and the push.
         // Re-acquire the lock (it was dropped before the handshake await)
         let mut peers = self.lock_peers().await;
+
+        // SECURITY FIX (TOCTOU): Re-check max peers after async handshake
+        if peers.len() >= self.max_peers {
+            return Err(P2pError::ConnectionError("max peers reached during handshake".into()));
+        }
+
         if peers
             .iter()
             .any(|p| p.remote_public_key == remote_public_key)

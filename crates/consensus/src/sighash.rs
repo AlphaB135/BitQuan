@@ -126,13 +126,13 @@ mod tests {
     }
 
     #[test]
-    fn digest_changes_with_witness() {
+    fn digest_ignores_witness() {
         let mut tx = tx_for_network(NetworkId::Devnet);
         let ctx = ctx_for_network(NetworkId::Devnet);
         let original = transaction_sighash(&tx, &ctx).expect("Failed to compute original sighash");
         tx.witnesses[0].signatures[0].signature[0] ^= 0xFF;
         let mutated = transaction_sighash(&tx, &ctx).expect("Failed to compute mutated sighash");
-        assert_ne!(original, mutated);
+        assert_eq!(original, mutated, "Sighash must not include witness data to avoid circular dependency");
     }
 
     #[test]

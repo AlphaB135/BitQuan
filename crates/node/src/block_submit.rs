@@ -88,7 +88,12 @@ impl BlockSubmitter {
     pub async fn submit(&self, block: &Block, miner_id: Option<&str>) -> Result<SubmitResult> {
         // 1. Validate header PoW locally (skip in mock mode for testing)
         if !self.mock_mode {
-            let pow_valid = check_header_pow(&block.header).map_err(|e| {
+            let pow_valid = check_header_pow(
+                &block.header,
+                0, // height: unknown at submit time, use 0 (PoW check is height-agnostic for basic validation)
+                &bitquan_consensus::ConsensusParams::phase3_defaults().pow_set,
+                &bitquan_types::genesis::GENESIS_HASH_BYTES,
+            ).map_err(|e| {
                 bitquan_types::Error::Invalid(format!("PoW validation failed: {}", e))
             })?;
 

@@ -892,11 +892,11 @@ async fn handle_connection<T: methods::RpcMethods>(
             }
 
             // Miner-level: mining work and pool stats for own miner
-            "getwork" | "submitwork" | "getblocktemplate" | "getminerstats" => is_miner,
+            "getwork" | "submitwork" | "getblocktemplate" | "getminerstats" | "submittransaction" => is_miner,
 
             // Read-only: public chain and network information
             "getblockcount" | "getblockchaininfo" | "getmininginfo" | "gettransaction"
-            | "submittransaction" | "getbestblockhash" | "getblockhash" | "getpoolstats"
+            | "getbestblockhash" | "getblockhash" | "getpoolstats"
             | "getnetworkstatus" | "sync" => is_readonly,
 
             // Unknown method — deny. Do not expose undocumented endpoints.
@@ -1325,6 +1325,10 @@ fn verify_jwt_token(
 
     // Verify token signature and expiration
     let claims = jwt.verify_token(token)?;
+
+    if claims.is_refresh_token() {
+        return Err("Refresh tokens cannot be used for RPC authentication".to_string());
+    }
 
     // Check token freshness (iat claim)
     let now = chrono::Utc::now().timestamp();
