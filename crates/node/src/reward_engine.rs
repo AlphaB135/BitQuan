@@ -353,20 +353,14 @@ impl RewardEngine {
     }
 
     /// Calculate total transaction fees in block.
-    /// Note: Full UTXO integration requires blockchain state access.
+    ///
+    /// Proper fee = sum(inputs) - sum(outputs) per non-coinbase tx,
+    /// which requires UTXO set access (not available here).
+    /// Approximation: 1000 qbits per non-coinbase transaction.
+    /// TODO: integrate UTXO set access for accurate fee calculation.
     fn calculate_fees(&self, block: &Block) -> u128 {
-        let mut total_out = 0u128;
-
-        for tx in &block.transactions {
-            // Sum outputs
-            for output in &tx.outputs {
-                total_out = total_out.saturating_add(output.value);
-            }
-        }
-
-        // For now, estimate fees based on transaction count
-        // In production, this would use UTXO set to calculate inputs
-        block.transactions.len() as u128 * 1000 // 1000 qbits per tx
+        let non_coinbase_count = block.transactions.len().saturating_sub(1); // skip coinbase (index 0)
+        non_coinbase_count as u128 * 1000
     }
 
     /// Credit reward to miner account.
