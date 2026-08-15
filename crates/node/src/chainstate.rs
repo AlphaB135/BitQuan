@@ -268,23 +268,13 @@ impl ChainState {
         // Step 1: Find the first locator that exists in our chain
         let mut start_height = 0u64;
 
+        // Each locator hash requires at most one DB round-trip.
+        // Do NOT add an O(height) inner scan here — at 2000 locators × 500k height
+        // that is 1 billion queries per GetHeaders message (single-message DoS).
         for locator in locators {
-            // Check if this locator hash exists in our chain
-            if let Ok(Some(_block)) = store.get_block(locator).await {
-                // Found! Now we need to find the height of this block
-                let chain_height = store.height().await?;
-
-                // Search for the block height by iterating
-                for h in 0..=chain_height {
-                    if let Ok(Some(block)) = store.get_block_by_height(h).await {
-                        let block_hash = pow::header_hash(&block.header);
-                        if block_hash == *locator {
-                            start_height = h + 1; // Start AFTER this block
-                            break;
-                        }
-                    }
-                }
-                break; // Found first match, stop searching
+            if let Ok(Some(h)) = store.get_height_by_hash(locator).await {
+                start_height = h + 1; // Start AFTER the matching block
+                break;
             }
         }
 

@@ -189,6 +189,12 @@ pub trait ChainStore {
     fn tip(&self) -> Result<Option<BlockHeader>, StorageError>;
     /// Get block by height
     fn get_block_by_height(&self, height: u64) -> Result<Option<Block>, StorageError>;
+    /// Get the height of a block given its hash.
+    ///
+    /// Returns `Ok(Some(height))` if the hash is known, `Ok(None)` if it is
+    /// not part of this chain.  Implementations must answer in O(1) — do NOT
+    /// perform a full-chain scan here.
+    fn get_height_by_hash(&self, hash: &[u8; 32]) -> Result<Option<u64>, StorageError>;
     /// Get transaction by txid
     fn get_transaction(&self, txid: &[u8; 32]) -> Result<Option<Transaction>, StorageError>;
     /// Store UTXO entry
@@ -203,6 +209,9 @@ pub trait ChainStore {
 pub struct InMemoryChainStore {
     blocks: HashMap<[u8; 32], Block>,
     by_height: Vec<Block>, // Track blocks by height for IBD
+    /// Reverse index: block hash → height (0-indexed).  Maintained in sync
+    /// with `by_height` so that `get_height_by_hash` is O(1).
+    hash_to_height: HashMap<[u8; 32], u64>,
     tip: Option<BlockHeader>,
     times: Vec<u32>,
     height: u64,
@@ -216,6 +225,7 @@ impl InMemoryChainStore {
         Self {
             blocks: HashMap::new(),
             by_height: Vec::new(),
+            hash_to_height: HashMap::new(),
             tip: None,
             times: Vec::new(),
             height: 0,
@@ -247,6 +257,9 @@ impl ChainStore for InMemoryChainStore {
         }
 
         // Store by hash and by height
+        // height was already incremented above; 0-indexed block height = height - 1
+        let block_height = self.height - 1;
+        self.hash_to_height.insert(id, block_height);
         self.blocks.insert(id, block.clone());
         self.by_height.push(block);
 
@@ -266,6 +279,7 @@ impl ChainStore for InMemoryChainStore {
         }
 
         // Remove block and transactions
+        self.hash_to_height.remove(&id);
         self.blocks.remove(&id);
         if let Some(popped) = self.by_height.pop() {
             for tx in &popped.transactions {
@@ -304,6 +318,10 @@ impl ChainStore for InMemoryChainStore {
         } else {
             Ok(None)
         }
+    }
+
+    fn get_height_by_hash(&self, hash: &[u8; 32]) -> Result<Option<u64>, StorageError> {
+        Ok(self.hash_to_height.get(hash).copied())
     }
 
     fn get_transaction(&self, txid: &[u8; 32]) -> Result<Option<Transaction>, StorageError> {

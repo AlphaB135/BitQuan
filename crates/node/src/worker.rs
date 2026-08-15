@@ -1838,6 +1838,13 @@ mod tests {
             Ok(None)
         }
 
+        async fn get_height_by_hash(
+            &self,
+            _hash: &[u8; 32],
+        ) -> std::result::Result<Option<u64>, AsyncStoreError> {
+            Ok(None)
+        }
+
         async fn get_block_by_height(
             &self,
             _height: u64,

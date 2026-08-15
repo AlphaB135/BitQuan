@@ -96,6 +96,20 @@ pub trait AsyncChainStore: Send + Sync {
         height: u64,
     ) -> std::result::Result<Option<Block>, AsyncStoreError>;
 
+    /// Get the height of a block given its hash.
+    ///
+    /// Returns `Ok(Some(height))` when the hash is part of this chain.
+    /// Returns `Ok(None)` when the hash is unknown.
+    ///
+    /// # Complexity
+    /// Implementations MUST be O(1) — do NOT perform a full-chain scan.
+    /// This is called once per locator in GetHeaders processing; an O(height)
+    /// implementation here is a single-message DoS vector.
+    async fn get_height_by_hash(
+        &self,
+        hash: &[u8; 32],
+    ) -> std::result::Result<Option<u64>, AsyncStoreError>;
+
     /// Get a transaction by its ID
     async fn get_transaction(
         &self,
@@ -166,6 +180,23 @@ impl<T: ChainStore + Send + Sync + 'static> AsyncChainStore for AsyncStoreWrappe
                 .lock()
                 .map_err(|_| AsyncStoreError::Poisoned("get_block operation"))?;
             guard.get_block(&hash)
+        })
+        .await
+        .map_err(AsyncStoreError::TaskSpawn)??)
+    }
+
+    async fn get_height_by_hash(
+        &self,
+        hash: &[u8; 32],
+    ) -> std::result::Result<Option<u64>, AsyncStoreError> {
+        let store = Arc::clone(&self.inner);
+        let hash = *hash;
+
+        Ok(tokio::task::spawn_blocking(move || {
+            let guard = store
+                .lock()
+                .map_err(|_| AsyncStoreError::Poisoned("get_height_by_hash operation"))?;
+            guard.get_height_by_hash(&hash)
         })
         .await
         .map_err(AsyncStoreError::TaskSpawn)??)

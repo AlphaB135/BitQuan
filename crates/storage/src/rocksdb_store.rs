@@ -40,6 +40,10 @@ pub struct StoredUtxoEntry {
 const CF_BLOCKS: &str = "blocks";
 const CF_HEADERS: &str = "headers";
 const CF_HEIGHT_INDEX: &str = "height_index";
+/// Reverse index: block_hash[32] → height_le[8].
+/// Maintained alongside CF_HEIGHT_INDEX so that get_height_by_hash is O(1)
+/// and find_headers_after_async never needs an O(chain_height) inner scan.
+const CF_HASH_HEIGHT: &str = "hash_height";
 const CF_TX_INDEX: &str = "tx_index";
 const CF_UTXO: &str = "utxo";
 const CF_META: &str = "meta";
@@ -410,6 +414,7 @@ impl RocksDBStore {
             CF_BLOCKS,
             CF_HEADERS,
             CF_HEIGHT_INDEX,
+            CF_HASH_HEIGHT,
             CF_TX_INDEX,
             CF_UTXO,
             CF_META,
@@ -1208,6 +1213,10 @@ impl ChainStore for RocksDBStore {
             .db
             .cf_handle(CF_HEIGHT_INDEX)
             .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
+        let cf_hash_height = self
+            .db
+            .cf_handle(CF_HASH_HEIGHT)
+            .ok_or_else(|| StorageError::DatabaseError("hash_height CF not found".into()))?;
         let cf_tx = self
             .db
             .cf_handle(CF_TX_INDEX)
@@ -1232,7 +1241,11 @@ impl ChainStore for RocksDBStore {
         batch.put_cf(&cf_headers, block_id, &header_bytes);
 
         // Index by height (BUG FIX: blocks are 0-indexed, height starts at 0)
-        batch.put_cf(&cf_height, (height - 1).to_le_bytes(), block_id);
+        let block_height = height - 1;
+        batch.put_cf(&cf_height, block_height.to_le_bytes(), block_id);
+        // Reverse index: hash → height for O(1) lookup in get_height_by_hash.
+        // This eliminates the O(chain_height) inner scan in find_headers_after_async.
+        batch.put_cf(&cf_hash_height, block_id, block_height.to_le_bytes());
 
         // Index transactions
         for tx in &block.transactions {
@@ -1343,6 +1356,10 @@ impl ChainStore for RocksDBStore {
             .db
             .cf_handle(CF_HEIGHT_INDEX)
             .ok_or_else(|| StorageError::DatabaseError("height_index CF not found".into()))?;
+        let cf_hash_height = self
+            .db
+            .cf_handle(CF_HASH_HEIGHT)
+            .ok_or_else(|| StorageError::DatabaseError("hash_height CF not found".into()))?;
         let cf_tx = self
             .db
             .cf_handle(CF_TX_INDEX)
@@ -1417,6 +1434,8 @@ impl ChainStore for RocksDBStore {
         if current_height > 0 {
             batch.delete_cf(&cf_height, (current_height - 1).to_le_bytes());
         }
+        // Remove the reverse hash→height entry so get_height_by_hash no longer returns stale data
+        batch.delete_cf(&cf_hash_height, block_id);
         // Delete transaction index entries for all transactions in this block
         for tx in &block.transactions {
             let txid = tx.txid();
@@ -1476,6 +1495,25 @@ impl ChainStore for RocksDBStore {
                 self.get_block(&block_id)
             }
             None => Ok(None),
+        }
+    }
+
+    fn get_height_by_hash(&self, hash: &[u8; 32]) -> Result<Option<u64>, StorageError> {
+        let cf = self
+            .db
+            .cf_handle(CF_HASH_HEIGHT)
+            .ok_or_else(|| StorageError::DatabaseError("hash_height CF not found".into()))?;
+
+        match self
+            .db
+            .get_cf(&cf, hash)
+            .map_err(|e| StorageError::DatabaseError(e.to_string()))?
+        {
+            Some(bytes) if bytes.len() == 8 => {
+                let height = u64::from_le_bytes(bytes[..8].try_into().unwrap());
+                Ok(Some(height))
+            }
+            _ => Ok(None),
         }
     }
 
