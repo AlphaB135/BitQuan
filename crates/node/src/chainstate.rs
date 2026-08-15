@@ -123,14 +123,16 @@ impl ChainState {
             )));
         }
 
-        // Increment height
-        let new_height = self.height.fetch_add(1, Ordering::SeqCst) + 1;
-
-        // Update tip hash
+        // Update tip hash FIRST, then increment height.
+        // This ensures readers never see (height=N, tip=N-1):
+        // they see either (height=N-1, tip=N-1) or (height=N, tip=N).
         *self
             .tip_hash
             .lock()
             .map_err(|_| bitquan_types::Error::Invalid("lock poisoned".into()))? = block_hash;
+
+        // Increment height — now consistent with the tip we just set
+        let new_height = self.height.fetch_add(1, Ordering::SeqCst) + 1;
 
         // Add to history with rolling cache (remove oldest if at capacity)
         let mut history = self
