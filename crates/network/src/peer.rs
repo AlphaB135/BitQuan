@@ -1191,6 +1191,20 @@ impl PeerManager {
             )));
         }
 
+        // TOCTOU fix: re-check subnet diversity after handshake completes,
+        // under the same lock that will protect the push.
+        if self.eclipse_config.enforce_subnet_diversity {
+            if let Some(subnet) = Self::get_subnet_24(&addr) {
+                let count = self.count_peers_in_subnet(&peers, subnet);
+                if count >= self.eclipse_config.max_peers_per_subnet && !self.is_anchor(&addr) {
+                    return Err(P2pError::ConnectionError(format!(
+                        "too many peers from same subnet after handshake: {} (max: {})",
+                        count, self.eclipse_config.max_peers_per_subnet
+                    )));
+                }
+            }
+        }
+
         // Convert TokioTcpStream to std TcpStream for NoiseTransport compatibility
         let std_stream = tokio_stream
             .into_std()
