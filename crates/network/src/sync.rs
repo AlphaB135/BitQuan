@@ -873,12 +873,20 @@ impl HeadersFirstSync {
     }
 
     /// Store downloaded block for later connection.
-    pub fn store_downloaded_block(&mut self, height: u64, block: bitquan_types::Block) {
+    ///
+    /// Returns `Err` when the queue is full so callers can re-queue the block
+    /// for re-download instead of silently dropping it.  Dropping a block at
+    /// height N causes `connect_ready_blocks` to stall at N-1 forever because
+    /// it iterates sequentially.
+    pub fn store_downloaded_block(&mut self, height: u64, block: bitquan_types::Block) -> std::result::Result<(), String> {
         if self.downloaded_blocks.len() >= 50 {
-            log::warn!("Sync backpressure: max downloaded blocks reached (50), dropping block at height {}", height);
-            return;
+            return Err(format!(
+                "sync backpressure: downloaded block queue full (50), cannot store block at height {}",
+                height
+            ));
         }
         self.downloaded_blocks.insert(height, block);
+        Ok(())
     }
 
     /// Connect downloaded blocks in order.
