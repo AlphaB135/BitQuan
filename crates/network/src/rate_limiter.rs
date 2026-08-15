@@ -270,9 +270,8 @@ impl RateLimiter {
     }
 
     /// Remove peer from rate limiter (when disconnected)
-    pub fn remove_peer(&mut self, _peer_id: &PeerId) {
-        // Do not remove the peer to keep tracking their rate limiting violations
-        // self.peer_counters.remove(_peer_id);
+    pub fn remove_peer(&mut self, peer_id: &PeerId) {
+        self.peer_counters.remove(peer_id);
     }
 
     /// Get peer's current violation count
