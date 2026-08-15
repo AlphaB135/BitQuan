@@ -540,8 +540,8 @@ pub fn wallet_gen_mnemonic(
         }
     };
 
-    if password_value.is_empty() {
-        return invalid("Password cannot be empty");
+    if password_value.len() < 8 {
+        return invalid("Password must be at least 8 characters");
     }
 
     // Serialize keypair with encrypted secret key
@@ -606,8 +606,8 @@ pub fn wallet_from_mnemonic(
         }
     };
 
-    if password_value.is_empty() {
-        return invalid("Password cannot be empty");
+    if password_value.len() < 8 {
+        return invalid("Password must be at least 8 characters");
     }
 
     // Serialize keypair with encrypted secret key
