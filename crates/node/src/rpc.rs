@@ -712,16 +712,36 @@ impl RpcMethods for NodeRpcHandler {
                 witnesses: vec![],
             };
 
-            // Calculate merkle root (just coinbase txid for now)
-            let txid = coinbase_tx.txid();
-            let mut merkle_root = [0u8; 32];
-            merkle_root.copy_from_slice(&txid);
+            // FIX CHAIN-007: Fetch mempool transactions BEFORE building the header so
+            // the merkle root covers all transactions in the block.  Previously the
+            // header was mined with merkle_root = coinbase-txid-only, then mempool txs
+            // were added and the root was mutated after mining — invalidating the PoW.
 
-            // Create block header template
+            // Step 1: assemble the full transaction list
+            let mut transactions = vec![coinbase_tx];
+            if let Some(mempool) = &self.mempool {
+                let mut mp = mempool.lock().await;
+                // Select transactions up to 4M weight units (standard block weight)
+                let selected = mp.select_for_block(4_000_000);
+                if !selected.is_empty() {
+                    log::info!("Mining block with {} mempool transactions", selected.len());
+                    transactions.extend(selected.into_iter().map(|arc_tx| {
+                        std::sync::Arc::try_unwrap(arc_tx).unwrap_or_else(|arc| (*arc).clone())
+                    }));
+                }
+            } else {
+                log::info!("Warning: No mempool available for mining");
+            }
+
+            // Step 2: calculate merkle root from ALL transactions before mining
+            let merkle_root = bitquan_consensus::calculate_merkle_root(&transactions)
+                .map_err(|e| RpcError::InternalError(format!("merkle root: {}", e)))?;
+
+            // Step 3: build header with the correct merkle root
             let mut header = BlockHeader {
                 version: bitquan_types::GENESIS_VERSION,
                 prev_block: prev_hash,
-                merkle_root,
+                merkle_root, // ← covers coinbase + all mempool txs
                 pqc_agg_hint: [0u8; 32],
                 uncles_hash: [0u8; 32],
                 time: std::time::SystemTime::now()
@@ -733,7 +753,7 @@ impl RpcMethods for NodeRpcHandler {
                 algo_id: 0, // SHA256d
             };
 
-            // Mine the block using simple SHA256d PoW
+            // Step 4: mine the block — header and transaction set are now consistent
             let engine = Sha256dEngine;
             // Use higher limit for regtest/devnet (easy difficulty still needs many attempts)
             let max_nonce = if self.chain_name == "regtest" || self.chain_name == "devnet" {
@@ -760,29 +780,7 @@ impl RpcMethods for NodeRpcHandler {
                 )));
             }
 
-            // Fetch pending transactions from mempool (if available)
-            let mut transactions = vec![coinbase_tx];
-
-            if let Some(mempool) = &self.mempool {
-                let mut mp = mempool.lock().await;
-                // Select transactions up to 4M weight units (standard block weight)
-                let selected = mp.select_for_block(4_000_000);
-                if !selected.is_empty() {
-                    log::info!("Mining block with {} mempool transactions", selected.len());
-                    transactions.extend(selected.into_iter().map(|arc_tx| {
-                        std::sync::Arc::try_unwrap(arc_tx).unwrap_or_else(|arc| (*arc).clone())
-                    }));
-                }
-            } else {
-                log::info!("Warning: No mempool available for mining");
-            }
-
-            // Recalculate merkle root including all transactions
-            let merkle_root = bitquan_consensus::calculate_merkle_root(&transactions)
-                .map_err(|e| RpcError::InternalError(format!("merkle root: {}", e)))?;
-            header.merkle_root = merkle_root;
-
-            // Create full block
+            // Step 5: build block — no merkle_root mutation required after mining
             let block = Block {
                 header: header.clone(),
                 uncles: vec![],
