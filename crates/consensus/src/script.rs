@@ -138,7 +138,9 @@ impl ScriptInterpreter {
     /// Preserves the stack state left by the previous script.
     pub fn execute_continue(&mut self, script: &[u8], message: &[u8]) -> Result<bool, ScriptError> {
         // Do NOT clear the stack — scriptSig values must be visible to scriptPubKey
-        self.op_count = 0;
+        // Do NOT reset op_count — the combined scriptSig+scriptPubKey budget is MAX_OPS total.
+        // Resetting here would give scriptPubKey a fresh quota, doubling the effective limit
+        // to 402 ops per input and enabling CPU-exhaustion DoS via crafted transactions.
         self.execute_inner(script, message)
     }
 
