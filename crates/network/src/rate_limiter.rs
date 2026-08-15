@@ -158,6 +158,9 @@ impl MessageCounter {
         self.count = 0;
         self.window_start = Instant::now();
         self.type_counters.clear();
+        // Decay violations on each window reset: sustained abuse stays high,
+        // but occasional bursts by legitimate peers decay over time.
+        self.violations /= 2;
     }
 
     fn check_message_type_limit(&mut self, msg_type: MessageType, limit: u32) -> bool {
