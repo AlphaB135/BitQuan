@@ -322,6 +322,12 @@ pub async fn async_noise_handshake_responder(
 
 /// Sends a length-prefixed handshake message asynchronously.
 async fn send_handshake_msg_async(stream: &mut TokioTcpStream, msg: &[u8]) -> io::Result<()> {
+    if msg.len() > u16::MAX as usize {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("handshake message too large: {} bytes (max {})", msg.len(), u16::MAX),
+        ));
+    }
     let len = (msg.len() as u16).to_be_bytes();
     stream.write_all(&len).await?;
     stream.write_all(msg).await?;
