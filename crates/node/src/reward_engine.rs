@@ -73,6 +73,14 @@ impl PoolDatabase {
             .map_err(|_| Error::Invalid("CRITICAL: Lock poisoned".into()))?;
         // -- Linus Phase 2: Wrap in Arc. Clone happens ONCE here, never again.
         data.blocks.push(Arc::new(block.clone()));
+        // Cap the Vec to prevent unbounded growth (CHAIN-015).
+        // Blocks older than (MATURITY * 2) can never affect pending reward
+        // settlements, so they are safe to evict.
+        const MAX_BLOCKS_RETAINED: usize = MATURITY as usize * 2 + 1;
+        if data.blocks.len() > MAX_BLOCKS_RETAINED {
+            let excess = data.blocks.len() - MAX_BLOCKS_RETAINED;
+            data.blocks.drain(..excess);
+        }
         Ok(())
     }
 
@@ -275,6 +283,9 @@ const QBITS_PER_BQ: u128 = 1_000_000_000_000_000_000;
 /// Halving interval (blocks).
 const HALVING_INTERVAL: u64 = 210_000;
 
+/// Block maturity threshold (confirmations required before reward is spendable).
+const MATURITY: u64 = 100;
+
 /// Reward rate scale (10000 = 100.00%).
 const REWARD_RATE_SCALE: u128 = 10000;
 
@@ -310,7 +321,7 @@ impl RewardEngine {
         Self {
             db,
             reward_rate: 10000, // 100.00% scaled
-            maturity: 100,
+            maturity: MATURITY,
             total_distributed: Arc::new(AtomicU64::new((total / QBITS_PER_BQ) as u64)),
         }
     }
