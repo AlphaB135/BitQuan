@@ -764,18 +764,9 @@ impl HeadersFirstSync {
         Ok(true)
     }
 
-    /// Compute header hash (simplified - should use actual hashing).
+    /// Compute header hash using SHA-256d (same algorithm used for block identity everywhere).
     fn compute_header_hash(&self, header: &BlockHeader) -> [u8; 32] {
-        // In production, this would use the actual block hashing algorithm
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        header.time.hash(&mut hasher);
-        header.bits.hash(&mut hasher);
-        header.nonce.hash(&mut hasher);
-        let hash = hasher.finish();
-        let mut result = [0u8; 32];
-        result[..8].copy_from_slice(&hash.to_le_bytes());
-        result
+        bitquan_consensus::header_hash(header)
     }
 
     /// Find checkpoint at given height.
