@@ -269,16 +269,20 @@ impl Mempool {
             new_outpoints.push(outpoint);
         }
 
-        for outpoint in new_outpoints {
-            self.spent_outpoints.insert(outpoint);
-        }
-
-        // Check if adding this transaction would exceed size limit (with overflow protection)
+        // FIX (vuln-chain #016): Perform size check and eviction BEFORE committing
+        // outpoints. Previously outpoints were inserted first — if eviction then
+        // failed the UTXO was permanently locked for the session even though the
+        // transaction never entered the mempool (UTXO DoS via bug-chain A+B+C).
         let new_size = checked!(self.size_bytes.checked_add(tx_size), "size_bytes addition")?;
 
         if new_size > self.max_size_bytes {
             // Try to evict low fee transactions
             self.evict_low_fee_txs(tx_size, entry.fee_per_weight)?;
+        }
+
+        // Only commit outpoints after all fallible operations succeed
+        for outpoint in new_outpoints {
+            self.spent_outpoints.insert(outpoint);
         }
 
         self.size_bytes = checked!(self.size_bytes.checked_add(tx_size), "size_bytes update")?;
