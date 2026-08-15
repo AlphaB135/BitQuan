@@ -291,23 +291,19 @@ impl RpcMethods for NodeRpcHandler {
         let block_bytes = Vec::from_hex(&block_hex)
             .map_err(|_| RpcError::InvalidParams("block must be hex-encoded".into()))?;
 
-        // Parse block (simplified - would use actual deserialization)
-        let _block: bitquan_types::Block = bitquan_storage::serialize::from_bytes(&block_bytes)
+        let block: bitquan_types::Block = bitquan_storage::serialize::from_bytes(&block_bytes)
             .map_err(|e| RpcError::InvalidParams(format!("failed to parse block: {}", e)))?;
 
-        // Validate block
-        // 1. Check proof-of-work
-        // 2. Check timestamp (MTP)
-        // 3. Check difficulty
-        // 4. Check transactions
+        log::info!("Received block submission via RPC, height unknown");
 
-        // For now, just log and return success
-        log::info!("Received block submission via RPC");
-
-        // In production, would:
-        // 1. Validate PoW
-        // 2. Connect block to chain
-        // 3. Broadcast to peers
+        // Store the block. insert_block performs basic integrity checks.
+        // TODO: Full PoW/consensus validation (timestamp, difficulty, tx validity)
+        // requires ConsensusEngine integration — that is a larger refactor.
+        // TODO: Broadcast accepted block to peers.
+        self.store
+            .insert_block(block)
+            .await
+            .map_err(Self::storage_error_to_rpc)?;
 
         Ok(true)
     }
