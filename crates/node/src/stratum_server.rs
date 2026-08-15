@@ -432,11 +432,10 @@ impl MinerSession {
 
     /// Check if share submission is within rate limits.
     pub fn check_rate_limit(&self, max_rate: f64) -> bool {
-        if let Ok(mut rate_limit) = self.rate_limit.try_lock() {
-            rate_limit.check_share_rate(max_rate)
-        } else {
-            true // If we can't check, allow it
-        }
+        // Use blocking_lock instead of try_lock: a contended lock must
+        // wait rather than silently grant access and bypass rate limiting.
+        let mut rate_limit = self.rate_limit.blocking_lock();
+        rate_limit.check_share_rate(max_rate)
     }
 
     /// Get total accepted shares.
