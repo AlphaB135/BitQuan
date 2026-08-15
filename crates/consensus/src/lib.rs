@@ -844,7 +844,7 @@ fn validate_transaction_fees(
 
     // Treasury System: 10% of the block subsidy goes to the on-chain treasury
     let treasury_reward = block_subsidy / 10;
-    let miner_subsidy = block_subsidy.checked_sub(treasury_reward).unwrap_or(0);
+    let miner_subsidy = block_subsidy.saturating_sub(treasury_reward);
 
     // Strict validation: Coinbase <= MinerSubsidy + Fees + TreasuryReward
     let max_miner_allowed = miner_subsidy
@@ -1063,6 +1063,7 @@ impl ConsensusEngine {
     /// from the UTXO set for this block. Passing incorrect fees may allow a miner
     /// to claim inflated coinbase rewards. If fees are unavailable, use
     /// `validate_block_with_fees()` after computing them from the UTXO set.
+    #[allow(clippy::too_many_arguments)]
     pub fn validate_block(
         &mut self,
         block: &Block,

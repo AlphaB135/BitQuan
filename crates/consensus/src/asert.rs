@@ -204,7 +204,11 @@ fn calculate_asert_exponent_fp(time_delta: i64, expected_time: i64, half_life: u
     let time_diff_fp = (time_diff as i128) << 32;
     let half_life_fp = half_life as i128;
 
-    ((time_diff_fp + half_life_fp / 2) / half_life_fp) as i64
+    let result_i128 = (time_diff_fp + half_life_fp / 2) / half_life_fp;
+
+    // Clamp to i64 range to prevent wrap-around on extreme values
+    // Defense in depth: fp_pow2 already clamps, but better to prevent overflow early
+    result_i128.clamp(i64::MIN as i128, i64::MAX as i128) as i64
 }
 
 /// Calculate next ASERT target using pure integer arithmetic.
@@ -219,6 +223,14 @@ pub fn asert_next_target(
     guard: Option<GuardContext<'_>>,
 ) -> [u8; 32] {
     use primitive_types::U256;
+
+    // Validate parameters in debug builds to catch configuration errors early.
+    // In release builds, this is compiled out (zero runtime cost).
+    debug_assert!(
+        params.difficulty.difficulty_half_life > 0,
+        "difficulty_half_life must be positive, got {}",
+        params.difficulty.difficulty_half_life
+    );
 
     let max_target_bytes = compact_to_target(DEVNET_MAX_BITS);
     let max_u256 = U256::from_big_endian(&max_target_bytes);
@@ -261,7 +273,7 @@ pub fn asert_next_target(
             next_target
         }
     } else {
-        let exp_fp = fp_pow2((-exponent_fp) as u64);
+        let exp_fp = fp_pow2(exponent_fp.unsigned_abs());
         if exp_fp == 0 {
             anchor_clamped
         } else {
@@ -946,6 +958,93 @@ mod tests {
         assert_eq!(
             defaults.difficulty_half_life, mainnet.difficulty_half_life,
             "phase3_defaults should use mainnet half_life for production"
+        );
+    }
+
+    #[test]
+    fn red_team_extreme_timestamps() {
+        let params = ConsensusParams::phase3_defaults();
+        let anchor = u64_to_target(50000);
+
+        // Test extreme positive time (should not exceed max_target)
+        let result1 = asert_next_target(anchor, 1, i64::MAX, &params, None);
+        assert!(
+            result1 <= compact_to_target(DEVNET_MAX_BITS),
+            "Extreme positive time should not exceed max_target"
+        );
+        assert!(
+            result1 > [0u8; 32],
+            "Result should never be zero"
+        );
+
+        // Test extreme negative time (should not be zero)
+        let result2 = asert_next_target(anchor, 1, i64::MIN, &params, None);
+        assert!(
+            result2 > [0u8; 32],
+            "Result should never be zero"
+        );
+        assert!(
+            result2 <= compact_to_target(DEVNET_MAX_BITS),
+            "Result should not exceed max_target"
+        );
+    }
+
+    #[test]
+    fn red_team_exponent_overflow_protection() {
+        let params = ConsensusParams::phase3_defaults();
+        let anchor = u64_to_target(50000);
+
+        // Large time delta
+        let time_delta = i64::MAX / 2;
+        let height_delta = 1;
+
+        let result = asert_next_target(anchor, height_delta, time_delta, &params, None);
+
+        assert!(
+            result <= compact_to_target(DEVNET_MAX_BITS),
+            "Large time delta should clamp to max_target, not overflow"
+        );
+    }
+
+    #[test]
+    fn red_team_zero_timestamp() {
+        let params = ConsensusParams::phase3_defaults();
+        let anchor = u64_to_target(50000);
+
+        // Timestamp = 0 (extreme case, though blocked by consensus earlier)
+        let time_delta = -1000;  // Negative time delta
+        let height_delta = 10;
+
+        let result = asert_next_target(anchor, height_delta, time_delta, &params, None);
+
+        // Should handle gracefully, not panic
+        assert!(result > [0u8; 32], "Result should never be zero");
+        assert!(
+            result <= compact_to_target(DEVNET_MAX_BITS),
+            "Result should not exceed max_target"
+        );
+    }
+
+    #[test]
+    fn red_team_huge_time_delta_with_small_height() {
+        let params = ConsensusParams::phase3_defaults();
+        let anchor = u64_to_target(50000);
+
+        // Very large time delta with small height delta
+        // This creates a huge exponent: (i64::MAX - 120) / 14400
+        let time_delta = i64::MAX;
+        let height_delta = 1;  // Only 1 block, but huge time passed
+
+        let result = asert_next_target(anchor, height_delta, time_delta, &params, None);
+
+        // Should not exceed max_target (easiest difficulty)
+        assert!(
+            result <= compact_to_target(DEVNET_MAX_BITS),
+            "Huge time delta should not exceed max_target (easiest difficulty)"
+        );
+        assert!(
+            result > [0u8; 32],
+            "Result should never be zero"
         );
     }
 }
