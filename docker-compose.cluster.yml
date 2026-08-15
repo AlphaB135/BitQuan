@@ -1,4 +1,4 @@
-version: "3.8"
+version: "3.3"
 
 # BitQuan 3-Node Testnet Simulation Mesh + Faucet
 # Usage: docker compose -f docker-compose.cluster.yml up -d
