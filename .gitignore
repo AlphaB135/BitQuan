@@ -408,3 +408,8 @@ data/*/chainstate/jwt.hex
 test_wallet.json
 test-wallets/
 *.hex
+
+# Test binaries (should be rebuilt, not committed)
+integration_test_*
+test_*_fixes
+*_test_medium
