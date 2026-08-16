@@ -617,6 +617,12 @@ pub struct HeadersFirstSync {
 }
 
 impl HeadersFirstSync {
+    /// Maximum headers allowed in queue to prevent DoS
+    const MAX_HEADERS_QUEUE: usize = 2000;
+
+    /// Maximum pending blocks to prevent memory exhaustion
+    const MAX_PENDING_BLOCKS: usize = 500;
+
     /// Create a new headers-first sync manager.
     pub fn new(chain_sync: Arc<ChainSync>) -> Self {
         Self {
@@ -694,6 +700,16 @@ impl HeadersFirstSync {
     pub fn process_received_headers(&mut self, headers: Vec<BlockHeader>) -> Result<usize> {
         if headers.is_empty() {
             return Ok(0);
+        }
+
+        // NEW-003 FIX: Check capacity before processing to prevent DoS
+        if self.headers_queue.len() + headers.len() > Self::MAX_HEADERS_QUEUE {
+            return Err(bitquan_types::Error::Invalid(format!(
+                "headers queue full: {} + {} > {}",
+                self.headers_queue.len(),
+                headers.len(),
+                Self::MAX_HEADERS_QUEUE
+            )));
         }
 
         let mut processed = 0;
@@ -777,6 +793,16 @@ impl HeadersFirstSync {
     /// Queue blocks for download after headers are synced.
     pub fn queue_blocks_for_download(&mut self) {
         for (idx, header) in self.headers_queue.iter().enumerate() {
+            // NEW-004 FIX: Check capacity to prevent unbounded growth
+            if self.pending_blocks.len() >= Self::MAX_PENDING_BLOCKS {
+                log::warn!(
+                    "pending_blocks queue full: {} >= {}, stopping queue operation",
+                    self.pending_blocks.len(),
+                    Self::MAX_PENDING_BLOCKS
+                );
+                break;
+            }
+
             let height = self.persistent_state.block_height + idx as u64 + 1;
             let hash = self.compute_header_hash(header);
             self.pending_blocks.push_back((hash, height));
@@ -870,23 +896,6 @@ impl HeadersFirstSync {
         }
 
         stalled
-    }
-
-    /// Store downloaded block for later connection.
-    ///
-    /// Returns `Err` when the queue is full so callers can re-queue the block
-    /// for re-download instead of silently dropping it.  Dropping a block at
-    /// height N causes `connect_ready_blocks` to stall at N-1 forever because
-    /// it iterates sequentially.
-    pub fn store_downloaded_block(&mut self, height: u64, block: bitquan_types::Block) -> std::result::Result<(), String> {
-        if self.downloaded_blocks.len() >= 50 {
-            return Err(format!(
-                "sync backpressure: downloaded block queue full (50), cannot store block at height {}",
-                height
-            ));
-        }
-        self.downloaded_blocks.insert(height, block);
-        Ok(())
     }
 
     /// Connect downloaded blocks in order.

@@ -1103,22 +1103,23 @@ impl PeerManager {
         *h = height;
     }
 
-    /// Extract /24 subnet from IP address
-    fn get_subnet_24(addr: &SocketAddr) -> Option<[u8; 3]> {
+    /// Extract /24 subnet from IPv4 or /48 prefix from IPv6 address
+    fn get_subnet_24(addr: &SocketAddr) -> Option<String> {
         match addr.ip() {
             std::net::IpAddr::V4(ipv4) => {
                 let octets = ipv4.octets();
-                Some([octets[0], octets[1], octets[2]])
+                Some(format!("{}.{}.{}", octets[0], octets[1], octets[2]))
             }
-            std::net::IpAddr::V6(_) => {
-                // For IPv6, we'd use /64 or /48, simplified here
-                None
+            std::net::IpAddr::V6(ipv6) => {
+                // Use /48 prefix for IPv6 (first 6 bytes = 48 bits)
+                let segments = ipv6.segments();
+                Some(format!("{:x}:{:x}:{:x}", segments[0], segments[1], segments[2]))
             }
         }
     }
 
-    /// Count peers from the same /24 subnet
-    fn count_peers_in_subnet(&self, peers: &[Peer], subnet: [u8; 3]) -> usize {
+    /// Count peers from the same /24 subnet (IPv4) or /48 prefix (IPv6)
+    fn count_peers_in_subnet(&self, peers: &[Peer], subnet: String) -> usize {
         peers
             .iter()
             .filter(|p| {
@@ -1155,7 +1156,7 @@ impl PeerManager {
         // Eclipse attack mitigation: check subnet diversity
         if self.eclipse_config.enforce_subnet_diversity {
             if let Some(subnet) = Self::get_subnet_24(&addr) {
-                let count = self.count_peers_in_subnet(&peers, subnet);
+                let count = self.count_peers_in_subnet(&peers, subnet.clone());
                 if count >= self.eclipse_config.max_peers_per_subnet && !self.is_anchor(&addr) {
                     return Err(P2pError::ConnectionError(format!(
                         "too many peers from same subnet: {} (max: {})",
@@ -1201,7 +1202,7 @@ impl PeerManager {
         // under the same lock that will protect the push.
         if self.eclipse_config.enforce_subnet_diversity {
             if let Some(subnet) = Self::get_subnet_24(&addr) {
-                let count = self.count_peers_in_subnet(&peers, subnet);
+                let count = self.count_peers_in_subnet(&peers, subnet.clone());
                 if count >= self.eclipse_config.max_peers_per_subnet && !self.is_anchor(&addr) {
                     return Err(P2pError::ConnectionError(format!(
                         "too many peers from same subnet after handshake: {} (max: {})",
@@ -1251,11 +1252,25 @@ impl PeerManager {
     /// Uses tokio I/O throughout the connection and Noise handshake.
     /// Never blocks the executor.
     pub async fn connect_peer(&self, addr: SocketAddr) -> Result<(), P2pError> {
-        // Check max peers first (with short lock)
+        // Check max peers and subnet diversity first (with short lock)
         {
             let peers = self.lock_peers().await;
             if peers.len() >= self.max_peers {
                 return Err(P2pError::ConnectionError("max peers reached".into()));
+            }
+
+            // SECURITY FIX (NEW-002): Check subnet diversity for outbound connections
+            // BEFORE handshake to prevent outbound eclipse attacks
+            if self.eclipse_config.enforce_subnet_diversity {
+                if let Some(subnet) = Self::get_subnet_24(&addr) {
+                    let count = self.count_peers_in_subnet(&peers, subnet.clone());
+                    if count >= self.eclipse_config.max_peers_per_subnet && !self.is_anchor(&addr) {
+                        return Err(P2pError::ConnectionError(format!(
+                            "subnet {} has {} peers (max {})",
+                            subnet, count, self.eclipse_config.max_peers_per_subnet
+                        )));
+                    }
+                }
             }
         } // Lock dropped here
 
@@ -1324,6 +1339,13 @@ impl PeerManager {
         // separate lock acquisition, allowing a race where two connections for
         // the same peer could both pass the check.
         let mut peers = self.lock_peers().await;
+
+        // TOCTOU fix: re-check max peers after async handshake
+        if peers.len() >= self.max_peers {
+            return Err(P2pError::ConnectionError("max peers reached during handshake".into()));
+        }
+
+        // Check for duplicate peer
         if peers
             .iter()
             .any(|p| p.remote_public_key == remote_public_key)
@@ -1333,6 +1355,20 @@ impl PeerManager {
                 hex::encode(remote_public_key)
             )));
         }
+
+        // TOCTOU fix: re-check subnet diversity after handshake completes
+        if self.eclipse_config.enforce_subnet_diversity {
+            if let Some(subnet) = Self::get_subnet_24(&addr) {
+                let count = self.count_peers_in_subnet(&peers, subnet.clone());
+                if count >= self.eclipse_config.max_peers_per_subnet && !self.is_anchor(&addr) {
+                    return Err(P2pError::ConnectionError(format!(
+                        "subnet {} has {} peers after handshake (max {})",
+                        subnet, count, self.eclipse_config.max_peers_per_subnet
+                    )));
+                }
+            }
+        }
+
         peers.push(peer);
         Ok(())
     }
@@ -1422,7 +1458,7 @@ impl PeerManager {
     }
 
     /// Get subnet diversity statistics
-    pub async fn get_subnet_stats(&self) -> std::collections::HashMap<[u8; 3], usize> {
+    pub async fn get_subnet_stats(&self) -> std::collections::HashMap<String, usize> {
         let peers = self.lock_peers().await;
         let mut subnet_counts = std::collections::HashMap::new();
 

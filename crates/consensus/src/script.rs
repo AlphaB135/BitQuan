@@ -128,7 +128,7 @@ impl ScriptInterpreter {
     /// values pushed by scriptSig remain on the stack.
     pub fn execute(&mut self, script: &[u8], message: &[u8]) -> Result<bool, ScriptError> {
         self.stack.clear();
-        self.op_count = 0;
+        // Do NOT reset op_count here — preserve it across execute() calls for multi-input validation
         self.execute_inner(script, message)
     }
 

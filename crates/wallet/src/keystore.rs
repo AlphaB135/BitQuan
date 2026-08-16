@@ -111,10 +111,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc, Mutex,
-};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zeroize::Zeroize;
 
@@ -331,36 +328,18 @@ impl CacheKey {
     }
 }
 
-/// Cached derived key with timestamp
+/// Cached derived key with expiry timestamp
 struct CachedKey {
     key: SecretVec<u8>,
-    created_at: SystemTime,
-    timeout: Duration,
+    expires_at: std::time::Instant,
 }
 
 impl std::fmt::Debug for CachedKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CachedKey")
-            .field("created_at", &self.created_at)
+            .field("expires_at", &self.expires_at)
             .field("key_len", &self.key.expose_secret().len())
             .finish()
-    }
-}
-
-impl CachedKey {
-    fn new(key: SecretVec<u8>, timeout: Duration) -> Self {
-        Self {
-            key,
-            created_at: SystemTime::now(),
-            timeout,
-        }
-    }
-
-    fn is_expired(&self) -> bool {
-        match self.created_at.elapsed() {
-            Ok(elapsed) => elapsed > self.timeout,
-            Err(_) => true, // Clock went backwards - expire immediately
-        }
     }
 }
 
@@ -371,19 +350,30 @@ impl Drop for CachedKey {
     }
 }
 
+/// Cache state protected by a single lock
+#[derive(Debug)]
+struct CacheState {
+    entries: HashMap<CacheKey, CachedKey>,
+    memory_usage_bytes: usize,
+}
+
 /// Thread-safe secure key cache with automatic cleanup
 #[derive(Debug)]
 struct SecureKeyCache {
-    entries: Arc<Mutex<HashMap<CacheKey, CachedKey>>>,
-    /// Atomic counter for cache memory usage to avoid lock contention
-    memory_usage_bytes: AtomicUsize,
+    state: Arc<std::sync::RwLock<CacheState>>,
+    max_memory_bytes: usize,
 }
 
 impl SecureKeyCache {
     fn new() -> Self {
+        // Default max memory: 16 MB (reasonable for most applications)
+        const DEFAULT_MAX_MEMORY: usize = 16 * 1024 * 1024;
         Self {
-            entries: Arc::new(Mutex::new(HashMap::new())),
-            memory_usage_bytes: AtomicUsize::new(0),
+            state: Arc::new(std::sync::RwLock::new(CacheState {
+                entries: HashMap::new(),
+                memory_usage_bytes: 0,
+            })),
+            max_memory_bytes: DEFAULT_MAX_MEMORY,
         }
     }
 
@@ -394,87 +384,90 @@ impl SecureKeyCache {
 
     /// Get cached key if valid and not expired
     fn get(&self, cache_key: &CacheKey) -> Option<SecretVec<u8>> {
-        let mut entries = self.entries.lock().ok()?;
+        let state = self.state.read().ok()?;
+        let now = std::time::Instant::now();
 
-        if let Some(cached) = entries.get_mut(cache_key) {
-            if cached.is_expired() {
-                // Remove expired entry and update atomic counter
-                let memory_size = Self::entry_memory_size(cached);
-                entries.remove(cache_key);
-                self.memory_usage_bytes
-                    .fetch_sub(memory_size, Ordering::Relaxed);
-                return None;
+        if let Some(cached) = state.entries.get(cache_key) {
+            if cached.expires_at > now {
+                // Entry is still valid
+                return Some(SecretVec::new(cached.key.expose_secret().clone()));
             }
-            // Return a clone of the cached key
-            return Some(SecretVec::new(cached.key.expose_secret().clone()));
         }
         None
     }
 
     /// Store derived key in cache with timestamp
-    fn store(&self, cache_key: CacheKey, key: SecretVec<u8>, timeout: Duration) {
-        if let Ok(mut entries) = self.entries.lock() {
-            // Clean up expired entries first and track memory changes
-            let mut memory_delta = 0isize;
-            entries.retain(|_, cached| {
-                if cached.is_expired() {
-                    memory_delta -= Self::entry_memory_size(cached) as isize;
-                    false
-                } else {
-                    true
-                }
-            });
+    fn store(&self, cache_key: CacheKey, key: SecretVec<u8>, timeout: Duration) -> Result<(), String> {
+        let mut state = self.state.write().map_err(|_| "lock poisoned")?;
+        let now = std::time::Instant::now();
 
-            // Check if we're replacing an existing entry
-            if let Some(old_cached) = entries.get(&cache_key) {
-                memory_delta -= Self::entry_memory_size(old_cached) as isize;
+        // Calculate memory BEFORE any modifications
+        let old_size = state.entries.get(&cache_key)
+            .map(|v| Self::entry_memory_size(v))
+            .unwrap_or(0);
+
+        // Remove expired entries and track removed memory
+        let mut removed_memory = 0usize;
+        state.entries.retain(|_, cached| {
+            if cached.expires_at > now {
+                true
+            } else {
+                removed_memory += Self::entry_memory_size(cached);
+                false
             }
+        });
+        state.memory_usage_bytes -= removed_memory;
 
-            // Store new entry and update counter
-            let new_cached = CachedKey::new(key, timeout);
-            memory_delta += Self::entry_memory_size(&new_cached) as isize;
-            entries.insert(cache_key, new_cached);
+        // Build new entry
+        let new_entry = CachedKey {
+            key,
+            expires_at: now + timeout,
+        };
+        let new_size = Self::entry_memory_size(&new_entry);
 
-            // Update atomic counter
-            if memory_delta > 0 {
-                self.memory_usage_bytes
-                    .fetch_add(memory_delta as usize, Ordering::Relaxed);
-            } else if memory_delta < 0 {
-                self.memory_usage_bytes
-                    .fetch_sub((-memory_delta) as usize, Ordering::Relaxed);
-            }
+        // Check capacity
+        let delta = (new_size as i64) - (old_size as i64);
+        if delta > 0 && state.memory_usage_bytes + (delta as usize) > self.max_memory_bytes {
+            return Err("cache full".into());
         }
+
+        // Update atomically (under the same lock)
+        state.entries.insert(cache_key, new_entry);
+        state.memory_usage_bytes = (state.memory_usage_bytes as i64 + delta).max(0) as usize;
+
+        Ok(())
     }
 
     /// Clear all cached keys (for security)
     fn clear(&self) {
-        if let Ok(mut entries) = self.entries.lock() {
-            entries.clear();
-            // Reset atomic counter to zero
-            self.memory_usage_bytes.store(0, Ordering::Relaxed);
+        if let Ok(mut state) = self.state.write() {
+            state.entries.clear();
+            state.memory_usage_bytes = 0;
         }
     }
 
     /// Clean up expired entries
     fn cleanup_expired(&self) {
-        if let Ok(mut entries) = self.entries.lock() {
-            // Track memory to be removed
-            let mut memory_to_remove = 0usize;
-            entries.retain(|_, cached| {
-                if cached.is_expired() {
-                    memory_to_remove += Self::entry_memory_size(cached);
-                    false
-                } else {
+        if let Ok(mut state) = self.state.write() {
+            let now = std::time::Instant::now();
+            let mut removed_memory = 0usize;
+            state.entries.retain(|_, cached| {
+                if cached.expires_at > now {
                     true
+                } else {
+                    removed_memory += Self::entry_memory_size(cached);
+                    false
                 }
             });
-
-            // Update atomic counter
-            if memory_to_remove > 0 {
-                self.memory_usage_bytes
-                    .fetch_sub(memory_to_remove, Ordering::Relaxed);
-            }
+            state.memory_usage_bytes -= removed_memory;
         }
+    }
+
+    /// Get current memory usage
+    fn memory_usage(&self) -> usize {
+        self.state.read()
+            .map(|state| state.memory_usage_bytes)
+            .unwrap_or(0)
     }
 }
 
@@ -589,8 +582,8 @@ fn derive_key_cached(
     // Cache miss - derive key normally
     let key = derive_key(password, salt, mem_kib, time_cost, parallelism)?;
 
-    // Store in cache for future use
-    KEY_CACHE.store(cache_key, SecretVec::new(key.to_vec()), timeout);
+    // Store in cache for future use (ignore errors if cache is full)
+    let _ = KEY_CACHE.store(cache_key, SecretVec::new(key.to_vec()), timeout);
 
     Ok(key)
 }
@@ -745,11 +738,12 @@ pub fn decrypt_keystore_with_config(
 /// - **Cleanup**: Call `cleanup_expired_cache()` periodically to free memory
 /// - **Alerting**: Set alerts if `active_entries` exceeds expected thresholds
 pub fn get_cache_stats() -> CacheStats {
-    if let Ok(entries) = KEY_CACHE.entries.lock() {
-        let total = entries.len();
-        let expired = entries
+    if let Ok(state) = KEY_CACHE.state.read() {
+        let now = std::time::Instant::now();
+        let total = state.entries.len();
+        let expired = state.entries
             .values()
-            .filter(|cached| cached.is_expired())
+            .filter(|cached| cached.expires_at <= now)
             .count();
         CacheStats {
             total_entries: total,
@@ -804,8 +798,7 @@ pub fn get_cache_stats() -> CacheStats {
 /// - Set memory limits and alerts
 /// - Optimize cache timeout settings
 pub fn get_cache_memory_usage() -> usize {
-    // Use atomic counter to avoid lock contention
-    KEY_CACHE.memory_usage_bytes.load(Ordering::Relaxed)
+    KEY_CACHE.memory_usage()
 }
 
 /// Cache statistics for monitoring

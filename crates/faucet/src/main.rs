@@ -46,18 +46,23 @@ impl RateLimiter {
     }
 
     fn check(&self, ip: &str) -> bool {
+        use dashmap::mapref::entry::Entry;
+
         let now = Instant::now();
         let duration = Duration::from_secs(60);
 
+        // Clean expired entries first
         self.requests
             .retain(|_, timestamp| now.duration_since(*timestamp) < duration);
 
-        if self.requests.contains_key(ip) {
-            return false;
+        // Atomic check-and-insert using Entry API
+        match self.requests.entry(ip.to_string()) {
+            Entry::Occupied(_) => false,  // Already exists, rate limited
+            Entry::Vacant(e) => {
+                e.insert(now);
+                true  // First request, allowed
+            }
         }
-
-        self.requests.insert(ip.to_string(), now);
-        true
     }
 }
 
@@ -276,9 +281,23 @@ async fn main() -> Result<()> {
             }
         });
 
+    // SECURITY FIX (CHAIN-NEW-005): Replace allow_any_origin() with specific whitelist
+    // to prevent CSRF attacks where evil.com can drain faucet using victim's IP quota.
+    //
+    // Default: localhost origins for development.
+    // Production: Set FAUCET_ALLOWED_ORIGINS="https://bitquan.io,https://www.bitquan.io"
+    let allowed_origins = env::var("FAUCET_ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| "http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080".to_string());
+
+    let origins: Vec<&str> = allowed_origins
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
     let routes = index_route.or(api_drip).with(
         warp::cors()
-            .allow_any_origin()
+            .allow_origins(origins)
             .allow_methods(vec!["GET", "POST"]),
     );
 
