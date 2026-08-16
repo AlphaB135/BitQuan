@@ -80,6 +80,10 @@ impl AsyncChainStore for MockAsyncStore {
         // Mock implementation - returns None (no pruning)
         Ok(None)
     }
+
+    async fn get_height_by_hash(&self, _hash: &[u8; 32]) -> Result<Option<u64>, AsyncStoreError> {
+        Ok(None)
+    }
 }
 
 /// Create a mock transaction for testing

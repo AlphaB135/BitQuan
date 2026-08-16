@@ -628,23 +628,20 @@ mod tests {
         let _db = PoolDatabase::memory().expect("Failed to create memory database");
         let engine = RewardEngine::new();
 
-        // Fee estimation: 1 tx * 1000 qbits
-        const FEE: u128 = 1000;
-
-        // Block 0: full reward
+        // Block 0: full reward (dummy_block has only coinbase tx, so fees == 0)
         let block0 = dummy_block(0);
         let reward0 = engine.calculate_reward(&block0, 0);
-        assert_eq!(reward0, INITIAL_REWARD + FEE);
+        assert_eq!(reward0, INITIAL_REWARD);
 
         // Block 210,000: first halving
         let block1 = dummy_block(210_000);
         let reward1 = engine.calculate_reward(&block1, 210_000);
-        assert_eq!(reward1, INITIAL_REWARD / 2 + FEE);
+        assert_eq!(reward1, INITIAL_REWARD / 2);
 
         // Block 420,000: second halving
         let block2 = dummy_block(420_000);
         let reward2 = engine.calculate_reward(&block2, 420_000);
-        assert_eq!(reward2, INITIAL_REWARD / 4 + FEE);
+        assert_eq!(reward2, INITIAL_REWARD / 4);
     }
 
     #[test]

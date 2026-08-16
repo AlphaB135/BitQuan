@@ -59,43 +59,39 @@ fn test_reward_halving_logic() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
     let engine = RewardEngine::new();
 
-    // Fee is 1000 qbits per transaction
-    const FEE: u128 = 1000;
+    // Fee is 1000 qbits per transaction for non-coinbase transactions
+    // dummy_block only contains coinbase transaction, so fees are 0
 
-    // Block 0: full reward (50 BQ + fees)
+    // Block 0: full reward (50 BQ)
     let block0 = dummy_block(0);
     let reward0 = engine.calculate_reward(&block0, 0);
     assert_eq!(
-        reward0,
-        50_000_000_000_000_000_000 + FEE,
-        "Initial reward should be 50 BQ + fees"
+        reward0, 50_000_000_000_000_000_000,
+        "Initial reward should be 50 BQ"
     );
 
-    // Block 210,000: first halving (25 BQ + fees)
+    // Block 210,000: first halving (25 BQ)
     let block1 = dummy_block(210_000);
     let reward1 = engine.calculate_reward(&block1, 210_000);
     assert_eq!(
-        reward1,
-        25_000_000_000_000_000_000 + FEE,
-        "First halving should be 25 BQ + fees"
+        reward1, 25_000_000_000_000_000_000,
+        "First halving should be 25 BQ"
     );
 
-    // Block 420,000: second halving (12.5 BQ + fees)
+    // Block 420,000: second halving (12.5 BQ)
     let block2 = dummy_block(420_000);
     let reward2 = engine.calculate_reward(&block2, 420_000);
     assert_eq!(
-        reward2,
-        12_500_000_000_000_000_000 + FEE,
-        "Second halving should be 12.5 BQ + fees"
+        reward2, 12_500_000_000_000_000_000,
+        "Second halving should be 12.5 BQ"
     );
 
-    // Block 630,000: third halving (6.25 BQ + fees)
+    // Block 630,000: third halving (6.25 BQ)
     let block3 = dummy_block(630_000);
     let reward3 = engine.calculate_reward(&block3, 630_000);
     assert_eq!(
-        reward3,
-        6_250_000_000_000_000_000 + FEE,
-        "Third halving should be 6.25 BQ + fees"
+        reward3, 6_250_000_000_000_000_000,
+        "Third halving should be 6.25 BQ"
     );
 }
 
@@ -184,9 +180,6 @@ fn test_miner_reward_accumulation() {
     let _db = PoolDatabase::memory().expect("Failed to create memory database");
     let mut engine = RewardEngine::new();
 
-    // Fee is 1000 satoshis per transaction
-    const FEE: u128 = 1000;
-
     // Mine 3 blocks for the same miner
     for i in 0..3 {
         let block = dummy_block(i);
@@ -201,7 +194,7 @@ fn test_miner_reward_accumulation() {
         .expect("Failed to get miner reward");
     assert_eq!(
         reward,
-        (50_000_000_000_000_000_000 + FEE) * 3,
+        50_000_000_000_000_000_000 * 3,
         "Miner should have 3x rewards"
     );
 
@@ -210,7 +203,7 @@ fn test_miner_reward_accumulation() {
     let total_rewards = engine.total_distributed();
     assert_eq!(
         total_rewards,
-        3 * (50_000_000_000_000_000_000 + FEE), // 150 BQ + fees
+        3 * 50_000_000_000_000_000_000, // 150 BQ (dummy_block has coinbase only, 0 fees)
         "Should have distributed rewards for 3 blocks"
     );
 }
@@ -238,15 +231,14 @@ fn test_multiple_miners() {
         .get_miner_reward("bob")
         .expect("Failed to get bob reward");
 
-    const FEE: u128 = 1000;
     assert_eq!(
         alice_reward,
-        (50_000_000_000_000_000_000 + FEE) * 2,
+        50_000_000_000_000_000_000 * 2,
         "Alice should have 2x rewards"
     );
     assert_eq!(
         bob_reward,
-        50_000_000_000_000_000_000 + FEE,
+        50_000_000_000_000_000_000,
         "Bob should have 1x reward"
     );
 
@@ -296,14 +288,13 @@ fn test_database_persistence() {
     // Note: Converted from persistence test to retention test for Phase 1 Memory DB implementation.
     // Real persistence will be tested in Phase 8.
 
-    const FEE: u128 = 1000;
     let reward = engine
         .get_miner_reward("miner1")
         .expect("Failed to get miner reward");
 
     assert_eq!(
         reward,
-        (50_000_000_000_000_000_000 + FEE) * 2,
+        50_000_000_000_000_000_000 * 2,
         "Rewards should be retained in memory"
     );
 
