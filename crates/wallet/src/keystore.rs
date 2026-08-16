@@ -433,7 +433,12 @@ impl SecureKeyCache {
 
         // Update atomically (under the same lock)
         state.entries.insert(cache_key, new_entry);
-        state.memory_usage_bytes = (state.memory_usage_bytes as i64 + delta).max(0) as usize;
+        // Use saturating arithmetic to avoid overflow on 32-bit platforms
+        state.memory_usage_bytes = if delta >= 0 {
+            state.memory_usage_bytes.saturating_add(delta as usize)
+        } else {
+            state.memory_usage_bytes.saturating_sub((-delta) as usize)
+        };
 
         Ok(())
     }

@@ -52,7 +52,7 @@ impl ChainSync {
 
     /// Get current sync status.
     pub fn status(&self) -> SyncStatus {
-        match self.status.load(Ordering::Relaxed) {
+        match self.status.load(Ordering::SeqCst) {
             0 => SyncStatus::Idle,
             1 => SyncStatus::Discovering,
             2 => SyncStatus::DownloadingHeaders,
@@ -64,35 +64,35 @@ impl ChainSync {
 
     /// Set sync status.
     pub fn set_status(&self, status: SyncStatus) {
-        self.status.store(status as u64, Ordering::Relaxed);
+        self.status.store(status as u64, Ordering::SeqCst);
     }
 
     /// Get local chain height.
     pub fn local_height(&self) -> u64 {
-        self.local_height.load(Ordering::Relaxed)
+        self.local_height.load(Ordering::SeqCst)
     }
 
     /// Update local chain height.
     pub fn set_local_height(&self, height: u64) {
-        self.local_height.store(height, Ordering::Relaxed);
+        self.local_height.store(height, Ordering::SeqCst);
 
         // If we caught up, mark as synced
         if height >= self.best_height() {
             self.set_status(SyncStatus::Synced);
-            self.syncing.store(false, Ordering::Relaxed);
+            self.syncing.store(false, Ordering::SeqCst);
         }
     }
 
     /// Get best known height from peers.
     pub fn best_height(&self) -> u64 {
-        self.best_height.load(Ordering::Relaxed)
+        self.best_height.load(Ordering::SeqCst)
     }
 
     /// Update best known height.
     pub fn set_best_height(&self, height: u64) {
-        let current = self.best_height.load(Ordering::Relaxed);
+        let current = self.best_height.load(Ordering::SeqCst);
         if height > current {
-            self.best_height.store(height, Ordering::Relaxed);
+            self.best_height.store(height, Ordering::SeqCst);
         }
     }
 
@@ -103,7 +103,7 @@ impl ChainSync {
 
     /// Check if sync is in progress.
     pub fn is_syncing(&self) -> bool {
-        self.syncing.load(Ordering::Relaxed)
+        self.syncing.load(Ordering::SeqCst)
     }
 
     /// Start sync process.
@@ -111,7 +111,7 @@ impl ChainSync {
         // Try to set syncing flag
         if self
             .syncing
-            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
         {
             self.set_status(SyncStatus::Discovering);
@@ -124,7 +124,7 @@ impl ChainSync {
 
     /// Complete sync process.
     pub fn complete_sync(&self) {
-        self.syncing.store(false, Ordering::Relaxed);
+        self.syncing.store(false, Ordering::SeqCst);
         self.set_status(SyncStatus::Synced);
     }
 
@@ -146,7 +146,7 @@ impl ChainSync {
 
     /// Get last sync attempt timestamp.
     pub fn last_sync_attempt(&self) -> u64 {
-        self.last_sync_attempt.load(Ordering::Relaxed)
+        self.last_sync_attempt.load(Ordering::SeqCst)
     }
 
     /// Update last sync attempt timestamp.
@@ -156,22 +156,22 @@ impl ChainSync {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        self.last_sync_attempt.store(now, Ordering::Relaxed);
+        self.last_sync_attempt.store(now, Ordering::SeqCst);
     }
 
     /// Get sync errors count.
     pub fn sync_errors(&self) -> u64 {
-        self.sync_errors.load(Ordering::Relaxed)
+        self.sync_errors.load(Ordering::SeqCst)
     }
 
     /// Increment sync errors count.
     pub fn increment_sync_errors(&self) {
-        self.sync_errors.fetch_add(1, Ordering::Relaxed);
+        self.sync_errors.fetch_add(1, Ordering::SeqCst);
     }
 
     /// Reset sync errors count.
     pub fn reset_sync_errors(&self) {
-        self.sync_errors.store(0, Ordering::Relaxed);
+        self.sync_errors.store(0, Ordering::SeqCst);
     }
 }
 
@@ -1075,20 +1075,20 @@ impl AsyncSyncManager {
 
     /// Start the sync manager.
     pub fn start(&self) -> Result<()> {
-        self.running.store(true, Ordering::Relaxed);
+        self.running.store(true, Ordering::SeqCst);
         log::info!("Async sync manager started");
         Ok(())
     }
 
     /// Stop the sync manager.
     pub fn stop(&self) {
-        self.running.store(false, Ordering::Relaxed);
+        self.running.store(false, Ordering::SeqCst);
         log::info!("Async sync manager stopped");
     }
 
     /// Check if running.
     pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::Relaxed)
+        self.running.load(Ordering::SeqCst)
     }
 
     /// Get headers sync engine.
