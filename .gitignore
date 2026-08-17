@@ -42,6 +42,7 @@ forks/
 
 # Wallet files
 *.json
+!shipproof-baseline.json
 crates/wallet/*.json
 
 # Tauri build artifacts
