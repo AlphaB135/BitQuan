@@ -1,0 +1,32 @@
+name: ShipProof Security Scan
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShipProof
+        run: |
+          curl -fsSL https://shipproof.io/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run ShipProof with Baseline
+        run: |
+          shipproof scan . \
+            --baseline shipproof-baseline.json \
+            --fail-on critical \
+            --format github
+
+      - name: Check for New High Severity Findings
+        if: failure()
+        run: |
+          echo "❌ New CRITICAL findings detected!"
+          echo "Review findings and update baseline if intentional."
+          exit 1
