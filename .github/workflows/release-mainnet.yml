@@ -163,7 +163,7 @@ jobs:
         uses: actions/checkout@11d5960 # v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a1 # v4
         with:
           path: release-artifacts
 

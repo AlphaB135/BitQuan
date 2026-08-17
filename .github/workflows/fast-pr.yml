@@ -52,7 +52,7 @@ jobs:
           command: check
 
       - name: Install nextest + llvm-cov
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@b6b84cf # v2
         with:
           tool: cargo-nextest,cargo-llvm-cov
 

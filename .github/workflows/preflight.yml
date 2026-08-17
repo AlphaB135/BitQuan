@@ -164,14 +164,14 @@ jobs:
     if: always()
     steps:
       - name: Download mainnet report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a1 # v4
         continue-on-error: true
         with:
           name: preflight-report-mainnet
           path: reports/mainnet/
 
       - name: Download testnet report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a1 # v4
         continue-on-error: true
         with:
           name: preflight-report-testnet

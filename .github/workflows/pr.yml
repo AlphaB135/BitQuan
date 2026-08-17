@@ -32,7 +32,7 @@ jobs:
       supply: ${{ steps.filter.outputs.supply }}
     steps:
       - uses: actions/checkout@11d5960 # v4
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@0e4a8c6 # v3
         id: filter
         with:
           filters: |

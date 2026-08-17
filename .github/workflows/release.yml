@@ -155,7 +155,7 @@ jobs:
         run: cargo build --release --locked
 
       - name: Generate provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@977bb37 # v3
         with:
           subject-path: |
             target/release/bitquan-node
