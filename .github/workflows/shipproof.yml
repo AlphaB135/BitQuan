@@ -10,7 +10,7 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960 # v4
 
       - name: Install ShipProof
         run: |

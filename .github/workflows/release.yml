@@ -65,11 +65,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960 # v4
         with:
           ref: ${{ env.RELEASE_REF }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
         with:
           targets: ${{ matrix.target }}
 
@@ -120,11 +120,11 @@ jobs:
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960 # v4
         with:
           ref: ${{ env.RELEASE_REF }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
 
       - name: Install cargo-sbom
         run: cargo install cargo-sbom
@@ -145,11 +145,11 @@ jobs:
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960 # v4
         with:
           ref: ${{ env.RELEASE_REF }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
 
       - name: Build for provenance
         run: cargo build --release --locked

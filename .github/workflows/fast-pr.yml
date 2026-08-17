@@ -30,13 +30,13 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
         with:
           components: clippy, rustfmt
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
         with:
           shared-key: fast-pr
 
@@ -47,7 +47,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Cargo Deny
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@b66acf5 # v2
         with:
           command: check
 

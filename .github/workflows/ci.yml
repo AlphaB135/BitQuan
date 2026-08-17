@@ -32,8 +32,8 @@ jobs:
     name: Format
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
@@ -42,35 +42,35 @@ jobs:
     name: Clippy
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
         with:
           components: clippy
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
     name: Test
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - run: cargo test --package bitquan-consensus --package bitquan-storage --package bitquan-network --package bitquan-rpc --package bitquan-mempool --package bitquan-node --locked
 
   coverage:
     name: Coverage
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - name: Install llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+        uses: taiki-e/install-action@8d0d122 # cargo-llvm-cov
       - name: Generate coverage
         run: cargo llvm-cov --workspace --fail-under-lines 65
 
@@ -78,8 +78,8 @@ jobs:
     name: Cargo Deny
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@11d5960 # v4
+      - uses: EmbarkStudios/cargo-deny-action@b66acf5 # v2
         with:
           command: check
 
@@ -87,13 +87,13 @@ jobs:
     name: Fuzz (build only)
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install nightly (for fuzz)
         run: rustup toolchain install nightly --component llvm-tools-preview
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - name: Build fuzz targets
         run: |
           if [ -d fuzz ]; then
@@ -107,9 +107,9 @@ jobs:
     name: Docs
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - run: cargo doc --all --no-deps --document-private-items

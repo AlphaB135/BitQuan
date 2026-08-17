@@ -34,11 +34,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config clang
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - name: Run basic integration tests
         run: |
           BITQUAN_SKIP_PQC_TESTS=1 cargo nextest run --workspace --test integration \
@@ -53,11 +53,11 @@ jobs:
       matrix:
         scenario: [sync, peers, broadcast]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - name: Run ${{ matrix.scenario }} tests
         run: |
           case ${{ matrix.scenario }} in
@@ -71,11 +71,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config jq
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - name: Build node binary
         run: cargo build --release --bin bitquan-node
       - name: Start test cluster and test consensus
@@ -107,8 +107,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install database deps
         run: |
           sudo apt-get update && sudo apt-get install -y \
@@ -116,7 +116,7 @@ jobs:
           sudo service postgresql start
           sudo -u postgres createdb bitquan_test || true
           sudo service redis-server start || sudo redis-server --daemonize yes
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - name: Test PostgreSQL
         run: cargo test --test postgres_integration --release -- --nocapture || echo "Skipped"
       - name: Test Redis
@@ -129,11 +129,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - run: cargo test --test wallet_create --release -- --nocapture || echo "Skipped"
       - run: cargo test --test wallet_ops --release -- --nocapture || echo "Skipped"
       - run: cargo test --test tx_signing --release -- --nocapture || echo "Skipped"
@@ -144,11 +144,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - run: cargo test --test block_perf --release -- --nocapture || echo "Skipped"
       - run: cargo test --test mempool_perf --release -- --nocapture || echo "Skipped"
       - run: cargo test --test rpc_perf --release -- --nocapture || echo "Skipped"
@@ -158,11 +158,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960 # v4
+      - uses: dtolnay/rust-toolchain@4360b52 # stable
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc # v2
       - run: cargo test --test auth_tests --release -- --nocapture || echo "Skipped"
       - run: cargo test --test rate_limiting --release -- --nocapture || echo "Skipped"
       - run: cargo test --test input_validation --release -- --nocapture || echo "Skipped"

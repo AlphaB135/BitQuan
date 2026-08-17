@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960 # v4
         with:
           ref: ${{ inputs.tag }}
 
@@ -134,7 +134,7 @@ jobs:
           ls -lh deploy-package/
 
       - name: Upload deployment manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8 # v4
         with:
           name: deployment-manifest-${{ inputs.environment }}-${{ inputs.tag }}
           path: deploy-package/deployment.json

@@ -42,7 +42,7 @@ jobs:
       security-passed: ${{ steps.scan.outputs.passed }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960 # v4
 
       - name: Run security audit
         id: scan
@@ -80,15 +80,15 @@ jobs:
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960 # v4
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52 # stable
         with:
           components: clippy,rustfmt
 
       - name: Cache cargo registry
-        uses: actions/cache@v5
+        uses: actions/cache@caa2961 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -109,7 +109,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9f # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -137,10 +137,10 @@ jobs:
     environment: ${{ github.event.inputs.environment || 'staging' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960 # v4
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a # v3
         with:
           terraform_version: "1.5.7"
 
@@ -177,7 +177,7 @@ jobs:
       url: https://staging.bitquan.network
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960 # v4
 
       - name: Deploy to Kubernetes
         run: |
@@ -218,7 +218,7 @@ jobs:
       url: https://testnet.bitquan.network
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960 # v4
 
       - name: Deploy to Testnet
         run: |
@@ -257,7 +257,7 @@ jobs:
       url: https://mainnet.bitquan.network
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960 # v4
 
       - name: Pre-deployment checklist
         run: |
