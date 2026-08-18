@@ -25,27 +25,47 @@ docs/
 
 ## Core Documentation
 
-### Architecture & Development
-- **[CLAUDE.md](../CLAUDE.md)** - AI assistant guidelines and development workflows
-- **[README](../README.md)** - Project overview and quick start
+### Getting Started
+- **[Quick Start Guide](QUICK_START_GUIDE.md)** - Get up and running in 5 minutes
+- **[Start Here](START_HERE.md)** - New contributor onboarding
+- **[Developer Guide](DEVELOPER_GUIDE.md)** - Build, test, and contribute
+- **[Release Notes v0.2.0](RELEASE_NOTES_v0.2.0.md)** - Latest release
 
-### Security
+### Security Audits (2026-08-17)
+- **[Security Audit Complete](security/SECURITY_AUDIT_COMPLETE.md)** - Final audit report ✅ Testnet approved
+- **[ShipProof Report](security/SHIPPROOF_REPORT.md)** - Production risk scan (250 findings, 0 blocking)
+- **[SP203 Fixed](security/SP203_FIXED.md)** - GitHub Actions pinning (189 actions secured)
+- **[Security Audit Report](security/SECURITY_AUDIT_REPORT.md)** - Comprehensive security analysis
+- **[Security Arsenal](security/README_SECURITY_ARSENAL.md)** - Security tools and methodologies
+
+### Security Deep Dive
 - **[SECURITY-HARDENING.md](./security/SECURITY-HARDENING.md)** - Security hardening guidelines
 - **[WALLET_SECURITY_AUDIT_REPORT.md](./security/audit-reports/WALLET_SECURITY_AUDIT_REPORT.md)** - Wallet security audit
 - **[SECURITY-SCANNING.md](./security/SECURITY-SCANNING.md)** - Automated security scanning
+- **[Executive Summary](security/EXECUTIVE_SUMMARY.md)** - High-level security overview
+- **[Threat Model](THREAT_MODEL.md)** - Attack surface analysis
+
+### Testing & Quality Assurance
+- **[Test Specification Matrix](testing/MODULE_1_TEST_SPECIFICATION_MATRIX.md)** - Comprehensive test coverage
+- **[Test Runbooks](testing/MODULE_2_TEST_RUNBOOKS.md)** - Step-by-step testing procedures
+- **[Testnet Launch SOP](testing/MODULE_3_TESTNET_LAUNCH_SOP.md)** - Launch standard operating procedures
+- **[Production Readiness Signoff](testing/MODULE_4_PRODUCTION_READINESS_SIGNOFF.md)** - Go-live checklist
+- **[TRANSACTION_TESTING_GUIDE.md](./testing/TRANSACTION_TESTING_GUIDE.md)** - Transaction testing guide
+- **[TRANSACTION_TEST_FINAL_REPORT.md](./testing/TRANSACTION_TEST_FINAL_REPORT.md)** - Test results summary
 
 ### Protocol & Upgrades
 - **[ASYNC_MIGRATION_PLAN.md](./migrations/ASYNC_MIGRATION_PLAN.md)** - Async architecture migration plan
 - **[ASYNC_MIGRATION_STATUS.md](./migrations/ASYNC_MIGRATION_STATUS.md)** - Migration status tracker
 
-### Operations
+### Operations & Deployment
+- **[Production Deployment](PRODUCTION_DEPLOYMENT.md)** - Mainnet deployment guide
+- **[Launch Checklist](LAUNCH_CHECKLIST.md)** - Pre-launch verification
 - **[IBD_PROGRESS_TRACKING.md](./operations/IBD_PROGRESS_TRACKING.md)** - Initial Block Download progress monitoring
 - **[DISASTER-RECOVERY.md](./operations/DISASTER-RECOVERY.md)** - Disaster recovery procedures
 - **[ROADMAP](./operations/ROADMAP.md)** - Project roadmap and milestones
 
-### Testing
-- **[TRANSACTION_TESTING_GUIDE.md](./testing/TRANSACTION_TESTING_GUIDE.md)** - Transaction testing guide
-- **[TRANSACTION_TEST_FINAL_REPORT.md](./testing/TRANSACTION_TEST_FINAL_REPORT.md)** - Test results summary
+### Funding
+- **[Funding](FUNDING.md)** - Support BitQuan development
 
 ## Key Concepts
 

@@ -1,9 +1,6 @@
 # BitQuan — Post-Quantum Layer-1 Blockchain
 
-		"Talk is cheap. Show me the code."
-		— Linus Torvalds
-
-BitQuan is a proof-of-work blockchain that doesn't fuck around with quantum vulnerability. While everyone else is busy adding more buzzwords to their whitepapers, we're using **CRYSTALS-Dilithium5** (NIST FIPS 205 / Level 5) because when Shor's algorithm breaks ECDSA, you'll wish you had.
+BitQuan is a proof-of-work blockchain built for the post-quantum era. While most blockchains claim "quantum-resistance" while still using ECDSA, we implement **CRYSTALS-Dilithium5** (NIST FIPS 205 / Level 5) — the highest security level standardized for quantum-resistant digital signatures.
 
 No smart contracts. No DAOs. No governance tokens. No pre-mine. No bullshit.
 
