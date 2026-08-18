@@ -27,7 +27,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["loggin
 rcgen = "0.14"
 
 # JWT Authentication
-jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
+jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto"] }
 chrono = { version = "0.4", features = ["serde"] }
 hmac = "0.12"
 sha2 = "0.10"

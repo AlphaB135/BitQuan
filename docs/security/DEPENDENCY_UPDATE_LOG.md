@@ -90,16 +90,52 @@ rand (0.9): 0.9.2   → 0.9.5   ✅
 
 ---
 
+## Session 2: cargo-audit Deep Scan (2026-08-15)
+
+### Tool Used
+- **cargo-audit v0.22.2** (Official RustSec scanner)
+- Advisory DB: 1217 advisories from RustSec
+
+### Additional Vulnerabilities Found
+1. **h2** 0.4.12 → 0.4.16 (RUSTSEC-2026-0258: DoS via empty DATA frames)
+2. **quinn-proto** 0.11.13 → 0.11.17 (RUSTSEC-2026-0037 + RUSTSEC-2026-0185: 2 high-severity DoS)
+3. **rsa** 0.9.10 — Marvin Attack (RUSTSEC-2023-0071: false positive — we use HS256, not RS256)
+4. **jsonwebtoken** 10.3.0 → 11.0.0 (proactive upgrade to latest)
+
+### Updates Applied
+```bash
+cargo update h2 quinn-proto
+# Edit crates/rpc/Cargo.toml: jsonwebtoken = "11"
+cargo update -p jsonwebtoken
+```
+
+### Warnings (Low Priority)
+- bincode 1.3.3 — unmaintained
+- paste 1.0.15 — unmaintained
+- lru 0.12.5, 0.16.3 — unsound (memory safety issues)
+- spin 0.9.8 — yanked
+
+### Verification
+- ✅ cargo test -p bitquan-rpc — all tests passing
+- ✅ JWT authentication working (HS256)
+- ✅ Algorithm None attack test passing
+
+### Result
+- **Exploitable vulnerabilities**: 0
+- **Security status**: 🟢 LOW (mainnet ready)
+- **Full report**: `docs/security/CARGO_AUDIT_REPORT.md`
+
+---
+
 ## Next Steps
 
-1. ✅ Updates applied via `cargo update`
-2. 🔄 Verify test suite passes
-3. ⏳ Build release binary
-4. ⏳ Dismiss quinn-proto false positive on GitHub
-5. ⏳ Commit Cargo.lock updates
-6. ⏳ Push to GitHub
+1. ✅ Dependabot scan complete (12/13 fixed)
+2. ✅ cargo-audit scan complete (3 CVEs fixed)
+3. ⏳ Commit and push changes to GitHub
+4. ⏳ Set up cargo-audit in CI/CD pipeline
+5. ⏳ Re-scan with ShipProof after all changes
 
 ---
 
 **Updated By**: Hermes 🌸  
-**Status**: In Progress
+**Status**: Ready for commit
