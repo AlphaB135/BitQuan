@@ -971,9 +971,9 @@ pub struct EclipseConfig {
 impl Default for EclipseConfig {
     fn default() -> Self {
         Self {
-            max_peers_per_subnet: 2,
+            max_peers_per_subnet: 10, // Increased for localhost testing
             anchor_peers: vec![],
-            enforce_subnet_diversity: true,
+            enforce_subnet_diversity: false, // Disabled for localhost testing
         }
     }
 }

@@ -9,12 +9,12 @@ id = "mainnet"
 # Genesis block hash (to be set at mainnet launch)
 genesis_hash = "0000000000000000000000000000000000000000000000000000000000000000"
 
-# Network ports
-p2p_port = 8333
-rpc_port = 8332
+# Network ports (node 2 - different ports)
+p2p_port = 8334
+rpc_port = 8333
 
-# Bootstrap nodes (to be populated at mainnet launch)
-bootstrap_nodes = []
+# Bootstrap nodes (connect to node 1)
+bootstrap_nodes = ["127.0.0.1:8333"]
 
 # Initial difficulty (higher than testnet)
 difficulty_bits = "0x1c00ffff"
@@ -45,7 +45,7 @@ max_tx_size = 100000
 
 [rpc]
 # RPC server bind address
-rpc_bind = "127.0.0.1:8332"
+rpc_bind = "127.0.0.1:8432"
 
 # Basic authentication (development/testing only)
 rpc_user = "bitquan"
@@ -80,16 +80,16 @@ keystore_kdf_parallelism = 2
 # Log level: trace, debug, info, warn, error
 level = "info"
 
-# Log to file
-log_file = "data/mainnet/node.log"
+# Log to file (node 2)
+log_file = "data/mainnet-node2/node.log"
 
 # Log rotation
 max_log_size_mb = 200
 max_log_files = 20
 
 [storage]
-# Database path
-db_path = "data/mainnet/chainstate"
+# Database path (node 2 - separate database)
+db_path = "data/mainnet-node2/chainstate"
 
 # Cache size in MB (larger for mainnet)
 cache_size_mb = 2048

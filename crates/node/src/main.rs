@@ -155,6 +155,9 @@ fn install_panic_hook() {
 #[allow(clippy::too_many_arguments)]
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize logging
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     // Install panic hook for better crash reporting
     install_panic_hook();
 

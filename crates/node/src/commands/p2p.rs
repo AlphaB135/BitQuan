@@ -664,37 +664,90 @@ pub async fn p2p_server(
             let ctx = worker_ctx_for_accept.clone();
 
             tokio::spawn(async move {
-                // Convert tokio TcpStream to std TcpStream for Peer::new_inbound
-                let std_stream = match stream.into_std() {
+                let magic = bitquan_network::protocol::network_magic(ctx.network_id);
+
+                // STEP 1: Async Noise handshake (responder)
+                // Note: stream is already a tokio TcpStream from listener.accept()
+                let (mut tokio_stream, transport, remote_public_key) =
+                    match bitquan_network::peer::async_noise_handshake_responder(stream, &noise_config).await {
+                        Ok(result) => result,
+                        Err(e) => {
+                            log::error!("Noise handshake failed for {}: {}", peer_addr, e);
+                            return;
+                        }
+                    };
+
+                log::info!(
+                    "Encrypted connection established (inbound) from {} - remote key: {}",
+                    peer_addr,
+                    hex::encode(remote_public_key)
+                );
+
+                // STEP 2: Get our current blockchain height for version handshake
+                let our_height = match ctx.storage.height().await {
+                    Ok(h) => h,
+                    Err(e) => {
+                        log::error!("Failed to get blockchain height for {}: {}", peer_addr, e);
+                        return;
+                    }
+                };
+
+                // STEP 3: Async version handshake (VERSION/VERACK exchange)
+                let (version, user_agent, start_height) =
+                    match bitquan_network::peer::async_version_handshake_inbound(
+                        &mut tokio_stream,
+                        magic,
+                        our_height,
+                    ).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::error!("Version handshake failed for {}: {}", peer_addr, e);
+                            return;
+                        }
+                    };
+
+                log::info!(
+                    "✅ Peer {} ready (version {}, height {}, agent: {})",
+                    peer_addr, version, start_height, user_agent
+                );
+
+                // STEP 4: Convert tokio stream back to std stream for NoiseTransport
+                let std_stream = match tokio_stream.into_std() {
                     Ok(s) => s,
                     Err(e) => {
-                        log::error!(
-                            "Failed to convert tokio stream to std stream for {}: {}",
-                            peer_addr,
-                            e
-                        );
+                        log::error!("Failed to convert to std stream for {}: {}", peer_addr, e);
                         return;
                     }
                 };
 
-                // Create Peer from inbound stream using Noise handshake
-                let magic = bitquan_network::protocol::network_magic(ctx.network_id);
-                let peer_result =
-                    bitquan_network::Peer::new_inbound(std_stream, peer_addr, magic, &noise_config);
+                // STEP 5: Set blocking mode for worker loop
+                if let Err(e) = std_stream.set_nonblocking(false) {
+                    log::error!("Failed to set blocking mode for worker loop: {}", e);
+                    return;
+                }
 
-                let peer = match peer_result {
-                    Ok(p) => p,
-                    Err(e) => {
-                        log::error!("Peer handshake failed for {}: {}", peer_addr, e);
-                        return;
-                    }
-                };
+                // STEP 6: Create NoiseTransport from the completed handshake components
+                let noise_transport = bitquan_network::NoiseTransport::from_parts(
+                    std_stream,
+                    transport,
+                    remote_public_key,
+                );
 
-                // Run peer loop with worker context
+                // STEP 7: Create Peer with all handshake information
+                let peer = bitquan_network::Peer::from_handshaked_with_version(
+                    peer_addr,
+                    noise_transport,
+                    remote_public_key,
+                    magic,
+                    version,
+                    user_agent,
+                    start_height,
+                );
+
+                // STEP 8: Run peer loop with worker context
                 let result = crate::worker::run_peer_loop(peer, ctx).await;
 
                 if let Err(e) = result {
-                    // Log peer connection errors but continue accepting more
                     log::error!("Peer worker error for {}: {}", peer_addr, e);
                 }
             });

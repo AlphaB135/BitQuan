@@ -1,0 +1,31 @@
+# 4-Node Test Network Configuration
+# Node 3 - Second Seed Node
+
+[network]
+# P2P network settings
+p2p_port = 8335
+network = "mainnet"
+
+# Bootstrap to both seed nodes for redundancy
+bootstrap_nodes = ["127.0.0.1:8333", "127.0.0.1:8334"]
+
+# P2P configuration
+max_peers = 50
+max_inbound_peers = 32
+max_outbound_peers = 18
+
+[rpc]
+# RPC server bind address
+rpc_bind = "127.0.0.1:8433"
+rpc_user = "bitquan"
+rpc_password = "changeme_for_production"
+allow_insecure = true
+
+[storage]
+# Database path
+db_path = "data/mainnet-node3/chainstate"
+
+[logging]
+# Log settings
+log_level = "info"
+log_file = "data/mainnet-node3/node.log"

@@ -1,0 +1,26 @@
+# BitQuan Mainnet Node Configuration (Non-Mining)
+# For relay/validation only - NO MINING
+
+[network]
+id = "mainnet"
+p2p_port = 8444
+rpc_port = 8333
+
+# No bootstrap nodes yet (mainnet not launched)
+bootstrap_nodes = []
+
+[rpc]
+bind = "127.0.0.1:8333"
+user = "bitquan"
+password = "securepassword123"
+
+[storage]
+datadir = "/home/ubuntu/bitquan-audit/data/mainnet"
+
+[mining]
+# IMPORTANT: Mining disabled
+enable = false
+allow_mining_without_peers = false
+
+[node]
+max_peers = 50

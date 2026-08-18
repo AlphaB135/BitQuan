@@ -37,6 +37,7 @@ getrandom = "0.2"
 hex.workspace = true
 hmac = "0.12"
 log = "0.4"
+env_logger = "0.11"
 nix = { version = "0.29", features = ["fs", "user"] }
 num_cpus = "1.16"
 pqc-dilithium-seeded = { path = "../pqc-dilithium-seeded", version = "0.2.1" }
